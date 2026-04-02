@@ -42,7 +42,42 @@ struct LoginView: View {
                     }
 
                     if showTokenField {
-                        VStack(spacing: 12) {
+                        VStack(spacing: 16) {
+                            // Steps guide
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("How to get your token")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.white)
+
+                                StepRow(number: 1, text: "Go to vercel.com/account/tokens")
+                                StepRow(number: 2, text: "Tap \"Create Token\"")
+                                StepRow(number: 3, text: "Name it anything (e.g. Verceltics)")
+                                StepRow(number: 4, text: "Set scope to your account, expiration as needed")
+                                StepRow(number: 5, text: "Copy the token and paste it below")
+                            }
+                            .padding(14)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.white.opacity(0.06))
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+
+                            Button {
+                                if let url = URL(string: "https://vercel.com/account/tokens") {
+                                    UIApplication.shared.open(url)
+                                }
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "arrow.up.right")
+                                        .font(.caption2.bold())
+                                    Text("Open Vercel Tokens Page")
+                                        .font(.caption.bold())
+                                }
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 40)
+                                .background(Color.white.opacity(0.1))
+                                .foregroundStyle(.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                            }
+
                             SecureField("Paste your Vercel token", text: $tokenInput)
                                 .textFieldStyle(.plain)
                                 .font(.system(.body, design: .monospaced))
@@ -54,10 +89,6 @@ struct LoginView: View {
                                 .autocorrectionDisabled()
                                 .textInputAutocapitalization(.never)
                                 .onAppear { isTokenFocused = true }
-
-                            Text("Create a token at vercel.com/account/tokens")
-                                .font(.caption2)
-                                .foregroundStyle(.gray)
 
                             Button {
                                 Task { await authManager.login(token: tokenInput.trimmingCharacters(in: .whitespacesAndNewlines)) }
@@ -106,8 +137,30 @@ struct LoginView: View {
                 }
 
                 Spacer()
-                    .frame(height: 60)
+                    .frame(height: 40)
             }
+        }
+    }
+}
+
+// MARK: - Step Row
+
+struct StepRow: View {
+    let number: Int
+    let text: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Text("\(number)")
+                .font(.caption2.bold().monospacedDigit())
+                .foregroundStyle(.black)
+                .frame(width: 18, height: 18)
+                .background(.white)
+                .clipShape(Circle())
+
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(.gray)
         }
     }
 }
