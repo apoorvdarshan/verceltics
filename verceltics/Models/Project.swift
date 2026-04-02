@@ -3,29 +3,27 @@ import Foundation
 struct Project: Identifiable, Decodable {
     let id: String
     let name: String
-    let targets: [Target]?
+    let framework: String?
     let latestDeployments: [Deployment]?
     let updatedAt: Int?
+    let targets: Targets?
+    let link: GitLink?
 
     var primaryDomain: String? {
-        targets?.first?.productionDomain
+        targets?.production?.alias?.first(where: { !$0.contains("vercel.app") })
+            ?? targets?.production?.alias?.first
     }
 
     var lastDeployment: Deployment? {
         latestDeployments?.first
     }
 
-    struct Target: Decodable {
-        let productionDomain: String?
+    struct Targets: Decodable {
+        let production: ProductionTarget?
+    }
 
-        enum CodingKeys: String, CodingKey {
-            case productionDomain
-        }
-
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            productionDomain = try container.decodeIfPresent(String.self, forKey: .productionDomain)
-        }
+    struct ProductionTarget: Decodable {
+        let alias: [String]?
     }
 
     struct Deployment: Decodable {
@@ -44,6 +42,11 @@ struct Project: Identifiable, Decodable {
 
     struct DeploymentMeta: Decodable {
         let githubCommitMessage: String?
+    }
+
+    struct GitLink: Decodable {
+        let repo: String?
+        let org: String?
     }
 }
 
