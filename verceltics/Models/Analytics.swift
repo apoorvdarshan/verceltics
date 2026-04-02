@@ -1,75 +1,78 @@
 import Foundation
 
-struct AnalyticsSummary: Decodable {
-    let visitors: MetricData?
-    let pageViews: MetricData?
-    let bounceRate: MetricData?
+// MARK: - Overview Response
 
-    struct MetricData: Decodable {
-        let total: Int?
-        let devices: Int?
-        let change: Double?
-
-        var displayValue: Int {
-            total ?? devices ?? 0
-        }
-    }
-
-    enum CodingKeys: String, CodingKey {
-        case visitors = "visitorsCount"
-        case pageViews = "pageViewsCount"
-        case bounceRate
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        visitors = try container.decodeIfPresent(MetricData.self, forKey: .visitors)
-        pageViews = try container.decodeIfPresent(MetricData.self, forKey: .pageViews)
-        bounceRate = try container.decodeIfPresent(MetricData.self, forKey: .bounceRate)
-    }
-
-    init(visitors: MetricData?, pageViews: MetricData?, bounceRate: MetricData?) {
-        self.visitors = visitors
-        self.pageViews = pageViews
-        self.bounceRate = bounceRate
-    }
+struct AnalyticsOverview: Decodable {
+    let total: Int
+    let devices: Int
+    let bounceRate: Int
 }
 
-struct TimeseriesDataPoint: Identifiable, Decodable {
+// MARK: - Timeseries Response
+
+struct TimeseriesResponse: Decodable {
+    let data: TimeseriesData
+}
+
+struct TimeseriesData: Decodable {
+    let groups: [String: [TimeseriesPoint]]
+}
+
+struct TimeseriesPoint: Identifiable, Decodable {
     var id: String { key }
     let key: String
     let total: Int
+    let devices: Int
+    let bounceRate: Int
 
     var date: Date? {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter.date(from: key) ?? ISO8601DateFormatter().date(from: key)
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f.date(from: key)
     }
 }
 
-struct TimeseriesResponse: Decodable {
-    let data: [TimeseriesDataPoint]
-}
+// MARK: - Aggregated breakdown item (computed from timeseries groupBy)
 
-struct PageData: Identifiable, Decodable {
+struct BreakdownItem: Identifiable {
     var id: String { key }
     let key: String
-    let devices: Int
+    let visitors: Int
 }
 
-struct PagesResponse: Decodable {
-    let data: [PageData]
+// MARK: - Full analytics data for a project
+
+struct AnalyticsData {
+    var overview: AnalyticsOverview?
+    var previousOverview: AnalyticsOverview?
+    var timeseries: [TimeseriesPoint] = []
+    var pages: [BreakdownItem] = []
+    var referrers: [BreakdownItem] = []
+    var countries: [BreakdownItem] = []
+    var devices: [BreakdownItem] = []
+    var os: [BreakdownItem] = []
+    var browsers: [BreakdownItem] = []
+
+    var visitorsChange: Double? {
+        percentChange(current: overview?.devices, previous: previousOverview?.devices)
+    }
+
+    var pageViewsChange: Double? {
+        percentChange(current: overview?.total, previous: previousOverview?.total)
+    }
+
+    var bounceRateChange: Double? {
+        guard let current = overview?.bounceRate, let previous = previousOverview?.bounceRate, previous != 0 else { return nil }
+        return Double(current - previous)
+    }
+
+    private func percentChange(current: Int?, previous: Int?) -> Double? {
+        guard let c = current, let p = previous, p != 0 else { return nil }
+        return ((Double(c) - Double(p)) / Double(p)) * 100
+    }
 }
 
-struct ReferrerData: Identifiable, Decodable {
-    var id: String { key }
-    let key: String
-    let devices: Int
-}
-
-struct ReferrersResponse: Decodable {
-    let data: [ReferrerData]
-}
+// MARK: - Time Range
 
 enum TimeRange: String, CaseIterable, Identifiable {
     case day = "24h"
@@ -78,21 +81,36 @@ enum TimeRange: String, CaseIterable, Identifiable {
     case quarter = "90d"
 
     var id: String { rawValue }
-
     var label: String { rawValue }
 
-    var fromTimestamp: Int {
-        let now = Date()
-        let seconds: TimeInterval = switch self {
+    var interval: TimeInterval {
+        switch self {
         case .day: -86400
         case .week: -604800
         case .month: -2592000
         case .quarter: -7776000
         }
-        return Int(now.addingTimeInterval(seconds).timeIntervalSince1970 * 1000)
     }
 
-    var toTimestamp: Int {
-        Int(Date().timeIntervalSince1970 * 1000)
+    var fromDate: String {
+        formatDate(Date().addingTimeInterval(interval))
+    }
+
+    var toDate: String {
+        formatDate(Date())
+    }
+
+    var previousFromDate: String {
+        formatDate(Date().addingTimeInterval(interval * 2))
+    }
+
+    var previousToDate: String {
+        fromDate
+    }
+
+    private func formatDate(_ date: Date) -> String {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f.string(from: date)
     }
 }

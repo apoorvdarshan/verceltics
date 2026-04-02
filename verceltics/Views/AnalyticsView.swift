@@ -5,10 +5,7 @@ import SwiftUI
 final class AnalyticsViewModel {
     let project: Project
 
-    var summary: AnalyticsSummary?
-    var timeseries: [TimeseriesDataPoint] = []
-    var pages: [PageData] = []
-    var referrers: [ReferrerData] = []
+    var data = AnalyticsData()
     var selectedRange: TimeRange = .week
     var isLoading = true
     var error: String?
@@ -21,18 +18,24 @@ final class AnalyticsViewModel {
         isLoading = true
         error = nil
         let api = VercelAPI(token: token)
+        let pid = project.id
+        let tid = project.teamId
+        let range = selectedRange
 
         do {
-            async let s = api.fetchAnalyticsSummary(projectId: project.id, range: selectedRange)
-            async let t = api.fetchTimeseries(projectId: project.id, range: selectedRange)
-            async let p = api.fetchPages(projectId: project.id, range: selectedRange)
-            async let r = api.fetchReferrers(projectId: project.id, range: selectedRange)
+            async let overview = api.fetchOverview(projectId: pid, teamId: tid, range: range)
+            async let previous = api.fetchPreviousOverview(projectId: pid, teamId: tid, range: range)
+            async let timeseries = api.fetchTimeseries(projectId: pid, teamId: tid, range: range)
+            async let pages = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "path")
+            async let referrers = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "referrer")
+            async let countries = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "country")
 
-            let (summaryResult, timeseriesResult, pagesResult, referrersResult) = try await (s, t, p, r)
-            summary = summaryResult
-            timeseries = timeseriesResult
-            pages = pagesResult
-            referrers = referrersResult
+            data.overview = try await overview
+            data.previousOverview = try? await previous
+            data.timeseries = try await timeseries
+            data.pages = try await pages
+            data.referrers = try await referrers
+            data.countries = try await countries
         } catch {
             self.error = error.localizedDescription
         }
@@ -75,12 +78,32 @@ struct AnalyticsView: View {
 
     private var analyticsContent: some View {
         ScrollView {
-            VStack(spacing: 20) {
+            VStack(spacing: 16) {
+                // Domain subtitle
+                if let domain = project.primaryDomain {
+                    HStack(spacing: 4) {
+                        Image(systemName: "globe")
+                            .font(.caption2)
+                        Text(domain)
+                            .font(.caption)
+                    }
+                    .foregroundStyle(.gray)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
                 timeRangePicker
                 statsCards
-                chartSection
-                pagesSection
-                referrersSection
+
+                AnalyticsChart(data: vm.data.timeseries)
+                    .frame(height: 220)
+                    .padding(16)
+                    .background(Color.white.opacity(0.04))
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+
+                // Pages & Referrers side by side on larger screens, stacked on phone
+                breakdownSection(title: "Pages", icon: "doc.text", items: vm.data.pages, isPath: true)
+                breakdownSection(title: "Referrers", icon: "link", items: vm.data.referrers, emptyLabel: "Direct")
+                breakdownSection(title: "Countries", icon: "globe.americas", items: vm.data.countries, isCountry: true)
             }
             .padding()
         }
@@ -90,145 +113,124 @@ struct AnalyticsView: View {
     // MARK: - Time Range Picker
 
     private var timeRangePicker: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             ForEach(TimeRange.allCases) { range in
                 Button {
-                    vm.selectedRange = range
+                    withAnimation(.snappy(duration: 0.2)) {
+                        vm.selectedRange = range
+                    }
                 } label: {
                     Text(range.label)
-                        .font(.caption.bold())
+                        .font(.system(size: 13, weight: .medium))
                         .padding(.horizontal, 14)
                         .padding(.vertical, 8)
-                        .background(vm.selectedRange == range ? Color.white : Color.white.opacity(0.06))
+                        .background(vm.selectedRange == range ? Color.white : Color.clear)
                         .foregroundStyle(vm.selectedRange == range ? .black : .gray)
                         .clipShape(Capsule())
                 }
             }
             Spacer()
         }
+        .padding(4)
+        .background(Color.white.opacity(0.06))
+        .clipShape(Capsule())
     }
 
     // MARK: - Stats Cards
 
     private var statsCards: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             StatCard(
                 title: "Visitors",
-                value: formatNumber(vm.summary?.visitors?.displayValue ?? 0),
-                change: vm.summary?.visitors?.change,
+                value: formatNumber(vm.data.overview?.devices ?? 0),
+                change: vm.data.visitorsChange,
                 icon: "person.2"
             )
             StatCard(
                 title: "Page Views",
-                value: formatNumber(vm.summary?.pageViews?.displayValue ?? 0),
-                change: vm.summary?.pageViews?.change,
+                value: formatNumber(vm.data.overview?.total ?? 0),
+                change: vm.data.pageViewsChange,
                 icon: "eye"
             )
             StatCard(
                 title: "Bounce Rate",
-                value: formatBounceRate(vm.summary?.bounceRate?.displayValue),
-                change: vm.summary?.bounceRate?.change,
+                value: "\(vm.data.overview?.bounceRate ?? 0)%",
+                change: vm.data.bounceRateChange,
                 invertChange: true,
                 icon: "arrow.uturn.left"
             )
         }
     }
 
-    // MARK: - Chart
+    // MARK: - Breakdown Section
 
-    private var chartSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Visitors")
-                .font(.subheadline.bold())
-                .foregroundStyle(.white)
-
-            if vm.timeseries.isEmpty {
-                Text("No data for this period")
+    private func breakdownSection(
+        title: String,
+        icon: String,
+        items: [BreakdownItem],
+        emptyLabel: String = "",
+        isPath: Bool = false,
+        isCountry: Bool = false
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Image(systemName: icon)
                     .font(.caption)
                     .foregroundStyle(.gray)
-                    .frame(maxWidth: .infinity, minHeight: 180)
-            } else {
-                AnalyticsChart(data: vm.timeseries)
-                    .frame(height: 200)
-            }
-        }
-        .padding(16)
-        .background(Color.white.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-    }
-
-    // MARK: - Pages
-
-    private var pagesSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "doc.text")
-                    .foregroundStyle(.gray)
-                Text("Top Pages")
+                Text(title)
                     .font(.subheadline.bold())
                     .foregroundStyle(.white)
+                Spacer()
+                Text("VISITORS")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.gray)
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
 
-            if vm.pages.isEmpty {
-                Text("No page data available")
+            Divider().overlay(Color.white.opacity(0.06))
+
+            if items.isEmpty {
+                Text("No data available")
                     .font(.caption)
                     .foregroundStyle(.gray)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 24)
             } else {
-                ForEach(vm.pages.prefix(10)) { page in
-                    HStack {
-                        Text(page.key)
-                            .font(.caption)
-                            .foregroundStyle(.white)
-                            .lineLimit(1)
-                        Spacer()
-                        Text("\(page.devices)")
-                            .font(.caption.monospacedDigit())
+                let maxValue = items.first?.visitors ?? 1
+                ForEach(items.prefix(8)) { item in
+                    HStack(spacing: 0) {
+                        ZStack(alignment: .leading) {
+                            GeometryReader { geo in
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(Color.white.opacity(0.06))
+                                    .frame(width: geo.size.width * CGFloat(item.visitors) / CGFloat(maxValue))
+                            }
+                            HStack(spacing: 6) {
+                                if isCountry {
+                                    Text(countryFlag(item.key))
+                                        .font(.caption)
+                                }
+                                Text(displayName(item.key, emptyLabel: emptyLabel, isCountry: isCountry))
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(.white)
+                                    .lineLimit(1)
+                            }
+                            .padding(.horizontal, 10)
+                        }
+                        .frame(height: 36)
+
+                        Text("\(item.visitors)")
+                            .font(.system(size: 13, weight: .medium).monospacedDigit())
                             .foregroundStyle(.gray)
+                            .frame(width: 50, alignment: .trailing)
+                            .padding(.trailing, 10)
                     }
-                    .padding(.vertical, 4)
                 }
             }
         }
-        .padding(16)
-        .background(Color.white.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-    }
-
-    // MARK: - Referrers
-
-    private var referrersSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "link")
-                    .foregroundStyle(.gray)
-                Text("Top Referrers")
-                    .font(.subheadline.bold())
-                    .foregroundStyle(.white)
-            }
-
-            if vm.referrers.isEmpty {
-                Text("No referrer data available")
-                    .font(.caption)
-                    .foregroundStyle(.gray)
-            } else {
-                ForEach(vm.referrers.prefix(10)) { ref in
-                    HStack {
-                        Text(ref.key.isEmpty ? "Direct" : ref.key)
-                            .font(.caption)
-                            .foregroundStyle(.white)
-                            .lineLimit(1)
-                        Spacer()
-                        Text("\(ref.devices)")
-                            .font(.caption.monospacedDigit())
-                            .foregroundStyle(.gray)
-                    }
-                    .padding(.vertical, 4)
-                }
-            }
-        }
-        .padding(16)
-        .background(Color.white.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .background(Color.white.opacity(0.04))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
     // MARK: - Helpers
@@ -244,9 +246,20 @@ struct AnalyticsView: View {
         return "\(value)"
     }
 
-    private func formatBounceRate(_ value: Int?) -> String {
-        guard let value else { return "—" }
-        return "\(value)%"
+    private func displayName(_ key: String, emptyLabel: String, isCountry: Bool) -> String {
+        if key.isEmpty { return emptyLabel.isEmpty ? "Unknown" : emptyLabel }
+        if isCountry { return countryName(key) }
+        return key
+    }
+
+    private func countryFlag(_ code: String) -> String {
+        guard code.count == 2 else { return "" }
+        let base: UInt32 = 127397
+        return code.uppercased().unicodeScalars.compactMap { UnicodeScalar(base + $0.value) }.map { String($0) }.joined()
+    }
+
+    private func countryName(_ code: String) -> String {
+        Locale.current.localizedString(forRegionCode: code) ?? code
     }
 }
 
@@ -257,8 +270,8 @@ struct AnalyticsSkeletonView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 20) {
-                HStack(spacing: 8) {
+            VStack(spacing: 16) {
+                HStack(spacing: 6) {
                     ForEach(0..<4, id: \.self) { _ in
                         RoundedRectangle(cornerRadius: 20)
                             .fill(Color.white.opacity(shimmer ? 0.1 : 0.05))
@@ -267,7 +280,7 @@ struct AnalyticsSkeletonView: View {
                     Spacer()
                 }
 
-                HStack(spacing: 12) {
+                HStack(spacing: 10) {
                     ForEach(0..<3, id: \.self) { _ in
                         VStack(alignment: .leading, spacing: 8) {
                             RoundedRectangle(cornerRadius: 4)
@@ -275,44 +288,33 @@ struct AnalyticsSkeletonView: View {
                                 .frame(width: 60, height: 12)
                             RoundedRectangle(cornerRadius: 4)
                                 .fill(Color.white.opacity(shimmer ? 0.12 : 0.06))
-                                .frame(width: 50, height: 24)
+                                .frame(width: 44, height: 24)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(16)
-                        .background(Color.white.opacity(0.06))
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .padding(14)
+                        .background(Color.white.opacity(0.04))
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
                     }
                 }
 
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.white.opacity(0.06))
-                    .frame(height: 230)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.white.opacity(shimmer ? 0.08 : 0.03))
-                            .padding(16)
-                    )
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color.white.opacity(0.04))
+                    .frame(height: 250)
 
-                ForEach(0..<2, id: \.self) { _ in
-                    VStack(alignment: .leading, spacing: 10) {
+                ForEach(0..<3, id: \.self) { _ in
+                    VStack(alignment: .leading, spacing: 8) {
                         RoundedRectangle(cornerRadius: 4)
                             .fill(Color.white.opacity(shimmer ? 0.1 : 0.05))
-                            .frame(width: 100, height: 14)
-                        ForEach(0..<5, id: \.self) { _ in
-                            HStack {
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(Color.white.opacity(shimmer ? 0.08 : 0.03))
-                                    .frame(height: 12)
-                                Spacer()
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(Color.white.opacity(shimmer ? 0.08 : 0.03))
-                                    .frame(width: 30, height: 12)
-                            }
+                            .frame(width: 80, height: 14)
+                        ForEach(0..<4, id: \.self) { _ in
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color.white.opacity(shimmer ? 0.06 : 0.03))
+                                .frame(height: 36)
                         }
                     }
                     .padding(16)
-                    .background(Color.white.opacity(0.06))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .background(Color.white.opacity(0.04))
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
                 }
             }
             .padding()

@@ -3,7 +3,7 @@ import Foundation
 enum APIError: LocalizedError {
     case unauthorized
     case serverError(Int)
-    case decodingError
+    case decodingError(Error)
     case networkError(Error)
 
     var errorDescription: String? {
@@ -17,11 +17,9 @@ enum APIError: LocalizedError {
 }
 
 actor VercelAPI {
-    private let baseURL = "https://api.vercel.com"
     private let token: String
     private let decoder: JSONDecoder = {
         let d = JSONDecoder()
-        d.keyDecodingStrategy = .convertFromSnakeCase
         return d
     }()
 
@@ -29,8 +27,77 @@ actor VercelAPI {
         self.token = token
     }
 
-    private func request<T: Decodable>(_ path: String, queryItems: [URLQueryItem] = []) async throws -> T {
-        var components = URLComponents(string: baseURL + path)!
+    // MARK: - Projects (api.vercel.com)
+
+    func fetchProjects() async throws -> [Project] {
+        let response: ProjectsResponse = try await request(
+            base: "https://api.vercel.com",
+            path: "/v9/projects"
+        )
+        return response.projects
+    }
+
+    // MARK: - Analytics (vercel.com/api)
+
+    func fetchOverview(projectId: String, teamId: String?, range: TimeRange) async throws -> AnalyticsOverview {
+        try await request(
+            base: "https://vercel.com/api",
+            path: "/web-analytics/overview",
+            queryItems: analyticsParams(projectId: projectId, teamId: teamId, range: range)
+        )
+    }
+
+    func fetchPreviousOverview(projectId: String, teamId: String?, range: TimeRange) async throws -> AnalyticsOverview {
+        var items = [
+            URLQueryItem(name: "projectId", value: projectId),
+            URLQueryItem(name: "from", value: range.previousFromDate),
+            URLQueryItem(name: "to", value: range.previousToDate)
+        ]
+        if let teamId { items.append(URLQueryItem(name: "teamId", value: teamId)) }
+        return try await request(
+            base: "https://vercel.com/api",
+            path: "/web-analytics/overview",
+            queryItems: items
+        )
+    }
+
+    func fetchTimeseries(projectId: String, teamId: String?, range: TimeRange) async throws -> [TimeseriesPoint] {
+        let response: TimeseriesResponse = try await request(
+            base: "https://vercel.com/api",
+            path: "/web-analytics/timeseries",
+            queryItems: analyticsParams(projectId: projectId, teamId: teamId, range: range)
+        )
+        return response.data.groups["all"] ?? []
+    }
+
+    func fetchBreakdown(projectId: String, teamId: String?, range: TimeRange, groupBy: String) async throws -> [BreakdownItem] {
+        var params = analyticsParams(projectId: projectId, teamId: teamId, range: range)
+        params.append(URLQueryItem(name: "groupBy", value: groupBy))
+        let response: TimeseriesResponse = try await request(
+            base: "https://vercel.com/api",
+            path: "/web-analytics/timeseries",
+            queryItems: params
+        )
+        return response.data.groups
+            .filter { $0.key != "all" }
+            .map { BreakdownItem(key: $0.key, visitors: $0.value.reduce(0) { $0 + $1.devices }) }
+            .sorted { $0.visitors > $1.visitors }
+    }
+
+    // MARK: - Helpers
+
+    private func analyticsParams(projectId: String, teamId: String?, range: TimeRange) -> [URLQueryItem] {
+        var items = [
+            URLQueryItem(name: "projectId", value: projectId),
+            URLQueryItem(name: "from", value: range.fromDate),
+            URLQueryItem(name: "to", value: range.toDate)
+        ]
+        if let teamId { items.append(URLQueryItem(name: "teamId", value: teamId)) }
+        return items
+    }
+
+    private func request<T: Decodable>(base: String, path: String, queryItems: [URLQueryItem] = []) async throws -> T {
+        var components = URLComponents(string: base + path)!
         if !queryItems.isEmpty {
             components.queryItems = queryItems
         }
@@ -59,51 +126,7 @@ actor VercelAPI {
         do {
             return try decoder.decode(T.self, from: data)
         } catch {
-            throw APIError.decodingError
+            throw APIError.decodingError(error)
         }
-    }
-
-    func fetchProjects() async throws -> [Project] {
-        let response: ProjectsResponse = try await request("/v9/projects")
-        return response.projects
-    }
-
-    func fetchAnalyticsSummary(projectId: String, range: TimeRange) async throws -> AnalyticsSummary {
-        let items = [
-            URLQueryItem(name: "projectId", value: projectId),
-            URLQueryItem(name: "from", value: "\(range.fromTimestamp)"),
-            URLQueryItem(name: "to", value: "\(range.toTimestamp)")
-        ]
-        return try await request("/v1/web/analytics", queryItems: items)
-    }
-
-    func fetchTimeseries(projectId: String, range: TimeRange) async throws -> [TimeseriesDataPoint] {
-        let items = [
-            URLQueryItem(name: "projectId", value: projectId),
-            URLQueryItem(name: "from", value: "\(range.fromTimestamp)"),
-            URLQueryItem(name: "to", value: "\(range.toTimestamp)")
-        ]
-        let response: TimeseriesResponse = try await request("/v1/web/analytics/timeseries", queryItems: items)
-        return response.data
-    }
-
-    func fetchPages(projectId: String, range: TimeRange) async throws -> [PageData] {
-        let items = [
-            URLQueryItem(name: "projectId", value: projectId),
-            URLQueryItem(name: "from", value: "\(range.fromTimestamp)"),
-            URLQueryItem(name: "to", value: "\(range.toTimestamp)")
-        ]
-        let response: PagesResponse = try await request("/v1/web/analytics/pages", queryItems: items)
-        return response.data
-    }
-
-    func fetchReferrers(projectId: String, range: TimeRange) async throws -> [ReferrerData] {
-        let items = [
-            URLQueryItem(name: "projectId", value: projectId),
-            URLQueryItem(name: "from", value: "\(range.fromTimestamp)"),
-            URLQueryItem(name: "to", value: "\(range.toTimestamp)")
-        ]
-        let response: ReferrersResponse = try await request("/v1/web/analytics/referrers", queryItems: items)
-        return response.data
     }
 }

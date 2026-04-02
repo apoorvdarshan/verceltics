@@ -3,11 +3,14 @@ import Foundation
 struct Project: Identifiable, Decodable {
     let id: String
     let name: String
+    let accountId: String?
     let framework: String?
     let latestDeployments: [Deployment]?
     let updatedAt: Int?
     let targets: Targets?
     let link: GitLink?
+
+    var teamId: String? { accountId }
 
     var primaryDomain: String? {
         targets?.production?.alias?.first(where: { !$0.contains("vercel.app") })
