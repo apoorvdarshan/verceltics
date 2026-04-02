@@ -4,6 +4,7 @@ struct LoginView: View {
     @Environment(AuthManager.self) private var authManager
     @State private var tokenInput = ""
     @State private var showTokenField = false
+    @State private var showToken = false
     @FocusState private var isTokenFocused: Bool
 
     var body: some View {
@@ -78,17 +79,43 @@ struct LoginView: View {
                                 .clipShape(RoundedRectangle(cornerRadius: 10))
                             }
 
-                            SecureField("Paste your Vercel token", text: $tokenInput)
+                            HStack(spacing: 8) {
+                                Group {
+                                    if showToken {
+                                        TextField("Paste your Vercel token", text: $tokenInput)
+                                    } else {
+                                        SecureField("Paste your Vercel token", text: $tokenInput)
+                                    }
+                                }
                                 .textFieldStyle(.plain)
                                 .font(.system(.body, design: .monospaced))
-                                .padding(14)
-                                .background(Color.white.opacity(0.06))
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
                                 .foregroundStyle(.white)
                                 .focused($isTokenFocused)
                                 .autocorrectionDisabled()
                                 .textInputAutocapitalization(.never)
-                                .onAppear { isTokenFocused = true }
+
+                                Button {
+                                    showToken.toggle()
+                                } label: {
+                                    Image(systemName: showToken ? "eye.slash" : "eye")
+                                        .font(.caption)
+                                        .foregroundStyle(.gray)
+                                }
+
+                                Button {
+                                    if let clip = UIPasteboard.general.string {
+                                        tokenInput = clip
+                                    }
+                                } label: {
+                                    Image(systemName: "doc.on.clipboard")
+                                        .font(.caption)
+                                        .foregroundStyle(.gray)
+                                }
+                            }
+                            .padding(14)
+                            .background(Color.white.opacity(0.06))
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .onAppear { isTokenFocused = true }
 
                             Button {
                                 Task { await authManager.login(token: tokenInput.trimmingCharacters(in: .whitespacesAndNewlines)) }
