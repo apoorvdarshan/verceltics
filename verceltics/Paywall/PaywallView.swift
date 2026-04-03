@@ -33,15 +33,6 @@ struct PaywallView: View {
                 VStack(spacing: 0) {
                     Spacer().frame(height: 40)
 
-                    // App icon
-                    Image("AppLogo")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 80, height: 80)
-                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-
-                    Spacer().frame(height: 20)
-
                     Text("Verceltics Pro")
                         .font(.system(size: 30, weight: .bold))
                         .foregroundStyle(.white)
