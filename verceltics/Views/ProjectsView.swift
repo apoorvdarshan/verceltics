@@ -22,6 +22,16 @@ final class ProjectsViewModel {
 struct ProjectsView: View {
     @Environment(AuthManager.self) private var authManager
     @State private var vm = ProjectsViewModel()
+    @State private var searchText = ""
+
+    private var filteredProjects: [Project] {
+        if searchText.isEmpty { return vm.projects }
+        return vm.projects.filter {
+            $0.name.localizedCaseInsensitiveContains(searchText) ||
+            ($0.primaryDomain ?? "").localizedCaseInsensitiveContains(searchText) ||
+            ($0.framework ?? "").localizedCaseInsensitiveContains(searchText)
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -45,6 +55,7 @@ struct ProjectsView: View {
                 }
             }
             .navigationTitle("Projects")
+            .searchable(text: $searchText, prompt: "Search projects...")
             .task { await loadProjects() }
         }
     }
@@ -52,7 +63,7 @@ struct ProjectsView: View {
     private var projectsList: some View {
         ScrollView {
             LazyVStack(spacing: 12) {
-                ForEach(vm.projects) { project in
+                ForEach(filteredProjects) { project in
                     NavigationLink(destination: AnalyticsView(project: project)) {
                         ProjectCard(project: project)
                     }
