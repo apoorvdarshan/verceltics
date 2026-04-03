@@ -14,10 +14,14 @@ struct LoginView: View {
                 Spacer()
 
                 VStack(spacing: 16) {
-                    Image(systemName: "triangle.fill")
-                        .font(.system(size: 64))
-                        .foregroundStyle(.white)
-                        .shadow(color: .white.opacity(0.15), radius: 30)
+                    if let uiImage = UIImage(named: "AppIcon") {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 88, height: 88)
+                            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                            .shadow(color: .blue.opacity(0.25), radius: 24, y: 6)
+                    }
 
                     Text("Verceltics")
                         .font(.system(size: 34, weight: .bold, design: .default))
