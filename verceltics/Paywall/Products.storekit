@@ -1,0 +1,137 @@
+{
+  "identifier" : "F3A8B2C1-4D5E-6F7A-8B9C-0D1E2F3A4B5C",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+
+  ],
+  "settings" : {
+    "_applicationInternalID" : "0",
+    "_developerTeamID" : "23RV7FYH36",
+    "_failTransactionsEnabled" : false,
+    "_lastSynchronizedDate" : "2026-04-03T06:00:00Z",
+    "_storeKitErrors" : [
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Load Products"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Purchase"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Verification"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "App Store Sync"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Subscription Status"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "App Transaction"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Manage Subscriptions Sheet"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Refund Request Sheet"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Offer Code Redeem Sheet"
+      }
+    ]
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "D1E2F3A4-B5C6-7D8E-9F0A-1B2C3D4E5F6A",
+      "localizations" : [
+
+      ],
+      "name" : "Verceltics Pro",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "3.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "A1B2C3D4-E5F6-7A8B-9C0D-1E2F3A4B5C6D",
+          "introductoryOffer" : {
+            "displayPrice" : "0",
+            "internalID" : "B2C3D4E5-F6A7-8B9C-0D1E-2F3A4B5C6D7E",
+            "paymentMode" : "free",
+            "subscriptionPeriod" : "P3D"
+          },
+          "localizations" : [
+            {
+              "description" : "Full access to Verceltics analytics",
+              "displayName" : "Verceltics Pro Monthly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.apoorvdarshan.verceltics.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Monthly",
+          "subscriptionGroupID" : "D1E2F3A4-B5C6-7D8E-9F0A-1B2C3D4E5F6A",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "29.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "C3D4E5F6-A7B8-9C0D-1E2F-3A4B5C6D7E8F",
+          "introductoryOffer" : {
+            "displayPrice" : "0",
+            "internalID" : "D4E5F6A7-B8C9-0D1E-2F3A-4B5C6D7E8F9A",
+            "paymentMode" : "free",
+            "subscriptionPeriod" : "P3D"
+          },
+          "localizations" : [
+            {
+              "description" : "Full access to Verceltics analytics — save 37%",
+              "displayName" : "Verceltics Pro Yearly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.apoorvdarshan.verceltics.yearly",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Yearly",
+          "subscriptionGroupID" : "D1E2F3A4-B5C6-7D8E-9F0A-1B2C3D4E5F6A",
+          "type" : "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

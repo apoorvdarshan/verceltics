@@ -105,6 +105,11 @@ struct AboutView: View {
                         Text("Built with SwiftUI and Swift Charts. No third-party dependencies.")
                             .font(.caption)
                             .foregroundStyle(.gray)
+
+                        Text("Verceltics is not affiliated with, endorsed by, or sponsored by Vercel Inc. Vercel and the Vercel logo are trademarks of Vercel Inc.")
+                            .font(.caption2)
+                            .foregroundStyle(.white.opacity(0.25))
+                            .padding(.top, 4)
                     }
                     .padding(.vertical, 4)
                     .listRowBackground(Color.white.opacity(0.04))
