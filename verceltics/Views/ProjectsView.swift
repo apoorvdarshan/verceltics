@@ -66,7 +66,12 @@ struct ProjectsView: View {
             }
             .navigationTitle("Projects")
             .searchable(text: $searchText, isPresented: $isSearching, prompt: "Search projects...")
-            .task { await loadProjects() }
+            .task {
+                await loadProjects()
+                // Silent re-fetch after 10s to get updated aliases after fresh deploys
+                try? await Task.sleep(for: .seconds(10))
+                await refreshProjects()
+            }
             .onAppear {
                 if startWithSearch { isSearching = true }
             }
