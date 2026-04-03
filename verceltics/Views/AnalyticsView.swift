@@ -7,6 +7,7 @@ final class AnalyticsViewModel {
 
     var data = AnalyticsData()
     var selectedRange: TimeRange = .week
+    var selectedEnvironment: VercelEnvironment = .production
     var isLoading = true
     var error: String?
 
@@ -29,6 +30,10 @@ final class AnalyticsViewModel {
             async let pages = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "path")
             async let referrers = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "referrer")
             async let countries = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "country")
+            async let devices = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "device")
+            async let browsers = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "browser")
+            async let os = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "os")
+            async let utmSources = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "utm_source")
 
             data.overview = try await overview
             data.previousOverview = try? await previous
@@ -36,6 +41,10 @@ final class AnalyticsViewModel {
             data.pages = try await pages
             data.referrers = try await referrers
             data.countries = try await countries
+            data.devices = (try? await devices) ?? []
+            data.browsers = (try? await browsers) ?? []
+            data.os = (try? await os) ?? []
+            data.utmSources = (try? await utmSources) ?? []
         } catch {
             self.error = error.localizedDescription
         }
@@ -47,6 +56,8 @@ struct AnalyticsView: View {
     let project: Project
     @Environment(AuthManager.self) private var authManager
     @State private var vm: AnalyticsViewModel
+    @State private var showRangePicker = false
+    @State private var showEnvPicker = false
 
     init(project: Project) {
         self.project = project
@@ -74,24 +85,16 @@ struct AnalyticsView: View {
         .onChange(of: vm.selectedRange) {
             Task { await loadData() }
         }
+        .onChange(of: vm.selectedEnvironment) {
+            Task { await loadData() }
+        }
     }
 
     private var analyticsContent: some View {
         ScrollView {
-            VStack(spacing: 16) {
-                // Domain subtitle
-                if let domain = project.primaryDomain {
-                    HStack(spacing: 4) {
-                        Image(systemName: "globe")
-                            .font(.caption2)
-                        Text(domain)
-                            .font(.caption)
-                    }
-                    .foregroundStyle(.gray)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-
-                timeRangePicker
+            VStack(spacing: 14) {
+                // Domain + Environment/Range pickers
+                header
                 statsCards
 
                 AnalyticsChart(data: vm.data.timeseries)
@@ -100,40 +103,106 @@ struct AnalyticsView: View {
                     .background(Color.white.opacity(0.04))
                     .clipShape(RoundedRectangle(cornerRadius: 16))
 
-                // Pages & Referrers side by side on larger screens, stacked on phone
-                breakdownSection(title: "Pages", icon: "doc.text", items: vm.data.pages, isPath: true)
-                breakdownSection(title: "Referrers", icon: "link", items: vm.data.referrers, emptyLabel: "Direct")
-                breakdownSection(title: "Countries", icon: "globe.americas", items: vm.data.countries, isCountry: true)
+                // Pages & Referrers
+                breakdownCard(title: "Pages", icon: "doc.text", items: vm.data.pages, isPath: true)
+                breakdownCard(title: "Referrers", icon: "link", items: vm.data.referrers, emptyLabel: "Direct")
+
+                // Countries
+                breakdownCard(title: "Countries", icon: "globe.americas", items: vm.data.countries, isCountry: true)
+
+                // Devices / Browsers / OS in a row-like layout
+                breakdownCard(title: "Devices", icon: "desktopcomputer", items: vm.data.devices, proLocked: vm.data.devices.isEmpty)
+                breakdownCard(title: "Browsers", icon: "safari", items: vm.data.browsers, proLocked: vm.data.browsers.isEmpty)
+                breakdownCard(title: "Operating Systems", icon: "laptopcomputer", items: vm.data.os, proLocked: vm.data.os.isEmpty)
+
+                // UTM
+                breakdownCard(title: "UTM Sources", icon: "tag", items: vm.data.utmSources, proLocked: vm.data.utmSources.isEmpty)
             }
             .padding()
         }
         .refreshable { await loadData() }
     }
 
-    // MARK: - Time Range Picker
+    // MARK: - Header
 
-    private var timeRangePicker: some View {
-        HStack(spacing: 6) {
-            ForEach(TimeRange.allCases) { range in
-                Button {
-                    withAnimation(.snappy(duration: 0.2)) {
-                        vm.selectedRange = range
+    private var header: some View {
+        VStack(spacing: 10) {
+            if let domain = project.primaryDomain {
+                HStack(spacing: 4) {
+                    Image(systemName: "globe")
+                        .font(.caption2)
+                    Text(domain)
+                        .font(.caption)
+                }
+                .foregroundStyle(.gray)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            HStack(spacing: 8) {
+                // Environment picker
+                Menu {
+                    ForEach(VercelEnvironment.allCases) { env in
+                        Button {
+                            vm.selectedEnvironment = env
+                        } label: {
+                            HStack {
+                                Text(env.label)
+                                if vm.selectedEnvironment == env {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
                     }
                 } label: {
-                    Text(range.label)
-                        .font(.system(size: 13, weight: .medium))
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(vm.selectedRange == range ? Color.white : Color.clear)
-                        .foregroundStyle(vm.selectedRange == range ? .black : .gray)
-                        .clipShape(Capsule())
+                    HStack(spacing: 4) {
+                        Text(vm.selectedEnvironment.label)
+                            .font(.system(size: 13, weight: .medium))
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.system(size: 9, weight: .bold))
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.white.opacity(0.06))
+                    .foregroundStyle(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
+
+                // Time range picker
+                Menu {
+                    ForEach(TimeRange.allCases) { range in
+                        Button {
+                            vm.selectedRange = range
+                        } label: {
+                            HStack {
+                                Text(range.label)
+                                if range.isPro {
+                                    Image(systemName: "lock.fill")
+                                }
+                                if vm.selectedRange == range {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "calendar")
+                            .font(.system(size: 11))
+                        Text(vm.selectedRange.label)
+                            .font(.system(size: 13, weight: .medium))
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.system(size: 9, weight: .bold))
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.white.opacity(0.06))
+                    .foregroundStyle(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+
+                Spacer()
             }
-            Spacer()
         }
-        .padding(4)
-        .background(Color.white.opacity(0.06))
-        .clipShape(Capsule())
     }
 
     // MARK: - Stats Cards
@@ -162,17 +231,19 @@ struct AnalyticsView: View {
         }
     }
 
-    // MARK: - Breakdown Section
+    // MARK: - Breakdown Card
 
-    private func breakdownSection(
+    private func breakdownCard(
         title: String,
         icon: String,
         items: [BreakdownItem],
         emptyLabel: String = "",
         isPath: Bool = false,
-        isCountry: Bool = false
+        isCountry: Bool = false,
+        proLocked: Bool = false
     ) -> some View {
         VStack(alignment: .leading, spacing: 0) {
+            // Header
             HStack {
                 Image(systemName: icon)
                     .font(.caption)
@@ -190,21 +261,38 @@ struct AnalyticsView: View {
 
             Divider().overlay(Color.white.opacity(0.06))
 
-            if items.isEmpty {
+            if proLocked {
+                // Pro plan locked state
+                VStack(spacing: 8) {
+                    Image(systemName: "lock.fill")
+                        .font(.title3)
+                        .foregroundStyle(.gray)
+                    Text("Pro Plan Required")
+                        .font(.caption.bold())
+                        .foregroundStyle(.white)
+                    Text("Upgrade to Pro to view \(title.lowercased()) data")
+                        .font(.caption2)
+                        .foregroundStyle(.gray)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 28)
+            } else if items.isEmpty {
                 Text("No data available")
                     .font(.caption)
                     .foregroundStyle(.gray)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 24)
             } else {
-                let maxValue = items.first?.visitors ?? 1
+                let total = items.reduce(0) { $0 + $1.visitors }
+                let maxVal = items.first?.visitors ?? 1
                 ForEach(items.prefix(8)) { item in
                     HStack(spacing: 0) {
                         ZStack(alignment: .leading) {
                             GeometryReader { geo in
                                 RoundedRectangle(cornerRadius: 4)
                                     .fill(Color.white.opacity(0.06))
-                                    .frame(width: geo.size.width * CGFloat(item.visitors) / CGFloat(maxValue))
+                                    .frame(width: geo.size.width * CGFloat(item.visitors) / CGFloat(maxVal))
                             }
                             HStack(spacing: 6) {
                                 if isCountry {
@@ -220,11 +308,20 @@ struct AnalyticsView: View {
                         }
                         .frame(height: 36)
 
-                        Text("\(item.visitors)")
-                            .font(.system(size: 13, weight: .medium).monospacedDigit())
-                            .foregroundStyle(.gray)
-                            .frame(width: 50, alignment: .trailing)
-                            .padding(.trailing, 10)
+                        // Show percentage for countries/devices/browsers/os, count for pages/referrers
+                        if isCountry || title == "Devices" || title == "Browsers" || title == "Operating Systems" {
+                            Text(total > 0 ? "\(item.visitors * 100 / total)%" : "0%")
+                                .font(.system(size: 13, weight: .medium).monospacedDigit())
+                                .foregroundStyle(.gray)
+                                .frame(width: 50, alignment: .trailing)
+                                .padding(.trailing, 10)
+                        } else {
+                            Text("\(item.visitors)")
+                                .font(.system(size: 13, weight: .medium).monospacedDigit())
+                                .foregroundStyle(.gray)
+                                .frame(width: 50, alignment: .trailing)
+                                .padding(.trailing, 10)
+                        }
                     }
                 }
             }
@@ -270,13 +367,14 @@ struct AnalyticsSkeletonView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 16) {
-                HStack(spacing: 6) {
-                    ForEach(0..<4, id: \.self) { _ in
-                        RoundedRectangle(cornerRadius: 20)
-                            .fill(Color.white.opacity(shimmer ? 0.1 : 0.05))
-                            .frame(width: 50, height: 32)
-                    }
+            VStack(spacing: 14) {
+                HStack(spacing: 8) {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.white.opacity(shimmer ? 0.1 : 0.05))
+                        .frame(width: 100, height: 34)
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.white.opacity(shimmer ? 0.1 : 0.05))
+                        .frame(width: 120, height: 34)
                     Spacer()
                 }
 
@@ -301,7 +399,7 @@ struct AnalyticsSkeletonView: View {
                     .fill(Color.white.opacity(0.04))
                     .frame(height: 250)
 
-                ForEach(0..<3, id: \.self) { _ in
+                ForEach(0..<4, id: \.self) { _ in
                     VStack(alignment: .leading, spacing: 8) {
                         RoundedRectangle(cornerRadius: 4)
                             .fill(Color.white.opacity(shimmer ? 0.1 : 0.05))
