@@ -344,9 +344,14 @@ struct ProjectIcon: View {
         guard let cgImage = image.cgImage else { return image }
         let width = cgImage.width
         let height = cgImage.height
+        guard width > 0, height > 0 else { return image }
+
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         let bytesPerPixel = 4
         let bytesPerRow = bytesPerPixel * width
+        let bitmapInfo = CGBitmapInfo.byteOrder32Big.union(
+            CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
+        )
         var pixelData = [UInt8](repeating: 0, count: width * height * bytesPerPixel)
 
         guard let context = CGContext(
@@ -354,43 +359,121 @@ struct ProjectIcon: View {
             width: width, height: height,
             bitsPerComponent: 8, bytesPerRow: bytesPerRow,
             space: colorSpace,
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            bitmapInfo: bitmapInfo.rawValue
         ) else { return image }
 
         context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
 
-        // Check if corners are white (indicates added white background)
-        let threshold: UInt8 = 240
-        let corners = [(0, 0), (width - 1, 0), (0, height - 1), (width - 1, height - 1)]
-        var whiteCorners = 0
-        for (x, y) in corners {
-            let offset = (y * width + x) * bytesPerPixel
-            if pixelData[offset] > threshold && pixelData[offset + 1] > threshold && pixelData[offset + 2] > threshold {
-                whiteCorners += 1
-            }
-        }
-        // Only strip if most corners are white (likely added background)
-        guard whiteCorners >= 3 else { return image }
+        let borderThreshold = 245
+        let cleanupThreshold = 230
+        let neutralSpreadThreshold = 18
 
-        // Make white/near-white pixels transparent
-        for i in stride(from: 0, to: pixelData.count, by: bytesPerPixel) {
-            let r = pixelData[i]
-            let g = pixelData[i + 1]
-            let b = pixelData[i + 2]
-            if r > threshold && g > threshold && b > threshold {
-                pixelData[i + 3] = 0 // set alpha to 0
+        func offset(forX x: Int, y: Int) -> Int {
+            (y * width + x) * bytesPerPixel
+        }
+
+        func isNearWhiteBackground(at offset: Int, threshold: Int) -> Bool {
+            let r = Int(pixelData[offset])
+            let g = Int(pixelData[offset + 1])
+            let b = Int(pixelData[offset + 2])
+            let a = Int(pixelData[offset + 3])
+            let minChannel = min(r, g, b)
+            let maxChannel = max(r, g, b)
+            return a > 240 && minChannel >= threshold && (maxChannel - minChannel) <= neutralSpreadThreshold
+        }
+
+        // Only strip the matte when the outer border is mostly white.
+        var whiteBorderPixels = 0
+        var totalBorderPixels = 0
+
+        for x in 0..<width {
+            totalBorderPixels += 1
+            if isNearWhiteBackground(at: offset(forX: x, y: 0), threshold: borderThreshold) {
+                whiteBorderPixels += 1
+            }
+
+            if height > 1 {
+                totalBorderPixels += 1
+                if isNearWhiteBackground(at: offset(forX: x, y: height - 1), threshold: borderThreshold) {
+                    whiteBorderPixels += 1
+                }
             }
         }
+
+        if height > 2 {
+            for y in 1..<(height - 1) {
+                totalBorderPixels += 1
+                if isNearWhiteBackground(at: offset(forX: 0, y: y), threshold: borderThreshold) {
+                    whiteBorderPixels += 1
+                }
+                if width > 1 {
+                    totalBorderPixels += 1
+                    if isNearWhiteBackground(at: offset(forX: width - 1, y: y), threshold: borderThreshold) {
+                        whiteBorderPixels += 1
+                    }
+                }
+            }
+        }
+
+        guard totalBorderPixels > 0 else { return image }
+        let whiteBorderRatio = Double(whiteBorderPixels) / Double(totalBorderPixels)
+        guard whiteBorderRatio >= 0.65 else { return image }
+
+        // Flood-fill only the border-connected matte so we keep any internal white artwork.
+        var stack: [(x: Int, y: Int)] = []
+        var visited = [Bool](repeating: false, count: width * height)
+
+        func enqueue(_ x: Int, _ y: Int) {
+            let index = y * width + x
+            guard !visited[index] else { return }
+            let pixelOffset = offset(forX: x, y: y)
+            guard isNearWhiteBackground(at: pixelOffset, threshold: cleanupThreshold) else { return }
+            visited[index] = true
+            stack.append((x, y))
+        }
+
+        for x in 0..<width {
+            enqueue(x, 0)
+            if height > 1 {
+                enqueue(x, height - 1)
+            }
+        }
+
+        if height > 2 {
+            for y in 1..<(height - 1) {
+                enqueue(0, y)
+                if width > 1 {
+                    enqueue(width - 1, y)
+                }
+            }
+        }
+
+        var removedPixels = 0
+        while let (x, y) = stack.popLast() {
+            let pixelOffset = offset(forX: x, y: y)
+            pixelData[pixelOffset] = 0
+            pixelData[pixelOffset + 1] = 0
+            pixelData[pixelOffset + 2] = 0
+            pixelData[pixelOffset + 3] = 0
+            removedPixels += 1
+
+            if x > 0 { enqueue(x - 1, y) }
+            if x + 1 < width { enqueue(x + 1, y) }
+            if y > 0 { enqueue(x, y - 1) }
+            if y + 1 < height { enqueue(x, y + 1) }
+        }
+
+        guard removedPixels > 0 else { return image }
 
         guard let newContext = CGContext(
             data: &pixelData,
             width: width, height: height,
             bitsPerComponent: 8, bytesPerRow: bytesPerRow,
             space: colorSpace,
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            bitmapInfo: bitmapInfo.rawValue
         ), let newCGImage = newContext.makeImage() else { return image }
 
-        return UIImage(cgImage: newCGImage)
+        return UIImage(cgImage: newCGImage, scale: image.scale, orientation: image.imageOrientation)
     }
 
     private func scrapeFaviconURLs(domain: String) async -> [URL]? {
