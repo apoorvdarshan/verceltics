@@ -31,7 +31,15 @@ actor VercelAPI {
             base: "https://api.vercel.com",
             path: "/v9/projects"
         )
-        return response.projects
+        return await enrichProjectsNeedingDomainRefresh(response.projects)
+    }
+
+    func fetchProject(id: String, teamId: String?) async throws -> Project {
+        try await request(
+            base: "https://api.vercel.com",
+            path: "/v9/projects/\(id)",
+            queryItems: projectQueryItems(teamId: teamId)
+        )
     }
 
     // MARK: - Analytics
@@ -77,13 +85,49 @@ actor VercelAPI {
 
     // MARK: - Helpers
 
+    private func enrichProjectsNeedingDomainRefresh(_ projects: [Project]) async -> [Project] {
+        let candidates = projects.filter(\.needsPrimaryDomainRefresh)
+        guard !candidates.isEmpty else { return projects }
+
+        var refreshedByID: [String: Project] = [:]
+
+        await withTaskGroup(of: (String, Project?).self) { group in
+            for project in candidates {
+                group.addTask {
+                    do {
+                        let refreshed = try await self.fetchProject(id: project.id, teamId: project.teamId)
+                        return (project.id, refreshed)
+                    } catch {
+                        return (project.id, nil)
+                    }
+                }
+            }
+
+            for await (projectID, refreshed) in group {
+                if let refreshed {
+                    refreshedByID[projectID] = refreshed
+                }
+            }
+        }
+
+        return projects.map { refreshedByID[$0.id] ?? $0 }
+    }
+
+    private func projectQueryItems(teamId: String?) -> [URLQueryItem] {
+        var items: [URLQueryItem] = []
+        if let teamId {
+            items.append(URLQueryItem(name: "teamId", value: teamId))
+        }
+        return items
+    }
+
     private func analyticsParams(projectId: String, teamId: String?, from: String, to: String) -> [URLQueryItem] {
-        var items = [
+        var items = projectQueryItems(teamId: teamId)
+        items.append(contentsOf: [
             URLQueryItem(name: "projectId", value: projectId),
             URLQueryItem(name: "from", value: from),
             URLQueryItem(name: "to", value: to)
-        ]
-        if let teamId { items.append(URLQueryItem(name: "teamId", value: teamId)) }
+        ])
         return items
     }
 

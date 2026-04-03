@@ -10,25 +10,37 @@ struct Project: Identifiable, Decodable {
     let targets: Targets?
     let link: GitLink?
     let alias: [AliasEntry]?
+    let customEnvironments: [CustomEnvironment]?
 
     var teamId: String? { accountId }
 
     var primaryDomain: String? {
-        // Collect all aliases from targets + top-level alias array
-        var allAliases: [String] = []
-        if let targetAliases = targets?.production?.alias {
-            allAliases.append(contentsOf: targetAliases)
-        }
-        if let topAliases = alias {
-            allAliases.append(contentsOf: topAliases.map(\.domain))
-        }
+        let productionEnvironment = customEnvironments?.first(where: { $0.type == "production" })
+
+        let allAliases = deduplicatedDomains(
+            from: [
+                lastDeployment?.alias ?? [],
+                productionEnvironment?.currentDeploymentAliases ?? [],
+                targets?.production?.alias ?? [],
+                alias?.map(\.domain) ?? [],
+                productionEnvironment?.preferredDomains ?? []
+            ]
+        )
+
         guard !allAliases.isEmpty else { return nil }
-        // Prefer custom domains (non vercel.app)
-        if let custom = allAliases.first(where: { !$0.contains("vercel.app") }) {
+
+        if let custom = allAliases.first(where: { !Self.isVercelDomain($0) }) {
             return custom
         }
-        // Among vercel.app aliases, pick the shortest
-        return allAliases.filter { $0.contains("vercel.app") }.min(by: { $0.count < $1.count })
+
+        return allAliases
+            .filter(Self.isVercelDomain)
+            .min(by: { $0.count < $1.count })
+    }
+
+    var needsPrimaryDomainRefresh: Bool {
+        guard let primaryDomain else { return true }
+        return Self.isVercelDomain(primaryDomain)
     }
 
     struct AliasEntry: Decodable {
@@ -49,6 +61,7 @@ struct Project: Identifiable, Decodable {
 
     struct Deployment: Decodable {
         let createdAt: Int?
+        let alias: [String]?
         let meta: DeploymentMeta?
 
         var date: Date? {
@@ -68,6 +81,44 @@ struct Project: Identifiable, Decodable {
     struct GitLink: Decodable {
         let repo: String?
         let org: String?
+    }
+
+    struct CustomEnvironment: Decodable {
+        let type: String?
+        let domains: [EnvironmentDomain]?
+        let currentDeploymentAliases: [String]?
+
+        var preferredDomains: [String] {
+            let nonRedirects = domains?.filter { $0.redirect == nil }.map(\.name) ?? []
+            let redirects = domains?.filter { $0.redirect != nil }.map(\.name) ?? []
+            return nonRedirects + redirects
+        }
+    }
+
+    struct EnvironmentDomain: Decodable {
+        let name: String
+        let redirect: String?
+    }
+
+    private func deduplicatedDomains(from groups: [[String]]) -> [String] {
+        var seen = Set<String>()
+        var result: [String] = []
+
+        for domain in groups.joined() {
+            let normalized = domain.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !normalized.isEmpty else { continue }
+
+            let key = normalized.lowercased()
+            guard seen.insert(key).inserted else { continue }
+            result.append(normalized)
+        }
+
+        return result
+    }
+
+    private static func isVercelDomain(_ domain: String) -> Bool {
+        let normalized = domain.lowercased()
+        return normalized == "vercel.app" || normalized.hasSuffix(".vercel.app")
     }
 }
 
