@@ -26,6 +26,12 @@ struct LoginView: View {
 
             brandingHeader
 
+            Spacer().frame(height: 40)
+
+            DemoChart()
+                .frame(height: 100)
+                .padding(.horizontal, 40)
+
             Spacer()
 
             Button {
@@ -182,6 +188,116 @@ struct LoginView: View {
                 Text("Analytics for your Vercel projects")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(.white.opacity(0.4))
+            }
+        }
+    }
+}
+
+// MARK: - Demo Chart (animated line that draws itself)
+
+struct DemoChart: View {
+    @State private var drawProgress: CGFloat = 0
+    @State private var dotIndex = 0
+
+    private let points: [CGFloat] = [0.3, 0.5, 0.25, 0.7, 0.4, 0.85, 0.6, 0.9, 0.55, 0.95]
+
+    var body: some View {
+        GeometryReader { geo in
+            let w = geo.size.width
+            let h = geo.size.height
+
+            ZStack {
+                // Grid lines
+                ForEach(0..<4, id: \.self) { i in
+                    let y = h * CGFloat(i) / 3
+                    Path { path in
+                        path.move(to: CGPoint(x: 0, y: y))
+                        path.addLine(to: CGPoint(x: w, y: y))
+                    }
+                    .stroke(Color.white.opacity(0.04), lineWidth: 0.5)
+                }
+
+                // Gradient fill under line
+                Path { path in
+                    for (i, point) in points.enumerated() {
+                        let x = w * CGFloat(i) / CGFloat(points.count - 1)
+                        let y = h * (1 - point)
+                        if i == 0 { path.move(to: CGPoint(x: x, y: y)) }
+                        else { path.addLine(to: CGPoint(x: x, y: y)) }
+                    }
+                    path.addLine(to: CGPoint(x: w, y: h))
+                    path.addLine(to: CGPoint(x: 0, y: h))
+                    path.closeSubpath()
+                }
+                .fill(
+                    LinearGradient(
+                        colors: [.blue.opacity(0.15), .clear],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .mask(
+                    Rectangle()
+                        .frame(width: w * drawProgress)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                )
+
+                // Line
+                Path { path in
+                    for (i, point) in points.enumerated() {
+                        let x = w * CGFloat(i) / CGFloat(points.count - 1)
+                        let y = h * (1 - point)
+                        if i == 0 { path.move(to: CGPoint(x: x, y: y)) }
+                        else { path.addLine(to: CGPoint(x: x, y: y)) }
+                    }
+                }
+                .trim(from: 0, to: drawProgress)
+                .stroke(Color.blue, style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+
+                // Animated dots
+                ForEach(0..<points.count, id: \.self) { i in
+                    let x = w * CGFloat(i) / CGFloat(points.count - 1)
+                    let y = h * (1 - points[i])
+                    let visible = CGFloat(i) / CGFloat(points.count - 1) <= drawProgress
+
+                    Circle()
+                        .fill(.blue)
+                        .frame(width: 6, height: 6)
+                        .scaleEffect(i == dotIndex && visible ? 1.5 : 1)
+                        .opacity(visible ? 1 : 0)
+                        .position(x: x, y: y)
+                }
+            }
+        }
+        .onAppear {
+            // Animate line drawing
+            withAnimation(.easeInOut(duration: 2.5)) {
+                drawProgress = 1.0
+            }
+            // Pulse dots sequentially
+            for i in 0..<points.count {
+                DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.28) {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
+                        dotIndex = i
+                    }
+                }
+            }
+            // Loop the animation
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+                drawProgress = 0
+                dotIndex = 0
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    withAnimation(.easeInOut(duration: 2.5)) {
+                        drawProgress = 1.0
+                    }
+                    for i in 0..<points.count {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.28) {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
+                                dotIndex = i
+                            }
+                        }
+                    }
+                }
             }
         }
     }
