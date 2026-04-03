@@ -14,7 +14,6 @@ struct AboutView: View {
                             .aspectRatio(contentMode: .fit)
                             .frame(width: 88, height: 88)
                             .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                            .shadow(color: .blue.opacity(0.25), radius: 24, y: 6)
 
                         VStack(spacing: 6) {
                             Text("Verceltics")
