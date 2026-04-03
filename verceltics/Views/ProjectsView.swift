@@ -309,9 +309,13 @@ struct ProjectIcon: View {
         }
 
         // Last resort: Google favicon API (converts SVGs to PNG)
+        // Strip white background Google may add to transparent favicons
         if let googleURL = URL(string: "https://www.google.com/s2/favicons?domain=\(domain)&sz=128"),
-           let image = await fetchImage(from: googleURL) {
-            loadedImage = image
+           let data = await fetchImageData(from: googleURL),
+           let uiImage = UIImage(data: data),
+           uiImage.size.width >= 32 {
+            let cleaned = removeWhiteBackground(uiImage)
+            loadedImage = Image(uiImage: cleaned)
             return
         }
 
@@ -332,12 +336,61 @@ struct ProjectIcon: View {
         guard let data = await fetchImageData(from: url) else { return nil }
         guard let uiImage = UIImage(data: data) else { return nil }
         guard uiImage.size.width >= 32 || uiImage.size.height >= 32 else { return nil }
-        return Image(uiImage: uiImage)
+        let cleaned = removeWhiteBackground(uiImage)
+        return Image(uiImage: cleaned)
     }
 
-    private func isTransparent(_ image: UIImage) -> Bool {
-        guard let cgImage = image.cgImage, cgImage.alphaInfo != .none && cgImage.alphaInfo != .noneSkipLast && cgImage.alphaInfo != .noneSkipFirst else { return false }
-        return true
+    private func removeWhiteBackground(_ image: UIImage) -> UIImage {
+        guard let cgImage = image.cgImage else { return image }
+        let width = cgImage.width
+        let height = cgImage.height
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let bytesPerPixel = 4
+        let bytesPerRow = bytesPerPixel * width
+        var pixelData = [UInt8](repeating: 0, count: width * height * bytesPerPixel)
+
+        guard let context = CGContext(
+            data: &pixelData,
+            width: width, height: height,
+            bitsPerComponent: 8, bytesPerRow: bytesPerRow,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return image }
+
+        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+        // Check if corners are white (indicates added white background)
+        let threshold: UInt8 = 240
+        let corners = [(0, 0), (width - 1, 0), (0, height - 1), (width - 1, height - 1)]
+        var whiteCorners = 0
+        for (x, y) in corners {
+            let offset = (y * width + x) * bytesPerPixel
+            if pixelData[offset] > threshold && pixelData[offset + 1] > threshold && pixelData[offset + 2] > threshold {
+                whiteCorners += 1
+            }
+        }
+        // Only strip if most corners are white (likely added background)
+        guard whiteCorners >= 3 else { return image }
+
+        // Make white/near-white pixels transparent
+        for i in stride(from: 0, to: pixelData.count, by: bytesPerPixel) {
+            let r = pixelData[i]
+            let g = pixelData[i + 1]
+            let b = pixelData[i + 2]
+            if r > threshold && g > threshold && b > threshold {
+                pixelData[i + 3] = 0 // set alpha to 0
+            }
+        }
+
+        guard let newContext = CGContext(
+            data: &pixelData,
+            width: width, height: height,
+            bitsPerComponent: 8, bytesPerRow: bytesPerRow,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ), let newCGImage = newContext.makeImage() else { return image }
+
+        return UIImage(cgImage: newCGImage)
     }
 
     private func scrapeFaviconURLs(domain: String) async -> [URL]? {
