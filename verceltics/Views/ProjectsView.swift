@@ -238,29 +238,32 @@ struct ProjectIcon: View {
             URL(string: "https://icon.horse/icon/\(domain)"),
             URL(string: "https://\(domain)/apple-touch-icon.png"),
             URL(string: "https://\(domain)/favicon.ico"),
-            URL(string: "https://www.google.com/s2/favicons?domain=\(domain)&sz=128")
+            URL(string: "https://\(domain)/favicon.png"),
+            URL(string: "https://\(domain)/icon.png"),
         ].compactMap { $0 }
     }
 
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color.white.opacity(0.08))
-                .frame(width: 40, height: 40)
-
+        Group {
             if let loadedImage {
                 loadedImage
                     .resizable()
-                    .aspectRatio(contentMode: .fill)
+                    .aspectRatio(contentMode: .fit)
                     .frame(width: 40, height: 40)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
             } else if didFail {
                 letterFallback
             } else {
-                ProgressView()
-                    .scaleEffect(0.5)
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color.white.opacity(0.08))
+                        .frame(width: 40, height: 40)
+                    ProgressView()
+                        .scaleEffect(0.5)
+                }
             }
         }
+        .frame(width: 40, height: 40)
         .task { await loadFavicon() }
     }
 
@@ -306,6 +309,13 @@ struct ProjectIcon: View {
             }
         }
 
+        // Last resort: Google favicon API (converts SVGs to PNG)
+        if let googleURL = URL(string: "https://www.google.com/s2/favicons?domain=\(domain)&sz=128"),
+           let image = await fetchImage(from: googleURL) {
+            loadedImage = image
+            return
+        }
+
         didFail = true
     }
 
@@ -315,9 +325,12 @@ struct ProjectIcon: View {
         guard let (data, response) = try? await URLSession.shared.data(for: request),
               let http = response as? HTTPURLResponse,
               (200...299).contains(http.statusCode),
-              data.count > 100,
-              let uiImage = UIImage(data: data) else { return nil }
-        return Image(uiImage: uiImage)
+              data.count > 50 else { return nil }
+
+        if let uiImage = UIImage(data: data) {
+            return Image(uiImage: uiImage)
+        }
+        return nil
     }
 
     private func scrapeFaviconURLs(domain: String) async -> [URL]? {
