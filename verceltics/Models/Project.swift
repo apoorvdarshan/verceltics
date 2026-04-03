@@ -9,17 +9,30 @@ struct Project: Identifiable, Decodable {
     let updatedAt: Int?
     let targets: Targets?
     let link: GitLink?
+    let alias: [AliasEntry]?
 
     var teamId: String? { accountId }
 
     var primaryDomain: String? {
-        guard let aliases = targets?.production?.alias, !aliases.isEmpty else { return nil }
+        // Collect all aliases from targets + top-level alias array
+        var allAliases: [String] = []
+        if let targetAliases = targets?.production?.alias {
+            allAliases.append(contentsOf: targetAliases)
+        }
+        if let topAliases = alias {
+            allAliases.append(contentsOf: topAliases.map(\.domain))
+        }
+        guard !allAliases.isEmpty else { return nil }
         // Prefer custom domains (non vercel.app)
-        if let custom = aliases.first(where: { !$0.contains("vercel.app") }) {
+        if let custom = allAliases.first(where: { !$0.contains("vercel.app") }) {
             return custom
         }
-        // Among vercel.app aliases, pick the shortest (avoids long auto-generated ones)
-        return aliases.filter { $0.contains("vercel.app") }.min(by: { $0.count < $1.count })
+        // Among vercel.app aliases, pick the shortest
+        return allAliases.filter { $0.contains("vercel.app") }.min(by: { $0.count < $1.count })
+    }
+
+    struct AliasEntry: Decodable {
+        let domain: String
     }
 
     var lastDeployment: Deployment? {
