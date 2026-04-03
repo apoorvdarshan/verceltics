@@ -27,8 +27,12 @@ struct ProjectsView: View {
     @State private var isSearching = false
 
     private var filteredProjects: [Project] {
-        if searchText.isEmpty { return vm.projects }
-        return vm.projects.filter {
+        let sorted = vm.projects.sorted {
+            ($0.lastDeployment?.createdAt ?? $0.updatedAt ?? 0) >
+            ($1.lastDeployment?.createdAt ?? $1.updatedAt ?? 0)
+        }
+        if searchText.isEmpty { return sorted }
+        return sorted.filter {
             $0.name.localizedCaseInsensitiveContains(searchText) ||
             ($0.primaryDomain ?? "").localizedCaseInsensitiveContains(searchText) ||
             ($0.framework ?? "").localizedCaseInsensitiveContains(searchText)
