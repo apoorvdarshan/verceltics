@@ -105,53 +105,65 @@ struct ProjectCard: View {
     let project: Project
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Top: icon + name + domain
-            HStack(alignment: .top, spacing: 12) {
-                // Project favicon from domain
+        VStack(alignment: .leading, spacing: 14) {
+            // Top: icon + name + domain + chevron
+            HStack(spacing: 14) {
                 ProjectIcon(domain: project.primaryDomain, name: project.name)
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(project.name)
-                        .font(.system(size: 17, weight: .bold))
+                        .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(.white)
 
                     if let domain = project.primaryDomain {
                         Text(domain)
-                            .font(.caption)
-                            .foregroundStyle(.gray)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.35))
                     }
                 }
 
                 Spacer()
 
                 Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(.gray)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.15))
             }
 
-            // Git repo badge
-            if let link = project.link, let org = link.org, let repo = link.repo {
-                HStack(spacing: 4) {
-                    Image(systemName: "chevron.left.forwardslash.chevron.right")
-                        .font(.system(size: 9))
-                    Text("\(org)/\(repo)")
-                        .font(.caption2)
+            // Git repo + framework on same line
+            HStack(spacing: 8) {
+                if let link = project.link, let org = link.org, let repo = link.repo {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.left.forwardslash.chevron.right")
+                            .font(.system(size: 8, weight: .bold))
+                        Text("\(org)/\(repo)")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .foregroundStyle(.white.opacity(0.4))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.white.opacity(0.06))
+                    .clipShape(Capsule())
                 }
-                .foregroundStyle(.blue.opacity(0.92))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color.blue.opacity(0.14))
-                .clipShape(Capsule())
+
+                if let framework = project.framework {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(.green.opacity(0.7))
+                            .frame(width: 5, height: 5)
+                        Text(framework.capitalized)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.35))
+                    }
+                }
             }
 
             // Commit message + time
             if let deployment = project.lastDeployment {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 3) {
                     if let message = deployment.commitMessage {
                         Text(message)
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.8))
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.6))
                             .lineLimit(1)
                     }
 
@@ -160,41 +172,22 @@ struct ProjectCard: View {
                             Text(date.formatted(.relative(presentation: .named)))
                             Text("on")
                             Image(systemName: "arrow.triangle.branch")
-                                .font(.system(size: 9))
+                                .font(.system(size: 8))
                             Text("main")
                         }
-                        .font(.caption2)
-                        .foregroundStyle(.gray)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.25))
                     }
-                }
-            }
-
-            // Framework badge
-            if let framework = project.framework {
-                HStack(spacing: 4) {
-                    Circle()
-                        .fill(.green)
-                        .frame(width: 6, height: 6)
-                    Text(framework.capitalized)
-                        .font(.caption2)
-                        .foregroundStyle(.gray)
                 }
             }
         }
         .padding(16)
-        .background(
-            LinearGradient(
-                colors: [Color.white.opacity(0.06), Color.white.opacity(0.02)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(.ultraThinMaterial.opacity(0.5))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.white.opacity(0.06), lineWidth: 0.5)
         )
-        .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
     }
 }
 
