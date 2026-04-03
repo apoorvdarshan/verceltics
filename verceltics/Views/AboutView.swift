@@ -49,6 +49,12 @@ struct AboutView: View {
                             AboutRow(icon: "globe", title: "Website", subtitle: "verceltics.site", url: "https://verceltics.site")
                         }
 
+                        // Developer
+                        aboutSection(title: "DEVELOPER") {
+                            AboutRow(icon: "at", title: "Follow on X", subtitle: "@apoorvdarshan", url: "https://x.com/apoorvdarshan")
+                            AboutRow(icon: "person.fill", title: "GitHub", subtitle: "@apoorvdarshan", url: "https://github.com/apoorvdarshan")
+                        }
+
                         // Legal
                         aboutSection(title: "LEGAL") {
                             AboutRow(icon: "hand.raised.fill", title: "Privacy Policy", subtitle: "verceltics.site/privacy", url: "https://verceltics.site/privacy")
