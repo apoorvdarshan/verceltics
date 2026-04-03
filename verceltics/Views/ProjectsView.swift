@@ -497,6 +497,7 @@ struct ProjectIcon: View {
         return UIImage(cgImage: newCGImage, scale: image.scale, orientation: image.imageOrientation)
     }
 
+    @MainActor
     private func renderSVGDataURI(_ dataURI: String) -> UIImage? {
         guard dataURI.lowercased().hasPrefix("data:image/svg+xml"),
               let commaIndex = dataURI.firstIndex(of: ",") else { return nil }
@@ -518,7 +519,6 @@ struct ProjectIcon: View {
         let html = """
         <html>
         <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
         html, body {
             margin: 0;
@@ -587,7 +587,7 @@ struct ProjectIcon: View {
             } else { continue }
 
             if href.lowercased().hasPrefix("data:image/svg+xml") {
-                if let image = renderSVGDataURI(href) {
+                if let image = await renderSVGDataURI(href) {
                     favicons.append(.inlineSVG(image))
                 }
                 continue
