@@ -52,6 +52,7 @@ final class PaywallManager {
             switch result {
             case .success(let verification):
                 let transaction = try checkVerified(verification)
+                purchasedProductIDs.insert(transaction.productID)
                 await transaction.finish()
                 await updatePurchasedProducts()
                 return true
