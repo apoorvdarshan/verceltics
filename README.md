@@ -1,20 +1,25 @@
-# Verceltics
+<p align="center">
+  <img src="docs/icon.png" width="100" style="border-radius: 20px" />
+</p>
 
-Mobile analytics viewer for [Vercel](https://vercel.com). Browse your projects and view web analytics — visitors, page views, bounce rate, referrers, countries, devices, and more — all from your iPhone.
+<h1 align="center">Verceltics</h1>
 
-[![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Swift](https://img.shields.io/badge/Swift-5.0-orange.svg)](https://swift.org)
-[![Platform](https://img.shields.io/badge/Platform-iOS%2018%2B-black.svg)](https://developer.apple.com/ios/)
+<p align="center">
+  Mobile analytics viewer for <a href="https://vercel.com">Vercel</a>. Browse your projects and view web analytics — visitors, page views, bounce rate, referrers, countries, devices, and more — all from your iPhone.
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" /></a>
+  <a href="https://swift.org"><img src="https://img.shields.io/badge/Swift-5.0-orange.svg" /></a>
+  <a href="https://developer.apple.com/ios/"><img src="https://img.shields.io/badge/Platform-iOS%2018%2B-black.svg" /></a>
+</p>
 
 ## Screenshots
 
-<p align="center">
-  <img src="docs/screenshots/projects.png" width="200" />
-  <img src="docs/screenshots/analytics.png" width="200" />
-  <img src="docs/screenshots/breakdowns.png" width="200" />
-  <img src="docs/screenshots/referrers.png" width="200" />
-  <img src="docs/screenshots/devices.png" width="200" />
-</p>
+| Projects | Analytics | Pages & Routes | Referrers & Countries | Devices & Browsers |
+|:---:|:---:|:---:|:---:|:---:|
+| ![Projects](docs/screenshots/projects.png) | ![Analytics](docs/screenshots/analytics.png) | ![Breakdowns](docs/screenshots/breakdowns.png) | ![Referrers](docs/screenshots/referrers.png) | ![Devices](docs/screenshots/devices.png) |
+| All your Vercel projects with favicons, git repo, and last commit | Visitors, page views, bounce rate with interactive chart | Pages, routes, and hostnames breakdown with visitor counts | Referrers, UTM parameters, and countries with flags | Device types, browsers, and operating systems |
 
 ## Features
 
