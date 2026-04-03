@@ -22,23 +22,27 @@ final class AnalyticsViewModel {
         let pid = project.id
         let tid = project.teamId
         let range = selectedRange
+        let from = range.fromDate
+        let to = range.toDate
+        let prevFrom = range.previousFromDate
+        let prevTo = range.previousToDate
 
         do {
-            async let overview = api.fetchOverview(projectId: pid, teamId: tid, range: range)
-            async let previous = api.fetchPreviousOverview(projectId: pid, teamId: tid, range: range)
-            async let timeseries = api.fetchTimeseries(projectId: pid, teamId: tid, range: range)
-            async let pages = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "path")
-            async let referrers = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "referrer")
-            async let countries = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "country")
-            async let devices = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "device_type")
-            async let browsers = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "client_name")
-            async let os = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "os_name")
-            async let utmSources = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "utm")
-            async let routes = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "route")
-            async let hostnames = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "hostname")
-            async let events = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "event_name")
-            async let flags = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "flags")
-            async let queryParams = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "query_params")
+            async let overview = api.fetchOverview(projectId: pid, teamId: tid, from: from, to: to)
+            async let previous = api.fetchPreviousOverview(projectId: pid, teamId: tid, from: prevFrom, to: prevTo)
+            async let timeseries = api.fetchTimeseries(projectId: pid, teamId: tid, from: from, to: to)
+            async let pages = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "path")
+            async let referrers = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "referrer")
+            async let countries = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "country")
+            async let devices = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "device_type")
+            async let browsers = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "client_name")
+            async let os = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "os_name")
+            async let utmSources = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "utm")
+            async let routes = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "route")
+            async let hostnames = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "hostname")
+            async let events = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "event_name")
+            async let flags = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "flags")
+            async let queryParams = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "query_params")
 
             data.overview = try await overview
             data.previousOverview = try? await previous

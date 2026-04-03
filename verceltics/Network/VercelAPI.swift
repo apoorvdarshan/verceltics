@@ -18,16 +18,13 @@ enum APIError: LocalizedError {
 
 actor VercelAPI {
     private let token: String
-    private let decoder: JSONDecoder = {
-        let d = JSONDecoder()
-        return d
-    }()
+    private let decoder = JSONDecoder()
 
     init(token: String) {
         self.token = token
     }
 
-    // MARK: - Projects (api.vercel.com)
+    // MARK: - Projects
 
     func fetchProjects() async throws -> [Project] {
         let response: ProjectsResponse = try await request(
@@ -37,41 +34,35 @@ actor VercelAPI {
         return response.projects
     }
 
-    // MARK: - Analytics (vercel.com/api)
+    // MARK: - Analytics
 
-    func fetchOverview(projectId: String, teamId: String?, range: TimeRange) async throws -> AnalyticsOverview {
+    func fetchOverview(projectId: String, teamId: String?, from: String, to: String) async throws -> AnalyticsOverview {
         try await request(
             base: "https://vercel.com/api",
             path: "/web-analytics/overview",
-            queryItems: analyticsParams(projectId: projectId, teamId: teamId, range: range)
+            queryItems: analyticsParams(projectId: projectId, teamId: teamId, from: from, to: to)
         )
     }
 
-    func fetchPreviousOverview(projectId: String, teamId: String?, range: TimeRange) async throws -> AnalyticsOverview {
-        var items = [
-            URLQueryItem(name: "projectId", value: projectId),
-            URLQueryItem(name: "from", value: range.previousFromDate),
-            URLQueryItem(name: "to", value: range.previousToDate)
-        ]
-        if let teamId { items.append(URLQueryItem(name: "teamId", value: teamId)) }
-        return try await request(
+    func fetchPreviousOverview(projectId: String, teamId: String?, from: String, to: String) async throws -> AnalyticsOverview {
+        try await request(
             base: "https://vercel.com/api",
             path: "/web-analytics/overview",
-            queryItems: items
+            queryItems: analyticsParams(projectId: projectId, teamId: teamId, from: from, to: to)
         )
     }
 
-    func fetchTimeseries(projectId: String, teamId: String?, range: TimeRange) async throws -> [TimeseriesPoint] {
+    func fetchTimeseries(projectId: String, teamId: String?, from: String, to: String) async throws -> [TimeseriesPoint] {
         let response: TimeseriesResponse = try await request(
             base: "https://vercel.com/api",
             path: "/web-analytics/timeseries",
-            queryItems: analyticsParams(projectId: projectId, teamId: teamId, range: range)
+            queryItems: analyticsParams(projectId: projectId, teamId: teamId, from: from, to: to)
         )
         return response.data.groups["all"] ?? []
     }
 
-    func fetchBreakdown(projectId: String, teamId: String?, range: TimeRange, groupBy: String) async throws -> [BreakdownItem] {
-        var params = analyticsParams(projectId: projectId, teamId: teamId, range: range)
+    func fetchBreakdown(projectId: String, teamId: String?, from: String, to: String, groupBy: String) async throws -> [BreakdownItem] {
+        var params = analyticsParams(projectId: projectId, teamId: teamId, from: from, to: to)
         params.append(URLQueryItem(name: "groupBy", value: groupBy))
         let response: TimeseriesResponse = try await request(
             base: "https://vercel.com/api",
@@ -86,11 +77,11 @@ actor VercelAPI {
 
     // MARK: - Helpers
 
-    private func analyticsParams(projectId: String, teamId: String?, range: TimeRange) -> [URLQueryItem] {
+    private func analyticsParams(projectId: String, teamId: String?, from: String, to: String) -> [URLQueryItem] {
         var items = [
             URLQueryItem(name: "projectId", value: projectId),
-            URLQueryItem(name: "from", value: range.fromDate),
-            URLQueryItem(name: "to", value: range.toDate)
+            URLQueryItem(name: "from", value: from),
+            URLQueryItem(name: "to", value: to)
         ]
         if let teamId { items.append(URLQueryItem(name: "teamId", value: teamId)) }
         return items

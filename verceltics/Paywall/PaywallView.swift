@@ -24,7 +24,7 @@ struct PaywallView: View {
         ("🍕", "Deploy. Eat pizza. Check analytics. Repeat."),
     ]
 
-    private let quoteTimer = Timer.publish(every: 4, on: .main, in: .common).autoconnect()
+    @State private var quoteTimer = Timer.publish(every: 4, on: .main, in: .common).autoconnect()
 
     var body: some View {
         ZStack {
