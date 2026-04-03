@@ -9,14 +9,12 @@ struct AboutView: View {
                 VStack(spacing: 0) {
                     // Hero header
                     VStack(spacing: 20) {
-                        if let uiImage = UIImage(named: "AppIcon") {
-                            Image(uiImage: uiImage)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 88, height: 88)
-                                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                                .shadow(color: .blue.opacity(0.25), radius: 24, y: 6)
-                        }
+                        Image("AppLogo")
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 88, height: 88)
+                            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                            .shadow(color: .blue.opacity(0.25), radius: 24, y: 6)
 
                         VStack(spacing: 6) {
                             Text("Verceltics")

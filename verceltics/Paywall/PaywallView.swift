@@ -34,14 +34,12 @@ struct PaywallView: View {
                     Spacer().frame(height: 40)
 
                     // App icon
-                    if let uiImage = UIImage(named: "AppIcon") {
-                        Image(uiImage: uiImage)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 68, height: 68)
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                            .shadow(color: .blue.opacity(0.2), radius: 16, y: 4)
-                    }
+                    Image("AppLogo")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 68, height: 68)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .shadow(color: .blue.opacity(0.2), radius: 16, y: 4)
 
                     Spacer().frame(height: 20)
 

@@ -168,14 +168,12 @@ struct LoginView: View {
 
     private var brandingHeader: some View {
         VStack(spacing: 20) {
-            if let uiImage = UIImage(named: "AppIcon") {
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 80, height: 80)
-                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                    .shadow(color: .blue.opacity(0.2), radius: 20, y: 4)
-            }
+            Image("AppLogo")
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 80, height: 80)
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .shadow(color: .blue.opacity(0.2), radius: 20, y: 4)
 
             VStack(spacing: 6) {
                 Text("Verceltics")
