@@ -8,24 +8,20 @@ struct PaywallView: View {
     @State private var selectedProduct: Product?
     @State private var isPurchasing = false
     @State private var isEligibleForTrial = true
-    @State private var currentQuoteIndex = 0
+    @State private var currentMemeIndex = 0
 
-    private let devQuotes: [(emoji: String, text: String)] = [
-        ("🚀", "Ship faster. Track smarter."),
-        ("☕", "console.log('why no analytics?')"),
-        ("🔥", "Your deploy succeeded.\nBut did anyone visit?"),
-        ("🤔", "404: Analytics not found.\nUntil now."),
-        ("💻", "git commit -m \"finally tracking visitors\""),
-        ("📊", "Numbers don't lie.\nYour bounce rate might."),
-        ("🧑‍💻", "Monitoring prod from the couch? Yes."),
-        ("⚡", "Vercel deploys in seconds.\nSo should your analytics."),
-        ("🎯", "Know your users.\nNot just your console.log."),
-        ("🌍", "Your site is global.\nYour analytics should be too."),
-        ("😅", "\"It works on my machine\"\n— also tracks visitors now"),
-        ("🍕", "Deploy. Eat pizza. Check analytics. Repeat."),
+    private let memes: [(gif: String, caption: String)] = [
+        ("https://media.giphy.com/media/JIX9t2j0ZTN9S/giphy.gif", "Me checking analytics at 3am"),
+        ("https://media.giphy.com/media/3oKIPnAiaMCJ8sF3PG/giphy.gif", "When bounce rate drops"),
+        ("https://media.giphy.com/media/13HgwGsXF0aiGY/giphy.gif", "Deploying to prod on Friday"),
+        ("https://media.giphy.com/media/l0IypeKl9NJanC3Hy/giphy.gif", "When visitors spike overnight"),
+        ("https://media.giphy.com/media/3o7btNa0RUYa5E7yl2/giphy.gif", "git push origin main"),
+        ("https://media.giphy.com/media/ule4vhcY1xEKQ/giphy.gif", "Watching real-time analytics"),
+        ("https://media.giphy.com/media/LmNwrBhejkK9EFP504/giphy.gif", "When the site goes viral"),
+        ("https://media.giphy.com/media/l3q2K5jinAlChoCLS/giphy.gif", "100% bounce rate vibes"),
     ]
 
-    @State private var quoteTimer = Timer.publish(every: 4, on: .main, in: .common).autoconnect()
+    @State private var memeTimer = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
 
     var body: some View {
         ZStack {
@@ -56,29 +52,23 @@ struct PaywallView: View {
                         .foregroundStyle(.white.opacity(0.4))
                         .padding(.top, 4)
 
-                    // Rotating dev quote
+                    // Rotating meme GIF
                     VStack(spacing: 8) {
-                        Text(devQuotes[currentQuoteIndex].emoji)
-                            .font(.system(size: 32))
+                        GIFView(url: memes[currentMemeIndex].gif)
+                            .frame(width: 180, height: 140)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .id(currentMemeIndex)
 
-                        Text(devQuotes[currentQuoteIndex].text)
-                            .font(.system(size: 13, weight: .medium, design: .monospaced))
-                            .foregroundStyle(.white.opacity(0.5))
+                        Text(memes[currentMemeIndex].caption)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.45))
                             .multilineTextAlignment(.center)
-                            .lineSpacing(3)
                     }
                     .frame(maxWidth: .infinity)
-                    .frame(height: 100)
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 16)
-                    .id(currentQuoteIndex)
-                    .transition(.asymmetric(
-                        insertion: .opacity.combined(with: .move(edge: .trailing)),
-                        removal: .opacity.combined(with: .move(edge: .leading))
-                    ))
-                    .onReceive(quoteTimer) { _ in
-                        withAnimation(.easeInOut(duration: 0.4)) {
-                            currentQuoteIndex = (currentQuoteIndex + 1) % devQuotes.count
+                    .padding(.vertical, 12)
+                    .onReceive(memeTimer) { _ in
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            currentMemeIndex = (currentMemeIndex + 1) % memes.count
                         }
                     }
 
@@ -336,5 +326,38 @@ struct PlanCard: View {
             )
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - GIF View (animated via WKWebView)
+
+import WebKit
+
+struct GIFView: UIViewRepresentable {
+    let url: String
+
+    func makeUIView(context: Context) -> WKWebView {
+        let webView = WKWebView()
+        webView.isOpaque = false
+        webView.backgroundColor = .clear
+        webView.scrollView.backgroundColor = .clear
+        webView.scrollView.isScrollEnabled = false
+        webView.isUserInteractionEnabled = false
+        return webView
+    }
+
+    func updateUIView(_ webView: WKWebView, context: Context) {
+        let html = """
+        <html>
+        <head><meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+        * { margin: 0; padding: 0; }
+        body { background: transparent; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+        img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
+        </style></head>
+        <body><img src="\(url)" /></body>
+        </html>
+        """
+        webView.loadHTMLString(html, baseURL: nil)
     }
 }
