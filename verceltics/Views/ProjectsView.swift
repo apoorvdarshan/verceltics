@@ -323,8 +323,11 @@ struct ProjectIcon: View {
                         return
                     }
                 case .inlineSVG(let uiImage):
-                    loadedImage = Image(uiImage: removeWhiteBackground(uiImage))
-                    return
+                    // Only use if the image has visible content (not all transparent)
+                    if hasVisiblePixels(uiImage) {
+                        loadedImage = Image(uiImage: removeWhiteBackground(uiImage))
+                        return
+                    }
                 }
             }
         }
@@ -341,6 +344,28 @@ struct ProjectIcon: View {
         }
 
         didFail = true
+    }
+
+    private func hasVisiblePixels(_ image: UIImage) -> Bool {
+        guard let cgImage = image.cgImage else { return false }
+        let width = cgImage.width
+        let height = cgImage.height
+        guard width > 0, height > 0 else { return false }
+        let bytesPerPixel = 4
+        let bytesPerRow = bytesPerPixel * width
+        var pixelData = [UInt8](repeating: 0, count: width * height * bytesPerPixel)
+        guard let context = CGContext(
+            data: &pixelData, width: width, height: height,
+            bitsPerComponent: 8, bytesPerRow: bytesPerRow,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return false }
+        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+        // Check if any pixel has alpha > 10
+        for i in stride(from: 3, to: min(pixelData.count, 10000 * 4), by: bytesPerPixel) {
+            if pixelData[i] > 10 { return true }
+        }
+        return false
     }
 
     private func fetchImageData(from url: URL) async -> Data? {
