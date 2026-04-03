@@ -74,15 +74,15 @@ struct AboutView: View {
                     LinkRow(
                         icon: "doc.text",
                         title: "Privacy Policy",
-                        subtitle: "Coming soon",
-                        url: nil
+                        subtitle: "verceltics.site/privacy",
+                        url: "https://verceltics.site/privacy"
                     )
 
                     LinkRow(
                         icon: "doc.plaintext",
                         title: "Terms of Service",
-                        subtitle: "Coming soon",
-                        url: nil
+                        subtitle: "verceltics.site/terms",
+                        url: "https://verceltics.site/terms"
                     )
 
                     LinkRow(

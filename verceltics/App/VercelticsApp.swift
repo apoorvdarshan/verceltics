@@ -19,9 +19,6 @@ struct VercelticsApp: App {
             .environment(authManager)
             .environment(paywallManager)
             .preferredColorScheme(.dark)
-            .task {
-                await paywallManager.loadProducts()
-            }
         }
     }
 }

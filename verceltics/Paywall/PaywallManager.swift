@@ -28,10 +28,19 @@ final class PaywallManager {
     private var updateTask: Task<Void, Never>?
 
     init() {
-        updateTask = Task { await listenForTransactions() }
+        updateTask = Task {
+            // Check entitlements immediately on launch (before loading products)
+            await updatePurchasedProducts()
+            await listenForTransactions()
+        }
     }
 
     func loadProducts() async {
+        // Skip if already loaded
+        if !products.isEmpty {
+            isLoading = false
+            return
+        }
         isLoading = true
         error = nil
         do {
@@ -39,10 +48,11 @@ final class PaywallManager {
                 Self.monthlyProductID,
                 Self.yearlyProductID
             ])
-            await updatePurchasedProducts()
         } catch {
             self.error = "Failed to load products."
         }
+        // Always check entitlements even if product load fails
+        await updatePurchasedProducts()
         isLoading = false
     }
 
@@ -71,6 +81,10 @@ final class PaywallManager {
 
     func restorePurchases() async {
         try? await AppStore.sync()
+        await updatePurchasedProducts()
+    }
+
+    func checkEntitlements() async {
         await updatePurchasedProducts()
     }
 

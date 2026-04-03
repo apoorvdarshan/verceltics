@@ -3,8 +3,10 @@ import StoreKit
 
 struct PaywallView: View {
     @Environment(PaywallManager.self) private var paywall
+    @Environment(AuthManager.self) private var authManager
     @State private var selectedProduct: Product?
     @State private var isPurchasing = false
+    @State private var isEligibleForTrial = true
 
     var body: some View {
         ZStack {
@@ -45,17 +47,19 @@ struct PaywallView: View {
                     .padding(.horizontal, 24)
 
                     // Trial badge
-                    HStack(spacing: 6) {
-                        Image(systemName: "gift")
-                            .font(.system(size: 12, weight: .bold))
-                        Text("3-day free trial included")
-                            .font(.system(size: 13, weight: .bold))
+                    if isEligibleForTrial {
+                        HStack(spacing: 6) {
+                            Image(systemName: "gift")
+                                .font(.system(size: 12, weight: .bold))
+                            Text("3-day free trial included")
+                                .font(.system(size: 13, weight: .bold))
+                        }
+                        .foregroundStyle(.green)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(Color.green.opacity(0.12))
+                        .clipShape(Capsule())
                     }
-                    .foregroundStyle(.green)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(Color.green.opacity(0.12))
-                    .clipShape(Capsule())
 
                     // Plan selection
                     if paywall.isLoading {
@@ -71,7 +75,8 @@ struct PaywallView: View {
                                     price: monthly.displayPrice,
                                     detail: "per month",
                                     isSelected: selectedProduct?.id == monthly.id,
-                                    badge: nil
+                                    badge: nil,
+                                    showTrial: isEligibleForTrial
                                 ) {
                                     selectedProduct = monthly
                                 }
@@ -84,7 +89,8 @@ struct PaywallView: View {
                                     price: yearly.displayPrice,
                                     detail: "per year",
                                     isSelected: selectedProduct?.id == yearly.id,
-                                    badge: "Save 37%"
+                                    badge: "Save 37%",
+                                    showTrial: isEligibleForTrial
                                 ) {
                                     selectedProduct = yearly
                                 }
@@ -107,7 +113,7 @@ struct PaywallView: View {
                                 ProgressView()
                                     .tint(.black)
                             } else {
-                                Text("Start Free Trial")
+                                Text(isEligibleForTrial ? "Start Free Trial" : "Subscribe")
                                     .font(.system(size: 17, weight: .bold))
                             }
                         }
@@ -126,19 +132,33 @@ struct PaywallView: View {
                             .foregroundStyle(.red)
                     }
 
-                    // Restore + legal
-                    VStack(spacing: 10) {
+                    // Restore + legal + logout
+                    VStack(spacing: 12) {
                         Button("Restore Purchases") {
                             Task { await paywall.restorePurchases() }
                         }
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(.white.opacity(0.4))
 
+                        HStack(spacing: 16) {
+                            Link("Privacy Policy", destination: URL(string: "https://verceltics.site/privacy")!)
+                            Link("Terms of Use", destination: URL(string: "https://verceltics.site/terms")!)
+                        }
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.3))
+
                         Text("Payment will be charged to your Apple ID. Subscription auto-renews unless cancelled at least 24 hours before the end of the current period.")
                             .font(.system(size: 10))
                             .foregroundStyle(.white.opacity(0.2))
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 32)
+
+                        Button("Sign Out") {
+                            authManager.logout()
+                        }
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.red.opacity(0.6))
+                        .padding(.top, 4)
                     }
 
                     Spacer().frame(height: 20)
@@ -150,6 +170,10 @@ struct PaywallView: View {
             // Default select yearly
             if selectedProduct == nil {
                 selectedProduct = paywall.yearlyProduct ?? paywall.monthlyProduct
+            }
+            // Check trial eligibility
+            if let yearly = paywall.yearlyProduct {
+                isEligibleForTrial = await yearly.subscription?.isEligibleForIntroOffer ?? false
             }
         }
     }
@@ -192,6 +216,7 @@ struct PlanCard: View {
     let detail: String
     let isSelected: Bool
     let badge: String?
+    var showTrial: Bool = true
     let onTap: () -> Void
 
     var body: some View {
@@ -212,7 +237,7 @@ struct PlanCard: View {
                                 .clipShape(Capsule())
                         }
                     }
-                    Text("\(price) \(detail) after free trial")
+                    Text(showTrial ? "\(price) \(detail) after free trial" : "\(price) \(detail)")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.white.opacity(0.4))
                 }

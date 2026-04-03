@@ -96,9 +96,6 @@ struct AnalyticsView: View {
         .onChange(of: vm.selectedRange) {
             Task { await loadData() }
         }
-        .onChange(of: vm.selectedEnvironment) {
-            Task { await loadData() }
-        }
     }
 
     private var analyticsContent: some View {
@@ -171,35 +168,6 @@ struct AnalyticsView: View {
             }
 
             HStack(spacing: 8) {
-                // Environment picker
-                Menu {
-                    ForEach(VercelEnvironment.allCases) { env in
-                        Button {
-                            vm.selectedEnvironment = env
-                        } label: {
-                            HStack {
-                                Text(env.label)
-                                if vm.selectedEnvironment == env {
-                                    Image(systemName: "checkmark")
-                                }
-                            }
-                        }
-                    }
-                } label: {
-                    HStack(spacing: 4) {
-                        Text(vm.selectedEnvironment.label)
-                            .font(.system(size: 13, weight: .medium))
-                        Image(systemName: "chevron.up.chevron.down")
-                            .font(.system(size: 9, weight: .bold))
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(Color.white.opacity(0.06))
-                    .foregroundStyle(.white)
-                    .clipShape(Capsule())
-                    .overlay(Capsule().stroke(Color.white.opacity(0.08), lineWidth: 0.5))
-                }
-
                 // Time range picker
                 Menu {
                     ForEach(TimeRange.allCases) { range in
