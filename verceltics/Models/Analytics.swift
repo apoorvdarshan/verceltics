@@ -26,9 +26,18 @@ struct TimeseriesPoint: Identifiable, Decodable {
     let bounceRate: Int
 
     var date: Date? {
+        // Try full ISO8601 first (hourly: "2026-03-26T05:00:00Z")
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime]
-        return f.date(from: key)
+        if let d = f.date(from: key) { return d }
+        // Try with fractional seconds
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let d = f.date(from: key) { return d }
+        // Try date-only (daily: "2026-03-26")
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        df.timeZone = TimeZone(identifier: "UTC")
+        return df.date(from: key)
     }
 }
 

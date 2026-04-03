@@ -86,16 +86,13 @@ actor VercelAPI {
 
     // MARK: - Helpers
 
-    private func analyticsParams(projectId: String, teamId: String?, range: TimeRange, environment: VercelEnvironment = .production) -> [URLQueryItem] {
+    private func analyticsParams(projectId: String, teamId: String?, range: TimeRange) -> [URLQueryItem] {
         var items = [
             URLQueryItem(name: "projectId", value: projectId),
             URLQueryItem(name: "from", value: range.fromDate),
             URLQueryItem(name: "to", value: range.toDate)
         ]
         if let teamId { items.append(URLQueryItem(name: "teamId", value: teamId)) }
-        if let env = environment.queryValue {
-            items.append(URLQueryItem(name: "environment", value: env))
-        }
         return items
     }
 
