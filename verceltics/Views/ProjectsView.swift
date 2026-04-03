@@ -65,6 +65,7 @@ struct ProjectsView: View {
                 }
             }
             .navigationTitle("Projects")
+            .searchable(text: $searchText, isPresented: $isSearching, prompt: "Search projects...")
             .task { await loadProjects() }
             .onAppear {
                 if startWithSearch { isSearching = true }
