@@ -117,6 +117,37 @@ struct AboutView: View {
                     SectionHeader(title: "About")
                 }
 
+                // Subscription
+                Section {
+                    Button {
+                        if let url = URL(string: "https://apps.apple.com/account/subscriptions") {
+                            UIApplication.shared.open(url)
+                        }
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "creditcard")
+                                .font(.system(size: 14))
+                                .foregroundStyle(.gray)
+                                .frame(width: 24)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Manage Subscription")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.white)
+                                Text("Change plan or cancel")
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                            }
+                            Spacer()
+                            Image(systemName: "arrow.up.right")
+                                .font(.caption2)
+                                .foregroundStyle(.gray)
+                        }
+                    }
+                    .listRowBackground(Color.white.opacity(0.04))
+                } header: {
+                    SectionHeader(title: "Subscription")
+                }
+
                 // Account
                 Section {
                     Button(role: .destructive) {
