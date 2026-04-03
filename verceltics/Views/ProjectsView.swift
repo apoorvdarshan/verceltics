@@ -258,17 +258,27 @@ struct ProjectIcon: View {
             } else if didFail {
                 letterFallback
             } else {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Color.white.opacity(0.08))
-                        .frame(width: 40, height: 40)
-                    ProgressView()
-                        .scaleEffect(0.5)
-                }
+                letterFallback
+                    .opacity(0.5)
+                    .overlay(
+                        ProgressView()
+                            .scaleEffect(0.4)
+                    )
             }
         }
         .frame(width: 40, height: 40)
-        .task { await loadFavicon() }
+        .task {
+            // Race: load favicon vs 8s timeout
+            await withTaskGroup(of: Void.self) { group in
+                group.addTask { await loadFavicon() }
+                group.addTask {
+                    try? await Task.sleep(for: .seconds(8))
+                    if loadedImage == nil { didFail = true }
+                }
+                await group.next()
+                group.cancelAll()
+            }
+        }
     }
 
     private var letterFallback: some View {
