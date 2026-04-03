@@ -227,6 +227,11 @@ struct SkeletonCard: View {
 // MARK: - Project Icon (favicon from domain)
 
 struct ProjectIcon: View {
+    private enum ScrapedFavicon {
+        case remote(URL)
+        case inlineSVG(UIImage)
+    }
+
     let domain: String?
     let name: String
     @State private var loadedImage: Image?
@@ -300,9 +305,15 @@ struct ProjectIcon: View {
 
         // Scrape HTML <link> tags for favicon URLs
         if let scraped = await scrapeFaviconURLs(domain: domain) {
-            for url in scraped {
-                if let image = await fetchImage(from: url) {
-                    loadedImage = image
+            for favicon in scraped {
+                switch favicon {
+                case .remote(let url):
+                    if let image = await fetchImage(from: url) {
+                        loadedImage = image
+                        return
+                    }
+                case .inlineSVG(let uiImage):
+                    loadedImage = Image(uiImage: removeWhiteBackground(uiImage))
                     return
                 }
             }
@@ -476,14 +487,81 @@ struct ProjectIcon: View {
         return UIImage(cgImage: newCGImage, scale: image.scale, orientation: image.imageOrientation)
     }
 
-    private func scrapeFaviconURLs(domain: String) async -> [URL]? {
+    private func renderSVGDataURI(_ dataURI: String) -> UIImage? {
+        guard dataURI.lowercased().hasPrefix("data:image/svg+xml"),
+              let commaIndex = dataURI.firstIndex(of: ",") else { return nil }
+
+        let metadata = String(dataURI[..<commaIndex]).lowercased()
+        let payload = String(dataURI[dataURI.index(after: commaIndex)...])
+
+        let svgMarkup: String
+        if metadata.contains(";base64") {
+            guard let decoded = Data(base64Encoded: payload.removingPercentEncoding ?? payload),
+                  let string = String(data: decoded, encoding: .utf8) else { return nil }
+            svgMarkup = string
+        } else {
+            guard let decoded = payload.removingPercentEncoding else { return nil }
+            svgMarkup = decoded
+        }
+
+        let canvasSize = CGSize(width: 128, height: 128)
+        let html = """
+        <html>
+        <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: \(Int(canvasSize.width))px;
+            height: \(Int(canvasSize.height))px;
+            background: transparent;
+            overflow: hidden;
+        }
+        svg {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        </style>
+        </head>
+        <body>\(svgMarkup)</body>
+        </html>
+        """
+
+        guard let htmlData = html.data(using: .utf8),
+              let attributed = try? NSAttributedString(
+                  data: htmlData,
+                  options: [
+                      .documentType: NSAttributedString.DocumentType.html,
+                      .characterEncoding: String.Encoding.utf8.rawValue,
+                  ],
+                  documentAttributes: nil
+              ) else { return nil }
+
+        let format = UIGraphicsImageRendererFormat.default()
+        format.opaque = false
+
+        let renderer = UIGraphicsImageRenderer(size: canvasSize, format: format)
+        return renderer.image { _ in
+            UIColor.clear.setFill()
+            UIRectFill(CGRect(origin: .zero, size: canvasSize))
+            attributed.draw(
+                with: CGRect(origin: .zero, size: canvasSize),
+                options: [.usesLineFragmentOrigin, .usesFontLeading],
+                context: nil
+            )
+        }
+    }
+
+    private func scrapeFaviconURLs(domain: String) async -> [ScrapedFavicon]? {
         let pageURL = URL(string: "https://\(domain)")!
         var request = URLRequest(url: pageURL)
         request.timeoutInterval = 5
         guard let (data, _) = try? await URLSession.shared.data(for: request),
               let html = String(data: data, encoding: .utf8) else { return nil }
 
-        var urls: [URL] = []
+        var favicons: [ScrapedFavicon] = []
         // Find all <link> tags with rel containing "icon"
         let pattern = #"<link[^>]*rel=[\"'][^\"']*icon[^\"']*[\"'][^>]*href=[\"']([^\"']+)[\"']|<link[^>]*href=[\"']([^\"']+)[\"'][^>]*rel=[\"'][^\"']*icon[^\"']*[\"']"#
         guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else { return nil }
@@ -498,19 +576,19 @@ struct ProjectIcon: View {
                 href = String(html[r2])
             } else { continue }
 
-            // Skip data: URIs (inline SVGs — can't render without WebView)
-            if href.hasPrefix("data:") { continue }
+            if href.lowercased().hasPrefix("data:image/svg+xml") {
+                if let image = renderSVGDataURI(href) {
+                    favicons.append(.inlineSVG(image))
+                }
+                continue
+            }
 
-            if href.hasPrefix("http") {
-                if let url = URL(string: href) { urls.append(url) }
-            } else {
-                // Relative URL
-                let path = href.hasPrefix("/") ? href : "/\(href)"
-                if let url = URL(string: "https://\(domain)\(path)") { urls.append(url) }
+            if let url = URL(string: href, relativeTo: pageURL)?.absoluteURL {
+                favicons.append(.remote(url))
             }
         }
 
-        return urls.isEmpty ? nil : urls
+        return favicons.isEmpty ? nil : favicons
     }
 }
 
