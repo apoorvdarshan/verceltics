@@ -51,15 +51,17 @@ struct ProjectsView: View {
 
     private var projectsList: some View {
         ScrollView {
-            LazyVStack(spacing: 12) {
+            LazyVStack(spacing: 14) {
                 ForEach(vm.projects) { project in
                     NavigationLink(destination: AnalyticsView(project: project)) {
                         ProjectCard(project: project)
                     }
+                    .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal)
-            .padding(.top, 4)
+            .padding(.horizontal, 16)
+            .padding(.top, 10)
+            .padding(.bottom, 28)
         }
         .refreshable { await loadProjects() }
     }
@@ -76,89 +78,108 @@ struct ProjectCard: View {
     let project: Project
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Top: icon + name + domain
+        VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 12) {
-                // Project favicon from domain
                 ProjectIcon(domain: project.primaryDomain, name: project.name)
 
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: 5) {
                     Text(project.name)
-                        .font(.headline)
+                        .font(.system(size: 18, weight: .semibold))
                         .foregroundStyle(.white)
 
                     if let domain = project.primaryDomain {
                         Text(domain)
-                            .font(.caption)
-                            .foregroundStyle(.gray)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.52))
                     }
                 }
 
                 Spacer()
 
                 Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(.gray)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.4))
             }
 
-            // Git repo badge
             if let link = project.link, let org = link.org, let repo = link.repo {
-                HStack(spacing: 4) {
+                HStack(spacing: 6) {
                     Image(systemName: "chevron.left.forwardslash.chevron.right")
-                        .font(.system(size: 9))
+                        .font(.system(size: 10, weight: .semibold))
                     Text("\(org)/\(repo)")
-                        .font(.caption2)
+                        .font(.system(size: 11, weight: .semibold))
                 }
-                .foregroundStyle(.gray)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color.white.opacity(0.06))
+                .foregroundStyle(.white.opacity(0.62))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color.white.opacity(0.07))
                 .clipShape(Capsule())
             }
 
-            // Commit message + time
             if let deployment = project.lastDeployment {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 6) {
                     if let message = deployment.commitMessage {
                         Text(message)
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.8))
-                            .lineLimit(1)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.82))
+                            .lineLimit(2)
                     }
 
                     if let date = deployment.date {
-                        HStack(spacing: 4) {
+                        HStack(spacing: 5) {
                             Text(date.formatted(.relative(presentation: .named)))
                             Text("on")
                             Image(systemName: "arrow.triangle.branch")
-                                .font(.system(size: 9))
+                                .font(.system(size: 9, weight: .bold))
                             Text("main")
                         }
-                        .font(.caption2)
-                        .foregroundStyle(.gray)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.46))
                     }
                 }
             }
 
-            // Framework badge
             if let framework = project.framework {
-                HStack(spacing: 4) {
+                HStack(spacing: 6) {
                     Circle()
                         .fill(.green)
                         .frame(width: 6, height: 6)
                     Text(framework.capitalized)
-                        .font(.caption2)
-                        .foregroundStyle(.gray)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.62))
                 }
             }
         }
-        .padding(16)
-        .background(Color.white.opacity(0.04))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.08),
+                            Color.blue.opacity(0.06),
+                            Color.white.opacity(0.03)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.18),
+                            Color.blue.opacity(0.3),
+                            Color.white.opacity(0.08)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
+        )
+        .shadow(color: .black.opacity(0.34), radius: 20, x: 0, y: 12)
     }
 }
 
@@ -167,60 +188,106 @@ struct ProjectCard: View {
 struct ProjectsSkeletonView: View {
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: 12) {
+            LazyVStack(spacing: 14) {
                 ForEach(0..<6, id: \.self) { _ in
                     SkeletonCard()
                 }
             }
-            .padding(.horizontal)
+            .padding(.horizontal, 16)
+            .padding(.top, 10)
+            .padding(.bottom, 28)
         }
     }
 }
 
 struct SkeletonCard: View {
-    @State private var shimmer = false
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 12) {
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(Color.white.opacity(shimmer ? 0.1 : 0.05))
+                    .fill(Color.white.opacity(0.08))
                     .frame(width: 40, height: 40)
+                    .modifier(SkeletonShimmer())
 
                 VStack(alignment: .leading, spacing: 6) {
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.white.opacity(shimmer ? 0.1 : 0.05))
+                        .fill(Color.white.opacity(0.08))
                         .frame(width: 120, height: 14)
+                        .modifier(SkeletonShimmer())
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.white.opacity(shimmer ? 0.08 : 0.03))
+                        .fill(Color.white.opacity(0.05))
                         .frame(width: 180, height: 10)
+                        .modifier(SkeletonShimmer())
                 }
             }
 
             RoundedRectangle(cornerRadius: 10)
-                .fill(Color.white.opacity(shimmer ? 0.06 : 0.03))
+                .fill(Color.white.opacity(0.05))
                 .frame(width: 140, height: 20)
+                .modifier(SkeletonShimmer())
 
             RoundedRectangle(cornerRadius: 4)
-                .fill(Color.white.opacity(shimmer ? 0.08 : 0.03))
+                .fill(Color.white.opacity(0.05))
                 .frame(width: 220, height: 10)
+                .modifier(SkeletonShimmer())
 
             RoundedRectangle(cornerRadius: 4)
-                .fill(Color.white.opacity(shimmer ? 0.06 : 0.03))
+                .fill(Color.white.opacity(0.04))
                 .frame(width: 100, height: 10)
+                .modifier(SkeletonShimmer())
         }
-        .padding(16)
-        .background(Color.white.opacity(0.04))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(Color.white.opacity(0.045))
         )
-        .onAppear {
-            withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
-                shimmer = true
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.14),
+                            Color.blue.opacity(0.24),
+                            Color.white.opacity(0.05)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
+        )
+    }
+}
+
+private struct SkeletonShimmer: ViewModifier {
+    @State private var phase: CGFloat = -0.8
+
+    func body(content: Content) -> some View {
+        content
+            .overlay {
+                GeometryReader { geometry in
+                    LinearGradient(
+                        colors: [
+                            .clear,
+                            Color.white.opacity(0.2),
+                            .clear
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(width: geometry.size.width * 0.65)
+                    .rotationEffect(.degrees(18))
+                    .offset(x: geometry.size.width * phase)
+                    .blendMode(.plusLighter)
+                }
+                .clipped()
             }
-        }
+            .mask(content)
+            .onAppear {
+                withAnimation(.linear(duration: 1.15).repeatForever(autoreverses: false)) {
+                    phase = 1.2
+                }
+            }
     }
 }
 
