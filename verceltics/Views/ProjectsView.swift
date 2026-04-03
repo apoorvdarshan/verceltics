@@ -79,16 +79,8 @@ struct ProjectCard: View {
         VStack(alignment: .leading, spacing: 12) {
             // Top: icon + name + domain
             HStack(alignment: .top, spacing: 12) {
-                // Project icon with first letter
-                ZStack {
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Color.white.opacity(0.08))
-                        .frame(width: 40, height: 40)
-
-                    Text(String(project.name.prefix(1)).uppercased())
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
-                }
+                // Project favicon from domain
+                ProjectIcon(domain: project.primaryDomain, name: project.name)
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(project.name)
@@ -229,6 +221,49 @@ struct SkeletonCard: View {
                 shimmer = true
             }
         }
+    }
+}
+
+// MARK: - Project Icon (favicon from domain)
+
+struct ProjectIcon: View {
+    let domain: String?
+    let name: String
+
+    private var faviconURL: URL? {
+        guard let domain else { return nil }
+        return URL(string: "https://www.google.com/s2/favicons?domain=\(domain)&sz=128")
+    }
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color.white.opacity(0.08))
+                .frame(width: 40, height: 40)
+
+            if let faviconURL {
+                AsyncImage(url: faviconURL) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 24, height: 24)
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                    default:
+                        letterFallback
+                    }
+                }
+            } else {
+                letterFallback
+            }
+        }
+    }
+
+    private var letterFallback: some View {
+        Text(String(name.prefix(1)).uppercased())
+            .font(.system(size: 18, weight: .bold, design: .rounded))
+            .foregroundStyle(.white)
     }
 }
 
