@@ -89,7 +89,6 @@ struct LoginView: View {
                                 .focused($isTokenFocused)
                                 .autocorrectionDisabled()
                                 .textInputAutocapitalization(.never)
-                                .onAppear { isTokenFocused = true }
 
                             Button {
                                 Task { await authManager.login(token: tokenInput.trimmingCharacters(in: .whitespacesAndNewlines)) }
