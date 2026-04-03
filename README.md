@@ -16,15 +16,15 @@
 
 ## Screenshots
 
-| Projects | Analytics | Pages & Routes |
-|:---:|:---:|:---:|
-| ![Projects](docs/screenshots/projects.png) | ![Analytics](docs/screenshots/analytics.png) | ![Breakdowns](docs/screenshots/breakdowns.png) |
-| All your Vercel projects with favicons, git repo, and last commit | Visitors, page views, bounce rate with interactive chart | Pages, routes, and hostnames with visitor counts |
-
-| Referrers & Countries | Devices & Browsers |
+| Projects | Analytics |
 |:---:|:---:|
-| ![Referrers](docs/screenshots/referrers.png) | ![Devices](docs/screenshots/devices.png) |
-| Referrers, UTM parameters, and countries with flags | Device types, browsers, and operating systems |
+| ![Projects](docs/screenshots/projects.png) | ![Analytics](docs/screenshots/analytics.png) |
+| All your Vercel projects with favicons, git repo, and last commit | Visitors, page views, bounce rate with interactive chart |
+
+| Pages & Routes | Referrers & Countries | Devices & Browsers |
+|:---:|:---:|:---:|
+| ![Breakdowns](docs/screenshots/breakdowns.png) | ![Referrers](docs/screenshots/referrers.png) | ![Devices](docs/screenshots/devices.png) |
+| Pages, routes, and hostnames with visitor counts | Referrers, UTM parameters, and countries with flags | Device types, browsers, and operating systems |
 
 ## Features
 
