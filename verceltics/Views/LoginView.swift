@@ -171,9 +171,8 @@ struct LoginView: View {
             Image("AppLogo")
                 .resizable()
                 .aspectRatio(contentMode: .fit)
-                .frame(width: 80, height: 80)
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .shadow(color: .blue.opacity(0.2), radius: 20, y: 4)
+                .frame(width: 120, height: 120)
+                .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
 
             VStack(spacing: 6) {
                 Text("Verceltics")
