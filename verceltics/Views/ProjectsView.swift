@@ -229,10 +229,17 @@ struct SkeletonCard: View {
 struct ProjectIcon: View {
     let domain: String?
     let name: String
+    @State private var loadedImage: Image?
+    @State private var didFail = false
 
-    private var faviconURL: URL? {
-        guard let domain else { return nil }
-        return URL(string: "https://www.google.com/s2/favicons?domain=\(domain)&sz=128")
+    private var faviconURLs: [URL] {
+        guard let domain else { return [] }
+        return [
+            URL(string: "https://icon.horse/icon/\(domain)"),
+            URL(string: "https://\(domain)/apple-touch-icon.png"),
+            URL(string: "https://\(domain)/favicon.ico"),
+            URL(string: "https://www.google.com/s2/favicons?domain=\(domain)&sz=128")
+        ].compactMap { $0 }
     }
 
     var body: some View {
@@ -241,29 +248,45 @@ struct ProjectIcon: View {
                 .fill(Color.white.opacity(0.08))
                 .frame(width: 40, height: 40)
 
-            if let faviconURL {
-                AsyncImage(url: faviconURL) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 24, height: 24)
-                            .clipShape(RoundedRectangle(cornerRadius: 4))
-                    default:
-                        letterFallback
-                    }
-                }
-            } else {
+            if let loadedImage {
+                loadedImage
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 40, height: 40)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+            } else if didFail {
                 letterFallback
+            } else {
+                ProgressView()
+                    .scaleEffect(0.5)
             }
         }
+        .task { await loadFavicon() }
     }
 
     private var letterFallback: some View {
         Text(String(name.prefix(1)).uppercased())
             .font(.system(size: 18, weight: .bold, design: .rounded))
             .foregroundStyle(.white)
+    }
+
+    private func loadFavicon() async {
+        for url in faviconURLs {
+            do {
+                var request = URLRequest(url: url)
+                request.timeoutInterval = 5
+                let (data, response) = try await URLSession.shared.data(for: request)
+                guard let http = response as? HTTPURLResponse,
+                      (200...299).contains(http.statusCode),
+                      data.count > 100,
+                      let uiImage = UIImage(data: data) else { continue }
+                loadedImage = Image(uiImage: uiImage)
+                return
+            } catch {
+                continue
+            }
+        }
+        didFail = true
     }
 }
 
