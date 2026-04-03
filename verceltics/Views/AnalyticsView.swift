@@ -103,19 +103,24 @@ struct AnalyticsView: View {
 
     private var analyticsContent: some View {
         ScrollView {
-            VStack(spacing: 14) {
-                // Domain + Environment/Range pickers
+            VStack(spacing: 16) {
                 header
                 statsCards
 
                 AnalyticsChart(data: vm.data.timeseries)
-                    .frame(height: 240)
+                    .frame(height: 250)
                     .padding(16)
-                    .background(Color.white.opacity(0.04))
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .background(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.05), Color.white.opacity(0.02)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 14)
-                            .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
                     )
 
                 // Pages, Routes & Hostnames
@@ -148,19 +153,19 @@ struct AnalyticsView: View {
     // MARK: - Header
 
     private var header: some View {
-        VStack(spacing: 10) {
-            // Project icon + domain
-            HStack(spacing: 10) {
+        VStack(spacing: 14) {
+            HStack(spacing: 12) {
                 ProjectIcon(domain: project.primaryDomain, name: project.name)
 
-                if let domain = project.primaryDomain {
-                    HStack(spacing: 4) {
-                        Image(systemName: "globe")
-                            .font(.caption2)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(project.name)
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(.white)
+                    if let domain = project.primaryDomain {
                         Text(domain)
-                            .font(.caption)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.35))
                     }
-                    .foregroundStyle(.gray)
                 }
                 Spacer()
             }
@@ -187,11 +192,12 @@ struct AnalyticsView: View {
                         Image(systemName: "chevron.up.chevron.down")
                             .font(.system(size: 9, weight: .bold))
                     }
-                    .padding(.horizontal, 12)
+                    .padding(.horizontal, 14)
                     .padding(.vertical, 8)
                     .background(Color.white.opacity(0.06))
                     .foregroundStyle(.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .clipShape(Capsule())
+                    .overlay(Capsule().stroke(Color.white.opacity(0.08), lineWidth: 0.5))
                 }
 
                 // Time range picker
@@ -220,16 +226,18 @@ struct AnalyticsView: View {
                         Image(systemName: "chevron.up.chevron.down")
                             .font(.system(size: 9, weight: .bold))
                     }
-                    .padding(.horizontal, 12)
+                    .padding(.horizontal, 14)
                     .padding(.vertical, 8)
                     .background(Color.white.opacity(0.06))
                     .foregroundStyle(.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .clipShape(Capsule())
+                    .overlay(Capsule().stroke(Color.white.opacity(0.08), lineWidth: 0.5))
                 }
 
                 Spacer()
             }
         }
+        .padding(.bottom, 4)
     }
 
     // MARK: - Stats Cards
@@ -273,15 +281,17 @@ struct AnalyticsView: View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
             HStack {
-                Image(systemName: icon)
-                    .font(.caption)
-                    .foregroundStyle(.gray)
-                Text(title)
-                    .font(.subheadline.bold())
-                    .foregroundStyle(.white)
+                HStack(spacing: 7) {
+                    Image(systemName: icon)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.blue)
+                    Text(title)
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(.white)
+                }
                 Spacer()
                 Text("VISITORS")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.system(size: 9, weight: .bold))
                     .foregroundStyle(.gray)
             }
             .padding(.horizontal, 16)
@@ -353,11 +363,17 @@ struct AnalyticsView: View {
                 }
             }
         }
-        .background(Color.white.opacity(0.04))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .background(
+            LinearGradient(
+                colors: [Color.white.opacity(0.05), Color.white.opacity(0.02)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
         )
     }
 
