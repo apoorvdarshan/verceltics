@@ -52,7 +52,6 @@ struct AboutView: View {
                         // Developer
                         aboutSection(title: "DEVELOPER") {
                             AboutRow(icon: "at", title: "Follow on X", subtitle: "@apoorvdarshan", url: "https://x.com/apoorvdarshan")
-                            AboutRow(icon: "person.fill", title: "GitHub", subtitle: "@apoorvdarshan", url: "https://github.com/apoorvdarshan")
                         }
 
                         // Legal
