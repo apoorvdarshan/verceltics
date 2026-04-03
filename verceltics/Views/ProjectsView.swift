@@ -248,7 +248,7 @@ struct ProjectIcon: View {
             if let loadedImage {
                 loadedImage
                     .resizable()
-                    .aspectRatio(contentMode: .fit)
+                    .aspectRatio(contentMode: .fill)
                     .frame(width: 40, height: 40)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
             } else if didFail {
@@ -309,28 +309,40 @@ struct ProjectIcon: View {
             }
         }
 
-        // Last resort: Google favicon API (handles SVG favicons by converting to PNG)
+        // Last resort: Google favicon API (converts SVGs to PNG)
+        // Only use if the result has transparency (otherwise it adds ugly white bg)
         if let googleURL = URL(string: "https://www.google.com/s2/favicons?domain=\(domain)&sz=128"),
-           let image = await fetchImage(from: googleURL) {
-            loadedImage = image
+           let data = await fetchImageData(from: googleURL),
+           let uiImage = UIImage(data: data),
+           uiImage.size.width >= 32,
+           isTransparent(uiImage) {
+            loadedImage = Image(uiImage: uiImage)
             return
         }
 
         didFail = true
     }
 
-    private func fetchImage(from url: URL) async -> Image? {
+    private func fetchImageData(from url: URL) async -> Data? {
         var request = URLRequest(url: url)
         request.timeoutInterval = 5
         guard let (data, response) = try? await URLSession.shared.data(for: request),
               let http = response as? HTTPURLResponse,
               (200...299).contains(http.statusCode),
               data.count > 50 else { return nil }
+        return data
+    }
 
+    private func fetchImage(from url: URL) async -> Image? {
+        guard let data = await fetchImageData(from: url) else { return nil }
         guard let uiImage = UIImage(data: data) else { return nil }
-        // Skip tiny default/placeholder icons (e.g. Google's 16x16 globe)
         guard uiImage.size.width >= 32 || uiImage.size.height >= 32 else { return nil }
         return Image(uiImage: uiImage)
+    }
+
+    private func isTransparent(_ image: UIImage) -> Bool {
+        guard let cgImage = image.cgImage, cgImage.alphaInfo != .none && cgImage.alphaInfo != .noneSkipLast && cgImage.alphaInfo != .noneSkipFirst else { return false }
+        return true
     }
 
     private func scrapeFaviconURLs(domain: String) async -> [URL]? {
