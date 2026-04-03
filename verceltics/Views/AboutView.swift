@@ -43,22 +43,22 @@ struct AboutView: View {
                     VStack(spacing: 24) {
                         // Links
                         aboutSection(title: "LINKS") {
-                            AboutRow(icon: "chevron.left.forwardslash.chevron.right", iconColor: .white, title: "Source Code", subtitle: "github.com/apoorvdarshan/verceltics", url: "https://github.com/apoorvdarshan/verceltics")
-                            AboutRow(icon: "ant", iconColor: .orange, title: "Report an Issue", subtitle: "Open a GitHub issue", url: "https://github.com/apoorvdarshan/verceltics/issues")
-                            AboutRow(icon: "envelope.fill", iconColor: .blue, title: "Contact", subtitle: "ad13dtu@gmail.com", url: "mailto:ad13dtu@gmail.com")
-                            AboutRow(icon: "globe", iconColor: .cyan, title: "Website", subtitle: "verceltics.site", url: "https://verceltics.site")
+                            AboutRow(icon: "chevron.left.forwardslash.chevron.right", title: "Source Code", subtitle: "github.com/apoorvdarshan/verceltics", url: "https://github.com/apoorvdarshan/verceltics")
+                            AboutRow(icon: "ant", title: "Report an Issue", subtitle: "Open a GitHub issue", url: "https://github.com/apoorvdarshan/verceltics/issues")
+                            AboutRow(icon: "envelope.fill", title: "Contact", subtitle: "ad13dtu@gmail.com", url: "mailto:ad13dtu@gmail.com")
+                            AboutRow(icon: "globe", title: "Website", subtitle: "verceltics.site", url: "https://verceltics.site")
                         }
 
                         // Legal
                         aboutSection(title: "LEGAL") {
-                            AboutRow(icon: "hand.raised.fill", iconColor: .green, title: "Privacy Policy", subtitle: "verceltics.site/privacy", url: "https://verceltics.site/privacy")
-                            AboutRow(icon: "doc.text.fill", iconColor: .purple, title: "Terms of Service", subtitle: "verceltics.site/terms", url: "https://verceltics.site/terms")
-                            AboutRow(icon: "checkmark.seal.fill", iconColor: .mint, title: "License", subtitle: "MIT License", url: "https://github.com/apoorvdarshan/verceltics/blob/main/LICENSE")
+                            AboutRow(icon: "hand.raised.fill", title: "Privacy Policy", subtitle: "verceltics.site/privacy", url: "https://verceltics.site/privacy")
+                            AboutRow(icon: "doc.text.fill", title: "Terms of Service", subtitle: "verceltics.site/terms", url: "https://verceltics.site/terms")
+                            AboutRow(icon: "checkmark.seal.fill", title: "License", subtitle: "MIT License", url: "https://github.com/apoorvdarshan/verceltics/blob/main/LICENSE")
                         }
 
                         // Subscription
                         aboutSection(title: "SUBSCRIPTION") {
-                            AboutRow(icon: "creditcard.fill", iconColor: .indigo, title: "Manage Subscription", subtitle: "Change plan or cancel", url: "https://apps.apple.com/account/subscriptions")
+                            AboutRow(icon: "creditcard.fill", title: "Manage Subscription", subtitle: "Change plan or cancel", url: "https://apps.apple.com/account/subscriptions")
                         }
 
                         // About text
@@ -121,17 +121,11 @@ struct AboutView: View {
             VStack(spacing: 0) {
                 content()
             }
-            .background(
-                LinearGradient(
-                    colors: [Color.white.opacity(0.05), Color.white.opacity(0.02)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .background(.ultraThinMaterial.opacity(0.5))
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(Color.white.opacity(0.07), lineWidth: 0.5)
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(Color.white.opacity(0.06), lineWidth: 0.5)
             )
             .padding(.horizontal, 16)
         }
@@ -147,7 +141,7 @@ struct AboutRow: View {
     let subtitle: String
     let url: String?
 
-    init(icon: String, iconColor: Color = .gray, title: String, subtitle: String, url: String? = nil) {
+    init(icon: String, iconColor: Color = .white.opacity(0.5), title: String, subtitle: String, url: String? = nil) {
         self.icon = icon
         self.iconColor = iconColor
         self.title = title
@@ -169,7 +163,7 @@ struct AboutRow: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(iconColor)
                 .frame(width: 32, height: 32)
-                .background(iconColor.opacity(0.12))
+                .background(Color.white.opacity(0.08))
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
             VStack(alignment: .leading, spacing: 2) {
