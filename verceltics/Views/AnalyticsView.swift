@@ -121,7 +121,7 @@ struct AnalyticsView: View {
 
                 // Referrers & UTM
                 breakdownCard(title: "Referrers", icon: "link", items: vm.data.referrers, emptyLabel: "Direct")
-                breakdownCard(title: "UTM Parameters", icon: "tag", items: vm.data.utmSources)
+                breakdownCard(title: "UTM Parameters", icon: "tag", items: vm.data.utmSources, proHint: "Pro + Analytics Plus")
 
                 // Countries
                 breakdownCard(title: "Countries", icon: "globe.americas", items: vm.data.countries, isCountry: true)
@@ -132,7 +132,7 @@ struct AnalyticsView: View {
                 breakdownCard(title: "Operating Systems", icon: "laptopcomputer", items: vm.data.os, isPercentage: true)
 
                 // Events, Flags & Query Params
-                breakdownCard(title: "Events", icon: "bolt.fill", items: vm.data.events)
+                breakdownCard(title: "Events", icon: "bolt.fill", items: vm.data.events, proHint: "Pro")
                 breakdownCard(title: "Flags", icon: "flag.fill", items: vm.data.flags)
                 breakdownCard(title: "Query Parameters", icon: "questionmark.circle", items: vm.data.queryParams)
             }
@@ -258,7 +258,8 @@ struct AnalyticsView: View {
         emptyLabel: String = "",
         isPath: Bool = false,
         isCountry: Bool = false,
-        isPercentage: Bool = false
+        isPercentage: Bool = false,
+        proHint: String? = nil
     ) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
@@ -280,11 +281,27 @@ struct AnalyticsView: View {
             Divider().overlay(Color.white.opacity(0.06))
 
             if items.isEmpty {
-                Text("No data available")
-                    .font(.caption)
-                    .foregroundStyle(.gray)
+                if let proHint {
+                    VStack(spacing: 6) {
+                        Image(systemName: "lock.fill")
+                            .font(.title3)
+                            .foregroundStyle(.gray)
+                        Text("Requires \(proHint)")
+                            .font(.caption.bold())
+                            .foregroundStyle(.white)
+                        Text("Upgrade your Vercel plan to view this data")
+                            .font(.caption2)
+                            .foregroundStyle(.gray)
+                    }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 24)
+                } else {
+                    Text("No data available")
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 24)
+                }
             } else {
                 let total = items.reduce(0) { $0 + $1.visitors }
                 let maxVal = items.first?.visitors ?? 1
