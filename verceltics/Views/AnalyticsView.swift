@@ -110,13 +110,13 @@ struct AnalyticsView: View {
                 // Countries
                 breakdownCard(title: "Countries", icon: "globe.americas", items: vm.data.countries, isCountry: true)
 
-                // Devices / Browsers / OS in a row-like layout
-                breakdownCard(title: "Devices", icon: "desktopcomputer", items: vm.data.devices, proLocked: vm.data.devices.isEmpty)
-                breakdownCard(title: "Browsers", icon: "safari", items: vm.data.browsers, proLocked: vm.data.browsers.isEmpty)
-                breakdownCard(title: "Operating Systems", icon: "laptopcomputer", items: vm.data.os, proLocked: vm.data.os.isEmpty)
+                // Devices / Browsers / OS
+                breakdownCard(title: "Devices", icon: "desktopcomputer", items: vm.data.devices)
+                breakdownCard(title: "Browsers", icon: "safari", items: vm.data.browsers)
+                breakdownCard(title: "Operating Systems", icon: "laptopcomputer", items: vm.data.os)
 
                 // UTM
-                breakdownCard(title: "UTM Sources", icon: "tag", items: vm.data.utmSources, proLocked: vm.data.utmSources.isEmpty)
+                breakdownCard(title: "UTM Sources", icon: "tag", items: vm.data.utmSources)
             }
             .padding()
         }
@@ -239,8 +239,7 @@ struct AnalyticsView: View {
         items: [BreakdownItem],
         emptyLabel: String = "",
         isPath: Bool = false,
-        isCountry: Bool = false,
-        proLocked: Bool = false
+        isCountry: Bool = false
     ) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
@@ -261,23 +260,7 @@ struct AnalyticsView: View {
 
             Divider().overlay(Color.white.opacity(0.06))
 
-            if proLocked {
-                // Pro plan locked state
-                VStack(spacing: 8) {
-                    Image(systemName: "lock.fill")
-                        .font(.title3)
-                        .foregroundStyle(.gray)
-                    Text("Pro Plan Required")
-                        .font(.caption.bold())
-                        .foregroundStyle(.white)
-                    Text("Upgrade to Pro to view \(title.lowercased()) data")
-                        .font(.caption2)
-                        .foregroundStyle(.gray)
-                        .multilineTextAlignment(.center)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 28)
-            } else if items.isEmpty {
+            if items.isEmpty {
                 Text("No data available")
                     .font(.caption)
                     .foregroundStyle(.gray)
