@@ -53,8 +53,11 @@ struct AnalyticsData {
     var os: [BreakdownItem] = []
     var browsers: [BreakdownItem] = []
     var utmSources: [BreakdownItem] = []
-    var utmMediums: [BreakdownItem] = []
-    var utmCampaigns: [BreakdownItem] = []
+    var routes: [BreakdownItem] = []
+    var hostnames: [BreakdownItem] = []
+    var events: [BreakdownItem] = []
+    var flags: [BreakdownItem] = []
+    var queryParams: [BreakdownItem] = []
 
     var visitorsChange: Double? {
         percentChange(current: overview?.devices, previous: previousOverview?.devices)

@@ -34,6 +34,11 @@ final class AnalyticsViewModel {
             async let browsers = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "client_name")
             async let os = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "os_name")
             async let utmSources = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "utm")
+            async let routes = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "route")
+            async let hostnames = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "hostname")
+            async let events = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "event_name")
+            async let flags = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "flags")
+            async let queryParams = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "query_params")
 
             data.overview = try await overview
             data.previousOverview = try? await previous
@@ -45,6 +50,11 @@ final class AnalyticsViewModel {
             data.browsers = (try? await browsers) ?? []
             data.os = (try? await os) ?? []
             data.utmSources = (try? await utmSources) ?? []
+            data.routes = (try? await routes) ?? []
+            data.hostnames = (try? await hostnames) ?? []
+            data.events = (try? await events) ?? []
+            data.flags = (try? await flags) ?? []
+            data.queryParams = (try? await queryParams) ?? []
 
         } catch {
             self.error = error.localizedDescription
@@ -104,20 +114,27 @@ struct AnalyticsView: View {
                     .background(Color.white.opacity(0.04))
                     .clipShape(RoundedRectangle(cornerRadius: 16))
 
-                // Pages & Referrers
+                // Pages, Routes & Hostnames
                 breakdownCard(title: "Pages", icon: "doc.text", items: vm.data.pages, isPath: true)
+                breakdownCard(title: "Routes", icon: "arrow.triangle.branch", items: vm.data.routes, isPath: true)
+                breakdownCard(title: "Hostnames", icon: "server.rack", items: vm.data.hostnames)
+
+                // Referrers & UTM
                 breakdownCard(title: "Referrers", icon: "link", items: vm.data.referrers, emptyLabel: "Direct")
+                breakdownCard(title: "UTM Parameters", icon: "tag", items: vm.data.utmSources)
 
                 // Countries
                 breakdownCard(title: "Countries", icon: "globe.americas", items: vm.data.countries, isCountry: true)
 
                 // Devices / Browsers / OS
-                breakdownCard(title: "Devices", icon: "desktopcomputer", items: vm.data.devices)
-                breakdownCard(title: "Browsers", icon: "safari", items: vm.data.browsers)
-                breakdownCard(title: "Operating Systems", icon: "laptopcomputer", items: vm.data.os)
+                breakdownCard(title: "Devices", icon: "desktopcomputer", items: vm.data.devices, isPercentage: true)
+                breakdownCard(title: "Browsers", icon: "safari", items: vm.data.browsers, isPercentage: true)
+                breakdownCard(title: "Operating Systems", icon: "laptopcomputer", items: vm.data.os, isPercentage: true)
 
-                // UTM
-                breakdownCard(title: "UTM Sources", icon: "tag", items: vm.data.utmSources)
+                // Events, Flags & Query Params
+                breakdownCard(title: "Events", icon: "bolt.fill", items: vm.data.events)
+                breakdownCard(title: "Flags", icon: "flag.fill", items: vm.data.flags)
+                breakdownCard(title: "Query Parameters", icon: "questionmark.circle", items: vm.data.queryParams)
             }
             .padding()
         }
@@ -240,7 +257,8 @@ struct AnalyticsView: View {
         items: [BreakdownItem],
         emptyLabel: String = "",
         isPath: Bool = false,
-        isCountry: Bool = false
+        isCountry: Bool = false,
+        isPercentage: Bool = false
     ) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
@@ -292,8 +310,7 @@ struct AnalyticsView: View {
                         }
                         .frame(height: 36)
 
-                        // Show percentage for countries/devices/browsers/os, count for pages/referrers
-                        if isCountry || title == "Devices" || title == "Browsers" || title == "Operating Systems" {
+                        if isCountry || isPercentage {
                             Text(total > 0 ? "\(item.visitors * 100 / total)%" : "0%")
                                 .font(.system(size: 13, weight: .medium).monospacedDigit())
                                 .foregroundStyle(.gray)
