@@ -12,13 +12,15 @@ struct PaywallView: View {
 
     private let memes: [(gif: String, caption: String)] = [
         ("https://media.giphy.com/media/JIX9t2j0ZTN9S/giphy.gif", "Me checking analytics at 3am"),
-        ("https://media.giphy.com/media/3oKIPnAiaMCJ8sF3PG/giphy.gif", "When bounce rate drops"),
+        ("https://media.giphy.com/media/du3J3cXyzhj75IOgvA/giphy.gif", "When bounce rate finally drops"),
         ("https://media.giphy.com/media/13HgwGsXF0aiGY/giphy.gif", "Deploying to prod on Friday"),
-        ("https://media.giphy.com/media/l0IypeKl9NJanC3Hy/giphy.gif", "When visitors spike overnight"),
-        ("https://media.giphy.com/media/3o7btNa0RUYa5E7yl2/giphy.gif", "git push origin main"),
+        ("https://media.giphy.com/media/VbnUQpnihPSIgIXuZv/giphy.gif", "When visitors spike overnight"),
+        ("https://media.giphy.com/media/26tn33aiTi1jkl6H6/giphy.gif", "git push origin main"),
         ("https://media.giphy.com/media/ule4vhcY1xEKQ/giphy.gif", "Watching real-time analytics"),
         ("https://media.giphy.com/media/LmNwrBhejkK9EFP504/giphy.gif", "When the site goes viral"),
         ("https://media.giphy.com/media/l3q2K5jinAlChoCLS/giphy.gif", "100% bounce rate vibes"),
+        ("https://media.giphy.com/media/l41lFw057lAJQMwg0/giphy.gif", "\"Just one more feature\""),
+        ("https://media.giphy.com/media/3o7aD2saalBwwftBIY/giphy.gif", "Reading server logs at midnight"),
     ]
 
     @State private var memeTimer = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
