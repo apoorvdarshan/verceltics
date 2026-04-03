@@ -28,7 +28,7 @@ struct AboutView: View {
                                 .foregroundStyle(.white.opacity(0.4))
                         }
 
-                        Text("v1.0.0")
+                        Text("v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")")
                             .font(.system(size: 11, weight: .bold).monospacedDigit())
                             .foregroundStyle(.white.opacity(0.5))
                             .padding(.horizontal, 10)

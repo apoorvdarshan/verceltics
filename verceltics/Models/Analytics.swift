@@ -25,19 +25,29 @@ struct TimeseriesPoint: Identifiable, Decodable {
     let devices: Int
     let bounceRate: Int
 
-    var date: Date? {
-        // Try full ISO8601 first (hourly: "2026-03-26T05:00:00Z")
+    private static let isoFormatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime]
-        if let d = f.date(from: key) { return d }
-        // Try with fractional seconds
+        return f
+    }()
+
+    private static let isoFractionalFormatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let d = f.date(from: key) { return d }
-        // Try date-only (daily: "2026-03-26")
+        return f
+    }()
+
+    private static let dateOnlyFormatter: DateFormatter = {
         let df = DateFormatter()
         df.dateFormat = "yyyy-MM-dd"
         df.timeZone = TimeZone(identifier: "UTC")
-        return df.date(from: key)
+        return df
+    }()
+
+    var date: Date? {
+        if let d = Self.isoFormatter.date(from: key) { return d }
+        if let d = Self.isoFractionalFormatter.date(from: key) { return d }
+        return Self.dateOnlyFormatter.date(from: key)
     }
 }
 

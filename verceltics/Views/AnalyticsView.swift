@@ -67,8 +67,6 @@ struct AnalyticsView: View {
     let project: Project
     @Environment(AuthManager.self) private var authManager
     @State private var vm: AnalyticsViewModel
-    @State private var showRangePicker = false
-    @State private var showEnvPicker = false
 
     init(project: Project) {
         self.project = project
