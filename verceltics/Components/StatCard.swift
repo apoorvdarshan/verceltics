@@ -24,30 +24,37 @@ struct StatCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             Text(title)
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.gray)
 
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(value)
-                    .font(.system(size: 22, weight: .bold).monospacedDigit())
-                    .foregroundStyle(.white)
+            Text(value)
+                .font(.system(size: 24, weight: .bold).monospacedDigit())
+                .foregroundStyle(.white)
+                .contentTransition(.numericText())
 
-                if let changeText {
-                    Text(changeText)
-                        .font(.system(size: 11, weight: .bold).monospacedDigit())
-                        .foregroundStyle(changeColor)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
-                        .background(changeColor.opacity(0.15))
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
-                }
+            if let changeText {
+                Text(changeText)
+                    .font(.system(size: 11, weight: .bold).monospacedDigit())
+                    .foregroundStyle(changeColor)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(changeColor.opacity(0.15))
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+            } else {
+                Text("—")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.gray)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
         .background(Color.white.opacity(0.04))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+        )
     }
 }

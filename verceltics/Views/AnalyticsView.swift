@@ -109,10 +109,14 @@ struct AnalyticsView: View {
                 statsCards
 
                 AnalyticsChart(data: vm.data.timeseries)
-                    .frame(height: 220)
+                    .frame(height: 240)
                     .padding(16)
                     .background(Color.white.opacity(0.04))
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                    )
 
                 // Pages, Routes & Hostnames
                 breakdownCard(title: "Pages", icon: "doc.text", items: vm.data.pages, isPath: true)
@@ -345,7 +349,11 @@ struct AnalyticsView: View {
             }
         }
         .background(Color.white.opacity(0.04))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+        )
     }
 
     // MARK: - Helpers

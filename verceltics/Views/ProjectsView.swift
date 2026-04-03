@@ -22,7 +22,6 @@ final class ProjectsViewModel {
 struct ProjectsView: View {
     @Environment(AuthManager.self) private var authManager
     @State private var vm = ProjectsViewModel()
-    @State private var showSettings = false
 
     var body: some View {
         NavigationStack {
@@ -46,19 +45,6 @@ struct ProjectsView: View {
                 }
             }
             .navigationTitle("Projects")
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { showSettings = true } label: {
-                        Image(systemName: "gearshape")
-                            .foregroundStyle(.white)
-                    }
-                }
-            }
-            .sheet(isPresented: $showSettings) {
-                SettingsSheet(onLogout: { authManager.logout() })
-                    .presentationDetents([.medium])
-            }
             .task { await loadProjects() }
         }
     }
@@ -68,11 +54,12 @@ struct ProjectsView: View {
             LazyVStack(spacing: 12) {
                 ForEach(vm.projects) { project in
                     NavigationLink(destination: AnalyticsView(project: project)) {
-                        ProjectRow(project: project)
+                        ProjectCard(project: project)
                     }
                 }
             }
-            .padding()
+            .padding(.horizontal)
+            .padding(.top, 4)
         }
         .refreshable { await loadProjects() }
     }
@@ -83,64 +70,103 @@ struct ProjectsView: View {
     }
 }
 
-// MARK: - Project Row
+// MARK: - Project Card (Vercel-style)
 
-struct ProjectRow: View {
+struct ProjectCard: View {
     let project: Project
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Image(systemName: "triangle.fill")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.white)
-                Text(project.name)
-                    .font(.headline)
-                    .foregroundStyle(.white)
+        VStack(alignment: .leading, spacing: 12) {
+            // Top: icon + name + domain
+            HStack(alignment: .top, spacing: 12) {
+                // Project icon with first letter
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color.white.opacity(0.08))
+                        .frame(width: 40, height: 40)
+
+                    Text(String(project.name.prefix(1)).uppercased())
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(project.name)
+                        .font(.headline)
+                        .foregroundStyle(.white)
+
+                    if let domain = project.primaryDomain {
+                        Text(domain)
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                    }
+                }
+
                 Spacer()
+
                 Image(systemName: "chevron.right")
                     .font(.caption)
                     .foregroundStyle(.gray)
             }
 
-            if let domain = project.primaryDomain {
+            // Git repo badge
+            if let link = project.link, let org = link.org, let repo = link.repo {
                 HStack(spacing: 4) {
-                    Image(systemName: "globe")
+                    Image(systemName: "chevron.left.forwardslash.chevron.right")
+                        .font(.system(size: 9))
+                    Text("\(org)/\(repo)")
                         .font(.caption2)
-                    Text(domain)
-                        .font(.caption)
                 }
                 .foregroundStyle(.gray)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.white.opacity(0.06))
+                .clipShape(Capsule())
             }
 
+            // Commit message + time
             if let deployment = project.lastDeployment {
-                HStack(spacing: 12) {
-                    if let date = deployment.date {
-                        HStack(spacing: 4) {
-                            Image(systemName: "clock")
-                                .font(.caption2)
-                            Text(date.formatted(.relative(presentation: .named)))
-                                .font(.caption)
-                        }
-                        .foregroundStyle(.gray)
+                VStack(alignment: .leading, spacing: 4) {
+                    if let message = deployment.commitMessage {
+                        Text(message)
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.8))
+                            .lineLimit(1)
                     }
 
-                    if let message = deployment.commitMessage {
+                    if let date = deployment.date {
                         HStack(spacing: 4) {
-                            Image(systemName: "text.quote")
-                                .font(.caption2)
-                            Text(message)
-                                .font(.caption)
-                                .lineLimit(1)
+                            Text(date.formatted(.relative(presentation: .named)))
+                            Text("on")
+                            Image(systemName: "arrow.triangle.branch")
+                                .font(.system(size: 9))
+                            Text("main")
                         }
+                        .font(.caption2)
                         .foregroundStyle(.gray)
                     }
+                }
+            }
+
+            // Framework badge
+            if let framework = project.framework {
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(.green)
+                        .frame(width: 6, height: 6)
+                    Text(framework.capitalized)
+                        .font(.caption2)
+                        .foregroundStyle(.gray)
                 }
             }
         }
         .padding(16)
-        .background(Color.white.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .background(Color.white.opacity(0.04))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+        )
     }
 }
 
@@ -151,90 +177,56 @@ struct ProjectsSkeletonView: View {
         ScrollView {
             LazyVStack(spacing: 12) {
                 ForEach(0..<6, id: \.self) { _ in
-                    SkeletonRow()
+                    SkeletonCard()
                 }
             }
-            .padding()
+            .padding(.horizontal)
         }
     }
 }
 
-struct SkeletonRow: View {
+struct SkeletonCard: View {
     @State private var shimmer = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            RoundedRectangle(cornerRadius: 4)
-                .fill(Color.white.opacity(shimmer ? 0.1 : 0.05))
-                .frame(width: 160, height: 16)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color.white.opacity(shimmer ? 0.1 : 0.05))
+                    .frame(width: 40, height: 40)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.white.opacity(shimmer ? 0.1 : 0.05))
+                        .frame(width: 120, height: 14)
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.white.opacity(shimmer ? 0.08 : 0.03))
+                        .frame(width: 180, height: 10)
+                }
+            }
+
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color.white.opacity(shimmer ? 0.06 : 0.03))
+                .frame(width: 140, height: 20)
+
             RoundedRectangle(cornerRadius: 4)
                 .fill(Color.white.opacity(shimmer ? 0.08 : 0.03))
-                .frame(width: 220, height: 12)
+                .frame(width: 220, height: 10)
+
             RoundedRectangle(cornerRadius: 4)
-                .fill(Color.white.opacity(shimmer ? 0.08 : 0.03))
-                .frame(width: 180, height: 12)
+                .fill(Color.white.opacity(shimmer ? 0.06 : 0.03))
+                .frame(width: 100, height: 10)
         }
         .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .background(Color.white.opacity(0.04))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+        )
         .onAppear {
             withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
                 shimmer = true
-            }
-        }
-    }
-}
-
-// MARK: - Settings Sheet
-
-struct SettingsSheet: View {
-    let onLogout: () -> Void
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            ZStack {
-                Color.black.ignoresSafeArea()
-                VStack(spacing: 24) {
-                    VStack(spacing: 8) {
-                        Image(systemName: "triangle.fill")
-                            .font(.system(size: 32))
-                            .foregroundStyle(.white)
-                        Text("Verceltics")
-                            .font(.title3.bold())
-                            .foregroundStyle(.white)
-                    }
-                    .padding(.top, 24)
-
-                    Spacer()
-
-                    Button(role: .destructive) {
-                        onLogout()
-                        dismiss()
-                    } label: {
-                        HStack {
-                            Image(systemName: "rectangle.portrait.and.arrow.right")
-                            Text("Sign Out")
-                        }
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 50)
-                        .background(Color.red.opacity(0.15))
-                        .foregroundStyle(.red)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                    }
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 32)
-                }
-            }
-            .navigationTitle("Settings")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
-                        .foregroundStyle(.white)
-                }
             }
         }
     }

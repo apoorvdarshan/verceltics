@@ -8,7 +8,7 @@ struct VercelticsApp: App {
         WindowGroup {
             Group {
                 if authManager.isAuthenticated {
-                    ProjectsView()
+                    MainTabView()
                 } else {
                     LoginView()
                 }
