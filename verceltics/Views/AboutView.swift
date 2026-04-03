@@ -9,9 +9,26 @@ struct AboutView: View {
                 // App header
                 Section {
                     VStack(spacing: 12) {
-                        Image(systemName: "triangle.fill")
-                            .font(.system(size: 48))
-                            .foregroundStyle(.white)
+                        ZStack {
+                            Circle()
+                                .fill(
+                                    RadialGradient(
+                                        colors: [
+                                            Color.white.opacity(0.18),
+                                            Color.white.opacity(0.06),
+                                            Color.clear
+                                        ],
+                                        center: .center,
+                                        startRadius: 6,
+                                        endRadius: 52
+                                    )
+                                )
+                                .frame(width: 94, height: 94)
+
+                            Image(systemName: "triangle.fill")
+                                .font(.system(size: 48))
+                                .foregroundStyle(.white)
+                        }
 
                         Text("Verceltics")
                             .font(.title2.bold())
@@ -22,8 +39,16 @@ struct AboutView: View {
                             .foregroundStyle(.gray)
 
                         Text("v1.0.0")
-                            .font(.caption)
-                            .foregroundStyle(.gray)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.white.opacity(0.82))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Color.white.opacity(0.08))
+                            .clipShape(Capsule())
+                            .overlay(
+                                Capsule()
+                                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                            )
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
@@ -31,7 +56,7 @@ struct AboutView: View {
                 }
 
                 // Links
-                Section("Links") {
+                Section {
                     LinkRow(
                         icon: "globe",
                         title: "Source Code",
@@ -52,10 +77,12 @@ struct AboutView: View {
                         subtitle: "ad13dtu@gmail.com",
                         url: "mailto:ad13dtu@gmail.com"
                     )
+                } header: {
+                    SectionHeader(title: "Links")
                 }
 
                 // Legal
-                Section("Legal") {
+                Section {
                     LinkRow(
                         icon: "doc.text",
                         title: "Privacy Policy",
@@ -76,10 +103,12 @@ struct AboutView: View {
                         subtitle: "MIT License",
                         url: "https://github.com/apoorvdarshan/verceltics/blob/main/LICENSE"
                     )
+                } header: {
+                    SectionHeader(title: "Legal")
                 }
 
                 // About
-                Section("About") {
+                Section {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Verceltics is an open-source iOS app that lets you browse your Vercel projects and view web analytics — visitors, page views, bounce rate, referrers, countries, devices, and more.")
                             .font(.caption)
@@ -91,6 +120,8 @@ struct AboutView: View {
                     }
                     .padding(.vertical, 4)
                     .listRowBackground(Color.white.opacity(0.04))
+                } header: {
+                    SectionHeader(title: "About")
                 }
 
                 // Account
@@ -102,13 +133,32 @@ struct AboutView: View {
                             Image(systemName: "rectangle.portrait.and.arrow.right")
                             Text("Sign Out")
                         }
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.vertical, 8)
+                        .foregroundStyle(.red.opacity(0.92))
+                        .background(Color.red.opacity(0.08))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .shadow(color: .red.opacity(0.18), radius: 14)
                     }
+                    .buttonStyle(.plain)
+                    .listRowBackground(Color.clear)
                 }
             }
             .navigationTitle("About")
             .scrollContentBackground(.hidden)
             .background(Color.black)
         }
+    }
+}
+
+struct SectionHeader: View {
+    let title: String
+
+    var body: some View {
+        Text(title.uppercased())
+            .font(.caption.weight(.semibold))
+            .tracking(1.4)
+            .foregroundStyle(.gray)
     }
 }
 

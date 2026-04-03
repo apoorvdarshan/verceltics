@@ -17,6 +17,7 @@ struct LoginView: View {
                     Image(systemName: "triangle.fill")
                         .font(.system(size: 64))
                         .foregroundStyle(.white)
+                        .shadow(color: .white.opacity(0.15), radius: 30)
 
                     Text("Verceltics")
                         .font(.system(size: 34, weight: .bold, design: .default))
@@ -133,8 +134,10 @@ struct LoginView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                         }
                         .padding(.horizontal, 24)
+                        .buttonStyle(PressScaleButtonStyle())
                     }
                 }
+                .animation(.spring(response: 0.45, dampingFraction: 0.82), value: showTokenField)
 
                 Spacer()
                     .frame(height: 40)
@@ -153,14 +156,22 @@ struct StepRow: View {
         HStack(alignment: .top, spacing: 10) {
             Text("\(number)")
                 .font(.caption2.bold().monospacedDigit())
-                .foregroundStyle(.black)
+                .foregroundStyle(.white)
                 .frame(width: 18, height: 18)
-                .background(.white)
+                .background(Color.blue)
                 .clipShape(Circle())
 
             Text(text)
                 .font(.caption)
                 .foregroundStyle(.gray)
         }
+    }
+}
+
+struct PressScaleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .animation(.spring(response: 0.22, dampingFraction: 0.72), value: configuration.isPressed)
     }
 }

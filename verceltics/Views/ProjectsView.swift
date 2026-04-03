@@ -84,7 +84,7 @@ struct ProjectCard: View {
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(project.name)
-                        .font(.headline)
+                        .font(.system(size: 17, weight: .bold))
                         .foregroundStyle(.white)
 
                     if let domain = project.primaryDomain {
@@ -109,10 +109,10 @@ struct ProjectCard: View {
                     Text("\(org)/\(repo)")
                         .font(.caption2)
                 }
-                .foregroundStyle(.gray)
+                .foregroundStyle(.blue.opacity(0.92))
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(Color.white.opacity(0.06))
+                .background(Color.blue.opacity(0.14))
                 .clipShape(Capsule())
             }
 
@@ -165,6 +165,7 @@ struct ProjectCard: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
         )
+        .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
     }
 }
 
