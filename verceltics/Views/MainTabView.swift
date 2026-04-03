@@ -7,6 +7,10 @@ struct MainTabView: View {
                 ProjectsView()
             }
 
+            Tab(role: .search) {
+                ProjectsView(startWithSearch: true)
+            }
+
             Tab("About", systemImage: "info.circle") {
                 AboutView()
             }

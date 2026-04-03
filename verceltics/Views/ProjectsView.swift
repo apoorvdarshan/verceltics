@@ -20,9 +20,11 @@ final class ProjectsViewModel {
 }
 
 struct ProjectsView: View {
+    var startWithSearch = false
     @Environment(AuthManager.self) private var authManager
     @State private var vm = ProjectsViewModel()
     @State private var searchText = ""
+    @State private var isSearching = false
 
     private var filteredProjects: [Project] {
         if searchText.isEmpty { return vm.projects }
@@ -55,8 +57,11 @@ struct ProjectsView: View {
                 }
             }
             .navigationTitle("Projects")
-            .searchable(text: $searchText, prompt: "Search projects...")
+            .searchable(text: $searchText, isPresented: $isSearching, prompt: "Search projects...")
             .task { await loadProjects() }
+            .onAppear {
+                if startWithSearch { isSearching = true }
+            }
         }
     }
 
