@@ -104,55 +104,38 @@ struct AnalyticsView: View {
     private var analyticsContent: some View {
         ScrollView {
             VStack(spacing: 14) {
+                // Domain + Environment/Range pickers
                 header
                 statsCards
 
                 AnalyticsChart(data: vm.data.timeseries)
                     .frame(height: 240)
-                    .padding(18)
-                    .background(
-                        RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        Color.white.opacity(0.08),
-                                        Color.blue.opacity(0.08),
-                                        Color.white.opacity(0.03)
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                    )
+                    .padding(16)
+                    .background(Color.white.opacity(0.04))
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .stroke(
-                                LinearGradient(
-                                    colors: [
-                                        Color.white.opacity(0.18),
-                                        Color.blue.opacity(0.28),
-                                        Color.white.opacity(0.08)
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                ),
-                                lineWidth: 1
-                            )
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(Color.white.opacity(0.06), lineWidth: 1)
                     )
 
+                // Pages, Routes & Hostnames
                 breakdownCard(title: "Pages", icon: "doc.text", items: vm.data.pages, isPath: true)
                 breakdownCard(title: "Routes", icon: "arrow.triangle.branch", items: vm.data.routes, isPath: true)
                 breakdownCard(title: "Hostnames", icon: "server.rack", items: vm.data.hostnames)
 
+                // Referrers & UTM
                 breakdownCard(title: "Referrers", icon: "link", items: vm.data.referrers, emptyLabel: "Direct")
                 breakdownCard(title: "UTM Parameters", icon: "tag", items: vm.data.utmSources, proHint: "Pro + Analytics Plus")
 
+                // Countries
                 breakdownCard(title: "Countries", icon: "globe.americas", items: vm.data.countries, isCountry: true)
 
+                // Devices / Browsers / OS
                 breakdownCard(title: "Devices", icon: "desktopcomputer", items: vm.data.devices, isPercentage: true)
                 breakdownCard(title: "Browsers", icon: "safari", items: vm.data.browsers, isPercentage: true)
                 breakdownCard(title: "Operating Systems", icon: "laptopcomputer", items: vm.data.os, isPercentage: true)
 
+                // Events, Flags & Query Params
                 breakdownCard(title: "Events", icon: "bolt.fill", items: vm.data.events, proHint: "Pro")
                 breakdownCard(title: "Flags", icon: "flag.fill", items: vm.data.flags)
                 breakdownCard(title: "Query Parameters", icon: "questionmark.circle", items: vm.data.queryParams)
@@ -165,27 +148,25 @@ struct AnalyticsView: View {
     // MARK: - Header
 
     private var header: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 10) {
+            // Project icon + domain
             HStack(spacing: 10) {
                 ProjectIcon(domain: project.primaryDomain, name: project.name)
 
                 if let domain = project.primaryDomain {
-                    HStack(spacing: 6) {
+                    HStack(spacing: 4) {
                         Image(systemName: "globe")
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(.caption2)
                         Text(domain)
-                            .font(.system(size: 12, weight: .medium))
+                            .font(.caption)
                     }
-                    .foregroundStyle(.white.opacity(0.56))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(Color.white.opacity(0.05))
-                    .clipShape(Capsule())
+                    .foregroundStyle(.gray)
                 }
                 Spacer()
             }
 
             HStack(spacing: 8) {
+                // Environment picker
                 Menu {
                     ForEach(VercelEnvironment.allCases) { env in
                         Button {
@@ -200,13 +181,20 @@ struct AnalyticsView: View {
                         }
                     }
                 } label: {
-                    pickerLabel(
-                        title: "Environment",
-                        value: environmentPillValue,
-                        systemImage: "square.3.layers.3d.top.filled"
-                    )
+                    HStack(spacing: 4) {
+                        Text(vm.selectedEnvironment.label)
+                            .font(.system(size: 13, weight: .medium))
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.system(size: 9, weight: .bold))
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.white.opacity(0.06))
+                    .foregroundStyle(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
 
+                // Time range picker
                 Menu {
                     ForEach(TimeRange.allCases) { range in
                         Button {
@@ -224,11 +212,19 @@ struct AnalyticsView: View {
                         }
                     }
                 } label: {
-                    pickerLabel(
-                        title: "Range",
-                        value: vm.selectedRange.shortLabel.uppercased(),
-                        systemImage: "calendar"
-                    )
+                    HStack(spacing: 4) {
+                        Image(systemName: "calendar")
+                            .font(.system(size: 11))
+                        Text(vm.selectedRange.label)
+                            .font(.system(size: 13, weight: .medium))
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.system(size: 9, weight: .bold))
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.white.opacity(0.06))
+                    .foregroundStyle(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
 
                 Spacer()
@@ -239,14 +235,26 @@ struct AnalyticsView: View {
     // MARK: - Stats Cards
 
     private var statsCards: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 10) {
-                statsCardItems
-            }
-
-            VStack(spacing: 10) {
-                statsCardItems
-            }
+        HStack(spacing: 10) {
+            StatCard(
+                title: "Visitors",
+                value: formatNumber(vm.data.overview?.devices ?? 0),
+                change: vm.data.visitorsChange,
+                icon: "person.2"
+            )
+            StatCard(
+                title: "Page Views",
+                value: formatNumber(vm.data.overview?.total ?? 0),
+                change: vm.data.pageViewsChange,
+                icon: "eye"
+            )
+            StatCard(
+                title: "Bounce Rate",
+                value: "\(vm.data.overview?.bounceRate ?? 0)%",
+                change: vm.data.bounceRateChange,
+                invertChange: true,
+                icon: "arrow.uturn.left"
+            )
         }
     }
 
@@ -262,30 +270,24 @@ struct AnalyticsView: View {
         isPercentage: Bool = false,
         proHint: String? = nil
     ) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header
+            HStack {
                 Image(systemName: icon)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.blue)
-                    .frame(width: 32, height: 32)
-                    .background(
-                        Circle()
-                            .fill(Color.blue.opacity(0.16))
-                    )
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(title)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(.white)
-
-                    Text("VISITORS")
-                        .font(.system(size: 10, weight: .semibold))
-                        .tracking(0.8)
-                        .foregroundStyle(.white.opacity(0.38))
-                }
-
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+                Text(title)
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.white)
                 Spacer()
+                Text("VISITORS")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.gray)
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+
+            Divider().overlay(Color.white.opacity(0.06))
 
             if items.isEmpty {
                 if let proHint {
@@ -298,7 +300,7 @@ struct AnalyticsView: View {
                             .foregroundStyle(.white)
                         Text("Upgrade your Vercel plan to view this data")
                             .font(.caption2)
-                        .foregroundStyle(.gray)
+                            .foregroundStyle(.gray)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 24)
@@ -311,82 +313,51 @@ struct AnalyticsView: View {
                 }
             } else {
                 let total = items.reduce(0) { $0 + $1.visitors }
-                let maxVal = max(items.first?.visitors ?? 1, 1)
+                let maxVal = items.first?.visitors ?? 1
                 ForEach(items.prefix(8)) { item in
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack(spacing: 10) {
+                    HStack(spacing: 0) {
+                        ZStack(alignment: .leading) {
+                            GeometryReader { geo in
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(Color.white.opacity(0.06))
+                                    .frame(width: geo.size.width * CGFloat(item.visitors) / CGFloat(maxVal))
+                            }
                             HStack(spacing: 6) {
                                 if isCountry {
                                     Text(countryFlag(item.key))
                                         .font(.caption)
                                 }
                                 Text(displayName(item.key, emptyLabel: emptyLabel, isCountry: isCountry))
-                                    .font(.system(size: 13, weight: .medium))
+                                    .font(.system(size: 13))
                                     .foregroundStyle(.white)
                                     .lineLimit(1)
                             }
-
-                            Spacer(minLength: 12)
-
-                            Text(metricText(for: item, total: total, isCountry: isCountry, isPercentage: isPercentage))
-                                .font(.system(size: 12, weight: .semibold).monospacedDigit())
-                                .foregroundStyle(.white.opacity(0.68))
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(Color.white.opacity(0.06))
-                                .clipShape(Capsule())
+                            .padding(.horizontal, 10)
                         }
+                        .frame(height: 36)
 
-                        GeometryReader { geo in
-                            ZStack(alignment: .leading) {
-                                Capsule()
-                                    .fill(Color.white.opacity(0.06))
-
-                                Capsule()
-                                    .fill(
-                                        LinearGradient(
-                                            colors: [
-                                                Color.blue.opacity(0.92),
-                                                Color.blue.opacity(0.42)
-                                            ],
-                                            startPoint: .leading,
-                                            endPoint: .trailing
-                                        )
-                                    )
-                                    .frame(width: max(16, geo.size.width * CGFloat(item.visitors) / CGFloat(maxVal)))
-                            }
+                        if isCountry || isPercentage {
+                            Text(total > 0 ? "\(item.visitors * 100 / total)%" : "0%")
+                                .font(.system(size: 13, weight: .medium).monospacedDigit())
+                                .foregroundStyle(.gray)
+                                .frame(width: 50, alignment: .trailing)
+                                .padding(.trailing, 10)
+                        } else {
+                            Text("\(item.visitors)")
+                                .font(.system(size: 13, weight: .medium).monospacedDigit())
+                                .foregroundStyle(.gray)
+                                .frame(width: 50, alignment: .trailing)
+                                .padding(.trailing, 10)
                         }
-                        .frame(height: 10)
                     }
-                    .padding(14)
-                    .background(Color.white.opacity(0.03))
-                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .stroke(Color.white.opacity(0.04), lineWidth: 1)
-                    )
                 }
             }
         }
-        .padding(18)
-        .background(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(Color.white.opacity(0.045))
-        )
+        .background(Color.white.opacity(0.04))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
         .overlay(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.14),
-                            Color.blue.opacity(0.22),
-                            Color.white.opacity(0.04)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1
-                )
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color.white.opacity(0.06), lineWidth: 1)
         )
     }
 
@@ -401,74 +372,6 @@ struct AnalyticsView: View {
         if value >= 1_000_000 { return String(format: "%.1fM", Double(value) / 1_000_000) }
         if value >= 1_000 { return String(format: "%.1fK", Double(value) / 1_000) }
         return "\(value)"
-    }
-
-    @ViewBuilder
-    private var statsCardItems: some View {
-        StatCard(
-            title: "Visitors",
-            value: formatNumber(vm.data.overview?.devices ?? 0),
-            change: vm.data.visitorsChange,
-            icon: "person.2"
-        )
-        StatCard(
-            title: "Page Views",
-            value: formatNumber(vm.data.overview?.total ?? 0),
-            change: vm.data.pageViewsChange,
-            icon: "eye"
-        )
-        StatCard(
-            title: "Bounce Rate",
-            value: "\(vm.data.overview?.bounceRate ?? 0)%",
-            change: vm.data.bounceRateChange,
-            invertChange: true,
-            icon: "arrow.uturn.left"
-        )
-    }
-
-    private var environmentPillValue: String {
-        switch vm.selectedEnvironment {
-        case .production: "Prod"
-        case .preview: "Preview"
-        case .all: "All"
-        }
-    }
-
-    private func pickerLabel(title: String, value: String, systemImage: String) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: systemImage)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.82))
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title.uppercased())
-                    .font(.system(size: 10, weight: .semibold))
-                    .tracking(0.8)
-                    .foregroundStyle(.white.opacity(0.38))
-                Text(value)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.white)
-            }
-
-            Image(systemName: "chevron.down")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(.white.opacity(0.4))
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(Color.white.opacity(0.06))
-        .clipShape(Capsule())
-        .overlay(
-            Capsule()
-                .stroke(Color.white.opacity(0.08), lineWidth: 1)
-        )
-    }
-
-    private func metricText(for item: BreakdownItem, total: Int, isCountry: Bool, isPercentage: Bool) -> String {
-        if isCountry || isPercentage {
-            return total > 0 ? "\(item.visitors * 100 / total)%" : "0%"
-        }
-        return "\(item.visitors)"
     }
 
     private func displayName(_ key: String, emptyLabel: String, isCountry: Bool) -> String {
