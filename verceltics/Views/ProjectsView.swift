@@ -248,9 +248,8 @@ struct ProjectIcon: View {
             if let loadedImage {
                 loadedImage
                     .resizable()
-                    .aspectRatio(contentMode: .fill)
+                    .aspectRatio(contentMode: .fit)
                     .frame(width: 40, height: 40)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
             } else if didFail {
                 letterFallback
             } else {
@@ -310,13 +309,9 @@ struct ProjectIcon: View {
         }
 
         // Last resort: Google favicon API (converts SVGs to PNG)
-        // Only use if the result has transparency (otherwise it adds ugly white bg)
         if let googleURL = URL(string: "https://www.google.com/s2/favicons?domain=\(domain)&sz=128"),
-           let data = await fetchImageData(from: googleURL),
-           let uiImage = UIImage(data: data),
-           uiImage.size.width >= 32,
-           isTransparent(uiImage) {
-            loadedImage = Image(uiImage: uiImage)
+           let image = await fetchImage(from: googleURL) {
+            loadedImage = image
             return
         }
 
