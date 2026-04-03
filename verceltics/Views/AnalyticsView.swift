@@ -30,10 +30,10 @@ final class AnalyticsViewModel {
             async let pages = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "path")
             async let referrers = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "referrer")
             async let countries = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "country")
-            async let devices = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "device")
-            async let browsers = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "browser")
-            async let os = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "os")
-            async let utmSources = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "utm_source")
+            async let devices = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "device_type")
+            async let browsers = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "client_name")
+            async let os = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "os_name")
+            async let utmSources = api.fetchBreakdown(projectId: pid, teamId: tid, range: range, groupBy: "utm")
 
             data.overview = try await overview
             data.previousOverview = try? await previous
@@ -45,6 +45,7 @@ final class AnalyticsViewModel {
             data.browsers = (try? await browsers) ?? []
             data.os = (try? await os) ?? []
             data.utmSources = (try? await utmSources) ?? []
+
         } catch {
             self.error = error.localizedDescription
         }
