@@ -13,8 +13,13 @@ struct Project: Identifiable, Decodable {
     var teamId: String? { accountId }
 
     var primaryDomain: String? {
-        targets?.production?.alias?.first(where: { !$0.contains("vercel.app") })
-            ?? targets?.production?.alias?.first
+        guard let aliases = targets?.production?.alias, !aliases.isEmpty else { return nil }
+        // Prefer custom domains (non vercel.app)
+        if let custom = aliases.first(where: { !$0.contains("vercel.app") }) {
+            return custom
+        }
+        // Among vercel.app aliases, pick the shortest (avoids long auto-generated ones)
+        return aliases.filter { $0.contains("vercel.app") }.min(by: { $0.count < $1.count })
     }
 
     var lastDeployment: Deployment? {
