@@ -5,232 +5,191 @@ struct AboutView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                // App header
-                Section {
-                    VStack(spacing: 12) {
+            ScrollView {
+                VStack(spacing: 0) {
+                    // Hero header
+                    VStack(spacing: 20) {
                         if let uiImage = UIImage(named: "AppIcon") {
                             Image(uiImage: uiImage)
                                 .resizable()
                                 .aspectRatio(contentMode: .fit)
-                                .frame(width: 80, height: 80)
-                                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                                .shadow(color: .blue.opacity(0.3), radius: 20, y: 4)
+                                .frame(width: 88, height: 88)
+                                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                                .shadow(color: .blue.opacity(0.25), radius: 24, y: 6)
                         }
 
-                        Text("Verceltics")
-                            .font(.title2.bold())
-                            .foregroundStyle(.white)
+                        VStack(spacing: 6) {
+                            Text("Verceltics")
+                                .font(.system(size: 26, weight: .bold))
+                                .foregroundStyle(.white)
 
-                        Text("Analytics viewer for Vercel")
-                            .font(.subheadline)
-                            .foregroundStyle(.gray)
+                            Text("Analytics viewer for Vercel")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.4))
+                        }
 
                         Text("v1.0.0")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.white.opacity(0.82))
+                            .font(.system(size: 11, weight: .bold).monospacedDigit())
+                            .foregroundStyle(.white.opacity(0.5))
                             .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(Color.white.opacity(0.08))
+                            .padding(.vertical, 5)
+                            .background(Color.white.opacity(0.06))
                             .clipShape(Capsule())
-                            .overlay(
-                                Capsule()
-                                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                            )
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .listRowBackground(Color.clear)
-                }
+                    .padding(.vertical, 36)
 
-                // Links
-                Section {
-                    LinkRow(
-                        icon: "globe",
-                        title: "Source Code",
-                        subtitle: "github.com/apoorvdarshan/verceltics",
-                        url: "https://github.com/apoorvdarshan/verceltics"
-                    )
-
-                    LinkRow(
-                        icon: "exclamationmark.triangle",
-                        title: "Report an Issue",
-                        subtitle: "Open a GitHub issue",
-                        url: "https://github.com/apoorvdarshan/verceltics/issues"
-                    )
-
-                    LinkRow(
-                        icon: "envelope",
-                        title: "Contact",
-                        subtitle: "ad13dtu@gmail.com",
-                        url: "mailto:ad13dtu@gmail.com"
-                    )
-                } header: {
-                    SectionHeader(title: "Links")
-                }
-
-                // Legal
-                Section {
-                    LinkRow(
-                        icon: "doc.text",
-                        title: "Privacy Policy",
-                        subtitle: "verceltics.site/privacy",
-                        url: "https://verceltics.site/privacy"
-                    )
-
-                    LinkRow(
-                        icon: "doc.plaintext",
-                        title: "Terms of Service",
-                        subtitle: "verceltics.site/terms",
-                        url: "https://verceltics.site/terms"
-                    )
-
-                    LinkRow(
-                        icon: "checkmark.seal",
-                        title: "License",
-                        subtitle: "MIT License",
-                        url: "https://github.com/apoorvdarshan/verceltics/blob/main/LICENSE"
-                    )
-                } header: {
-                    SectionHeader(title: "Legal")
-                }
-
-                // About
-                Section {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Verceltics is an open-source iOS app that lets you browse your Vercel projects and view web analytics — visitors, page views, bounce rate, referrers, countries, devices, and more.")
-                            .font(.caption)
-                            .foregroundStyle(.gray)
-
-                        Text("Built with SwiftUI and Swift Charts. No third-party dependencies.")
-                            .font(.caption)
-                            .foregroundStyle(.gray)
-
-                        Text("Verceltics is not affiliated with, endorsed by, or sponsored by Vercel Inc. Vercel and the Vercel logo are trademarks of Vercel Inc.")
-                            .font(.caption2)
-                            .foregroundStyle(.white.opacity(0.25))
-                            .padding(.top, 4)
-                    }
-                    .padding(.vertical, 4)
-                    .listRowBackground(Color.white.opacity(0.04))
-                } header: {
-                    SectionHeader(title: "About")
-                }
-
-                // Subscription
-                Section {
-                    Button {
-                        if let url = URL(string: "https://apps.apple.com/account/subscriptions") {
-                            UIApplication.shared.open(url)
+                    // Sections
+                    VStack(spacing: 24) {
+                        // Links
+                        aboutSection(title: "LINKS") {
+                            AboutRow(icon: "chevron.left.forwardslash.chevron.right", iconColor: .white, title: "Source Code", subtitle: "github.com/apoorvdarshan/verceltics", url: "https://github.com/apoorvdarshan/verceltics")
+                            AboutRow(icon: "ant", iconColor: .orange, title: "Report an Issue", subtitle: "Open a GitHub issue", url: "https://github.com/apoorvdarshan/verceltics/issues")
+                            AboutRow(icon: "envelope.fill", iconColor: .blue, title: "Contact", subtitle: "ad13dtu@gmail.com", url: "mailto:ad13dtu@gmail.com")
+                            AboutRow(icon: "globe", iconColor: .cyan, title: "Website", subtitle: "verceltics.site", url: "https://verceltics.site")
                         }
-                    } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: "creditcard")
-                                .font(.system(size: 14))
-                                .foregroundStyle(.gray)
-                                .frame(width: 24)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Manage Subscription")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.white)
-                                Text("Change plan or cancel")
-                                    .font(.caption)
-                                    .foregroundStyle(.gray)
+
+                        // Legal
+                        aboutSection(title: "LEGAL") {
+                            AboutRow(icon: "hand.raised.fill", iconColor: .green, title: "Privacy Policy", subtitle: "verceltics.site/privacy", url: "https://verceltics.site/privacy")
+                            AboutRow(icon: "doc.text.fill", iconColor: .purple, title: "Terms of Service", subtitle: "verceltics.site/terms", url: "https://verceltics.site/terms")
+                            AboutRow(icon: "checkmark.seal.fill", iconColor: .mint, title: "License", subtitle: "MIT License", url: "https://github.com/apoorvdarshan/verceltics/blob/main/LICENSE")
+                        }
+
+                        // Subscription
+                        aboutSection(title: "SUBSCRIPTION") {
+                            AboutRow(icon: "creditcard.fill", iconColor: .indigo, title: "Manage Subscription", subtitle: "Change plan or cancel", url: "https://apps.apple.com/account/subscriptions")
+                        }
+
+                        // About text
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Built with SwiftUI and Swift Charts.\nNo third-party dependencies. Open source.")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.3))
+                                .lineSpacing(3)
+
+                            Text("Verceltics is not affiliated with, endorsed by, or sponsored by Vercel Inc. Vercel and the Vercel logo are trademarks of Vercel Inc.")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.15))
+                                .lineSpacing(2)
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 4)
+
+                        // Sign out
+                        Button {
+                            authManager.logout()
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "rectangle.portrait.and.arrow.right")
+                                    .font(.system(size: 13, weight: .semibold))
+                                Text("Sign Out")
+                                    .font(.system(size: 14, weight: .semibold))
                             }
-                            Spacer()
-                            Image(systemName: "arrow.up.right")
-                                .font(.caption2)
-                                .foregroundStyle(.gray)
+                            .foregroundStyle(.red)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 48)
+                            .background(Color.red.opacity(0.08))
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .stroke(Color.red.opacity(0.12), lineWidth: 0.5)
+                            )
                         }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
+                        .padding(.bottom, 40)
                     }
-                    .listRowBackground(Color.white.opacity(0.04))
-                } header: {
-                    SectionHeader(title: "Subscription")
-                }
-
-                // Account
-                Section {
-                    Button(role: .destructive) {
-                        authManager.logout()
-                    } label: {
-                        HStack {
-                            Image(systemName: "rectangle.portrait.and.arrow.right")
-                            Text("Sign Out")
-                        }
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding(.vertical, 8)
-                        .foregroundStyle(.red.opacity(0.92))
-                        .background(Color.red.opacity(0.08))
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .shadow(color: .red.opacity(0.18), radius: 14)
-                    }
-                    .buttonStyle(.plain)
-                    .listRowBackground(Color.clear)
                 }
             }
-            .navigationTitle("About")
-            .scrollContentBackground(.hidden)
             .background(Color.black)
+            .navigationTitle("About")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+        }
+    }
+
+    private func aboutSection(title: String, @ViewBuilder content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(title)
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(.white.opacity(0.25))
+                .tracking(1.2)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 10)
+
+            VStack(spacing: 0) {
+                content()
+            }
+            .background(
+                LinearGradient(
+                    colors: [Color.white.opacity(0.05), Color.white.opacity(0.02)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(Color.white.opacity(0.07), lineWidth: 0.5)
+            )
+            .padding(.horizontal, 16)
         }
     }
 }
 
-struct SectionHeader: View {
-    let title: String
+// MARK: - About Row
 
-    var body: some View {
-        Text(title.uppercased())
-            .font(.caption.weight(.semibold))
-            .tracking(1.4)
-            .foregroundStyle(.gray)
-    }
-}
-
-// MARK: - Link Row
-
-struct LinkRow: View {
+struct AboutRow: View {
     let icon: String
+    let iconColor: Color
     let title: String
     let subtitle: String
     let url: String?
 
+    init(icon: String, iconColor: Color = .gray, title: String, subtitle: String, url: String? = nil) {
+        self.icon = icon
+        self.iconColor = iconColor
+        self.title = title
+        self.subtitle = subtitle
+        self.url = url
+    }
+
     var body: some View {
         if let url, let link = URL(string: url) {
-            Button {
-                UIApplication.shared.open(link)
-            } label: {
-                row
-            }
-            .listRowBackground(Color.white.opacity(0.04))
+            Button { UIApplication.shared.open(link) } label: { rowContent }
         } else {
-            row
-                .listRowBackground(Color.white.opacity(0.04))
+            rowContent
         }
     }
 
-    private var row: some View {
-        HStack(spacing: 12) {
+    private var rowContent: some View {
+        HStack(spacing: 14) {
             Image(systemName: icon)
-                .font(.system(size: 14))
-                .foregroundStyle(.gray)
-                .frame(width: 24)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(iconColor)
+                .frame(width: 32, height: 32)
+                .background(iconColor.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.subheadline)
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.white)
                 Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.gray)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.35))
             }
 
             Spacer()
 
             if url != nil {
-                Image(systemName: "arrow.up.right")
-                    .font(.caption2)
-                    .foregroundStyle(.gray)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.15))
             }
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 13)
     }
 }
