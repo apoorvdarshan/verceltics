@@ -150,19 +150,14 @@ struct AnalyticsView: View {
     // MARK: - Header
 
     private var header: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 12) {
             HStack(spacing: 12) {
                 ProjectIcon(domain: project.primaryDomain, name: project.name)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(project.name)
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundStyle(.white)
-                    if let domain = project.primaryDomain {
-                        Text(domain)
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.35))
-                    }
+                if let domain = project.primaryDomain {
+                    Text(domain)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.35))
                 }
                 Spacer()
             }
