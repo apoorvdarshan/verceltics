@@ -234,13 +234,12 @@ struct ProjectIcon: View {
 
     private var faviconURLs: [URL] {
         guard let domain else { return [] }
-        // Domain-direct sources first (preserve transparency), then APIs as fallback
+        // icon.horse first (best quality, preserves transparency), then direct sources
         return [
-            URL(string: "https://\(domain)/apple-touch-icon.png"),
+            URL(string: "https://icon.horse/icon/\(domain)"),
             URL(string: "https://\(domain)/favicon.ico"),
             URL(string: "https://\(domain)/favicon.png"),
             URL(string: "https://\(domain)/icon.png"),
-            URL(string: "https://icon.horse/icon/\(domain)"),
         ].compactMap { $0 }
     }
 
