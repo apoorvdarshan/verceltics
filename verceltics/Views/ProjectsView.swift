@@ -66,12 +66,7 @@ struct ProjectsView: View {
             }
             .navigationTitle("Projects")
             .searchable(text: $searchText, isPresented: $isSearching, prompt: "Search projects...")
-            .task {
-                await loadProjects()
-                // Silent re-fetch after 10s to get updated aliases after fresh deploys
-                try? await Task.sleep(for: .seconds(10))
-                await refreshProjects()
-            }
+            .task { await loadProjects() }
             .onAppear {
                 if startWithSearch { isSearching = true }
             }
@@ -100,6 +95,9 @@ struct ProjectsView: View {
 
     private func refreshProjects() async {
         guard let token = authManager.token else { return }
+        await vm.load(token: token, forceRefresh: true)
+        // Second fetch after short delay to get updated aliases after fresh deploys
+        try? await Task.sleep(for: .seconds(3))
         await vm.load(token: token, forceRefresh: true)
     }
 }
