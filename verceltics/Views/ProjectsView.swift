@@ -16,6 +16,8 @@ final class ProjectsViewModel {
         do {
             projects = try await VercelAPI(token: token).fetchProjects()
             hasLoaded = true
+        } catch is CancellationError {
+            // Tab switch — ignore, don't show error
         } catch {
             self.error = error.localizedDescription
         }
@@ -66,12 +68,7 @@ struct ProjectsView: View {
             }
             .navigationTitle("Projects")
             .searchable(text: $searchText, isPresented: $isSearching, prompt: "Search projects...")
-            .task {
-                await loadProjects()
-                // Silent re-fetch after 10s to get updated aliases after fresh deploys
-                try? await Task.sleep(for: .seconds(10))
-                await refreshProjects()
-            }
+            .task { await loadProjects() }
             .onAppear {
                 if startWithSearch { isSearching = true }
             }
