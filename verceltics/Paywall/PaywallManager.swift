@@ -11,6 +11,7 @@ final class PaywallManager {
     var products: [Product] = []
     var purchasedProductIDs: Set<String> = []
     var isLoading = true
+    var hasCheckedEntitlements = false
     var error: String?
 
     var hasActiveSubscription: Bool {
@@ -29,8 +30,8 @@ final class PaywallManager {
 
     init() {
         updateTask = Task {
-            // Check entitlements immediately on launch (before loading products)
             await updatePurchasedProducts()
+            hasCheckedEntitlements = true
             await listenForTransactions()
         }
     }

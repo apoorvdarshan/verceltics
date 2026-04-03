@@ -10,6 +10,9 @@ struct VercelticsApp: App {
             Group {
                 if !authManager.isAuthenticated {
                     LoginView()
+                } else if !paywallManager.hasCheckedEntitlements {
+                    // Show nothing while checking — prevents paywall flash
+                    Color.black.ignoresSafeArea()
                 } else if paywallManager.hasActiveSubscription {
                     MainTabView()
                 } else {
