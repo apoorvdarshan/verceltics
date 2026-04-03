@@ -149,15 +149,20 @@ struct AnalyticsView: View {
 
     private var header: some View {
         VStack(spacing: 10) {
-            if let domain = project.primaryDomain {
-                HStack(spacing: 4) {
-                    Image(systemName: "globe")
-                        .font(.caption2)
-                    Text(domain)
-                        .font(.caption)
+            // Project icon + domain
+            HStack(spacing: 10) {
+                ProjectIcon(domain: project.primaryDomain, name: project.name)
+
+                if let domain = project.primaryDomain {
+                    HStack(spacing: 4) {
+                        Image(systemName: "globe")
+                            .font(.caption2)
+                        Text(domain)
+                            .font(.caption)
+                    }
+                    .foregroundStyle(.gray)
                 }
-                .foregroundStyle(.gray)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                Spacer()
             }
 
             HStack(spacing: 8) {
