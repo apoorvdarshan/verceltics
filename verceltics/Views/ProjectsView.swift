@@ -234,12 +234,13 @@ struct ProjectIcon: View {
 
     private var faviconURLs: [URL] {
         guard let domain else { return [] }
+        // Domain-direct sources first (preserve transparency), then APIs as fallback
         return [
-            URL(string: "https://icon.horse/icon/\(domain)"),
             URL(string: "https://\(domain)/apple-touch-icon.png"),
             URL(string: "https://\(domain)/favicon.ico"),
             URL(string: "https://\(domain)/favicon.png"),
             URL(string: "https://\(domain)/icon.png"),
+            URL(string: "https://icon.horse/icon/\(domain)"),
         ].compactMap { $0 }
     }
 
@@ -309,7 +310,7 @@ struct ProjectIcon: View {
             }
         }
 
-        // Last resort: Google favicon API (converts SVGs to PNG)
+        // Last resort: Google favicon API (handles SVG favicons by converting to PNG)
         if let googleURL = URL(string: "https://www.google.com/s2/favicons?domain=\(domain)&sz=128"),
            let image = await fetchImage(from: googleURL) {
             loadedImage = image
@@ -327,10 +328,10 @@ struct ProjectIcon: View {
               (200...299).contains(http.statusCode),
               data.count > 50 else { return nil }
 
-        if let uiImage = UIImage(data: data) {
-            return Image(uiImage: uiImage)
-        }
-        return nil
+        guard let uiImage = UIImage(data: data) else { return nil }
+        // Skip tiny default/placeholder icons (e.g. Google's 16x16 globe)
+        guard uiImage.size.width >= 32 || uiImage.size.height >= 32 else { return nil }
+        return Image(uiImage: uiImage)
     }
 
     private func scrapeFaviconURLs(domain: String) async -> [URL]? {
