@@ -9,26 +9,12 @@ struct AboutView: View {
                 // App header
                 Section {
                     VStack(spacing: 12) {
-                        ZStack {
-                            Circle()
-                                .fill(
-                                    RadialGradient(
-                                        colors: [
-                                            Color.white.opacity(0.18),
-                                            Color.white.opacity(0.06),
-                                            Color.clear
-                                        ],
-                                        center: .center,
-                                        startRadius: 6,
-                                        endRadius: 52
-                                    )
-                                )
-                                .frame(width: 94, height: 94)
-
-                            Image(systemName: "triangle.fill")
-                                .font(.system(size: 48))
-                                .foregroundStyle(.white)
-                        }
+                        Image("AppIcon")
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 80, height: 80)
+                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            .shadow(color: .blue.opacity(0.3), radius: 20, y: 4)
 
                         Text("Verceltics")
                             .font(.title2.bold())
