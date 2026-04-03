@@ -7,11 +7,15 @@ final class ProjectsViewModel {
     var isLoading = true
     var error: String?
 
-    func load(token: String) async {
-        isLoading = true
+    private var hasLoaded = false
+
+    func load(token: String, forceRefresh: Bool = false) async {
+        if hasLoaded && !forceRefresh { return }
+        isLoading = !hasLoaded
         error = nil
         do {
             projects = try await VercelAPI(token: token).fetchProjects()
+            hasLoaded = true
         } catch {
             self.error = error.localizedDescription
         }
@@ -80,12 +84,17 @@ struct ProjectsView: View {
             .padding(.horizontal)
             .padding(.top, 4)
         }
-        .refreshable { await loadProjects() }
+        .refreshable { await refreshProjects() }
     }
 
     private func loadProjects() async {
         guard let token = authManager.token else { return }
         await vm.load(token: token)
+    }
+
+    private func refreshProjects() async {
+        guard let token = authManager.token else { return }
+        await vm.load(token: token, forceRefresh: true)
     }
 }
 
