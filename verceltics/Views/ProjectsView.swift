@@ -265,28 +265,96 @@ struct ProjectIcon: View {
     }
 
     private var letterFallback: some View {
-        Text(String(name.prefix(1)).uppercased())
-            .font(.system(size: 18, weight: .bold, design: .rounded))
-            .foregroundStyle(.white)
+        ZStack {
+            RoundedRectangle(cornerRadius: 10)
+                .fill(colorForName(name))
+                .frame(width: 40, height: 40)
+
+            Text(String(name.prefix(1)).uppercased())
+                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+        }
+    }
+
+    private func colorForName(_ name: String) -> Color {
+        let hash = abs(name.hashValue)
+        let colors: [Color] = [
+            .red, .orange, .yellow, .green, .mint,
+            .teal, .cyan, .blue, .indigo, .purple, .pink
+        ]
+        return colors[hash % colors.count].opacity(0.7)
     }
 
     private func loadFavicon() async {
+        guard let domain else { didFail = true; return }
+
+        // First try known good sources
         for url in faviconURLs {
-            do {
-                var request = URLRequest(url: url)
-                request.timeoutInterval = 5
-                let (data, response) = try await URLSession.shared.data(for: request)
-                guard let http = response as? HTTPURLResponse,
-                      (200...299).contains(http.statusCode),
-                      data.count > 100,
-                      let uiImage = UIImage(data: data) else { continue }
-                loadedImage = Image(uiImage: uiImage)
+            if let image = await fetchImage(from: url) {
+                loadedImage = image
                 return
-            } catch {
-                continue
             }
         }
+
+        // Scrape HTML <link> tags for favicon URLs
+        if let scraped = await scrapeFaviconURLs(domain: domain) {
+            for url in scraped {
+                if let image = await fetchImage(from: url) {
+                    loadedImage = image
+                    return
+                }
+            }
+        }
+
         didFail = true
+    }
+
+    private func fetchImage(from url: URL) async -> Image? {
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 5
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              let http = response as? HTTPURLResponse,
+              (200...299).contains(http.statusCode),
+              data.count > 100,
+              let uiImage = UIImage(data: data) else { return nil }
+        return Image(uiImage: uiImage)
+    }
+
+    private func scrapeFaviconURLs(domain: String) async -> [URL]? {
+        let pageURL = URL(string: "https://\(domain)")!
+        var request = URLRequest(url: pageURL)
+        request.timeoutInterval = 5
+        guard let (data, _) = try? await URLSession.shared.data(for: request),
+              let html = String(data: data, encoding: .utf8) else { return nil }
+
+        var urls: [URL] = []
+        // Find all <link> tags with rel containing "icon"
+        let pattern = #"<link[^>]*rel=[\"'][^\"']*icon[^\"']*[\"'][^>]*href=[\"']([^\"']+)[\"']|<link[^>]*href=[\"']([^\"']+)[\"'][^>]*rel=[\"'][^\"']*icon[^\"']*[\"']"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else { return nil }
+        let range = NSRange(html.startIndex..., in: html)
+        let matches = regex.matches(in: html, range: range)
+
+        for match in matches {
+            let href: String
+            if let r1 = Range(match.range(at: 1), in: html), !html[r1].isEmpty {
+                href = String(html[r1])
+            } else if let r2 = Range(match.range(at: 2), in: html) {
+                href = String(html[r2])
+            } else { continue }
+
+            // Skip data: URIs (inline SVGs — can't render without WebView)
+            if href.hasPrefix("data:") { continue }
+
+            if href.hasPrefix("http") {
+                if let url = URL(string: href) { urls.append(url) }
+            } else {
+                // Relative URL
+                let path = href.hasPrefix("/") ? href : "/\(href)"
+                if let url = URL(string: "https://\(domain)\(path)") { urls.append(url) }
+            }
+        }
+
+        return urls.isEmpty ? nil : urls
     }
 }
 
