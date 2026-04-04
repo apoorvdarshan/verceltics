@@ -46,6 +46,12 @@ struct AboutView: View {
                             AboutRow(icon: "globe", title: "Website", subtitle: "verceltics.site", url: "https://verceltics.site")
                         }
 
+                        // Support
+                        aboutSection(title: "SUPPORT US") {
+                            AboutRow(icon: "star.fill", iconColor: .yellow, title: "Star on GitHub", subtitle: "Help us reach more developers", url: "https://github.com/apoorvdarshan/verceltics")
+                            AboutRow(icon: "arrow.up.circle.fill", iconColor: .orange, title: "Upvote on Product Hunt", subtitle: "producthunt.com/products/verceltics", url: "https://www.producthunt.com/products/verceltics")
+                        }
+
                         // Developer
                         aboutSection(title: "DEVELOPER") {
                             AboutRow(icon: "at", title: "Follow on X", subtitle: "@apoorvdarshan", url: "https://x.com/apoorvdarshan")
