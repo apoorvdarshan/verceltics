@@ -5,12 +5,13 @@
 <h1 align="center">Verceltics</h1>
 
 <p align="center">
-  Mobile analytics viewer for <a href="https://vercel.com">Vercel</a>. Browse your projects and view web analytics — visitors, page views, bounce rate, referrers, countries, devices, and more — all from your iPhone.
+  Vercel Web Analytics on your iPhone.<br>
+  <a href="https://verceltics.site">verceltics.site</a>
 </p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" /></a>
-  <a href="https://swift.org"><img src="https://img.shields.io/badge/Swift-5.0-orange.svg" /></a>
+  <a href="https://swift.org"><img src="https://img.shields.io/badge/Swift-6-orange.svg" /></a>
   <a href="https://developer.apple.com/ios/"><img src="https://img.shields.io/badge/Platform-iOS%2018%2B-black.svg" /></a>
 </p>
 
