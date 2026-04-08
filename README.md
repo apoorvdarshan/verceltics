@@ -6,7 +6,7 @@
 
 <p align="center">
   Vercel Web Analytics on your iPhone.<br>
-  <a href="https://verceltics.site">verceltics.site</a>
+  <a href="https://apps.apple.com/us/app/verceltics/id6761645656">App Store</a> · <a href="https://verceltics.site">Website</a>
 </p>
 
 <p align="center">
