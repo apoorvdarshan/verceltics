@@ -1,0 +1,27 @@
+# ── macOS / Xcode ──
+.DS_Store
+*.pem
+
+# ── iOS / Xcode build artifacts ──
+ios/**/xcuserdata/
+ios/**/*.xcworkspace/xcuserdata/
+ios/build/
+ios/DerivedData/
+ios/*.xcarchive
+
+# ── Web / Next.js ──
+web/node_modules/
+web/.next/
+web/out/
+web/build/
+web/.vercel/
+web/*.tsbuildinfo
+web/next-env.d.ts
+web/.env*
+!web/.env.example
+
+# ── Debug logs ──
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*

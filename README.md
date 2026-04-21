@@ -47,15 +47,33 @@
 - **async/await** — All API calls
 - **Zero dependencies** — No third-party libraries
 
-## Setup
+## Repository Structure
+
+This is a monorepo containing both the iOS app and the landing page:
+
+```
+verceltics/
+├── ios/          # SwiftUI iOS app
+└── web/          # Next.js landing page (verceltics.site)
+```
+
+## Setup (iOS)
 
 1. Clone the repo
    ```bash
    git clone https://github.com/apoorvdarshan/verceltics.git
    ```
-2. Open `verceltics.xcodeproj` in Xcode
+2. Open `ios/verceltics.xcodeproj` in Xcode
 3. Select your team in Signing & Capabilities
 4. Build and run (iOS 18.0+)
+
+## Setup (Web)
+
+```bash
+cd web
+npm install
+npm run dev
+```
 
 ### Vercel Token
 
@@ -84,10 +102,10 @@ The app uses two Vercel API hosts:
 
 Analytics endpoints use `groupBy` parameter: `path`, `route`, `hostname`, `referrer`, `utm`, `country`, `device_type`, `client_name`, `os_name`, `event_name`, `flags`, `query_params`
 
-## Project Structure
+## iOS Project Structure
 
 ```
-verceltics/
+ios/verceltics/
 ├── App/VercelticsApp.swift          # Entry point, auth + paywall routing
 ├── Auth/
 │   ├── AuthManager.swift            # Token validation, login/logout
