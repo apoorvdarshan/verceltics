@@ -40,12 +40,18 @@
 
 ## Tech Stack
 
+**iOS**
 - **SwiftUI** — Entire UI
 - **Swift Charts** — Interactive line chart
 - **StoreKit 2** — Subscriptions ($3.99/mo, $29.99/yr, 3-day trial)
 - **Keychain** — Secure token storage
 - **async/await** — All API calls
 - **Zero dependencies** — No third-party libraries
+
+**Web**
+- **Next.js** — Landing page, privacy, terms
+- **Tailwind CSS** — Styling
+- Deployed on **Vercel**
 
 ## Repository Structure
 
