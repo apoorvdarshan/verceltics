@@ -1,5 +1,6 @@
 import SwiftUI
 
+// monorepo root: ios/
 @main
 struct VercelticsApp: App {
     @State private var authManager = AuthManager()
