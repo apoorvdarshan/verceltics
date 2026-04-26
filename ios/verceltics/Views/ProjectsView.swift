@@ -321,8 +321,8 @@ struct ProjectIcon: View {
         .task {
             // Race: load favicon vs 8s timeout
             await withTaskGroup(of: Void.self) { group in
-                group.addTask { await loadFavicon() }
-                group.addTask {
+                group.addTask { @MainActor in await loadFavicon() }
+                group.addTask { @MainActor in
                     try? await Task.sleep(for: .seconds(8))
                     if loadedImage == nil { didFail = true }
                 }
@@ -663,7 +663,7 @@ struct ProjectIcon: View {
             } else { continue }
 
             if href.lowercased().hasPrefix("data:image/svg+xml") {
-                if let image = await renderSVGDataURI(href) {
+                if let image = renderSVGDataURI(href) {
                     favicons.append(.inlineSVG(image))
                 }
                 continue

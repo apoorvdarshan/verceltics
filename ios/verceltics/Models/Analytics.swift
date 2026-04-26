@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Overview Response
 
-struct AnalyticsOverview: Decodable {
+nonisolated struct AnalyticsOverview: Decodable {
     let total: Int
     let devices: Int
     let bounceRate: Int
@@ -10,15 +10,15 @@ struct AnalyticsOverview: Decodable {
 
 // MARK: - Timeseries Response
 
-struct TimeseriesResponse: Decodable {
+nonisolated struct TimeseriesResponse: Decodable {
     let data: TimeseriesData
 }
 
-struct TimeseriesData: Decodable {
+nonisolated struct TimeseriesData: Decodable {
     let groups: [String: [TimeseriesPoint]]
 }
 
-struct TimeseriesPoint: Identifiable, Decodable {
+nonisolated struct TimeseriesPoint: Identifiable, Decodable {
     var id: String { key }
     let key: String
     let total: Int
@@ -53,7 +53,7 @@ struct TimeseriesPoint: Identifiable, Decodable {
 
 // MARK: - Aggregated breakdown item
 
-struct BreakdownItem: Identifiable {
+nonisolated struct BreakdownItem: Identifiable {
     var id: String { key }
     let key: String
     let visitors: Int
@@ -61,7 +61,7 @@ struct BreakdownItem: Identifiable {
 
 // MARK: - Full analytics data
 
-struct AnalyticsData {
+nonisolated struct AnalyticsData {
     var overview: AnalyticsOverview?
     var previousOverview: AnalyticsOverview?
     var timeseries: [TimeseriesPoint] = []
@@ -99,7 +99,7 @@ struct AnalyticsData {
 
 // MARK: - Time Range
 
-enum TimeRange: String, CaseIterable, Identifiable {
+nonisolated enum TimeRange: String, CaseIterable, Identifiable {
     case day = "24h"
     case week = "7d"
     case month = "30d"
@@ -151,7 +151,7 @@ enum TimeRange: String, CaseIterable, Identifiable {
 
 // MARK: - Environment
 
-enum VercelEnvironment: String, CaseIterable, Identifiable {
+nonisolated enum VercelEnvironment: String, CaseIterable, Identifiable {
     case production
     case preview
     case all

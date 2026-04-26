@@ -1,6 +1,6 @@
 import Foundation
 
-struct Project: Identifiable, Decodable {
+nonisolated struct Project: Identifiable, Decodable {
     let id: String
     let name: String
     let accountId: String?
@@ -122,6 +122,6 @@ struct Project: Identifiable, Decodable {
     }
 }
 
-struct ProjectsResponse: Decodable {
+nonisolated struct ProjectsResponse: Decodable {
     let projects: [Project]
 }
