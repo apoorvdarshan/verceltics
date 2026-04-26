@@ -5,6 +5,7 @@ import Combine
 struct PaywallView: View {
     @Environment(PaywallManager.self) private var paywall
     @Environment(AuthManager.self) private var authManager
+    @Environment(\.horizontalSizeClass) private var hSize
     @State private var selectedProduct: Product?
     @State private var isPurchasing = false
     @State private var isEligibleForTrial = true
@@ -196,6 +197,8 @@ struct PaywallView: View {
 
                     Spacer().frame(height: 30)
                 }
+                .frame(maxWidth: hSize == .regular ? 520 : .infinity)
+                .frame(maxWidth: .infinity)
             }
         }
         .task {

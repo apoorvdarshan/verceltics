@@ -70,6 +70,7 @@ final class AnalyticsViewModel {
 struct AnalyticsView: View {
     let project: Project
     @Environment(AuthManager.self) private var authManager
+    @Environment(\.horizontalSizeClass) private var hSize
     @State private var vm: AnalyticsViewModel
 
     init(project: Project) {
@@ -100,6 +101,12 @@ struct AnalyticsView: View {
         }
     }
 
+    private var breakdownColumns: [GridItem] {
+        hSize == .regular
+            ? [GridItem(.adaptive(minimum: 320, maximum: 480), spacing: 16)]
+            : [GridItem(.flexible())]
+    }
+
     private var analyticsContent: some View {
         ScrollView {
             VStack(spacing: 16) {
@@ -122,29 +129,28 @@ struct AnalyticsView: View {
                             .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
                     )
 
-                // Pages, Routes & Hostnames
-                breakdownCard(title: "Pages", icon: "doc.text", items: vm.data.pages, isPath: true)
-                breakdownCard(title: "Routes", icon: "arrow.triangle.branch", items: vm.data.routes, isPath: true)
-                breakdownCard(title: "Hostnames", icon: "server.rack", items: vm.data.hostnames)
+                LazyVGrid(columns: breakdownColumns, spacing: 16) {
+                    breakdownCard(title: "Pages", icon: "doc.text", items: vm.data.pages, isPath: true)
+                    breakdownCard(title: "Routes", icon: "arrow.triangle.branch", items: vm.data.routes, isPath: true)
+                    breakdownCard(title: "Hostnames", icon: "server.rack", items: vm.data.hostnames)
 
-                // Referrers & UTM
-                breakdownCard(title: "Referrers", icon: "link", items: vm.data.referrers, emptyLabel: "Direct")
-                breakdownCard(title: "UTM Parameters", icon: "tag", items: vm.data.utmSources, proHint: "Pro + Analytics Plus")
+                    breakdownCard(title: "Referrers", icon: "link", items: vm.data.referrers, emptyLabel: "Direct")
+                    breakdownCard(title: "UTM Parameters", icon: "tag", items: vm.data.utmSources, proHint: "Pro + Analytics Plus")
 
-                // Countries
-                breakdownCard(title: "Countries", icon: "globe.americas", items: vm.data.countries, isCountry: true)
+                    breakdownCard(title: "Countries", icon: "globe.americas", items: vm.data.countries, isCountry: true)
 
-                // Devices / Browsers / OS
-                breakdownCard(title: "Devices", icon: "desktopcomputer", items: vm.data.devices, isPercentage: true)
-                breakdownCard(title: "Browsers", icon: "safari", items: vm.data.browsers, isPercentage: true)
-                breakdownCard(title: "Operating Systems", icon: "laptopcomputer", items: vm.data.os, isPercentage: true)
+                    breakdownCard(title: "Devices", icon: "desktopcomputer", items: vm.data.devices, isPercentage: true)
+                    breakdownCard(title: "Browsers", icon: "safari", items: vm.data.browsers, isPercentage: true)
+                    breakdownCard(title: "Operating Systems", icon: "laptopcomputer", items: vm.data.os, isPercentage: true)
 
-                // Events, Flags & Query Params
-                breakdownCard(title: "Events", icon: "bolt.fill", items: vm.data.events, proHint: "Pro")
-                breakdownCard(title: "Flags", icon: "flag.fill", items: vm.data.flags)
-                breakdownCard(title: "Query Parameters", icon: "questionmark.circle", items: vm.data.queryParams)
+                    breakdownCard(title: "Events", icon: "bolt.fill", items: vm.data.events, proHint: "Pro")
+                    breakdownCard(title: "Flags", icon: "flag.fill", items: vm.data.flags)
+                    breakdownCard(title: "Query Parameters", icon: "questionmark.circle", items: vm.data.queryParams)
+                }
             }
             .padding()
+            .frame(maxWidth: hSize == .regular ? 1100 : .infinity)
+            .frame(maxWidth: .infinity)
         }
         .refreshable { await loadData() }
     }

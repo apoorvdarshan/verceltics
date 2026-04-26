@@ -2,6 +2,7 @@ import SwiftUI
 
 struct LoginView: View {
     @Environment(AuthManager.self) private var authManager
+    @Environment(\.horizontalSizeClass) private var hSize
     @State private var tokenInput = ""
     @State private var showTokenField = false
     @FocusState private var isTokenFocused: Bool
@@ -10,11 +11,15 @@ struct LoginView: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            if showTokenField {
-                tokenFieldView
-            } else {
-                welcomeView
+            Group {
+                if showTokenField {
+                    tokenFieldView
+                } else {
+                    welcomeView
+                }
             }
+            .frame(maxWidth: hSize == .regular ? 480 : .infinity)
+            .frame(maxWidth: .infinity)
         }
     }
 

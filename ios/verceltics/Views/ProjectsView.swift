@@ -28,6 +28,7 @@ final class ProjectsViewModel {
 struct ProjectsView: View {
     var startWithSearch = false
     @Environment(AuthManager.self) private var authManager
+    @Environment(\.horizontalSizeClass) private var hSize
     @State private var vm = ProjectsViewModel()
     @State private var searchText = ""
     @State private var isSearching = false
@@ -75,17 +76,26 @@ struct ProjectsView: View {
         }
     }
 
+    private var gridColumns: [GridItem] {
+        hSize == .regular
+            ? [GridItem(.adaptive(minimum: 340, maximum: 520), spacing: 12)]
+            : [GridItem(.flexible())]
+    }
+
     private var projectsList: some View {
         ScrollView {
-            LazyVStack(spacing: 12) {
+            LazyVGrid(columns: gridColumns, spacing: 12) {
                 ForEach(filteredProjects) { project in
                     NavigationLink(destination: AnalyticsView(project: project)) {
                         ProjectCard(project: project)
                     }
+                    .buttonStyle(.plain)
                 }
             }
             .padding(.horizontal)
             .padding(.top, 4)
+            .frame(maxWidth: hSize == .regular ? 1200 : .infinity)
+            .frame(maxWidth: .infinity)
         }
         .refreshable { await refreshProjects() }
     }
@@ -196,14 +206,24 @@ struct ProjectCard: View {
 // MARK: - Skeleton
 
 struct ProjectsSkeletonView: View {
+    @Environment(\.horizontalSizeClass) private var hSize
+
+    private var gridColumns: [GridItem] {
+        hSize == .regular
+            ? [GridItem(.adaptive(minimum: 340, maximum: 520), spacing: 12)]
+            : [GridItem(.flexible())]
+    }
+
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: 12) {
+            LazyVGrid(columns: gridColumns, spacing: 12) {
                 ForEach(0..<6, id: \.self) { _ in
                     SkeletonCard()
                 }
             }
             .padding(.horizontal)
+            .frame(maxWidth: hSize == .regular ? 1200 : .infinity)
+            .frame(maxWidth: .infinity)
         }
     }
 }

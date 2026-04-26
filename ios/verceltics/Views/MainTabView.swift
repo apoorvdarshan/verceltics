@@ -15,6 +15,7 @@ struct MainTabView: View {
                 AboutView()
             }
         }
+        .tabViewStyle(.sidebarAdaptable)
         .tint(.white)
     }
 }

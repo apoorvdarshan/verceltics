@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AboutView: View {
     @Environment(AuthManager.self) private var authManager
+    @Environment(\.horizontalSizeClass) private var hSize
 
     var body: some View {
         NavigationStack {
@@ -109,6 +110,8 @@ struct AboutView: View {
                         .padding(.bottom, 40)
                     }
                 }
+                .frame(maxWidth: hSize == .regular ? 640 : .infinity)
+                .frame(maxWidth: .infinity)
             }
             .background(Color.black)
             .navigationTitle("About")
