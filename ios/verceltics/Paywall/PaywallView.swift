@@ -309,16 +309,27 @@ struct PlanCard: View {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 24))
                     .foregroundStyle(isSelected ? .blue : .white.opacity(0.15))
+                    .contentTransition(.symbolEffect(.replace))
             }
             .padding(16)
-            .background(.ultraThinMaterial.opacity(isSelected ? 0.6 : 0.3))
+            .background(
+                LinearGradient(
+                    colors: isSelected
+                        ? [Color.blue.opacity(0.10), Color.blue.opacity(0.03)]
+                        : [Color.white.opacity(0.05), Color.white.opacity(0.02)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(isSelected ? Color.blue.opacity(0.4) : Color.white.opacity(0.06), lineWidth: isSelected ? 1.5 : 0.5)
+                    .stroke(isSelected ? Color.blue.opacity(0.45) : Color.white.opacity(0.08), lineWidth: isSelected ? 1.5 : 0.5)
             )
+            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: isSelected)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressScaleButtonStyle())
+        .sensoryFeedback(.selection, trigger: isSelected)
     }
 }
 

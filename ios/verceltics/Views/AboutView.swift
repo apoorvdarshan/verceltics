@@ -163,6 +163,7 @@ struct AboutRow: View {
     var body: some View {
         if let url, let link = URL(string: url) {
             Button { UIApplication.shared.open(link) } label: { rowContent }
+                .buttonStyle(PressScaleButtonStyle())
         } else {
             rowContent
         }

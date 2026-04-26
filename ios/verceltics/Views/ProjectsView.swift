@@ -89,7 +89,7 @@ struct ProjectsView: View {
                     NavigationLink(destination: AnalyticsView(project: project)) {
                         ProjectCard(project: project)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(PressScaleButtonStyle())
                 }
             }
             .padding(.horizontal)
@@ -194,11 +194,17 @@ struct ProjectCard: View {
             }
         }
         .padding(16)
-        .background(.ultraThinMaterial.opacity(0.5))
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(
+            LinearGradient(
+                colors: [Color.white.opacity(0.06), Color.white.opacity(0.02)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color.white.opacity(0.06), lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
         )
     }
 }
@@ -229,49 +235,50 @@ struct ProjectsSkeletonView: View {
 }
 
 struct SkeletonCard: View {
-    @State private var shimmer = false
-
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(Color.white.opacity(shimmer ? 0.1 : 0.05))
+                    .fill(Color.white.opacity(0.06))
                     .frame(width: 40, height: 40)
 
                 VStack(alignment: .leading, spacing: 6) {
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.white.opacity(shimmer ? 0.1 : 0.05))
+                        .fill(Color.white.opacity(0.06))
                         .frame(width: 120, height: 14)
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.white.opacity(shimmer ? 0.08 : 0.03))
+                        .fill(Color.white.opacity(0.04))
                         .frame(width: 180, height: 10)
                 }
             }
 
             RoundedRectangle(cornerRadius: 10)
-                .fill(Color.white.opacity(shimmer ? 0.06 : 0.03))
+                .fill(Color.white.opacity(0.04))
                 .frame(width: 140, height: 20)
 
             RoundedRectangle(cornerRadius: 4)
-                .fill(Color.white.opacity(shimmer ? 0.08 : 0.03))
+                .fill(Color.white.opacity(0.04))
                 .frame(width: 220, height: 10)
 
             RoundedRectangle(cornerRadius: 4)
-                .fill(Color.white.opacity(shimmer ? 0.06 : 0.03))
+                .fill(Color.white.opacity(0.04))
                 .frame(width: 100, height: 10)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .background(Color.white.opacity(0.04))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+        .background(
+            LinearGradient(
+                colors: [Color.white.opacity(0.05), Color.white.opacity(0.02)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
         )
-        .onAppear {
-            withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
-                shimmer = true
-            }
-        }
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.white.opacity(0.06), lineWidth: 0.5)
+        )
+        .shimmering()
     }
 }
 
@@ -685,22 +692,30 @@ struct ErrorStateView: View {
     let retry: () -> Void
 
     var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 40))
-                .foregroundStyle(.gray)
+        VStack(spacing: 18) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 38))
+                .foregroundStyle(.white.opacity(0.18))
             Text(message)
-                .font(.subheadline)
-                .foregroundStyle(.gray)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(.white.opacity(0.5))
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
-            Button("Retry", action: retry)
-                .font(.subheadline.bold())
+            Button(action: retry) {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 11, weight: .bold))
+                    Text("Retry")
+                        .font(.system(size: 13, weight: .semibold))
+                }
                 .foregroundStyle(.white)
-                .padding(.horizontal, 24)
+                .padding(.horizontal, 18)
                 .padding(.vertical, 10)
-                .background(Color.white.opacity(0.1))
+                .background(Color.white.opacity(0.08))
                 .clipShape(Capsule())
+                .overlay(Capsule().stroke(Color.white.opacity(0.08), lineWidth: 0.5))
+            }
+            .buttonStyle(PressScaleButtonStyle())
         }
     }
 }
@@ -711,16 +726,18 @@ struct EmptyStateView: View {
     let subtitle: String
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 14) {
             Image(systemName: icon)
-                .font(.system(size: 40))
-                .foregroundStyle(.gray)
+                .font(.system(size: 38))
+                .foregroundStyle(.white.opacity(0.18))
             Text(title)
-                .font(.headline)
+                .font(.system(size: 16, weight: .bold))
                 .foregroundStyle(.white)
             Text(subtitle)
-                .font(.subheadline)
-                .foregroundStyle(.gray)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.white.opacity(0.4))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 40)
         }
     }
 }

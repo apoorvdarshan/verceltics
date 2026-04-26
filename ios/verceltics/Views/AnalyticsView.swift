@@ -381,17 +381,15 @@ struct AnalyticsView: View {
 // MARK: - Skeleton
 
 struct AnalyticsSkeletonView: View {
-    @State private var shimmer = false
-
     var body: some View {
         ScrollView {
             VStack(spacing: 14) {
                 HStack(spacing: 8) {
                     RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.white.opacity(shimmer ? 0.1 : 0.05))
+                        .fill(Color.white.opacity(0.06))
                         .frame(width: 100, height: 34)
                     RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.white.opacity(shimmer ? 0.1 : 0.05))
+                        .fill(Color.white.opacity(0.06))
                         .frame(width: 120, height: 34)
                     Spacer()
                 }
@@ -400,45 +398,59 @@ struct AnalyticsSkeletonView: View {
                     ForEach(0..<3, id: \.self) { _ in
                         VStack(alignment: .leading, spacing: 8) {
                             RoundedRectangle(cornerRadius: 4)
-                                .fill(Color.white.opacity(shimmer ? 0.1 : 0.05))
+                                .fill(Color.white.opacity(0.06))
                                 .frame(width: 60, height: 12)
                             RoundedRectangle(cornerRadius: 4)
-                                .fill(Color.white.opacity(shimmer ? 0.12 : 0.06))
+                                .fill(Color.white.opacity(0.08))
                                 .frame(width: 44, height: 24)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(14)
-                        .background(Color.white.opacity(0.04))
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                        .background(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.05), Color.white.opacity(0.02)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     }
                 }
 
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color.white.opacity(0.04))
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.05), Color.white.opacity(0.02)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
                     .frame(height: 250)
 
                 ForEach(0..<4, id: \.self) { _ in
                     VStack(alignment: .leading, spacing: 8) {
                         RoundedRectangle(cornerRadius: 4)
-                            .fill(Color.white.opacity(shimmer ? 0.1 : 0.05))
+                            .fill(Color.white.opacity(0.06))
                             .frame(width: 80, height: 14)
                         ForEach(0..<4, id: \.self) { _ in
                             RoundedRectangle(cornerRadius: 4)
-                                .fill(Color.white.opacity(shimmer ? 0.06 : 0.03))
+                                .fill(Color.white.opacity(0.04))
                                 .frame(height: 36)
                         }
                     }
                     .padding(16)
-                    .background(Color.white.opacity(0.04))
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .background(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.05), Color.white.opacity(0.02)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
             }
             .padding()
-        }
-        .onAppear {
-            withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
-                shimmer = true
-            }
+            .shimmering()
         }
     }
 }
