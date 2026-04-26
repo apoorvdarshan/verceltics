@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ScrollReveal } from "@/components/scroll-reveal";
 
 export const metadata: Metadata = {
-  alternates: { canonical: "https://verceltics.site" },
+  alternates: { canonical: "https://verceltics.com" },
 };
 
 const heroShots = [
@@ -98,14 +98,14 @@ const jsonLd = {
   applicationCategory: "DeveloperApplication",
   description:
     "Vercel web analytics viewer for iPhone. Track visitors, page views, bounce rate, referrers, countries, devices, browsers, and operating systems. Built with SwiftUI and Swift Charts. Open source, private by default, no tracking, no servers.",
-  url: "https://verceltics.site",
-  image: "https://verceltics.site/og.jpg",
+  url: "https://verceltics.com",
+  image: "https://verceltics.com/og.jpg",
   screenshot: [
-    "https://verceltics.site/analytics.png",
-    "https://verceltics.site/referrers.png",
-    "https://verceltics.site/projects.png",
-    "https://verceltics.site/devices.png",
-    "https://verceltics.site/breakdowns.png",
+    "https://verceltics.com/analytics.png",
+    "https://verceltics.com/referrers.png",
+    "https://verceltics.com/projects.png",
+    "https://verceltics.com/devices.png",
+    "https://verceltics.com/breakdowns.png",
   ],
   author: {
     "@type": "Person",

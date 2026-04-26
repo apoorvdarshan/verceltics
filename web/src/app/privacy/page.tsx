@@ -5,7 +5,7 @@ export const metadata: Metadata = {
   title: "Privacy Policy",
   description:
     "Verceltics privacy policy. We collect no personal data. Your Vercel token is stored locally in the iOS Keychain. No tracking, no telemetry, no servers.",
-  alternates: { canonical: "https://verceltics.site/privacy" },
+  alternates: { canonical: "https://verceltics.com/privacy" },
 };
 
 export default function Privacy() {

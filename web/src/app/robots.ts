@@ -8,6 +8,6 @@ export default function robots(): MetadataRoute.Robots {
         allow: "/",
       },
     ],
-    sitemap: "https://verceltics.site/sitemap.xml",
+    sitemap: "https://verceltics.com/sitemap.xml",
   };
 }

@@ -6,7 +6,7 @@
 
 <p align="center">
   Vercel Web Analytics on your iPhone.<br>
-  <a href="https://apps.apple.com/us/app/verceltics/id6761645656">App Store</a> · <a href="https://verceltics.site">Website</a>
+  <a href="https://apps.apple.com/us/app/verceltics/id6761645656">App Store</a> · <a href="https://verceltics.com">Website</a>
 </p>
 
 <p align="center">
@@ -60,7 +60,7 @@ This is a monorepo containing both the iOS app and the landing page:
 ```
 verceltics/
 ├── ios/          # SwiftUI iOS app
-└── web/          # Next.js landing page (verceltics.site)
+└── web/          # Next.js landing page (verceltics.com)
 ```
 
 ## Setup (iOS)

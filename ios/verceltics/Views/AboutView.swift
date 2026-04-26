@@ -43,7 +43,7 @@ struct AboutView: View {
                             AboutRow(icon: "chevron.left.forwardslash.chevron.right", title: "Source Code", subtitle: "github.com/apoorvdarshan/verceltics", url: "https://github.com/apoorvdarshan/verceltics")
                             AboutRow(icon: "ant", title: "Report an Issue", subtitle: "Open a GitHub issue", url: "https://github.com/apoorvdarshan/verceltics/issues")
                             AboutRow(icon: "envelope.fill", title: "Contact", subtitle: "ad13dtu@gmail.com", url: "mailto:ad13dtu@gmail.com")
-                            AboutRow(icon: "globe", title: "Website", subtitle: "verceltics.site", url: "https://verceltics.site")
+                            AboutRow(icon: "globe", title: "Website", subtitle: "verceltics.com", url: "https://verceltics.com")
                         }
 
                         // Support
@@ -59,8 +59,8 @@ struct AboutView: View {
 
                         // Legal
                         aboutSection(title: "LEGAL") {
-                            AboutRow(icon: "hand.raised.fill", title: "Privacy Policy", subtitle: "verceltics.site/privacy", url: "https://verceltics.site/privacy")
-                            AboutRow(icon: "doc.text.fill", title: "Terms of Service", subtitle: "verceltics.site/terms", url: "https://verceltics.site/terms")
+                            AboutRow(icon: "hand.raised.fill", title: "Privacy Policy", subtitle: "verceltics.com/privacy", url: "https://verceltics.com/privacy")
+                            AboutRow(icon: "doc.text.fill", title: "Terms of Service", subtitle: "verceltics.com/terms", url: "https://verceltics.com/terms")
                             AboutRow(icon: "checkmark.seal.fill", title: "License", subtitle: "MIT License", url: "https://github.com/apoorvdarshan/verceltics/blob/main/LICENSE")
                         }
 

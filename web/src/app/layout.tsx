@@ -17,7 +17,7 @@ const instrumentSerif = Instrument_Serif({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://verceltics.site"),
+  metadataBase: new URL("https://verceltics.com"),
   title: {
     default: "Verceltics — Vercel Web Analytics on Your iPhone, Open Source",
     template: "%s — Verceltics",
@@ -48,7 +48,7 @@ export const metadata: Metadata = {
     title: "Verceltics — Vercel Analytics on Your iPhone",
     description:
       "Track visitors, page views, referrers, countries, and devices from your iPhone. Open source. Private by default.",
-    url: "https://verceltics.site",
+    url: "https://verceltics.com",
     images: [
       {
         url: "/og.jpg",
@@ -75,7 +75,7 @@ export const metadata: Metadata = {
     ],
   },
   alternates: {
-    canonical: "https://verceltics.site",
+    canonical: "https://verceltics.com",
   },
   robots: {
     index: true,

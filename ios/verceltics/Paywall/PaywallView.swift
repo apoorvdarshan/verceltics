@@ -175,8 +175,8 @@ struct PaywallView: View {
                         .foregroundStyle(.white.opacity(0.35))
 
                         HStack(spacing: 16) {
-                            Link("Privacy Policy", destination: URL(string: "https://verceltics.site/privacy")!)
-                            Link("Terms of Use", destination: URL(string: "https://verceltics.site/terms")!)
+                            Link("Privacy Policy", destination: URL(string: "https://verceltics.com/privacy")!)
+                            Link("Terms of Use", destination: URL(string: "https://verceltics.com/terms")!)
                         }
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.white.opacity(0.25))
