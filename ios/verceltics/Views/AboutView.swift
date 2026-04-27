@@ -118,10 +118,16 @@ struct AboutView: View {
     }
 
     private var shareAppRow: some View {
-        ShareLink(
-            item: URL(string: "https://apps.apple.com/us/app/verceltics/id6761645656")!,
-            subject: Text("Verceltics"),
-            message: Text("Check out Verceltics — Vercel Web Analytics on your iPhone.\n\nApp Store: https://apps.apple.com/us/app/verceltics/id6761645656\nWebsite: https://verceltics.com")
+        let message = """
+        Verceltics — Vercel Web Analytics on your iPhone. Open source, no ads.
+
+        App Store: https://apps.apple.com/us/app/verceltics/id6761645656
+        Website: https://verceltics.com
+        """
+        return ShareLink(
+            item: message,
+            subject: Text("Verceltics — Vercel Analytics on your iPhone"),
+            preview: SharePreview("Verceltics", image: Image("AppLogo"))
         ) {
             AboutRowContent(
                 icon: "square.and.arrow.up.fill",
