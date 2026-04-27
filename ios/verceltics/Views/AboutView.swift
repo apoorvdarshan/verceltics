@@ -48,20 +48,26 @@ struct AboutView: View {
                             AboutRow(icon: "checkmark.seal.fill", title: "License", subtitle: "MIT License", url: "https://github.com/apoorvdarshan/verceltics/blob/main/LICENSE")
                         }
 
-                        // About text
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("Built with SwiftUI and Swift Charts.\nNo third-party dependencies. Open source.")
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.3))
-                                .lineSpacing(3)
+                        // Footer
+                        VStack(spacing: 10) {
+                            HStack(spacing: 8) {
+                                Text("v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")")
+                                    .font(.system(size: 11, weight: .heavy).monospacedDigit())
+                                Text("·")
+                                Text("Built with SwiftUI")
+                                    .font(.system(size: 11, weight: .bold))
+                            }
+                            .foregroundStyle(.white.opacity(0.4))
 
                             Text("Verceltics is not affiliated with, endorsed by, or sponsored by Vercel Inc. Vercel and the Vercel logo are trademarks of Vercel Inc.")
                                 .font(.system(size: 10, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.15))
+                                .foregroundStyle(.white.opacity(0.22))
+                                .multilineTextAlignment(.center)
                                 .lineSpacing(2)
                         }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 4)
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, 28)
+                        .padding(.top, 12)
 
                         // Sign out
                         Button {

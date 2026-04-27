@@ -72,6 +72,8 @@ struct AnalyticsView: View {
     @Environment(AuthManager.self) private var authManager
     @Environment(\.horizontalSizeClass) private var hSize
     @State private var vm: AnalyticsViewModel
+    @State private var lastUpdated: Date?
+    @State private var refreshSpin: Double = 0
 
     init(project: Project) {
         self.project = project
@@ -95,6 +97,22 @@ struct AnalyticsView: View {
         .navigationTitle(project.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.6)) {
+                        refreshSpin += 360
+                    }
+                    Task { await loadData() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 14, weight: .heavy))
+                        .rotationEffect(.degrees(refreshSpin))
+                        .foregroundStyle(.white.opacity(0.7))
+                }
+                .disabled(vm.isLoading)
+            }
+        }
         .task { await loadData() }
         .onChange(of: vm.selectedRange) {
             Task { await loadData() }
@@ -236,6 +254,18 @@ struct AnalyticsView: View {
                 .buttonStyle(PressScaleButtonStyle())
 
                 Spacer()
+
+                if let lastUpdated {
+                    HStack(spacing: 5) {
+                        Circle()
+                            .fill(Color(red: 0.30, green: 0.85, blue: 0.55))
+                            .frame(width: 5, height: 5)
+                        Text("Updated \(lastUpdated.formatted(.relative(presentation: .named)))")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.4))
+                    }
+                    .transition(.opacity)
+                }
             }
         }
         .padding(.bottom, 2)
@@ -406,6 +436,7 @@ struct AnalyticsView: View {
     private func loadData() async {
         guard let token = authManager.token else { return }
         await vm.load(token: token)
+        lastUpdated = Date()
     }
 
     private func formatNumber(_ value: Int) -> String {
