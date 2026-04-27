@@ -78,6 +78,7 @@ struct LoginView: View {
     // MARK: - Token Field (scrollable)
 
     private var tokenFieldView: some View {
+        ScrollViewReader { proxy in
         ScrollView {
             VStack(spacing: 0) {
                 Spacer().frame(height: 60)
@@ -218,6 +219,7 @@ struct LoginView: View {
                     }
                     .buttonStyle(PressScaleButtonStyle())
                     .disabled(tokenInput.isEmpty || authManager.isLoading)
+                    .id("connect-button")
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 36)
@@ -226,6 +228,18 @@ struct LoginView: View {
             }
         }
         .scrollDismissesKeyboard(.interactively)
+        .onChange(of: isTokenFocused) { _, focused in
+            if focused {
+                // Wait for the keyboard frame to settle, then scroll the
+                // Connect button into view above the keyboard.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    withAnimation(.easeOut(duration: 0.25)) {
+                        proxy.scrollTo("connect-button", anchor: .bottom)
+                    }
+                }
+            }
+        }
+        }
     }
 
     // MARK: - Shared branding
