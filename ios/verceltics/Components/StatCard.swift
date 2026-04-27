@@ -14,7 +14,7 @@ struct StatCard: View {
 
     private var changeColor: Color {
         guard change != nil else { return .gray }
-        return isPositive ? .green : .red
+        return isPositive ? Color(red: 0.30, green: 0.85, blue: 0.55) : Color(red: 1.0, green: 0.42, blue: 0.42)
     }
 
     private var changeText: String? {
@@ -24,53 +24,69 @@ struct StatCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 5) {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 6) {
                 Image(systemName: icon)
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.3))
+                    .font(.system(size: 9, weight: .heavy))
+                    .foregroundStyle(.white.opacity(0.35))
                 Text(title.uppercased())
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.4))
-                    .tracking(0.5)
+                    .font(.system(size: 10, weight: .heavy))
+                    .foregroundStyle(.white.opacity(0.45))
+                    .tracking(0.8)
             }
 
             Text(value)
-                .font(.system(size: 26, weight: .heavy, design: .rounded).monospacedDigit())
+                .font(.system(size: 28, weight: .heavy, design: .rounded).monospacedDigit())
                 .foregroundStyle(.white)
                 .contentTransition(.numericText())
+                .minimumScaleFactor(0.7)
+                .lineLimit(1)
 
             if let changeText {
                 HStack(spacing: 3) {
                     Image(systemName: isPositive ? "arrow.up.right" : "arrow.down.right")
                         .font(.system(size: 8, weight: .heavy))
                     Text(changeText)
-                        .font(.system(size: 11, weight: .bold).monospacedDigit())
+                        .font(.system(size: 11, weight: .heavy).monospacedDigit())
                 }
                 .foregroundStyle(changeColor)
                 .padding(.horizontal, 7)
                 .padding(.vertical, 4)
-                .background(changeColor.opacity(0.12))
+                .background(changeColor.opacity(0.14))
                 .clipShape(Capsule())
+                .overlay(Capsule().stroke(changeColor.opacity(0.18), lineWidth: 0.5))
             } else {
                 Text("—")
-                    .font(.system(size: 11))
+                    .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(.white.opacity(0.2))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
         .background(
-            LinearGradient(
-                colors: [Color.white.opacity(0.06), Color.white.opacity(0.02)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            ZStack {
+                LinearGradient(
+                    colors: [Color.white.opacity(0.07), Color.white.opacity(0.02)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                LinearGradient(
+                    colors: [Color.white.opacity(0.04), .clear],
+                    startPoint: .top,
+                    endPoint: .center
+                )
+            }
         )
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.12), Color.white.opacity(0.04)],
+                        startPoint: .top, endPoint: .bottom
+                    ),
+                    lineWidth: 0.5
+                )
         )
     }
 }

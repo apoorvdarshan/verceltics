@@ -126,11 +126,12 @@ struct ProjectCard: View {
                     Text(project.name)
                         .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(.white)
+                        .lineLimit(1)
 
                     if let domain = project.primaryDomain {
                         Text(domain)
                             .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.35))
+                            .foregroundStyle(.white.opacity(0.4))
                             .lineLimit(1)
                             .truncationMode(.middle)
                     }
@@ -139,41 +140,44 @@ struct ProjectCard: View {
                 Spacer()
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.15))
+                    .font(.system(size: 12, weight: .heavy))
+                    .foregroundStyle(.white.opacity(0.18))
             }
 
             // Git repo + framework on same line
             HStack(spacing: 8) {
                 if let link = project.link, let org = link.org, let repo = link.repo {
-                    HStack(spacing: 4) {
+                    HStack(spacing: 5) {
                         Image(systemName: "chevron.left.forwardslash.chevron.right")
-                            .font(.system(size: 8, weight: .bold))
+                            .font(.system(size: 8, weight: .heavy))
                         Text("\(org)/\(repo)")
-                            .font(.system(size: 11, weight: .medium))
+                            .font(.system(size: 11, weight: .semibold))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
                     }
-                    .foregroundStyle(.white.opacity(0.4))
-                    .padding(.horizontal, 8)
+                    .foregroundStyle(.white.opacity(0.5))
+                    .padding(.horizontal, 9)
                     .padding(.vertical, 4)
                     .background(Color.white.opacity(0.06))
                     .clipShape(Capsule())
+                    .overlay(Capsule().strokeBorder(Color.white.opacity(0.05), lineWidth: 0.5))
                 }
 
                 if let framework = project.framework {
-                    HStack(spacing: 4) {
+                    HStack(spacing: 5) {
                         Circle()
-                            .fill(.green.opacity(0.7))
+                            .fill(Color(red: 0.30, green: 0.85, blue: 0.55))
                             .frame(width: 5, height: 5)
                         Text(framework.capitalized)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.35))
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.4))
                     }
                 }
             }
 
             // Commit message + time
             if let deployment = project.lastDeployment {
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: 4) {
                     if let message = deployment.commitMessage {
                         Text(message)
                             .font(.system(size: 13, weight: .medium))
@@ -182,31 +186,46 @@ struct ProjectCard: View {
                     }
 
                     if let date = deployment.date {
-                        HStack(spacing: 4) {
+                        HStack(spacing: 5) {
+                            Image(systemName: "clock")
+                                .font(.system(size: 8, weight: .heavy))
                             Text(date.formatted(.relative(presentation: .named)))
-                            Text("on")
+                            Text("·")
                             Image(systemName: "arrow.triangle.branch")
-                                .font(.system(size: 8))
+                                .font(.system(size: 8, weight: .heavy))
                             Text("main")
                         }
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.25))
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.3))
                     }
                 }
             }
         }
         .padding(16)
         .background(
-            LinearGradient(
-                colors: [Color.white.opacity(0.06), Color.white.opacity(0.02)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            ZStack {
+                LinearGradient(
+                    colors: [Color.white.opacity(0.07), Color.white.opacity(0.02)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                LinearGradient(
+                    colors: [Color.white.opacity(0.04), .clear],
+                    startPoint: .top,
+                    endPoint: .center
+                )
+            }
         )
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.12), Color.white.opacity(0.04)],
+                        startPoint: .top, endPoint: .bottom
+                    ),
+                    lineWidth: 0.5
+                )
         )
     }
 }

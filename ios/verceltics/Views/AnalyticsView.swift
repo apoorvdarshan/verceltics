@@ -114,19 +114,35 @@ struct AnalyticsView: View {
                 statsCards
 
                 AnalyticsChart(data: vm.data.timeseries)
-                    .frame(height: 250)
-                    .padding(16)
+                    .frame(height: 260)
+                    .padding(18)
                     .background(
-                        LinearGradient(
-                            colors: [Color.white.opacity(0.05), Color.white.opacity(0.02)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
+                        ZStack {
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.06), Color.white.opacity(0.02)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                            LinearGradient(
+                                colors: [Color.blue.opacity(0.04), .clear],
+                                startPoint: .topLeading, endPoint: .bottomTrailing
+                            )
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.04), .clear],
+                                startPoint: .top, endPoint: .center
+                            )
+                        }
                     )
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .strokeBorder(
+                                LinearGradient(
+                                    colors: [Color.white.opacity(0.14), Color.white.opacity(0.04)],
+                                    startPoint: .top, endPoint: .bottom
+                                ),
+                                lineWidth: 0.5
+                            )
                     )
 
                 LazyVGrid(columns: breakdownColumns, spacing: 16) {
@@ -158,22 +174,26 @@ struct AnalyticsView: View {
     // MARK: - Header
 
     private var header: some View {
-        VStack(spacing: 12) {
-            HStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .center, spacing: 12) {
                 ProjectIcon(domain: project.primaryDomain, name: project.name)
 
                 if let domain = project.primaryDomain {
-                    Text(domain)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.35))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
+                    HStack(spacing: 5) {
+                        Image(systemName: "link")
+                            .font(.system(size: 9, weight: .heavy))
+                            .foregroundStyle(.white.opacity(0.3))
+                        Text(domain)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.5))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
                 }
                 Spacer()
             }
 
             HStack(spacing: 8) {
-                // Time range picker
                 Menu {
                     ForEach(TimeRange.allCases) { range in
                         Button {
@@ -191,26 +211,34 @@ struct AnalyticsView: View {
                         }
                     }
                 } label: {
-                    HStack(spacing: 4) {
+                    HStack(spacing: 6) {
                         Image(systemName: "calendar")
-                            .font(.system(size: 11))
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.5))
                         Text(vm.selectedRange.label)
-                            .font(.system(size: 13, weight: .medium))
-                        Image(systemName: "chevron.up.chevron.down")
-                            .font(.system(size: 9, weight: .bold))
+                            .font(.system(size: 13, weight: .bold))
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 9, weight: .heavy))
+                            .foregroundStyle(.white.opacity(0.4))
                     }
                     .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(Color.white.opacity(0.06))
+                    .padding(.vertical, 9)
+                    .background(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.10), Color.white.opacity(0.04)],
+                            startPoint: .top, endPoint: .bottom
+                        )
+                    )
                     .foregroundStyle(.white)
                     .clipShape(Capsule())
-                    .overlay(Capsule().stroke(Color.white.opacity(0.08), lineWidth: 0.5))
+                    .overlay(Capsule().strokeBorder(Color.white.opacity(0.10), lineWidth: 0.5))
                 }
+                .buttonStyle(PressScaleButtonStyle())
 
                 Spacer()
             }
         }
-        .padding(.bottom, 4)
+        .padding(.bottom, 2)
     }
 
     // MARK: - Stats Cards
@@ -254,45 +282,49 @@ struct AnalyticsView: View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
             HStack {
-                HStack(spacing: 7) {
+                HStack(spacing: 8) {
                     Image(systemName: icon)
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(.system(size: 11, weight: .heavy))
                         .foregroundStyle(.blue)
+                        .frame(width: 22, height: 22)
+                        .background(Color.blue.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     Text(title)
                         .font(.system(size: 14, weight: .bold))
                         .foregroundStyle(.white)
                 }
                 Spacer()
                 Text("VISITORS")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(.gray)
+                    .font(.system(size: 9, weight: .heavy))
+                    .foregroundStyle(.white.opacity(0.35))
+                    .tracking(1.0)
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.vertical, 14)
 
             Divider().overlay(Color.white.opacity(0.06))
 
             if items.isEmpty {
                 if let proHint {
-                    VStack(spacing: 6) {
+                    VStack(spacing: 8) {
                         Image(systemName: "lock.fill")
-                            .font(.title3)
-                            .foregroundStyle(.gray)
+                            .font(.system(size: 18))
+                            .foregroundStyle(.white.opacity(0.2))
                         Text("Requires \(proHint)")
-                            .font(.caption.bold())
-                            .foregroundStyle(.white)
-                        Text("Upgrade your Vercel plan to view this data")
-                            .font(.caption2)
-                            .foregroundStyle(.gray)
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.7))
+                        Text("Upgrade your Vercel plan")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.35))
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 24)
+                    .padding(.vertical, 28)
                 } else {
                     Text("No data available")
-                        .font(.caption)
-                        .foregroundStyle(.gray)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.3))
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 24)
+                        .padding(.vertical, 28)
                 }
             } else {
                 let total = items.reduce(0) { $0 + $1.visitors }
@@ -301,52 +333,71 @@ struct AnalyticsView: View {
                     HStack(spacing: 0) {
                         ZStack(alignment: .leading) {
                             GeometryReader { geo in
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(Color.white.opacity(0.06))
+                                RoundedRectangle(cornerRadius: 5)
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [Color.blue.opacity(0.18), Color.blue.opacity(0.06)],
+                                            startPoint: .leading, endPoint: .trailing
+                                        )
+                                    )
                                     .frame(width: geo.size.width * CGFloat(item.visitors) / CGFloat(maxVal))
                             }
-                            HStack(spacing: 6) {
+                            HStack(spacing: 7) {
                                 if isCountry {
                                     Text(countryFlag(item.key))
-                                        .font(.caption)
+                                        .font(.system(size: 13))
                                 }
                                 Text(displayName(item.key, emptyLabel: emptyLabel, isCountry: isCountry))
-                                    .font(.system(size: 13))
+                                    .font(.system(size: 13, weight: .medium))
                                     .foregroundStyle(.white)
                                     .lineLimit(1)
                             }
-                            .padding(.horizontal, 10)
+                            .padding(.horizontal, 12)
                         }
                         .frame(height: 36)
 
                         if isCountry || isPercentage {
                             Text(total > 0 ? "\(item.visitors * 100 / total)%" : "0%")
-                                .font(.system(size: 13, weight: .medium).monospacedDigit())
-                                .foregroundStyle(.gray)
+                                .font(.system(size: 12, weight: .bold).monospacedDigit())
+                                .foregroundStyle(.white.opacity(0.55))
                                 .frame(width: 50, alignment: .trailing)
-                                .padding(.trailing, 10)
+                                .padding(.trailing, 12)
                         } else {
                             Text("\(item.visitors)")
-                                .font(.system(size: 13, weight: .medium).monospacedDigit())
-                                .foregroundStyle(.gray)
+                                .font(.system(size: 12, weight: .bold).monospacedDigit())
+                                .foregroundStyle(.white.opacity(0.55))
                                 .frame(width: 50, alignment: .trailing)
-                                .padding(.trailing, 10)
+                                .padding(.trailing, 12)
                         }
                     }
                 }
+                Spacer().frame(height: 4)
             }
         }
         .background(
-            LinearGradient(
-                colors: [Color.white.opacity(0.05), Color.white.opacity(0.02)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            ZStack {
+                LinearGradient(
+                    colors: [Color.white.opacity(0.06), Color.white.opacity(0.02)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                LinearGradient(
+                    colors: [Color.white.opacity(0.04), .clear],
+                    startPoint: .top,
+                    endPoint: .center
+                )
+            }
         )
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.12), Color.white.opacity(0.04)],
+                        startPoint: .top, endPoint: .bottom
+                    ),
+                    lineWidth: 0.5
+                )
         )
     }
 
