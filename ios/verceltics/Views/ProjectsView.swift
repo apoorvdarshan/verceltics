@@ -424,9 +424,9 @@ struct ProjectIcon: View {
         guard !urls.isEmpty else { return nil }
         return await withTaskGroup(of: Image?.self) { group in
             for url in urls {
-                group.addTask {
-                    guard let data = await fetchImageData(from: url),
-                          let uiImage = UIImage(data: data),
+                group.addTask { @MainActor in
+                    guard let (data, contentType) = await fetchImageData(from: url),
+                          let uiImage = await decodeImage(data, contentType: contentType),
                           uiImage.size.width >= minSize || uiImage.size.height >= minSize else { return nil }
                     return Image(uiImage: removeWhiteBackground(uiImage))
                 }
@@ -463,19 +463,36 @@ struct ProjectIcon: View {
         return false
     }
 
-    nonisolated private func fetchImageData(from url: URL) async -> Data? {
+    nonisolated private func fetchImageData(from url: URL) async -> (Data, String?)? {
         var request = URLRequest(url: url)
         request.timeoutInterval = 5
         guard let (data, response) = try? await URLSession.shared.data(for: request),
               let http = response as? HTTPURLResponse,
               (200...299).contains(http.statusCode),
               data.count > 50 else { return nil }
-        return data
+        return (data, http.value(forHTTPHeaderField: "Content-Type"))
+    }
+
+    nonisolated private func looksLikeSVG(data: Data, contentType: String?) -> Bool {
+        if let ct = contentType?.lowercased(), ct.contains("svg") { return true }
+        let prefix = data.prefix(400)
+        if let s = String(data: prefix, encoding: .utf8)?.lowercased() {
+            return s.contains("<svg")
+        }
+        return false
+    }
+
+    private func decodeImage(_ data: Data, contentType: String?) async -> UIImage? {
+        if looksLikeSVG(data: data, contentType: contentType) {
+            guard let markup = String(data: data, encoding: .utf8) else { return nil }
+            return await MainActor.run { renderSVGMarkup(markup) }
+        }
+        return UIImage(data: data)
     }
 
     private func fetchImage(from url: URL) async -> Image? {
-        guard let data = await fetchImageData(from: url) else { return nil }
-        guard let uiImage = UIImage(data: data) else { return nil }
+        guard let (data, contentType) = await fetchImageData(from: url),
+              let uiImage = await decodeImage(data, contentType: contentType) else { return nil }
         guard uiImage.size.width >= 32 || uiImage.size.height >= 32 else { return nil }
         let cleaned = removeWhiteBackground(uiImage)
         return Image(uiImage: cleaned)
@@ -635,6 +652,11 @@ struct ProjectIcon: View {
             svgMarkup = decoded
         }
 
+        return renderSVGMarkup(svgMarkup)
+    }
+
+    @MainActor
+    private func renderSVGMarkup(_ svgMarkup: String) -> UIImage? {
         let canvasSize = CGSize(width: 128, height: 128)
         let html = """
         <html>
@@ -713,7 +735,12 @@ struct ProjectIcon: View {
                 continue
             }
 
-            if let url = URL(string: href, relativeTo: pageURL)?.absoluteURL {
+            // Percent-encode characters like spaces that the spec allows in
+            // hrefs but URL(string:) rejects (e.g. "assets/calorie logo.png").
+            let allowed = CharacterSet.urlQueryAllowed.union(.urlPathAllowed)
+            let encoded = href.addingPercentEncoding(withAllowedCharacters: allowed) ?? href
+            if let url = URL(string: encoded, relativeTo: pageURL)?.absoluteURL
+                ?? URL(string: href, relativeTo: pageURL)?.absoluteURL {
                 favicons.append(.remote(url))
             }
         }
