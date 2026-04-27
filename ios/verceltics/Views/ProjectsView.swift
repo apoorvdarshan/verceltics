@@ -295,14 +295,36 @@ struct ProjectIcon: View {
     @State private var loadedImage: Image?
     @State private var didFail = false
 
-    private var faviconURLs: [URL] {
+    private var directFaviconURLs: [URL] {
         guard let domain else { return [] }
-        // icon.horse first (best quality, preserves transparency), then direct sources
+        // Try www.* and bare host so single-host sites still resolve
+        let hosts: [String] = {
+            if domain.hasPrefix("www.") {
+                return [domain, String(domain.dropFirst(4))]
+            }
+            return [domain, "www.\(domain)"]
+        }()
+        let paths = [
+            "/apple-touch-icon.png",
+            "/apple-touch-icon-precomposed.png",
+            "/favicon-192x192.png",
+            "/favicon-96x96.png",
+            "/favicon.png",
+            "/favicon.ico",
+            "/icon.png",
+        ]
+        return hosts.flatMap { host in
+            paths.compactMap { URL(string: "https://\(host)\($0)") }
+        }
+    }
+
+    private var fallbackServiceURLs: [URL] {
+        guard let domain else { return [] }
         return [
+            URL(string: "https://icons.duckduckgo.com/ip3/\(domain).ico"),
+            URL(string: "https://www.google.com/s2/favicons?domain=\(domain)&sz=256"),
+            URL(string: "https://unavatar.io/\(domain)?ttl=1d"),
             URL(string: "https://icon.horse/icon/\(domain)"),
-            URL(string: "https://\(domain)/favicon.ico"),
-            URL(string: "https://\(domain)/favicon.png"),
-            URL(string: "https://\(domain)/icon.png"),
         ].compactMap { $0 }
     }
 
@@ -326,11 +348,11 @@ struct ProjectIcon: View {
         }
         .frame(width: 40, height: 40)
         .task {
-            // Race: load favicon vs 8s timeout
+            // Race: load favicon vs 12s timeout
             await withTaskGroup(of: Void.self) { group in
                 group.addTask { @MainActor in await loadFavicon() }
                 group.addTask { @MainActor in
-                    try? await Task.sleep(for: .seconds(8))
+                    try? await Task.sleep(for: .seconds(12))
                     if loadedImage == nil { didFail = true }
                 }
                 await group.next()
@@ -363,15 +385,13 @@ struct ProjectIcon: View {
     private func loadFavicon() async {
         guard let domain else { didFail = true; return }
 
-        // First try known good sources
-        for url in faviconURLs {
-            if let image = await fetchImage(from: url) {
-                loadedImage = image
-                return
-            }
+        // 1. Race all direct paths in parallel — first valid image wins
+        if let image = await raceForFirstImage(directFaviconURLs, minSize: 32) {
+            loadedImage = image
+            return
         }
 
-        // Scrape HTML <link> tags for favicon URLs
+        // 2. Scrape HTML <link> tags for any explicit icon paths
         if let scraped = await scrapeFaviconURLs(domain: domain) {
             for favicon in scraped {
                 switch favicon {
@@ -381,7 +401,6 @@ struct ProjectIcon: View {
                         return
                     }
                 case .inlineSVG(let uiImage):
-                    // Only use if the image has visible content (not all transparent)
                     if hasVisiblePixels(uiImage) {
                         loadedImage = Image(uiImage: removeWhiteBackground(uiImage))
                         return
@@ -390,18 +409,34 @@ struct ProjectIcon: View {
             }
         }
 
-        // Last resort: Google favicon API (converts SVGs to PNG)
-        // Strip white background Google may add to transparent favicons
-        if let googleURL = URL(string: "https://www.google.com/s2/favicons?domain=\(domain)&sz=128"),
-           let data = await fetchImageData(from: googleURL),
-           let uiImage = UIImage(data: data),
-           uiImage.size.width >= 32 {
-            let cleaned = removeWhiteBackground(uiImage)
-            loadedImage = Image(uiImage: cleaned)
+        // 3. Third-party services in parallel — these almost always return something
+        if let image = await raceForFirstImage(fallbackServiceURLs, minSize: 16) {
+            loadedImage = image
             return
         }
 
         didFail = true
+    }
+
+    private func raceForFirstImage(_ urls: [URL], minSize: CGFloat) async -> Image? {
+        guard !urls.isEmpty else { return nil }
+        return await withTaskGroup(of: Image?.self) { group in
+            for url in urls {
+                group.addTask {
+                    guard let data = await fetchImageData(from: url),
+                          let uiImage = UIImage(data: data),
+                          uiImage.size.width >= minSize || uiImage.size.height >= minSize else { return nil }
+                    return Image(uiImage: removeWhiteBackground(uiImage))
+                }
+            }
+            for await result in group {
+                if let result {
+                    group.cancelAll()
+                    return result
+                }
+            }
+            return nil
+        }
     }
 
     private func hasVisiblePixels(_ image: UIImage) -> Bool {
@@ -426,7 +461,7 @@ struct ProjectIcon: View {
         return false
     }
 
-    private func fetchImageData(from url: URL) async -> Data? {
+    nonisolated private func fetchImageData(from url: URL) async -> Data? {
         var request = URLRequest(url: url)
         request.timeoutInterval = 5
         guard let (data, response) = try? await URLSession.shared.data(for: request),
@@ -444,7 +479,7 @@ struct ProjectIcon: View {
         return Image(uiImage: cleaned)
     }
 
-    private func removeWhiteBackground(_ image: UIImage) -> UIImage {
+    nonisolated private func removeWhiteBackground(_ image: UIImage) -> UIImage {
         guard let cgImage = image.cgImage else { return image }
         let width = cgImage.width
         let height = cgImage.height
