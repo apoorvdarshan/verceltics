@@ -46,20 +46,6 @@ nonisolated struct Project: Identifiable, Decodable {
         return Self.isVercelDomain(primaryDomain)
     }
 
-    /// Domain text shown in the UI. Collapses Vercel's long-form auto URL
-    /// (e.g. `scowld-apoorv-darshans-projects.vercel.app`) down to the
-    /// cleaner `{name}.vercel.app` form for display.
-    var displayDomain: String? {
-        guard let primary = primaryDomain else { return nil }
-        let lower = primary.lowercased()
-        let nameLower = name.lowercased()
-        let suffix = ".vercel.app"
-        if lower.hasPrefix("\(nameLower)-"), lower.hasSuffix(suffix) {
-            return "\(nameLower)\(suffix)"
-        }
-        return primary
-    }
-
     struct AliasEntry: Decodable {
         let domain: String
     }

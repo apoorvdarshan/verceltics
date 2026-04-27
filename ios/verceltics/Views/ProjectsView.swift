@@ -127,7 +127,7 @@ struct ProjectCard: View {
                         .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(.white)
 
-                    if let domain = project.displayDomain {
+                    if let domain = project.primaryDomain {
                         Text(domain)
                             .font(.system(size: 12, weight: .medium))
                             .foregroundStyle(.white.opacity(0.35))

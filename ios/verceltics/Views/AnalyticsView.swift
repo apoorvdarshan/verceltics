@@ -162,7 +162,7 @@ struct AnalyticsView: View {
             HStack(spacing: 12) {
                 ProjectIcon(domain: project.primaryDomain, name: project.name)
 
-                if let domain = project.displayDomain {
+                if let domain = project.primaryDomain {
                     Text(domain)
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(.white.opacity(0.35))
