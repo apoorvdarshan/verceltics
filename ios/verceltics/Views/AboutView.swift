@@ -1,8 +1,10 @@
 import SwiftUI
+import StoreKit
 
 struct AboutView: View {
     @Environment(AuthManager.self) private var authManager
     @Environment(\.horizontalSizeClass) private var hSize
+    @Environment(\.requestReview) private var requestReview
 
     var body: some View {
         NavigationStack {
@@ -49,6 +51,8 @@ struct AboutView: View {
 
                         // Support
                         aboutSection(title: "SUPPORT US") {
+                            AboutRow(icon: "star.bubble.fill", title: "Rate Verceltics", subtitle: "Tap a star, no App Store needed", action: { requestReview() })
+                            shareAppRow
                             AboutRow(icon: "star.fill", title: "Star on GitHub", subtitle: "Help us reach more developers", url: "https://github.com/apoorvdarshan/verceltics")
                             AboutRow(icon: "arrow.up.circle.fill", title: "Upvote on Product Hunt", subtitle: "producthunt.com/products/verceltics", url: "https://www.producthunt.com/products/verceltics")
                             AboutRow(icon: "heart.fill", title: "Support via PayPal", subtitle: "paypal.me/apoorvdarshan", url: "https://paypal.me/apoorvdarshan")
@@ -121,6 +125,21 @@ struct AboutView: View {
         }
     }
 
+    private var shareAppRow: some View {
+        ShareLink(
+            item: URL(string: "https://apps.apple.com/us/app/verceltics/id6761645656")!,
+            subject: Text("Verceltics"),
+            message: Text("Check out Verceltics — Vercel Web Analytics on your iPhone.\n\nApp Store: https://apps.apple.com/us/app/verceltics/id6761645656\nWebsite: https://verceltics.com")
+        ) {
+            AboutRowContent(
+                icon: "square.and.arrow.up.fill",
+                title: "Share Verceltics",
+                subtitle: "Tell others about the app"
+            )
+        }
+        .buttonStyle(PressScaleButtonStyle())
+    }
+
     private func aboutSection(title: String, @ViewBuilder content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(title)
@@ -152,25 +171,48 @@ struct AboutRow: View {
     let title: String
     let subtitle: String
     let url: String?
+    let action: (() -> Void)?
 
-    init(icon: String, iconColor: Color = .white.opacity(0.5), title: String, subtitle: String, url: String? = nil) {
+    init(icon: String, iconColor: Color = .white.opacity(0.5), title: String, subtitle: String, url: String? = nil, action: (() -> Void)? = nil) {
         self.icon = icon
         self.iconColor = iconColor
         self.title = title
         self.subtitle = subtitle
         self.url = url
+        self.action = action
     }
+
+    private var isInteractive: Bool { url != nil || action != nil }
 
     var body: some View {
-        if let url, let link = URL(string: url) {
-            Button { UIApplication.shared.open(link) } label: { rowContent }
+        let content = AboutRowContent(
+            icon: icon,
+            iconColor: iconColor,
+            title: title,
+            subtitle: subtitle,
+            showsChevron: isInteractive
+        )
+
+        if let action {
+            Button(action: action) { content }
+                .buttonStyle(PressScaleButtonStyle())
+        } else if let url, let link = URL(string: url) {
+            Button { UIApplication.shared.open(link) } label: { content }
                 .buttonStyle(PressScaleButtonStyle())
         } else {
-            rowContent
+            content
         }
     }
+}
 
-    private var rowContent: some View {
+struct AboutRowContent: View {
+    let icon: String
+    var iconColor: Color = .white.opacity(0.5)
+    let title: String
+    let subtitle: String
+    var showsChevron: Bool = true
+
+    var body: some View {
         HStack(spacing: 14) {
             Image(systemName: icon)
                 .font(.system(size: 13, weight: .semibold))
@@ -190,7 +232,7 @@ struct AboutRow: View {
 
             Spacer()
 
-            if url != nil {
+            if showsChevron {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.15))
