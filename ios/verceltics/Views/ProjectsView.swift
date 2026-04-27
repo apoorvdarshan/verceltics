@@ -287,11 +287,6 @@ struct SkeletonCard: View {
 // MARK: - Project Icon (favicon from domain)
 
 struct ProjectIcon: View {
-    private enum ScrapedFavicon {
-        case remote(URL)
-        case inlineSVG(UIImage)
-    }
-
     let domain: String?
     let name: String
     @State private var loadedImage: Image?
@@ -299,10 +294,17 @@ struct ProjectIcon: View {
 
     private var directFaviconURLs: [URL] {
         guard let domain else { return [] }
-        // Try www.* and bare host so single-host sites still resolve
+        // Try www.* and bare host so single-host sites still resolve.
+        // Skip the www variant when the host is already a subdomain — many
+        // wildcard certs (e.g. *.vercel.app) only cover one level, so
+        // www.<sub>.vercel.app fails ATS and stalls the connection pool.
+        let dotCount = domain.filter { $0 == "." }.count
         let hosts: [String] = {
             if domain.hasPrefix("www.") {
                 return [domain, String(domain.dropFirst(4))]
+            }
+            if dotCount >= 2 {
+                return [domain]
             }
             return [domain, "www.\(domain)"]
         }()
@@ -403,47 +405,28 @@ struct ProjectIcon: View {
     private func loadFavicon() async {
         guard let domain else { didFail = true; return }
 
-        print("[FAVICON] >>> START \(name) (\(domain))")
-
         // 1. Race all direct paths in parallel — first valid image wins
         if let image = await raceForFirstImage(directFaviconURLs, minSize: 32) {
-            print("[FAVICON] === \(name) won via DIRECT")
             loadedImage = image
             return
         }
-        print("[FAVICON] direct paths exhausted for \(name)")
 
         // 2. Scrape HTML <link> tags for any explicit icon paths
         if let scraped = await scrapeFaviconURLs(domain: domain) {
-            print("[FAVICON] scrape found \(scraped.count) entries for \(name)")
-            for favicon in scraped {
-                switch favicon {
-                case .remote(let url):
-                    if let image = await fetchImage(from: url) {
-                        print("[FAVICON] === \(name) won via SCRAPE \(url.absoluteString)")
-                        loadedImage = image
-                        return
-                    }
-                case .inlineSVG(let uiImage):
-                    if hasVisiblePixels(uiImage) {
-                        print("[FAVICON] === \(name) won via INLINE-SVG")
-                        loadedImage = Image(uiImage: removeWhiteBackground(uiImage))
-                        return
-                    }
+            for url in scraped {
+                if let image = await fetchImage(from: url) {
+                    loadedImage = image
+                    return
                 }
             }
-        } else {
-            print("[FAVICON] scrape returned nil for \(name)")
         }
 
         // 3. Third-party services in parallel — these almost always return something
         if let image = await raceForFirstImage(fallbackServiceURLs, minSize: 16) {
-            print("[FAVICON] === \(name) won via FALLBACK")
             loadedImage = image
             return
         }
 
-        print("[FAVICON] !!! \(name) ALL SOURCES FAILED")
         didFail = true
     }
 
@@ -474,55 +457,15 @@ struct ProjectIcon: View {
         }
     }
 
-    private func hasVisiblePixels(_ image: UIImage) -> Bool {
-        guard let cgImage = image.cgImage else { return false }
-        let width = cgImage.width
-        let height = cgImage.height
-        guard width > 0, height > 0 else { return false }
-        let bytesPerPixel = 4
-        let bytesPerRow = bytesPerPixel * width
-        var pixelData = [UInt8](repeating: 0, count: width * height * bytesPerPixel)
-        guard let context = CGContext(
-            data: &pixelData, width: width, height: height,
-            bitsPerComponent: 8, bytesPerRow: bytesPerRow,
-            space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else { return false }
-        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
-        // Check if any pixel has alpha > 10
-        for i in stride(from: 3, to: min(pixelData.count, 10000 * 4), by: bytesPerPixel) {
-            if pixelData[i] > 10 { return true }
-        }
-        return false
-    }
-
     nonisolated private func fetchImageData(from url: URL) async -> (Data, String?)? {
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
         request.timeoutInterval = 6
         request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15", forHTTPHeaderField: "User-Agent")
         request.setValue("image/png,image/jpeg,image/svg+xml,image/*,*/*;q=0.8", forHTTPHeaderField: "Accept")
-
-        let (data, response): (Data, URLResponse)
-        do {
-            (data, response) = try await URLSession.shared.data(for: request)
-        } catch {
-            print("[FAVICON] ❌ \(url.absoluteString) — \(error.localizedDescription)")
-            return nil
-        }
-        guard let http = response as? HTTPURLResponse else {
-            print("[FAVICON] ❌ \(url.absoluteString) — no HTTPURLResponse")
-            return nil
-        }
-        let ct = http.value(forHTTPHeaderField: "Content-Type") ?? "?"
-        guard (200...299).contains(http.statusCode) else {
-            print("[FAVICON] ⚠️ \(url.absoluteString) — HTTP \(http.statusCode)")
-            return nil
-        }
-        guard data.count > 50 else {
-            print("[FAVICON] ⚠️ \(url.absoluteString) — only \(data.count)b")
-            return nil
-        }
-        print("[FAVICON] ✓ \(url.absoluteString) — \(http.statusCode) \(data.count)b \(ct)")
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              let http = response as? HTTPURLResponse,
+              (200...299).contains(http.statusCode),
+              data.count > 50 else { return nil }
         return (data, http.value(forHTTPHeaderField: "Content-Type"))
     }
 
@@ -709,14 +652,14 @@ struct ProjectIcon: View {
         return UIImage(cgImage: newCGImage, scale: image.scale, orientation: image.imageOrientation)
     }
 
-    private func scrapeFaviconURLs(domain: String) async -> [ScrapedFavicon]? {
+    private func scrapeFaviconURLs(domain: String) async -> [URL]? {
         let pageURL = URL(string: "https://\(domain)")!
         var request = URLRequest(url: pageURL)
         request.timeoutInterval = 5
         guard let (data, _) = try? await URLSession.shared.data(for: request),
               let html = String(data: data, encoding: .utf8) else { return nil }
 
-        var favicons: [ScrapedFavicon] = []
+        var favicons: [URL] = []
         // Find all <link> tags with rel containing "icon"
         let pattern = #"<link[^>]*rel=[\"'][^\"']*icon[^\"']*[\"'][^>]*href=[\"']([^\"']+)[\"']|<link[^>]*href=[\"']([^\"']+)[\"'][^>]*rel=[\"'][^\"']*icon[^\"']*[\"']"#
         guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else { return nil }
@@ -731,12 +674,10 @@ struct ProjectIcon: View {
                 href = String(html[r2])
             } else { continue }
 
-            if href.lowercased().hasPrefix("data:image/svg+xml") {
-                // Inline data:URI SVG — UIImage can't decode SVG and we have
-                // no remote URL to feed the rasterizer. Skip and let the
-                // third-party fallback services pick up the slack.
-                continue
-            }
+            // Inline data:URI SVG — UIImage can't decode SVG and we have no
+            // remote URL to feed the rasterizer. Skip; the fallback chain
+            // picks up the slack.
+            if href.lowercased().hasPrefix("data:image/svg+xml") { continue }
 
             // Percent-encode characters like spaces that the spec allows in
             // hrefs but URL(string:) rejects (e.g. "assets/calorie logo.png").
@@ -744,7 +685,7 @@ struct ProjectIcon: View {
             let encoded = href.addingPercentEncoding(withAllowedCharacters: allowed) ?? href
             if let url = URL(string: encoded, relativeTo: pageURL)?.absoluteURL
                 ?? URL(string: href, relativeTo: pageURL)?.absoluteURL {
-                favicons.append(.remote(url))
+                favicons.append(url)
             }
         }
 
