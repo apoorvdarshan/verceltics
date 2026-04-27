@@ -322,51 +322,83 @@ struct PlanCard: View {
     var showTrial: Bool = true
     let onTap: () -> Void
 
+    private var isPremium: Bool { badge != nil }
+
     var body: some View {
         Button(action: onTap) {
-            HStack {
-                VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 8) {
                         Text(label)
-                            .font(.system(size: 16, weight: .bold))
+                            .font(.system(size: 17, weight: .heavy))
                             .foregroundStyle(.white)
                         if let badge {
-                            Text(badge)
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(.green)
-                                .padding(.horizontal, 7)
-                                .padding(.vertical, 3)
-                                .background(Color.green.opacity(0.12))
-                                .clipShape(Capsule())
+                            HStack(spacing: 3) {
+                                Image(systemName: "sparkles")
+                                    .font(.system(size: 8, weight: .heavy))
+                                Text(badge)
+                                    .font(.system(size: 10, weight: .heavy))
+                                    .tracking(0.3)
+                            }
+                            .foregroundStyle(Color(red: 0.30, green: 0.85, blue: 0.55))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Color(red: 0.30, green: 0.85, blue: 0.55).opacity(0.14))
+                            .clipShape(Capsule())
+                            .overlay(Capsule().strokeBorder(Color(red: 0.30, green: 0.85, blue: 0.55).opacity(0.22), lineWidth: 0.5))
                         }
                     }
                     Text(showTrial ? "\(price) \(detail) after trial" : "\(price) \(detail)")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.35))
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.45))
                 }
 
                 Spacer()
 
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 24))
-                    .foregroundStyle(isSelected ? .blue : .white.opacity(0.15))
+                    .font(.system(size: 26, weight: .regular))
+                    .foregroundStyle(isSelected ? Color.blue : Color.white.opacity(0.18))
                     .contentTransition(.symbolEffect(.replace))
             }
-            .padding(16)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 18)
             .background(
-                LinearGradient(
-                    colors: isSelected
-                        ? [Color.blue.opacity(0.10), Color.blue.opacity(0.03)]
-                        : [Color.white.opacity(0.05), Color.white.opacity(0.02)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
+                ZStack {
+                    LinearGradient(
+                        colors: isSelected
+                            ? [Color.blue.opacity(0.14), Color.blue.opacity(0.04)]
+                            : [Color.white.opacity(0.07), Color.white.opacity(0.02)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.04), .clear],
+                        startPoint: .top, endPoint: .center
+                    )
+                }
             )
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(isSelected ? Color.blue.opacity(0.45) : Color.white.opacity(0.08), lineWidth: isSelected ? 1.5 : 0.5)
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .strokeBorder(
+                        isSelected
+                            ? AnyShapeStyle(LinearGradient(
+                                colors: [Color.blue.opacity(0.55), Color.blue.opacity(0.25)],
+                                startPoint: .top, endPoint: .bottom
+                            ))
+                            : AnyShapeStyle(LinearGradient(
+                                colors: [Color.white.opacity(0.12), Color.white.opacity(0.04)],
+                                startPoint: .top, endPoint: .bottom
+                            )),
+                        lineWidth: isSelected ? 1.2 : 0.5
+                    )
             )
+            .shadow(
+                color: isSelected ? Color.blue.opacity(0.25) : .clear,
+                radius: isSelected ? 18 : 0,
+                x: 0, y: isSelected ? 6 : 0
+            )
+            .scaleEffect(isPremium && isSelected ? 1.0 : 1.0)
             .animation(.spring(response: 0.35, dampingFraction: 0.85), value: isSelected)
         }
         .buttonStyle(PressScaleButtonStyle())

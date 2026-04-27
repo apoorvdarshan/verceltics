@@ -111,6 +111,7 @@ struct AnalyticsView: View {
                         .foregroundStyle(.white.opacity(0.7))
                 }
                 .disabled(vm.isLoading)
+                .sensoryFeedback(.impact(weight: .light), trigger: refreshSpin)
             }
         }
         .task { await loadData() }
@@ -279,20 +280,23 @@ struct AnalyticsView: View {
                 title: "Visitors",
                 value: formatNumber(vm.data.overview?.devices ?? 0),
                 change: vm.data.visitorsChange,
-                icon: "person.2"
+                icon: "person.2",
+                appearDelay: 0.0
             )
             StatCard(
                 title: "Page Views",
                 value: formatNumber(vm.data.overview?.total ?? 0),
                 change: vm.data.pageViewsChange,
-                icon: "eye"
+                icon: "eye",
+                appearDelay: 0.06
             )
             StatCard(
                 title: "Bounce Rate",
                 value: "\(vm.data.overview?.bounceRate ?? 0)%",
                 change: vm.data.bounceRateChange,
                 invertChange: true,
-                icon: "arrow.uturn.left"
+                icon: "arrow.uturn.left",
+                appearDelay: 0.12
             )
         }
     }

@@ -6,6 +6,9 @@ struct StatCard: View {
     var change: Double?
     var invertChange: Bool = false
     let icon: String
+    var appearDelay: Double = 0
+
+    @State private var hasAppeared = false
 
     private var isPositive: Bool {
         guard let change else { return true }
@@ -88,5 +91,12 @@ struct StatCard: View {
                     lineWidth: 0.5
                 )
         )
+        .opacity(hasAppeared ? 1 : 0)
+        .offset(y: hasAppeared ? 0 : 8)
+        .onAppear {
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.85).delay(appearDelay)) {
+                hasAppeared = true
+            }
+        }
     }
 }

@@ -299,7 +299,11 @@ struct DemoChart: View {
                 }
                 .fill(
                     LinearGradient(
-                        colors: [.blue.opacity(0.15), .clear],
+                        stops: [
+                            .init(color: Color.blue.opacity(0.28), location: 0.0),
+                            .init(color: Color.blue.opacity(0.10), location: 0.5),
+                            .init(color: .clear, location: 1.0),
+                        ],
                         startPoint: .top,
                         endPoint: .bottom
                     )
@@ -320,7 +324,13 @@ struct DemoChart: View {
                     }
                 }
                 .trim(from: 0, to: drawProgress)
-                .stroke(Color.blue, style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+                .stroke(
+                    LinearGradient(
+                        colors: [Color.blue, Color(red: 0.45, green: 0.65, blue: 1.0)],
+                        startPoint: .leading, endPoint: .trailing
+                    ),
+                    style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round)
+                )
 
                 // Animated dots
                 ForEach(0..<points.count, id: \.self) { i in
