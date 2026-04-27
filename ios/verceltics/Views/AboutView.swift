@@ -263,5 +263,6 @@ struct AboutRowContent: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 13)
+        .contentShape(Rectangle())
     }
 }
