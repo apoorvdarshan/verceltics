@@ -49,8 +49,8 @@ struct AboutView: View {
 
                         // Support
                         aboutSection(title: "SUPPORT US") {
-                            AboutRow(icon: "star.fill", iconColor: .yellow, title: "Star on GitHub", subtitle: "Help us reach more developers", url: "https://github.com/apoorvdarshan/verceltics")
-                            AboutRow(icon: "arrow.up.circle.fill", iconColor: .orange, title: "Upvote on Product Hunt", subtitle: "producthunt.com/products/verceltics", url: "https://www.producthunt.com/products/verceltics")
+                            AboutRow(icon: "star.fill", title: "Star on GitHub", subtitle: "Help us reach more developers", url: "https://github.com/apoorvdarshan/verceltics")
+                            AboutRow(icon: "arrow.up.circle.fill", title: "Upvote on Product Hunt", subtitle: "producthunt.com/products/verceltics", url: "https://www.producthunt.com/products/verceltics")
                         }
 
                         // Developer
