@@ -536,7 +536,7 @@ struct ProjectIcon: View {
 
         let config = WKSnapshotConfiguration()
         config.rect = CGRect(origin: .zero, size: size)
-        return try? await webView.takeSnapshot(with: config)
+        return try? await webView.takeSnapshot(configuration: config)
     }
 
     private func fetchImage(from url: URL) async -> Image? {
