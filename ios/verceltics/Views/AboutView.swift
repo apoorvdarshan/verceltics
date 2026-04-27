@@ -10,34 +10,7 @@ struct AboutView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 0) {
-                    // Hero header
-                    VStack(spacing: 20) {
-                        Image("AppLogo")
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 88, height: 88)
-                            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-
-                        VStack(spacing: 6) {
-                            Text("Verceltics")
-                                .font(.system(size: 26, weight: .bold))
-                                .foregroundStyle(.white)
-
-                            Text("Analytics viewer for Vercel")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.4))
-                        }
-
-                        Text("v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")")
-                            .font(.system(size: 11, weight: .bold).monospacedDigit())
-                            .foregroundStyle(.white.opacity(0.5))
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
-                            .background(Color.white.opacity(0.06))
-                            .clipShape(Capsule())
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 36)
+                    Spacer().frame(height: 8)
 
                     // Sections
                     VStack(spacing: 24) {
