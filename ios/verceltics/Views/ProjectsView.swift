@@ -322,10 +322,25 @@ struct ProjectIcon: View {
 
     private var fallbackServiceURLs: [URL] {
         guard let domain else { return [] }
-        return [
+        // Pre-rasterise the common favicon paths through weserv as additional
+        // race entrants — so even if direct/scrape never trigger SVG handling,
+        // the fallback round can still produce a PNG for SVG-only sites.
+        let weservRasterised = ["favicon.ico", "favicon.svg", "favicon.png", "apple-touch-icon.png"]
+            .compactMap { path -> URL? in
+                var c = URLComponents()
+                c.scheme = "https"; c.host = "images.weserv.nl"; c.path = "/"
+                c.queryItems = [
+                    URLQueryItem(name: "url", value: "https://\(domain)/\(path)"),
+                    URLQueryItem(name: "output", value: "png"),
+                    URLQueryItem(name: "w", value: "128"),
+                    URLQueryItem(name: "h", value: "128"),
+                    URLQueryItem(name: "fit", value: "contain"),
+                ]
+                return c.url
+            }
+        return weservRasterised + [
             URL(string: "https://icons.duckduckgo.com/ip3/\(domain).ico"),
             URL(string: "https://www.google.com/s2/favicons?domain=\(domain)&sz=256"),
-            URL(string: "https://unavatar.io/\(domain)?ttl=1d"),
             URL(string: "https://icon.horse/icon/\(domain)"),
         ].compactMap { $0 }
     }
@@ -350,11 +365,12 @@ struct ProjectIcon: View {
         }
         .frame(width: 40, height: 40)
         .task {
-            // Race: load favicon vs 12s timeout
+            // Race: load favicon vs 18s timeout (SVG rasterisation chain
+            // can be: fetch HTML -> fetch SVG -> proxy fetch -> render).
             await withTaskGroup(of: Void.self) { group in
                 group.addTask { @MainActor in await loadFavicon() }
                 group.addTask { @MainActor in
-                    try? await Task.sleep(for: .seconds(12))
+                    try? await Task.sleep(for: .seconds(18))
                     if loadedImage == nil { didFail = true }
                 }
                 await group.next()
@@ -471,7 +487,9 @@ struct ProjectIcon: View {
 
     nonisolated private func fetchImageData(from url: URL) async -> (Data, String?)? {
         var request = URLRequest(url: url)
-        request.timeoutInterval = 5
+        request.timeoutInterval = 6
+        request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15", forHTTPHeaderField: "User-Agent")
+        request.setValue("image/png,image/jpeg,image/svg+xml,image/*,*/*;q=0.8", forHTTPHeaderField: "Accept")
         guard let (data, response) = try? await URLSession.shared.data(for: request),
               let http = response as? HTTPURLResponse,
               (200...299).contains(http.statusCode),
@@ -489,14 +507,23 @@ struct ProjectIcon: View {
     }
 
     /// Rasterise a remote SVG via images.weserv.nl. UIImage can't decode SVG
-    /// natively and NSAttributedString-based HTML rendering doesn't actually
-    /// draw vector content, so we route SVG URLs through a public proxy that
-    /// renders them server-side and returns PNG bytes.
+    /// natively, so we route SVG URLs through a public proxy that renders
+    /// them server-side and returns PNG bytes. URLComponents handles encoding
+    /// safely even when the inner URL contains its own query string.
     nonisolated private func rasterizeRemoteSVG(originalURL: URL) async -> UIImage? {
-        let raw = originalURL.absoluteString
-        guard let escaped = raw.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let proxy = URL(string: "https://images.weserv.nl/?url=\(escaped)&output=png&w=128&h=128&fit=contain") else { return nil }
-        guard let (data, ct) = await fetchImageData(from: proxy),
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "images.weserv.nl"
+        components.path = "/"
+        components.queryItems = [
+            URLQueryItem(name: "url", value: originalURL.absoluteString),
+            URLQueryItem(name: "output", value: "png"),
+            URLQueryItem(name: "w", value: "128"),
+            URLQueryItem(name: "h", value: "128"),
+            URLQueryItem(name: "fit", value: "contain"),
+        ]
+        guard let proxy = components.url,
+              let (data, ct) = await fetchImageData(from: proxy),
               !looksLikeSVG(data: data, contentType: ct),
               let uiImage = UIImage(data: data) else { return nil }
         return uiImage
