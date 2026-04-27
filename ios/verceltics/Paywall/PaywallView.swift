@@ -34,6 +34,24 @@ struct PaywallView: View {
         return "Subscribe"
     }
 
+    /// Reads the actual trial duration from the live StoreKit product so
+    /// the badge stays in sync with whatever App Store Connect is serving
+    /// (3-day, 7-day, etc.) — no hardcoded copy.
+    private var trialBadgeText: String {
+        guard let intro = paywall.yearlyProduct?.subscription?.introductoryOffer,
+              intro.paymentMode == .freeTrial else { return "Free trial" }
+        let period = intro.period
+        let count: Int
+        switch period.unit {
+        case .day:   count = period.value
+        case .week:  count = period.value * 7
+        case .month: count = period.value * 30
+        case .year:  count = period.value * 365
+        @unknown default: return "Free trial"
+        }
+        return "\(count)-day free trial"
+    }
+
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
@@ -109,7 +127,7 @@ struct PaywallView: View {
                         HStack(spacing: 6) {
                             Image(systemName: "gift.fill")
                                 .font(.system(size: 11, weight: .heavy))
-                            Text("3-day free trial")
+                            Text(trialBadgeText)
                                 .font(.system(size: 12, weight: .heavy))
                                 .tracking(0.2)
                         }
