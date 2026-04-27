@@ -50,11 +50,13 @@ struct AboutView: View {
 
                         // Footer
                         VStack(spacing: 10) {
-                            HStack(spacing: 8) {
-                                Text("v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")")
-                                    .font(.system(size: 11, weight: .heavy).monospacedDigit())
-                                Text("·")
-                                Text("Built with SwiftUI")
+                            HStack(spacing: 5) {
+                                Text("Built with")
+                                    .font(.system(size: 11, weight: .bold))
+                                Image(systemName: "heart.fill")
+                                    .font(.system(size: 10, weight: .heavy))
+                                    .foregroundStyle(Color(red: 1.0, green: 0.42, blue: 0.42))
+                                Text("by Apoorv Darshan")
                                     .font(.system(size: 11, weight: .bold))
                             }
                             .foregroundStyle(.white.opacity(0.4))
