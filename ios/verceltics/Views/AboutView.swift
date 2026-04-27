@@ -51,6 +51,7 @@ struct AboutView: View {
                         aboutSection(title: "SUPPORT US") {
                             AboutRow(icon: "star.fill", title: "Star on GitHub", subtitle: "Help us reach more developers", url: "https://github.com/apoorvdarshan/verceltics")
                             AboutRow(icon: "arrow.up.circle.fill", title: "Upvote on Product Hunt", subtitle: "producthunt.com/products/verceltics", url: "https://www.producthunt.com/products/verceltics")
+                            AboutRow(icon: "heart.fill", title: "Support via PayPal", subtitle: "paypal.me/apoorvdarshan", url: "https://paypal.me/apoorvdarshan")
                         }
 
                         // Developer
