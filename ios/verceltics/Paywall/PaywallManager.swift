@@ -7,6 +7,7 @@ import Observation
 final class PaywallManager {
     static let monthlyProductID = "com.apoorvdarshan.verceltics.monthly"
     static let yearlyProductID = "com.apoorvdarshan.verceltics.yearly"
+    static let lifetimeProductID = "com.apoorvdarshan.verceltics.lifetime"
 
     var products: [Product] = []
     var purchasedProductIDs: Set<String> = []
@@ -14,6 +15,8 @@ final class PaywallManager {
     var hasCheckedEntitlements = false
     var error: String?
 
+    /// True when the user has any active entitlement — auto-renewing
+    /// subscription OR the lifetime non-consumable.
     var hasActiveSubscription: Bool {
         !purchasedProductIDs.isEmpty
     }
@@ -24,6 +27,10 @@ final class PaywallManager {
 
     var yearlyProduct: Product? {
         products.first { $0.id == Self.yearlyProductID }
+    }
+
+    var lifetimeProduct: Product? {
+        products.first { $0.id == Self.lifetimeProductID }
     }
 
     private var updateTask: Task<Void, Never>?
@@ -47,7 +54,8 @@ final class PaywallManager {
         do {
             products = try await Product.products(for: [
                 Self.monthlyProductID,
-                Self.yearlyProductID
+                Self.yearlyProductID,
+                Self.lifetimeProductID
             ])
         } catch {
             self.error = "Failed to load products."

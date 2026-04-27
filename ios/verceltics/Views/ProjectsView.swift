@@ -1,4 +1,5 @@
 import SwiftUI
+import StoreKit
 
 @Observable
 @MainActor
@@ -28,10 +29,16 @@ final class ProjectsViewModel {
 struct ProjectsView: View {
     var startWithSearch = false
     @Environment(AuthManager.self) private var authManager
+    @Environment(PaywallManager.self) private var paywallManager
     @Environment(\.horizontalSizeClass) private var hSize
+    @Environment(\.requestReview) private var requestReview
+    @AppStorage("hasShownOnboardingRatePrompt") private var hasShownOnboardingRatePrompt = false
     @State private var vm = ProjectsViewModel()
     @State private var searchText = ""
     @State private var isSearching = false
+    @State private var showPaywall = false
+    @State private var navigationProjectId: String?
+    @State private var pendingProjectId: String?
 
     private var filteredProjects: [Project] {
         let sorted = vm.projects.sorted {
@@ -79,7 +86,24 @@ struct ProjectsView: View {
             .onAppear {
                 if startWithSearch { isSearching = true }
             }
+            .navigationDestination(item: $navigationProjectId) { id in
+                if let project = vm.projects.first(where: { $0.id == id }) {
+                    AnalyticsView(project: project)
+                }
+            }
+            .sheet(isPresented: $showPaywall, onDismiss: handlePaywallDismiss) {
+                PaywallView()
+            }
         }
+    }
+
+    private func handlePaywallDismiss() {
+        // If the user just subscribed (or owns lifetime), continue into the
+        // analytics they originally tapped.
+        if paywallManager.hasActiveSubscription, let id = pendingProjectId {
+            navigationProjectId = id
+        }
+        pendingProjectId = nil
     }
 
     private var gridColumns: [GridItem] {
@@ -93,7 +117,9 @@ struct ProjectsView: View {
             LazyVGrid(columns: gridColumns, spacing: 12) {
                 ForEach(filteredProjects) { project in
                     let idx = filteredProjects.firstIndex(where: { $0.id == project.id }) ?? 0
-                    NavigationLink(destination: AnalyticsView(project: project)) {
+                    Button {
+                        openProject(project)
+                    } label: {
                         ProjectCard(project: project, appearDelay: min(Double(idx), 11) * 0.04)
                     }
                     .buttonStyle(PressScaleButtonStyle())
@@ -107,9 +133,31 @@ struct ProjectsView: View {
         .refreshable { await refreshProjects() }
     }
 
+    private func openProject(_ project: Project) {
+        if paywallManager.hasActiveSubscription {
+            navigationProjectId = project.id
+        } else {
+            pendingProjectId = project.id
+            showPaywall = true
+        }
+    }
+
     private func loadProjects() async {
         guard let token = authManager.token else { return }
         await vm.load(token: token)
+        await maybeRequestReview()
+    }
+
+    /// Fire the native rating prompt once after the user's projects first
+    /// successfully load — fires for free users too. The system caps to ~3
+    /// prompts per user per year regardless.
+    private func maybeRequestReview() async {
+        guard !hasShownOnboardingRatePrompt,
+              vm.error == nil,
+              !vm.projects.isEmpty else { return }
+        try? await Task.sleep(for: .seconds(3))
+        requestReview()
+        hasShownOnboardingRatePrompt = true
     }
 
     private func refreshProjects() async {

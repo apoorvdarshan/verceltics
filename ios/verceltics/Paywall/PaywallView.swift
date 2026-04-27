@@ -6,6 +6,7 @@ struct PaywallView: View {
     @Environment(PaywallManager.self) private var paywall
     @Environment(AuthManager.self) private var authManager
     @Environment(\.horizontalSizeClass) private var hSize
+    @Environment(\.dismiss) private var dismiss
     @State private var selectedProduct: Product?
     @State private var isPurchasing = false
     @State private var isEligibleForTrial = true
@@ -25,6 +26,13 @@ struct PaywallView: View {
     ]
 
     @State private var memeTimer = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
+
+    private var subscribeButtonLabel: String {
+        guard let product = selectedProduct else { return "Subscribe" }
+        if product.id == PaywallManager.lifetimeProductID { return "Buy Lifetime" }
+        if product.id == PaywallManager.yearlyProductID, isEligibleForTrial { return "Start Free Trial" }
+        return "Subscribe"
+    }
 
     var body: some View {
         ZStack {
@@ -142,6 +150,18 @@ struct PaywallView: View {
                                 ) { selectedProduct = yearly }
                             }
 
+                            if let lifetime = paywall.lifetimeProduct {
+                                PlanCard(
+                                    product: lifetime,
+                                    label: "Lifetime",
+                                    price: lifetime.displayPrice,
+                                    detail: "one-time, yours forever",
+                                    isSelected: selectedProduct?.id == lifetime.id,
+                                    badge: "Forever",
+                                    showTrial: false
+                                ) { selectedProduct = lifetime }
+                            }
+
                             if let monthly = paywall.monthlyProduct {
                                 PlanCard(
                                     product: monthly,
@@ -150,7 +170,7 @@ struct PaywallView: View {
                                     detail: "per month",
                                     isSelected: selectedProduct?.id == monthly.id,
                                     badge: nil,
-                                    showTrial: isEligibleForTrial
+                                    showTrial: false
                                 ) { selectedProduct = monthly }
                             }
                         }
@@ -172,7 +192,7 @@ struct PaywallView: View {
                             if isPurchasing {
                                 ProgressView().tint(.black)
                             } else {
-                                Text(isEligibleForTrial ? "Start Free Trial" : "Subscribe")
+                                Text(subscribeButtonLabel)
                                     .font(.system(size: 17, weight: .heavy))
                                 Image(systemName: "arrow.right")
                                     .font(.system(size: 14, weight: .heavy))
@@ -251,11 +271,16 @@ struct PaywallView: View {
         .task {
             await paywall.loadProducts()
             if selectedProduct == nil {
-                selectedProduct = paywall.yearlyProduct ?? paywall.monthlyProduct
+                selectedProduct = paywall.yearlyProduct ?? paywall.monthlyProduct ?? paywall.lifetimeProduct
             }
             if let yearly = paywall.yearlyProduct {
                 isEligibleForTrial = await yearly.subscription?.isEligibleForIntroOffer ?? false
             }
+        }
+        .onChange(of: paywall.hasActiveSubscription) { _, isActive in
+            // Auto-dismiss when shown as a sheet over Projects after a
+            // successful purchase or restore.
+            if isActive { dismiss() }
         }
     }
 }
