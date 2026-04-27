@@ -403,36 +403,47 @@ struct ProjectIcon: View {
     private func loadFavicon() async {
         guard let domain else { didFail = true; return }
 
+        print("[FAVICON] >>> START \(name) (\(domain))")
+
         // 1. Race all direct paths in parallel — first valid image wins
         if let image = await raceForFirstImage(directFaviconURLs, minSize: 32) {
+            print("[FAVICON] === \(name) won via DIRECT")
             loadedImage = image
             return
         }
+        print("[FAVICON] direct paths exhausted for \(name)")
 
         // 2. Scrape HTML <link> tags for any explicit icon paths
         if let scraped = await scrapeFaviconURLs(domain: domain) {
+            print("[FAVICON] scrape found \(scraped.count) entries for \(name)")
             for favicon in scraped {
                 switch favicon {
                 case .remote(let url):
                     if let image = await fetchImage(from: url) {
+                        print("[FAVICON] === \(name) won via SCRAPE \(url.absoluteString)")
                         loadedImage = image
                         return
                     }
                 case .inlineSVG(let uiImage):
                     if hasVisiblePixels(uiImage) {
+                        print("[FAVICON] === \(name) won via INLINE-SVG")
                         loadedImage = Image(uiImage: removeWhiteBackground(uiImage))
                         return
                     }
                 }
             }
+        } else {
+            print("[FAVICON] scrape returned nil for \(name)")
         }
 
         // 3. Third-party services in parallel — these almost always return something
         if let image = await raceForFirstImage(fallbackServiceURLs, minSize: 16) {
+            print("[FAVICON] === \(name) won via FALLBACK")
             loadedImage = image
             return
         }
 
+        print("[FAVICON] !!! \(name) ALL SOURCES FAILED")
         didFail = true
     }
 
@@ -486,14 +497,32 @@ struct ProjectIcon: View {
     }
 
     nonisolated private func fetchImageData(from url: URL) async -> (Data, String?)? {
-        var request = URLRequest(url: url)
+        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
         request.timeoutInterval = 6
         request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15", forHTTPHeaderField: "User-Agent")
         request.setValue("image/png,image/jpeg,image/svg+xml,image/*,*/*;q=0.8", forHTTPHeaderField: "Accept")
-        guard let (data, response) = try? await URLSession.shared.data(for: request),
-              let http = response as? HTTPURLResponse,
-              (200...299).contains(http.statusCode),
-              data.count > 50 else { return nil }
+
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch {
+            print("[FAVICON] ❌ \(url.absoluteString) — \(error.localizedDescription)")
+            return nil
+        }
+        guard let http = response as? HTTPURLResponse else {
+            print("[FAVICON] ❌ \(url.absoluteString) — no HTTPURLResponse")
+            return nil
+        }
+        let ct = http.value(forHTTPHeaderField: "Content-Type") ?? "?"
+        guard (200...299).contains(http.statusCode) else {
+            print("[FAVICON] ⚠️ \(url.absoluteString) — HTTP \(http.statusCode)")
+            return nil
+        }
+        guard data.count > 50 else {
+            print("[FAVICON] ⚠️ \(url.absoluteString) — only \(data.count)b")
+            return nil
+        }
+        print("[FAVICON] ✓ \(url.absoluteString) — \(http.statusCode) \(data.count)b \(ct)")
         return (data, http.value(forHTTPHeaderField: "Content-Type"))
     }
 
