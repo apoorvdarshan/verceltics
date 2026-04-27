@@ -46,15 +46,27 @@ struct LoginView: View {
             } label: {
                 HStack(spacing: 10) {
                     Image(systemName: "triangle.fill")
-                        .font(.system(size: 13))
+                        .font(.system(size: 13, weight: .heavy))
                     Text("Sign in with Vercel")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.system(size: 16, weight: .heavy))
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 13, weight: .heavy))
                 }
                 .frame(maxWidth: .infinity)
-                .frame(height: 52)
-                .background(.white)
+                .frame(height: 54)
+                .background(
+                    LinearGradient(
+                        colors: [.white, Color.white.opacity(0.92)],
+                        startPoint: .top, endPoint: .bottom
+                    )
+                )
                 .foregroundStyle(.black)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.1), lineWidth: 0.5)
+                )
+                .shadow(color: Color.white.opacity(0.08), radius: 18, x: 0, y: 4)
             }
             .padding(.horizontal, 20)
             .buttonStyle(PressScaleButtonStyle())
@@ -85,9 +97,9 @@ struct LoginView: View {
 
                 VStack(spacing: 14) {
                     // Steps
-                    VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 14) {
                         Text("How to get your token")
-                            .font(.system(size: 13, weight: .bold))
+                            .font(.system(size: 13, weight: .heavy))
                             .foregroundStyle(.white)
 
                         StepRow(number: 1, text: "Go to vercel.com/account/tokens")
@@ -96,13 +108,30 @@ struct LoginView: View {
                         StepRow(number: 4, text: "Set scope to your account")
                         StepRow(number: 5, text: "Copy and paste below")
                     }
-                    .padding(16)
+                    .padding(18)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.ultraThinMaterial.opacity(0.5))
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .background(
+                        ZStack {
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.07), Color.white.opacity(0.02)],
+                                startPoint: .topLeading, endPoint: .bottomTrailing
+                            )
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.04), .clear],
+                                startPoint: .top, endPoint: .center
+                            )
+                        }
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(Color.white.opacity(0.06), lineWidth: 0.5)
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .strokeBorder(
+                                LinearGradient(
+                                    colors: [Color.white.opacity(0.12), Color.white.opacity(0.04)],
+                                    startPoint: .top, endPoint: .bottom
+                                ),
+                                lineWidth: 0.5
+                            )
                     )
 
                     // Open Vercel
@@ -113,36 +142,48 @@ struct LoginView: View {
                     } label: {
                         HStack(spacing: 6) {
                             Image(systemName: "arrow.up.right")
-                                .font(.system(size: 11, weight: .bold))
+                                .font(.system(size: 11, weight: .heavy))
                             Text("Open Vercel Tokens Page")
-                                .font(.system(size: 13, weight: .semibold))
+                                .font(.system(size: 13, weight: .bold))
                         }
                         .frame(maxWidth: .infinity)
-                        .frame(height: 44)
-                        .background(Color.white.opacity(0.06))
-                        .foregroundStyle(.white.opacity(0.7))
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .frame(height: 46)
+                        .background(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.08), Color.white.opacity(0.04)],
+                                startPoint: .top, endPoint: .bottom
+                            )
+                        )
+                        .foregroundStyle(.white.opacity(0.75))
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .stroke(Color.white.opacity(0.06), lineWidth: 0.5)
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5)
                         )
                     }
+                    .buttonStyle(PressScaleButtonStyle())
 
                     // Token input
                     SecureField("Paste your Vercel token", text: $tokenInput)
                         .textFieldStyle(.plain)
                         .font(.system(size: 15, design: .monospaced))
-                        .padding(14)
-                        .background(Color.white.opacity(0.06))
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .padding(15)
+                        .background(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.07), Color.white.opacity(0.03)],
+                                startPoint: .top, endPoint: .bottom
+                            )
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .stroke(Color.white.opacity(isTokenFocused ? 0.15 : 0.06), lineWidth: 0.5)
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .strokeBorder(isTokenFocused ? Color.blue.opacity(0.4) : Color.white.opacity(0.08), lineWidth: isTokenFocused ? 1.0 : 0.5)
                         )
                         .foregroundStyle(.white)
                         .focused($isTokenFocused)
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
+                        .animation(.easeOut(duration: 0.18), value: isTokenFocused)
 
                     // Connect
                     Button {
@@ -152,18 +193,30 @@ struct LoginView: View {
                             if authManager.isLoading {
                                 ProgressView().tint(.black)
                             } else {
-                                Image(systemName: "arrow.right")
-                                    .font(.system(size: 14, weight: .bold))
                                 Text("Connect")
-                                    .font(.system(size: 16, weight: .semibold))
+                                    .font(.system(size: 16, weight: .heavy))
+                                Image(systemName: "arrow.right")
+                                    .font(.system(size: 14, weight: .heavy))
                             }
                         }
                         .frame(maxWidth: .infinity)
-                        .frame(height: 52)
-                        .background(tokenInput.isEmpty ? Color.white.opacity(0.2) : .white)
+                        .frame(height: 54)
+                        .background(
+                            LinearGradient(
+                                colors: tokenInput.isEmpty
+                                    ? [Color.white.opacity(0.2), Color.white.opacity(0.12)]
+                                    : [.white, Color.white.opacity(0.92)],
+                                startPoint: .top, endPoint: .bottom
+                            )
+                        )
                         .foregroundStyle(.black)
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .strokeBorder(Color.white.opacity(0.1), lineWidth: 0.5)
+                        )
                     }
+                    .buttonStyle(PressScaleButtonStyle())
                     .disabled(tokenInput.isEmpty || authManager.isLoading)
                 }
                 .padding(.horizontal, 20)
@@ -178,21 +231,31 @@ struct LoginView: View {
     // MARK: - Shared branding
 
     private var brandingHeader: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 22) {
             Image("AppLogo")
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 120, height: 120)
                 .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5)
+                )
+                .shadow(color: Color.blue.opacity(0.18), radius: 30, x: 0, y: 8)
 
-            VStack(spacing: 6) {
+            VStack(spacing: 7) {
                 Text("Verceltics")
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundStyle(.white)
+                    .font(.system(size: 30, weight: .heavy))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.white, Color.white.opacity(0.75)],
+                            startPoint: .top, endPoint: .bottom
+                        )
+                    )
 
                 Text("Analytics for your Vercel projects")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.4))
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.45))
             }
         }
     }
@@ -317,15 +380,21 @@ struct StepRow: View {
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             Text("\(number)")
-                .font(.system(size: 11, weight: .bold).monospacedDigit())
+                .font(.system(size: 11, weight: .heavy).monospacedDigit())
                 .foregroundStyle(.white)
                 .frame(width: 22, height: 22)
-                .background(Color.white.opacity(0.1))
+                .background(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.16), Color.white.opacity(0.06)],
+                        startPoint: .top, endPoint: .bottom
+                    )
+                )
                 .clipShape(Circle())
+                .overlay(Circle().strokeBorder(Color.white.opacity(0.06), lineWidth: 0.5))
 
             Text(text)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.white.opacity(0.45))
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.55))
         }
     }
 }

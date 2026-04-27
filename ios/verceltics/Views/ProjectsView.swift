@@ -63,6 +63,12 @@ struct ProjectsView: View {
                         title: "No Projects",
                         subtitle: "You don't have any Vercel projects yet."
                     )
+                } else if filteredProjects.isEmpty {
+                    EmptyStateView(
+                        icon: "magnifyingglass",
+                        title: "No matches",
+                        subtitle: "Nothing in your projects matches \u{201C}\(searchText)\u{201D}."
+                    )
                 } else {
                     projectsList
                 }
@@ -115,6 +121,12 @@ struct ProjectsView: View {
 
 struct ProjectCard: View {
     let project: Project
+    @State private var pulse = false
+
+    private var isFreshDeploy: Bool {
+        guard let date = project.lastDeployment?.date else { return false }
+        return Date().timeIntervalSince(date) < 1800 // 30 min
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -123,10 +135,26 @@ struct ProjectCard: View {
                 ProjectIcon(domain: project.primaryDomain, name: project.name)
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(project.name)
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
+                    HStack(spacing: 7) {
+                        Text(project.name)
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+
+                        if isFreshDeploy {
+                            Circle()
+                                .fill(Color(red: 0.30, green: 0.85, blue: 0.55))
+                                .frame(width: 6, height: 6)
+                                .opacity(pulse ? 0.4 : 1.0)
+                                .scaleEffect(pulse ? 0.85 : 1.0)
+                                .shadow(color: Color(red: 0.30, green: 0.85, blue: 0.55).opacity(0.6), radius: pulse ? 1 : 4)
+                                .onAppear {
+                                    withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) {
+                                        pulse = true
+                                    }
+                                }
+                        }
+                    }
 
                     if let domain = project.primaryDomain {
                         Text(domain)

@@ -35,12 +35,17 @@ struct PaywallView: View {
                     Spacer().frame(height: 40)
 
                     Text("Verceltics Pro")
-                        .font(.system(size: 30, weight: .bold))
-                        .foregroundStyle(.white)
+                        .font(.system(size: 32, weight: .heavy))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [.white, Color.white.opacity(0.75)],
+                                startPoint: .top, endPoint: .bottom
+                            )
+                        )
 
                     Text("Your Vercel analytics, everywhere")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.4))
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.45))
                         .padding(.top, 4)
 
                     // Rotating meme GIF
@@ -148,15 +153,29 @@ struct PaywallView: View {
                                 ProgressView().tint(.black)
                             } else {
                                 Text(isEligibleForTrial ? "Start Free Trial" : "Subscribe")
-                                    .font(.system(size: 17, weight: .bold))
+                                    .font(.system(size: 17, weight: .heavy))
+                                Image(systemName: "arrow.right")
+                                    .font(.system(size: 14, weight: .heavy))
                             }
                         }
                         .frame(maxWidth: .infinity)
-                        .frame(height: 54)
-                        .background(selectedProduct != nil ? .white : .white.opacity(0.2))
+                        .frame(height: 56)
+                        .background(
+                            LinearGradient(
+                                colors: selectedProduct != nil
+                                    ? [.white, Color.white.opacity(0.92)]
+                                    : [Color.white.opacity(0.2), Color.white.opacity(0.12)],
+                                startPoint: .top, endPoint: .bottom
+                            )
+                        )
                         .foregroundStyle(.black)
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .strokeBorder(Color.white.opacity(0.1), lineWidth: 0.5)
+                        )
                     }
+                    .buttonStyle(PressScaleButtonStyle())
                     .disabled(selectedProduct == nil || isPurchasing)
                     .padding(.horizontal, 20)
 
@@ -220,22 +239,44 @@ struct FeatureCell: View {
     let title: String
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 9) {
             Image(systemName: icon)
-                .font(.system(size: 18, weight: .medium))
-                .foregroundStyle(.blue)
+                .font(.system(size: 18, weight: .heavy))
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [Color.blue, Color(red: 0.45, green: 0.65, blue: 1.0)],
+                        startPoint: .top, endPoint: .bottom
+                    )
+                )
 
             Text(title)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.5))
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(.white.opacity(0.6))
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 70)
-        .background(Color.white.opacity(0.04))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .frame(height: 76)
+        .background(
+            ZStack {
+                LinearGradient(
+                    colors: [Color.white.opacity(0.06), Color.white.opacity(0.02)],
+                    startPoint: .topLeading, endPoint: .bottomTrailing
+                )
+                LinearGradient(
+                    colors: [Color.blue.opacity(0.06), .clear],
+                    startPoint: .topLeading, endPoint: .center
+                )
+            }
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.white.opacity(0.04), lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.10), Color.white.opacity(0.03)],
+                        startPoint: .top, endPoint: .bottom
+                    ),
+                    lineWidth: 0.5
+                )
         )
         .padding(3)
     }
