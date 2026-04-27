@@ -110,8 +110,13 @@ actor VercelAPI {
 
                     var resolved = await refreshedTask ?? project
                     let domains = await domainsTask
-                    if let custom = domains.first(where: { !Project.isVercelDomain($0) }) {
-                        resolved.alias = (resolved.alias ?? []) + [Project.AliasEntry(domain: custom)]
+                    if !domains.isEmpty {
+                        // Merge every verified domain — primaryDomain picks the
+                        // best one (custom > shortest vercel.app). The bulk
+                        // listing sometimes omits short aliases that were
+                        // attached at the project level after the last deploy.
+                        let newEntries = domains.map { Project.AliasEntry(domain: $0) }
+                        resolved.alias = (resolved.alias ?? []) + newEntries
                     }
                     return (project.id, resolved)
                 }
