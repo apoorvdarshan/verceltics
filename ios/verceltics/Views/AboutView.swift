@@ -124,11 +124,7 @@ struct AboutView: View {
         App Store: https://apps.apple.com/us/app/verceltics/id6761645656
         Website: https://verceltics.com
         """
-        return ShareLink(
-            item: message,
-            subject: Text("Verceltics — Vercel Analytics on your iPhone"),
-            preview: SharePreview("Verceltics", image: Image("AppLogo"))
-        ) {
+        return ShareLink(item: message) {
             AboutRowContent(
                 icon: "square.and.arrow.up.fill",
                 title: "Share Verceltics",
