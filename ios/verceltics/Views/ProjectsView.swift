@@ -405,7 +405,6 @@ struct ProjectIcon: View {
 
         // 1. Race all direct paths in parallel — first valid image wins
         if let image = await raceForFirstImage(directFaviconURLs, minSize: 32) {
-            print("[FAVICON] \(name) won via DIRECT")
             loadedImage = image
             return
         }
@@ -414,7 +413,6 @@ struct ProjectIcon: View {
         if let scraped = await scrapeFaviconURLs(domain: domain) {
             for url in scraped {
                 if let image = await fetchImage(from: url) {
-                    print("[FAVICON] \(name) won via SCRAPE \(url)")
                     loadedImage = image
                     return
                 }
@@ -423,12 +421,10 @@ struct ProjectIcon: View {
 
         // 3. Third-party services in parallel — these almost always return something
         if let image = await raceForFirstImage(fallbackServiceURLs, minSize: 16) {
-            print("[FAVICON] \(name) won via FALLBACK")
             loadedImage = image
             return
         }
 
-        print("[FAVICON] \(name) ALL SOURCES FAILED")
         didFail = true
     }
 
@@ -460,8 +456,8 @@ struct ProjectIcon: View {
     }
 
     nonisolated private func fetchImageData(from url: URL) async -> (Data, String?)? {
-        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
-        request.timeoutInterval = 6
+        var request = URLRequest(url: url, cachePolicy: .returnCacheDataElseLoad)
+        request.timeoutInterval = 10
         request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15", forHTTPHeaderField: "User-Agent")
         request.setValue("image/png,image/jpeg,image/svg+xml,image/*,*/*;q=0.8", forHTTPHeaderField: "Accept")
         guard let (data, response) = try? await URLSession.shared.data(for: request),
@@ -485,16 +481,12 @@ struct ProjectIcon: View {
     /// available). UIImage can't decode SVG bytes directly.
     private func rasterizeSVG(originalURL: URL, svgData: Data) async -> UIImage? {
         if let proxied = await rasterizeViaWeserv(originalURL: originalURL) {
-            print("[FAVICON] svg ✓ weserv \(originalURL.absoluteString)")
             return proxied
         }
-        print("[FAVICON] svg ✗ weserv \(originalURL.absoluteString) — trying WKWebView")
         if let markup = String(data: svgData, encoding: .utf8),
            let rendered = await rasterizeViaWebView(svgMarkup: markup) {
-            print("[FAVICON] svg ✓ WKWebView \(originalURL.absoluteString)")
             return rendered
         }
-        print("[FAVICON] svg ✗ both rasterisers \(originalURL.absoluteString)")
         return nil
     }
 
