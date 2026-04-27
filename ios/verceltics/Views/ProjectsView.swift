@@ -316,6 +316,7 @@ struct ProjectIcon: View {
             "/favicon.png",
             "/favicon.ico",
             "/icon.png",
+            "/icon.svg",
         ]
         return hosts.flatMap { host in
             paths.compactMap { URL(string: "https://\(host)\($0)") }
@@ -324,21 +325,17 @@ struct ProjectIcon: View {
 
     private var fallbackServiceURLs: [URL] {
         guard let domain else { return [] }
-        // Pre-rasterise the common favicon paths through weserv as additional
-        // race entrants — so even if direct/scrape never trigger SVG handling,
-        // the fallback round can still produce a PNG for SVG-only sites.
-        let weservRasterised = ["favicon.ico", "favicon.svg", "favicon.png", "apple-touch-icon.png"]
+        // Pre-rasterise common favicon paths through weserv as additional race
+        // entrants — covers SVG-only sites whose scrape→rasterize chain might
+        // otherwise be the only way to land a PNG. Manually fully-encode so
+        // URLSession sees an unambiguous URL.
+        var allowed = CharacterSet.alphanumerics
+        allowed.insert(charactersIn: "-._~")
+        let weservRasterised = ["icon.svg", "favicon.svg", "favicon.ico", "favicon.png", "apple-touch-icon.png"]
             .compactMap { path -> URL? in
-                var c = URLComponents()
-                c.scheme = "https"; c.host = "images.weserv.nl"; c.path = "/"
-                c.queryItems = [
-                    URLQueryItem(name: "url", value: "https://\(domain)/\(path)"),
-                    URLQueryItem(name: "output", value: "png"),
-                    URLQueryItem(name: "w", value: "128"),
-                    URLQueryItem(name: "h", value: "128"),
-                    URLQueryItem(name: "fit", value: "contain"),
-                ]
-                return c.url
+                let inner = "https://\(domain)/\(path)"
+                guard let escaped = inner.addingPercentEncoding(withAllowedCharacters: allowed) else { return nil }
+                return URL(string: "https://images.weserv.nl/?url=\(escaped)&output=png&w=128&h=128&fit=contain")
             }
         return weservRasterised + [
             URL(string: "https://icons.duckduckgo.com/ip3/\(domain).ico"),
@@ -480,21 +477,15 @@ struct ProjectIcon: View {
 
     /// Rasterise a remote SVG via images.weserv.nl. UIImage can't decode SVG
     /// natively, so we route SVG URLs through a public proxy that renders
-    /// them server-side and returns PNG bytes. URLComponents handles encoding
-    /// safely even when the inner URL contains its own query string.
+    /// them server-side and returns PNG bytes. We manually fully-encode the
+    /// inner URL — URLComponents leaves `?`, `:`, `/` un-encoded in query
+    /// values, which can confuse URLSession when the inner URL has its own
+    /// query string (e.g. Next.js's /icon.svg?<hash>).
     nonisolated private func rasterizeRemoteSVG(originalURL: URL) async -> UIImage? {
-        var components = URLComponents()
-        components.scheme = "https"
-        components.host = "images.weserv.nl"
-        components.path = "/"
-        components.queryItems = [
-            URLQueryItem(name: "url", value: originalURL.absoluteString),
-            URLQueryItem(name: "output", value: "png"),
-            URLQueryItem(name: "w", value: "128"),
-            URLQueryItem(name: "h", value: "128"),
-            URLQueryItem(name: "fit", value: "contain"),
-        ]
-        guard let proxy = components.url,
+        var allowed = CharacterSet.alphanumerics
+        allowed.insert(charactersIn: "-._~")
+        guard let escaped = originalURL.absoluteString.addingPercentEncoding(withAllowedCharacters: allowed),
+              let proxy = URL(string: "https://images.weserv.nl/?url=\(escaped)&output=png&w=128&h=128&fit=contain"),
               let (data, ct) = await fetchImageData(from: proxy),
               !looksLikeSVG(data: data, contentType: ct),
               let uiImage = UIImage(data: data) else { return nil }
