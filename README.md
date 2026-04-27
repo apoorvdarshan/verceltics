@@ -30,22 +30,38 @@
 ## Features
 
 - **Projects Dashboard** — All your Vercel projects with favicons, git repo, last commit, framework
-- **Analytics** — Visitors, page views, bounce rate with % change badges
-- **Interactive Chart** — Drag to inspect data points, daily aggregation for smooth curves
+- **Live Deploy Indicator** — Pulsing green dot when a deployment is < 30 minutes old
+- **Framework-tinted dots** — Astro orange, Vite purple, Remix cyan, Angular red, Eleventy yellow, etc.
+- **Analytics** — Visitors, page views, bounce rate with % change badges and staggered entrance
+- **Interactive Chart** — Peak indicator, average reference line, drag-to-inspect with haptic feedback
 - **Full Breakdowns** — Pages, routes, hostnames, referrers, UTM, countries, devices, browsers, OS, events, flags, query params
+- **Soft Paywall** — Browse projects free; analytics gated per project tap
+- **Robust Favicons** — Multi-source race (apple-touch-icon, scrape, weserv.nl SVG rasterise, DuckDuckGo, Google s2, icon.horse)
 - **Search** — Filter projects by name, domain, or framework
 - **Pull to Refresh** — Live data from Vercel API
+- **iPad** — Adaptive grid + sidebar tab style on regular size class
 - **Dark Mode** — Pure black (#000000) Vercel-style design
 - **Secure** — Token stored in iOS Keychain, open source code
+
+## Pricing
+
+| Plan | Price | Trial |
+|---|---|---|
+| Monthly | $4.99 | — |
+| Yearly | $34.99 | 7-day free trial |
+| Lifetime | $59.99 | — (one-time purchase) |
+
+Build from source for free with your own Vercel token. App Store distribution exists for convenience and to fund development.
 
 ## Tech Stack
 
 **iOS**
-- **SwiftUI** — Entire UI
-- **Swift Charts** — Interactive line chart
-- **StoreKit 2** — Subscriptions ($3.99/mo, $29.99/yr, 3-day trial)
+- **SwiftUI** — Entire UI, layered gradient cards, scoped animations
+- **Swift Charts** — Interactive line + area chart with peak / average / drag-select
+- **Swift 6** — Strict concurrency (`SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`)
+- **StoreKit 2** — Auto-renewable subscriptions + non-consumable lifetime
 - **Keychain** — Secure token storage
-- **async/await** — All API calls
+- **async/await** + **actors** — All API calls
 - **Zero dependencies** — No third-party libraries
 
 **Web**
@@ -112,26 +128,27 @@ Analytics endpoints use `groupBy` parameter: `path`, `route`, `hostname`, `refer
 
 ```
 ios/verceltics/
-├── App/VercelticsApp.swift          # Entry point, auth + paywall routing
+├── App/VercelticsApp.swift          # Entry point, soft paywall routing
 ├── Auth/
 │   ├── AuthManager.swift            # Token validation, login/logout
 │   └── KeychainHelper.swift         # Secure token storage
 ├── Network/VercelAPI.swift          # All API calls (actor-based)
 ├── Models/
-│   ├── Project.swift                # Project, deployment, alias models
+│   ├── Project.swift                # Project, deployment, alias, /domains
 │   └── Analytics.swift              # Analytics data models, time ranges
 ├── Views/
 │   ├── LoginView.swift              # Token login with animated demo chart
 │   ├── MainTabView.swift            # Tab bar (Projects, About, Search)
-│   ├── ProjectsView.swift           # Project list with favicon loading
+│   ├── ProjectsView.swift           # Project list, favicons, paywall sheet
 │   ├── AnalyticsView.swift          # Full analytics dashboard
-│   └── AboutView.swift              # Settings, links, legal, sign out
+│   └── AboutView.swift              # Support, links, legal, sign out
 ├── Components/
 │   ├── StatCard.swift               # Metric card with change badge
-│   └── AnalyticsChart.swift         # Interactive Swift Charts line graph
+│   ├── AnalyticsChart.swift         # Interactive Swift Charts line graph
+│   └── Shimmer.swift                # Loading skeleton shimmer modifier
 └── Paywall/
     ├── PaywallManager.swift         # StoreKit 2 purchase logic
-    ├── PaywallView.swift            # Subscription paywall UI
+    ├── PaywallView.swift            # Subscription + lifetime paywall UI
     └── Products.storekit            # StoreKit testing config
 ```
 
