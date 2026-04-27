@@ -220,14 +220,10 @@ struct ProjectCard: View {
                             Circle()
                                 .fill(Color(red: 0.30, green: 0.85, blue: 0.55))
                                 .frame(width: 6, height: 6)
-                                .opacity(pulse ? 0.4 : 1.0)
-                                .scaleEffect(pulse ? 0.85 : 1.0)
-                                .shadow(color: Color(red: 0.30, green: 0.85, blue: 0.55).opacity(0.6), radius: pulse ? 1 : 4)
-                                .onAppear {
-                                    withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) {
-                                        pulse = true
-                                    }
-                                }
+                                .shadow(color: Color(red: 0.30, green: 0.85, blue: 0.55).opacity(0.5), radius: 3)
+                                .opacity(pulse ? 0.45 : 1.0)
+                                .animation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true), value: pulse)
+                                .onAppear { pulse = true }
                         }
                     }
 
