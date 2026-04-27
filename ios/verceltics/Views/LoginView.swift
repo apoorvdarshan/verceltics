@@ -237,10 +237,6 @@ struct LoginView: View {
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 120, height: 120)
                 .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5)
-                )
 
             VStack(spacing: 7) {
                 Text("Verceltics")
