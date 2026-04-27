@@ -241,7 +241,6 @@ struct LoginView: View {
                     RoundedRectangle(cornerRadius: 28, style: .continuous)
                         .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5)
                 )
-                .shadow(color: Color.blue.opacity(0.18), radius: 30, x: 0, y: 8)
 
             VStack(spacing: 7) {
                 Text("Verceltics")
