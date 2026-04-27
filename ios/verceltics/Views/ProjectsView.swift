@@ -481,6 +481,8 @@ struct ProjectIcon: View {
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .frame(width: 40, height: 40)
+                    .background(Color.white.opacity(0.04))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             } else if didFail {
                 letterFallback
             } else {
