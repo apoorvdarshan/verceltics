@@ -9,10 +9,13 @@ nonisolated struct Project: Identifiable, Decodable {
     let updatedAt: Int?
     let targets: Targets?
     let link: GitLink?
-    let alias: [AliasEntry]?
+    var alias: [AliasEntry]?
     let customEnvironments: [CustomEnvironment]?
 
-    var teamId: String? { accountId }
+    var teamId: String? {
+        guard let accountId else { return nil }
+        return accountId.hasPrefix("team_") ? accountId : nil
+    }
 
     var primaryDomain: String? {
         let productionEnvironment = customEnvironments?.first(where: { $0.type == "production" })
@@ -116,7 +119,7 @@ nonisolated struct Project: Identifiable, Decodable {
         return result
     }
 
-    private static func isVercelDomain(_ domain: String) -> Bool {
+    static func isVercelDomain(_ domain: String) -> Bool {
         let normalized = domain.lowercased()
         return normalized == "vercel.app" || normalized.hasSuffix(".vercel.app")
     }
@@ -124,4 +127,14 @@ nonisolated struct Project: Identifiable, Decodable {
 
 nonisolated struct ProjectsResponse: Decodable {
     let projects: [Project]
+}
+
+nonisolated struct ProjectDomainsResponse: Decodable {
+    let domains: [Domain]
+
+    struct Domain: Decodable {
+        let name: String
+        let verified: Bool?
+        let redirect: String?
+    }
 }

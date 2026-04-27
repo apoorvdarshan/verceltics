@@ -42,6 +42,17 @@ actor VercelAPI {
         )
     }
 
+    func fetchProjectDomains(projectId: String, teamId: String?) async throws -> [String] {
+        let response: ProjectDomainsResponse = try await request(
+            base: "https://api.vercel.com",
+            path: "/v9/projects/\(projectId)/domains",
+            queryItems: projectQueryItems(teamId: teamId)
+        )
+        return response.domains
+            .filter { ($0.verified ?? true) && ($0.redirect ?? "").isEmpty }
+            .map(\.name)
+    }
+
     // MARK: - Analytics
 
     func fetchOverview(projectId: String, teamId: String?, from: String, to: String) async throws -> AnalyticsOverview {
@@ -91,22 +102,23 @@ actor VercelAPI {
 
         var refreshedByID: [String: Project] = [:]
 
-        await withTaskGroup(of: (String, Project?).self) { group in
+        await withTaskGroup(of: (String, Project).self) { group in
             for project in candidates {
                 group.addTask {
-                    do {
-                        let refreshed = try await self.fetchProject(id: project.id, teamId: project.teamId)
-                        return (project.id, refreshed)
-                    } catch {
-                        return (project.id, nil)
+                    async let refreshedTask = try? await self.fetchProject(id: project.id, teamId: project.teamId)
+                    async let domainsTask = (try? await self.fetchProjectDomains(projectId: project.id, teamId: project.teamId)) ?? []
+
+                    var resolved = await refreshedTask ?? project
+                    let domains = await domainsTask
+                    if let custom = domains.first(where: { !Project.isVercelDomain($0) }) {
+                        resolved.alias = (resolved.alias ?? []) + [Project.AliasEntry(domain: custom)]
                     }
+                    return (project.id, resolved)
                 }
             }
 
             for await (projectID, refreshed) in group {
-                if let refreshed {
-                    refreshedByID[projectID] = refreshed
-                }
+                refreshedByID[projectID] = refreshed
             }
         }
 
