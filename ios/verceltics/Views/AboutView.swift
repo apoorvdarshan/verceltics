@@ -112,7 +112,6 @@ struct AboutView: View {
                 .frame(maxWidth: .infinity)
             }
             .background(Color.black)
-            .navigationTitle("About")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarColorScheme(.dark, for: .navigationBar)
         }
