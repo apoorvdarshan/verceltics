@@ -14,16 +14,8 @@ struct AboutView: View {
 
                     // Sections
                     VStack(spacing: 24) {
-                        // Links
-                        aboutSection(title: "LINKS") {
-                            AboutRow(icon: "chevron.left.forwardslash.chevron.right", title: "Source Code", subtitle: "github.com/apoorvdarshan/verceltics", url: "https://github.com/apoorvdarshan/verceltics")
-                            AboutRow(icon: "ant", title: "Report an Issue", subtitle: "Open a GitHub issue", url: "https://github.com/apoorvdarshan/verceltics/issues")
-                            AboutRow(icon: "envelope.fill", title: "Contact", subtitle: "ad13dtu@gmail.com", url: "mailto:ad13dtu@gmail.com")
-                            AboutRow(icon: "globe", title: "Website", subtitle: "verceltics.com", url: "https://verceltics.com")
-                        }
-
-                        // Support
-                        aboutSection(title: "SUPPORT US") {
+                        // Support — most important to surface first
+                        aboutSection(title: "SUPPORT") {
                             AboutRow(icon: "star.bubble.fill", title: "Rate Verceltics", subtitle: "Tap a star, no App Store needed", action: { requestReview() })
                             shareAppRow
                             AboutRow(icon: "star.fill", title: "Star on GitHub", subtitle: "Help us reach more developers", url: "https://github.com/apoorvdarshan/verceltics")
@@ -31,9 +23,22 @@ struct AboutView: View {
                             AboutRow(icon: "heart.fill", title: "Support via PayPal", subtitle: "paypal.me/apoorvdarshan", url: "https://paypal.me/apoorvdarshan")
                         }
 
-                        // Developer
-                        aboutSection(title: "DEVELOPER") {
+                        // Links — outward connections
+                        aboutSection(title: "LINKS") {
+                            AboutRow(icon: "globe", title: "Website", subtitle: "verceltics.com", url: "https://verceltics.com")
+                            AboutRow(icon: "chevron.left.forwardslash.chevron.right", title: "Source Code", subtitle: "github.com/apoorvdarshan/verceltics", url: "https://github.com/apoorvdarshan/verceltics")
                             AboutRow(icon: "at", title: "Follow on X", subtitle: "@apoorvdarshan", url: "https://x.com/apoorvdarshan")
+                        }
+
+                        // Help — actionable user assistance
+                        aboutSection(title: "HELP") {
+                            AboutRow(icon: "envelope.fill", title: "Contact", subtitle: "ad13dtu@gmail.com", url: "mailto:ad13dtu@gmail.com")
+                            AboutRow(icon: "ant", title: "Report an Issue", subtitle: "Open a GitHub issue", url: "https://github.com/apoorvdarshan/verceltics/issues")
+                        }
+
+                        // Account
+                        aboutSection(title: "ACCOUNT") {
+                            AboutRow(icon: "creditcard.fill", title: "Manage Subscription", subtitle: "Change plan or cancel", url: "https://apps.apple.com/account/subscriptions")
                         }
 
                         // Legal
@@ -41,11 +46,6 @@ struct AboutView: View {
                             AboutRow(icon: "hand.raised.fill", title: "Privacy Policy", subtitle: "verceltics.com/privacy", url: "https://verceltics.com/privacy")
                             AboutRow(icon: "doc.text.fill", title: "Terms of Service", subtitle: "verceltics.com/terms", url: "https://verceltics.com/terms")
                             AboutRow(icon: "checkmark.seal.fill", title: "License", subtitle: "MIT License", url: "https://github.com/apoorvdarshan/verceltics/blob/main/LICENSE")
-                        }
-
-                        // Subscription
-                        aboutSection(title: "SUBSCRIPTION") {
-                            AboutRow(icon: "creditcard.fill", title: "Manage Subscription", subtitle: "Change plan or cancel", url: "https://apps.apple.com/account/subscriptions")
                         }
 
                         // About text
