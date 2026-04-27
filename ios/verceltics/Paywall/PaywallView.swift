@@ -49,19 +49,30 @@ struct PaywallView: View {
                         .padding(.top, 4)
 
                     // Rotating meme GIF
-                    VStack(spacing: 8) {
+                    VStack(spacing: 10) {
                         GIFView(url: memes[currentMemeIndex].gif)
                             .frame(width: 180, height: 140)
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .strokeBorder(
+                                        LinearGradient(
+                                            colors: [Color.white.opacity(0.16), Color.white.opacity(0.04)],
+                                            startPoint: .top, endPoint: .bottom
+                                        ),
+                                        lineWidth: 0.5
+                                    )
+                            )
                             .id(currentMemeIndex)
 
-                        Text(memes[currentMemeIndex].caption)
+                        Text("\u{201C}\(memes[currentMemeIndex].caption)\u{201D}")
                             .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.45))
+                            .italic()
+                            .foregroundStyle(.white.opacity(0.5))
                             .multilineTextAlignment(.center)
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
+                    .padding(.vertical, 14)
                     .onReceive(memeTimer) { _ in
                         withAnimation(.easeInOut(duration: 0.3)) {
                             currentMemeIndex = (currentMemeIndex + 1) % memes.count
@@ -88,17 +99,26 @@ struct PaywallView: View {
                     // Trial badge
                     if isEligibleForTrial {
                         HStack(spacing: 6) {
-                            Image(systemName: "gift")
-                                .font(.system(size: 11, weight: .bold))
+                            Image(systemName: "gift.fill")
+                                .font(.system(size: 11, weight: .heavy))
                             Text("3-day free trial")
-                                .font(.system(size: 12, weight: .bold))
+                                .font(.system(size: 12, weight: .heavy))
+                                .tracking(0.2)
                         }
-                        .foregroundStyle(.green)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color.green.opacity(0.1))
+                        .foregroundStyle(Color(red: 0.30, green: 0.85, blue: 0.55))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 7)
+                        .background(
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 0.30, green: 0.85, blue: 0.55).opacity(0.16),
+                                    Color(red: 0.30, green: 0.85, blue: 0.55).opacity(0.06)
+                                ],
+                                startPoint: .top, endPoint: .bottom
+                            )
+                        )
                         .clipShape(Capsule())
-                        .overlay(Capsule().stroke(Color.green.opacity(0.2), lineWidth: 0.5))
+                        .overlay(Capsule().strokeBorder(Color(red: 0.30, green: 0.85, blue: 0.55).opacity(0.28), lineWidth: 0.5))
                     }
 
                     Spacer().frame(height: 20)
@@ -187,29 +207,37 @@ struct PaywallView: View {
                     }
 
                     // Footer
-                    VStack(spacing: 10) {
-                        Button("Restore Purchases") {
+                    VStack(spacing: 12) {
+                        Button {
                             Task { await paywall.restorePurchases() }
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "arrow.clockwise")
+                                    .font(.system(size: 10, weight: .heavy))
+                                Text("Restore Purchases")
+                                    .font(.system(size: 13, weight: .bold))
+                            }
+                            .foregroundStyle(.white.opacity(0.45))
                         }
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.35))
 
-                        HStack(spacing: 16) {
+                        HStack(spacing: 14) {
                             Link("Privacy Policy", destination: URL(string: "https://verceltics.com/privacy")!)
+                            Text("·")
                             Link("Terms of Use", destination: URL(string: "https://verceltics.com/terms")!)
                         }
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.25))
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.3))
 
                         Text("Payment charged to Apple ID. Auto-renews unless cancelled 24h before period ends.")
                             .font(.system(size: 9, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.15))
+                            .foregroundStyle(.white.opacity(0.2))
                             .multilineTextAlignment(.center)
+                            .lineSpacing(1.5)
                             .padding(.horizontal, 40)
 
                         Button("Sign Out") { authManager.logout() }
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(.red.opacity(0.5))
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(Color(red: 1.0, green: 0.42, blue: 0.42).opacity(0.6))
                             .padding(.top, 4)
                     }
                     .padding(.top, 20)

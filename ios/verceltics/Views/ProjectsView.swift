@@ -128,6 +128,30 @@ struct ProjectCard: View {
         return Date().timeIntervalSince(date) < 1800 // 30 min
     }
 
+    private static let frameworkColors: [String: Color] = [
+        "nextjs": Color(white: 0.95),
+        "next.js": Color(white: 0.95),
+        "astro": Color(red: 1.00, green: 0.45, blue: 0.30),
+        "vite": Color(red: 0.60, green: 0.50, blue: 0.95),
+        "gatsby": Color(red: 0.85, green: 0.40, blue: 0.95),
+        "nuxtjs": Color(red: 0.30, green: 0.85, blue: 0.55),
+        "nuxt": Color(red: 0.30, green: 0.85, blue: 0.55),
+        "sveltekit": Color(red: 1.00, green: 0.45, blue: 0.30),
+        "svelte": Color(red: 1.00, green: 0.45, blue: 0.30),
+        "remix": Color(red: 0.30, green: 0.75, blue: 0.95),
+        "create-react-app": Color(red: 0.30, green: 0.75, blue: 0.95),
+        "vue": Color(red: 0.30, green: 0.85, blue: 0.55),
+        "angular": Color(red: 0.95, green: 0.30, blue: 0.40),
+        "hugo": Color(red: 0.95, green: 0.45, blue: 0.95),
+        "hexo": Color(red: 0.30, green: 0.85, blue: 0.55),
+        "blitzjs": Color(red: 0.55, green: 0.50, blue: 0.95),
+        "eleventy": Color(red: 1.00, green: 0.85, blue: 0.30),
+    ]
+
+    private func frameworkColor(_ framework: String) -> Color {
+        Self.frameworkColors[framework.lowercased()] ?? Color(red: 0.30, green: 0.85, blue: 0.55)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             // Top: icon + name + domain + chevron
@@ -194,8 +218,9 @@ struct ProjectCard: View {
                 if let framework = project.framework {
                     HStack(spacing: 5) {
                         Circle()
-                            .fill(Color(red: 0.30, green: 0.85, blue: 0.55))
+                            .fill(frameworkColor(framework))
                             .frame(width: 5, height: 5)
+                            .shadow(color: frameworkColor(framework).opacity(0.5), radius: 2)
                         Text(framework.capitalized)
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(.white.opacity(0.4))
