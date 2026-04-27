@@ -1,5 +1,4 @@
 import SwiftUI
-import WebKit
 
 @Observable
 @MainActor
@@ -436,7 +435,7 @@ struct ProjectIcon: View {
                     guard let (data, contentType) = await fetchImageData(from: url) else { return nil }
                     let uiImage: UIImage?
                     if looksLikeSVG(data: data, contentType: contentType) {
-                        uiImage = await rasterizeSVG(originalURL: url, svgData: data)
+                        uiImage = await rasterizeRemoteSVG(originalURL: url)
                     } else {
                         uiImage = UIImage(data: data)
                     }
@@ -476,21 +475,12 @@ struct ProjectIcon: View {
         return false
     }
 
-    /// Rasterise an SVG. Tries images.weserv.nl first (server-side, fast),
-    /// then falls back to an offscreen WKWebView snapshot (native, always
-    /// available). UIImage can't decode SVG bytes directly.
-    private func rasterizeSVG(originalURL: URL, svgData: Data) async -> UIImage? {
-        if let proxied = await rasterizeViaWeserv(originalURL: originalURL) {
-            return proxied
-        }
-        if let markup = String(data: svgData, encoding: .utf8),
-           let rendered = await rasterizeViaWebView(svgMarkup: markup) {
-            return rendered
-        }
-        return nil
-    }
-
-    nonisolated private func rasterizeViaWeserv(originalURL: URL) async -> UIImage? {
+    /// Rasterise a remote SVG via images.weserv.nl. UIImage can't decode SVG
+    /// natively, so we route SVG URLs through a public proxy that renders
+    /// them server-side and returns PNG bytes. Inner URL is fully percent-
+    /// encoded so URLSession sees an unambiguous query string even when the
+    /// original has its own ?<hash>.
+    nonisolated private func rasterizeRemoteSVG(originalURL: URL) async -> UIImage? {
         var allowed = CharacterSet.alphanumerics
         allowed.insert(charactersIn: "-._~")
         guard let escaped = originalURL.absoluteString.addingPercentEncoding(withAllowedCharacters: allowed),
@@ -501,42 +491,12 @@ struct ProjectIcon: View {
         return uiImage
     }
 
-    @MainActor
-    private func rasterizeViaWebView(svgMarkup: String) async -> UIImage? {
-        let size = CGSize(width: 128, height: 128)
-        let webView = WKWebView(frame: CGRect(origin: .zero, size: size))
-        webView.isOpaque = false
-        webView.backgroundColor = .clear
-        webView.scrollView.backgroundColor = .clear
-        webView.scrollView.isScrollEnabled = false
-
-        let html = """
-        <!DOCTYPE html><html><head><meta charset="utf-8"><style>
-        html,body{margin:0;padding:0;width:128px;height:128px;background:transparent;overflow:hidden;}
-        body{display:flex;align-items:center;justify-content:center;}
-        svg{display:block;width:100%;height:100%;}
-        </style></head><body>\(svgMarkup)</body></html>
-        """
-        webView.loadHTMLString(html, baseURL: nil)
-
-        // Wait for load (max ~3s)
-        for _ in 0..<60 {
-            try? await Task.sleep(for: .milliseconds(50))
-            if !webView.isLoading { break }
-        }
-        try? await Task.sleep(for: .milliseconds(80))
-
-        let config = WKSnapshotConfiguration()
-        config.rect = CGRect(origin: .zero, size: size)
-        return try? await webView.takeSnapshot(configuration: config)
-    }
-
     private func fetchImage(from url: URL) async -> Image? {
         guard let (data, contentType) = await fetchImageData(from: url) else { return nil }
 
         let uiImage: UIImage?
         if looksLikeSVG(data: data, contentType: contentType) {
-            uiImage = await rasterizeSVG(originalURL: url, svgData: data)
+            uiImage = await rasterizeRemoteSVG(originalURL: url)
         } else {
             uiImage = UIImage(data: data)
         }
