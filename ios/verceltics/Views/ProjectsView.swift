@@ -67,7 +67,7 @@ struct ProjectsView: View {
                     projectsList
                 }
             }
-            .navigationTitle("Projects")
+            .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, isPresented: $isSearching, prompt: "Search projects...")
             .task { await loadProjects() }
             .onAppear {
