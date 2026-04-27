@@ -69,20 +69,32 @@ struct AboutView: View {
                         } label: {
                             HStack(spacing: 8) {
                                 Image(systemName: "rectangle.portrait.and.arrow.right")
-                                    .font(.system(size: 13, weight: .semibold))
+                                    .font(.system(size: 13, weight: .heavy))
                                 Text("Sign Out")
-                                    .font(.system(size: 14, weight: .semibold))
+                                    .font(.system(size: 14, weight: .bold))
                             }
-                            .foregroundStyle(.red)
+                            .foregroundStyle(Color(red: 1.0, green: 0.42, blue: 0.42))
                             .frame(maxWidth: .infinity)
-                            .frame(height: 48)
-                            .background(Color.red.opacity(0.08))
-                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .frame(height: 50)
+                            .background(
+                                LinearGradient(
+                                    colors: [Color.red.opacity(0.14), Color.red.opacity(0.06)],
+                                    startPoint: .top, endPoint: .bottom
+                                )
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                             .overlay(
-                                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                    .stroke(Color.red.opacity(0.12), lineWidth: 0.5)
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .strokeBorder(
+                                        LinearGradient(
+                                            colors: [Color.red.opacity(0.22), Color.red.opacity(0.08)],
+                                            startPoint: .top, endPoint: .bottom
+                                        ),
+                                        lineWidth: 0.5
+                                    )
                             )
                         }
+                        .buttonStyle(PressScaleButtonStyle())
                         .padding(.horizontal, 16)
                         .padding(.top, 8)
                         .padding(.bottom, 40)
@@ -116,20 +128,39 @@ struct AboutView: View {
     private func aboutSection(title: String, @ViewBuilder content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(title)
-                .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(.white.opacity(0.25))
-                .tracking(1.2)
-                .padding(.horizontal, 20)
+                .font(.system(size: 10, weight: .heavy))
+                .foregroundStyle(.white.opacity(0.4))
+                .tracking(1.4)
+                .padding(.horizontal, 22)
                 .padding(.bottom, 10)
 
             VStack(spacing: 0) {
                 content()
             }
-            .background(.ultraThinMaterial.opacity(0.5))
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .background(
+                ZStack {
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.07), Color.white.opacity(0.02)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.04), .clear],
+                        startPoint: .top,
+                        endPoint: .center
+                    )
+                }
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Color.white.opacity(0.06), lineWidth: 0.5)
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.12), Color.white.opacity(0.04)],
+                            startPoint: .top, endPoint: .bottom
+                        ),
+                        lineWidth: 0.5
+                    )
             )
             .padding(.horizontal, 16)
         }
@@ -180,7 +211,7 @@ struct AboutRow: View {
 
 struct AboutRowContent: View {
     let icon: String
-    var iconColor: Color = .white.opacity(0.5)
+    var iconColor: Color = .white.opacity(0.55)
     let title: String
     let subtitle: String
     var showsChevron: Bool = true
@@ -188,30 +219,41 @@ struct AboutRowContent: View {
     var body: some View {
         HStack(spacing: 14) {
             Image(systemName: icon)
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: 13, weight: .heavy))
                 .foregroundStyle(iconColor)
-                .frame(width: 32, height: 32)
-                .background(Color.white.opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .frame(width: 34, height: 34)
+                .background(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.10), Color.white.opacity(0.04)],
+                        startPoint: .top, endPoint: .bottom
+                    )
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.06), lineWidth: 0.5)
+                )
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(.white)
                 Text(subtitle)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.35))
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.4))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
             }
 
             Spacer()
 
             if showsChevron {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.15))
+                    .font(.system(size: 11, weight: .heavy))
+                    .foregroundStyle(.white.opacity(0.18))
             }
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 14)
         .padding(.vertical, 13)
     }
 }
