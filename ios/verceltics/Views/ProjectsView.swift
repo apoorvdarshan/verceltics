@@ -127,10 +127,12 @@ struct ProjectCard: View {
                         .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(.white)
 
-                    if let domain = project.primaryDomain {
+                    if let domain = project.displayDomain {
                         Text(domain)
                             .font(.system(size: 12, weight: .medium))
                             .foregroundStyle(.white.opacity(0.35))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
                     }
                 }
 
