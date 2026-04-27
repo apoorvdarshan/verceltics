@@ -425,10 +425,16 @@ struct ProjectIcon: View {
         return await withTaskGroup(of: Image?.self) { group in
             for url in urls {
                 group.addTask { @MainActor in
-                    guard let (data, contentType) = await fetchImageData(from: url),
-                          let uiImage = await decodeImage(data, contentType: contentType),
-                          uiImage.size.width >= minSize || uiImage.size.height >= minSize else { return nil }
-                    return Image(uiImage: removeWhiteBackground(uiImage))
+                    guard let (data, contentType) = await fetchImageData(from: url) else { return nil }
+                    let uiImage: UIImage?
+                    if looksLikeSVG(data: data, contentType: contentType) {
+                        uiImage = await rasterizeRemoteSVG(originalURL: url)
+                    } else {
+                        uiImage = UIImage(data: data)
+                    }
+                    guard let image = uiImage,
+                          image.size.width >= minSize || image.size.height >= minSize else { return nil }
+                    return Image(uiImage: removeWhiteBackground(image))
                 }
             }
             for await result in group {
@@ -482,19 +488,32 @@ struct ProjectIcon: View {
         return false
     }
 
-    private func decodeImage(_ data: Data, contentType: String?) async -> UIImage? {
-        if looksLikeSVG(data: data, contentType: contentType) {
-            guard let markup = String(data: data, encoding: .utf8) else { return nil }
-            return await MainActor.run { renderSVGMarkup(markup) }
-        }
-        return UIImage(data: data)
+    /// Rasterise a remote SVG via images.weserv.nl. UIImage can't decode SVG
+    /// natively and NSAttributedString-based HTML rendering doesn't actually
+    /// draw vector content, so we route SVG URLs through a public proxy that
+    /// renders them server-side and returns PNG bytes.
+    nonisolated private func rasterizeRemoteSVG(originalURL: URL) async -> UIImage? {
+        let raw = originalURL.absoluteString
+        guard let escaped = raw.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let proxy = URL(string: "https://images.weserv.nl/?url=\(escaped)&output=png&w=128&h=128&fit=contain") else { return nil }
+        guard let (data, ct) = await fetchImageData(from: proxy),
+              !looksLikeSVG(data: data, contentType: ct),
+              let uiImage = UIImage(data: data) else { return nil }
+        return uiImage
     }
 
     private func fetchImage(from url: URL) async -> Image? {
-        guard let (data, contentType) = await fetchImageData(from: url),
-              let uiImage = await decodeImage(data, contentType: contentType) else { return nil }
-        guard uiImage.size.width >= 32 || uiImage.size.height >= 32 else { return nil }
-        let cleaned = removeWhiteBackground(uiImage)
+        guard let (data, contentType) = await fetchImageData(from: url) else { return nil }
+
+        let uiImage: UIImage?
+        if looksLikeSVG(data: data, contentType: contentType) {
+            uiImage = await rasterizeRemoteSVG(originalURL: url)
+        } else {
+            uiImage = UIImage(data: data)
+        }
+        guard let image = uiImage,
+              image.size.width >= 32 || image.size.height >= 32 else { return nil }
+        let cleaned = removeWhiteBackground(image)
         return Image(uiImage: cleaned)
     }
 
@@ -634,78 +653,6 @@ struct ProjectIcon: View {
         return UIImage(cgImage: newCGImage, scale: image.scale, orientation: image.imageOrientation)
     }
 
-    @MainActor
-    private func renderSVGDataURI(_ dataURI: String) -> UIImage? {
-        guard dataURI.lowercased().hasPrefix("data:image/svg+xml"),
-              let commaIndex = dataURI.firstIndex(of: ",") else { return nil }
-
-        let metadata = String(dataURI[..<commaIndex]).lowercased()
-        let payload = String(dataURI[dataURI.index(after: commaIndex)...])
-
-        let svgMarkup: String
-        if metadata.contains(";base64") {
-            guard let decoded = Data(base64Encoded: payload.removingPercentEncoding ?? payload),
-                  let string = String(data: decoded, encoding: .utf8) else { return nil }
-            svgMarkup = string
-        } else {
-            guard let decoded = payload.removingPercentEncoding else { return nil }
-            svgMarkup = decoded
-        }
-
-        return renderSVGMarkup(svgMarkup)
-    }
-
-    @MainActor
-    private func renderSVGMarkup(_ svgMarkup: String) -> UIImage? {
-        let canvasSize = CGSize(width: 128, height: 128)
-        let html = """
-        <html>
-        <head>
-        <style>
-        html, body {
-            margin: 0;
-            padding: 0;
-            width: \(Int(canvasSize.width))px;
-            height: \(Int(canvasSize.height))px;
-            background: transparent;
-            overflow: hidden;
-        }
-        svg {
-            display: block;
-            width: 100%;
-            height: 100%;
-        }
-        </style>
-        </head>
-        <body>\(svgMarkup)</body>
-        </html>
-        """
-
-        guard let htmlData = html.data(using: .utf8),
-              let attributed = try? NSAttributedString(
-                  data: htmlData,
-                  options: [
-                      .documentType: NSAttributedString.DocumentType.html,
-                      .characterEncoding: String.Encoding.utf8.rawValue,
-                  ],
-                  documentAttributes: nil
-              ) else { return nil }
-
-        let format = UIGraphicsImageRendererFormat.default()
-        format.opaque = false
-
-        let renderer = UIGraphicsImageRenderer(size: canvasSize, format: format)
-        return renderer.image { _ in
-            UIColor.clear.setFill()
-            UIRectFill(CGRect(origin: .zero, size: canvasSize))
-            attributed.draw(
-                with: CGRect(origin: .zero, size: canvasSize),
-                options: [.usesLineFragmentOrigin, .usesFontLeading],
-                context: nil
-            )
-        }
-    }
-
     private func scrapeFaviconURLs(domain: String) async -> [ScrapedFavicon]? {
         let pageURL = URL(string: "https://\(domain)")!
         var request = URLRequest(url: pageURL)
@@ -729,9 +676,9 @@ struct ProjectIcon: View {
             } else { continue }
 
             if href.lowercased().hasPrefix("data:image/svg+xml") {
-                if let image = renderSVGDataURI(href) {
-                    favicons.append(.inlineSVG(image))
-                }
+                // Inline data:URI SVG — UIImage can't decode SVG and we have
+                // no remote URL to feed the rasterizer. Skip and let the
+                // third-party fallback services pick up the slack.
                 continue
             }
 
