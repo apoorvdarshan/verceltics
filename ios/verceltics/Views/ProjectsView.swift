@@ -92,8 +92,9 @@ struct ProjectsView: View {
         ScrollView {
             LazyVGrid(columns: gridColumns, spacing: 12) {
                 ForEach(filteredProjects) { project in
+                    let idx = filteredProjects.firstIndex(where: { $0.id == project.id }) ?? 0
                     NavigationLink(destination: AnalyticsView(project: project)) {
-                        ProjectCard(project: project)
+                        ProjectCard(project: project, appearDelay: min(Double(idx), 11) * 0.04)
                     }
                     .buttonStyle(PressScaleButtonStyle())
                 }
@@ -121,7 +122,9 @@ struct ProjectsView: View {
 
 struct ProjectCard: View {
     let project: Project
+    var appearDelay: Double = 0
     @State private var pulse = false
+    @State private var hasAppeared = false
 
     private var isFreshDeploy: Bool {
         guard let date = project.lastDeployment?.date else { return false }
@@ -280,6 +283,13 @@ struct ProjectCard: View {
                     lineWidth: 0.5
                 )
         )
+        .opacity(hasAppeared ? 1 : 0)
+        .offset(y: hasAppeared ? 0 : 10)
+        .onAppear {
+            withAnimation(.spring(response: 0.55, dampingFraction: 0.85).delay(appearDelay)) {
+                hasAppeared = true
+            }
+        }
     }
 }
 

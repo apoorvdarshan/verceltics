@@ -118,6 +118,7 @@ struct AnalyticsView: View {
         .onChange(of: vm.selectedRange) {
             Task { await loadData() }
         }
+        .sensoryFeedback(.selection, trigger: vm.selectedRange)
     }
 
     private var breakdownColumns: [GridItem] {
