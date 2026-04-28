@@ -19,6 +19,14 @@ body {
   max-width: 100%;
   overflow-x: clip;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "ss01", "cv11";
+  letter-spacing: -0.005em;
+}
+
+::selection {
+  background: rgba(90, 150, 255, 0.35);
+  color: #fff;
 }
 
 /* ── Grain overlay ── */
@@ -59,6 +67,27 @@ body {
   will-change: transform;
 }
 
+.marquee-pause:hover .animate-marquee { animation-play-state: paused; }
+
+@keyframes float-y {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
+}
+.animate-float { animation: float-y 7s ease-in-out infinite; }
+
+@keyframes glow-breathe {
+  0%, 100% { opacity: 0.65; transform: scale(1); }
+  50%      { opacity: 1; transform: scale(1.06); }
+}
+.animate-breathe { animation: glow-breathe 8s ease-in-out infinite; }
+
+.lift {
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+              border-color 0.4s ease;
+}
+.lift:hover { transform: translateY(-4px); }
+
 /* ── Nav link ── */
 .nav-link {
   position: relative;
@@ -85,7 +114,25 @@ body {
 /* ── Divider ── */
 .divider {
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06) 25%, rgba(255, 255, 255, 0.06) 75%, transparent);
+  background: linear-gradient(90deg,
+    transparent,
+    rgba(255, 255, 255, 0.04) 18%,
+    rgba(255, 255, 255, 0.10) 50%,
+    rgba(255, 255, 255, 0.04) 82%,
+    transparent);
+  margin: 0 auto;
+}
+
+/* ── Subtle scroll-track shadow above sticky nav (hairline polish) ── */
+.nav-scrim {
+  position: relative;
+}
+.nav-scrim::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
 }
 
 /* ── Scrollbar ── */

@@ -163,11 +163,12 @@ export default function Home() {
 
       {/* ── Ambient ── */}
       <div aria-hidden className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute -top-[30vh] left-1/2 h-[80vh] w-[120vw] -translate-x-1/2 bg-[radial-gradient(ellipse,rgba(80,140,255,0.09),transparent_60%)]" />
+        <div className="absolute -top-[30vh] left-1/2 h-[80vh] w-[120vw] -translate-x-1/2 bg-[radial-gradient(ellipse,rgba(80,140,255,0.10),transparent_60%)] animate-breathe" />
+        <div className="absolute -bottom-[20vh] right-[-10vw] h-[55vh] w-[55vw] bg-[radial-gradient(circle,rgba(120,80,255,0.06),transparent_60%)] blur-2xl" />
       </div>
 
       {/* ── Nav ── */}
-      <nav className="fixed top-0 z-50 w-full bg-[#050a12]/75 backdrop-blur-xl">
+      <nav className="nav-scrim fixed top-0 z-50 w-full bg-[#050a12]/75 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3.5 sm:px-8">
           <Link href="/" className="flex items-center gap-2.5">
             <Image src="/icon.png" alt="" width={30} height={30} className="rounded-[9px]" />
@@ -223,7 +224,7 @@ export default function Home() {
               >
                 Vercel analytics,
                 <br />
-                <span className="bg-gradient-to-r from-white via-[#a4cfff] to-[#5a96ff] bg-clip-text text-transparent">
+                <span className="bg-gradient-to-r from-white via-[#b3d6ff] to-[#5a96ff] bg-clip-text text-transparent [text-shadow:0_0_60px_rgba(90,150,255,0.15)]">
                   in your pocket.
                 </span>
               </h1>
@@ -244,10 +245,11 @@ export default function Home() {
                   href={APPSTORE}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-6 py-3 text-[14px] font-semibold text-[#050a12] transition-colors hover:bg-white/85 sm:text-[15px]"
+                  className="group inline-flex items-center justify-center gap-2 rounded-full bg-white px-6 py-3 text-[14px] font-semibold text-[#050a12] shadow-[0_8px_30px_-8px_rgba(255,255,255,0.25)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_12px_40px_-8px_rgba(255,255,255,0.35)] sm:text-[15px]"
                 >
                   <AppleIcon />
                   Download on App Store
+                  <span className="ml-0.5 inline-block transition-transform duration-300 group-hover:translate-x-0.5">→</span>
                 </a>
                 <a
                   href={PRODUCTHUNT}
@@ -276,21 +278,21 @@ export default function Home() {
 
             {/* Hero phones — single transparent product shot */}
             <div className="animate-fade-up relative w-full" style={{ animationDelay: "0.35s" }}>
-              <div className="absolute inset-x-[5%] top-[8%] h-[70%] rounded-[40%] bg-[radial-gradient(ellipse,rgba(80,140,255,0.22),transparent_70%)] blur-3xl" aria-hidden />
+              <div className="animate-breathe absolute inset-x-[5%] top-[8%] h-[70%] rounded-[40%] bg-[radial-gradient(ellipse,rgba(80,140,255,0.22),transparent_70%)] blur-3xl" aria-hidden />
               <Image
                 src="/hero-phones.png"
                 alt="Verceltics on three iPhones — projects list, welcome chart, analytics dashboard"
                 width={1920}
                 height={1440}
                 priority
-                className="relative h-auto w-full drop-shadow-[0_50px_90px_rgba(0,0,0,0.6)] lg:w-[118%] lg:max-w-none lg:-translate-x-[6%]"
+                className="animate-float relative h-auto w-full drop-shadow-[0_50px_90px_rgba(0,0,0,0.6)] lg:w-[118%] lg:max-w-none lg:-translate-x-[6%]"
               />
             </div>
           </div>
         </section>
 
         {/* ── Ticker ── */}
-        <div className="overflow-hidden border-y border-white/[0.04] py-4">
+        <div className="marquee-pause overflow-hidden border-y border-white/[0.04] py-4">
           <div className="animate-marquee flex w-max gap-10">
             {[...ticker, ...ticker].map((t, i) => (
               <span key={`${t}-${i}`} className="flex items-center gap-3 text-[13px] text-white/25">
@@ -319,7 +321,7 @@ export default function Home() {
                     <div className={`grid items-center gap-8 sm:gap-12 lg:grid-cols-[1fr_1fr] lg:gap-20 ${flip ? "[direction:rtl]" : ""}`}>
                       {/* Screenshot */}
                       <div className="mx-auto w-full max-w-[220px] sm:max-w-[280px] [direction:ltr]">
-                        <div className="overflow-hidden rounded-2xl border border-white/[0.05] shadow-[0_20px_60px_rgba(0,0,0,0.4)] sm:rounded-[1.5rem]">
+                        <div className="lift overflow-hidden rounded-2xl border border-white/[0.05] shadow-[0_20px_60px_rgba(0,0,0,0.4)] hover:border-white/[0.12] hover:shadow-[0_30px_80px_rgba(80,140,255,0.18)] sm:rounded-[1.5rem]">
                           <Image src={f.image} alt={f.alt} width={460} height={996} className="h-auto w-full" />
                         </div>
                       </div>
@@ -367,8 +369,8 @@ export default function Home() {
                 { n: "03", t: "Check anytime", d: "Open the app. See your stats. That’s the whole flow." },
               ].map((s, i) => (
                 <ScrollReveal key={s.n} delay={i * 80}>
-                  <div className="h-full bg-white/[0.02] p-8 transition-colors hover:bg-white/[0.04]">
-                    <span className="font-serif text-4xl italic text-white/[0.06]">{s.n}</span>
+                  <div className="group h-full bg-white/[0.02] p-8 transition-colors duration-300 hover:bg-white/[0.04]">
+                    <span className="font-serif text-4xl italic text-white/[0.06] transition-colors duration-300 group-hover:text-white/[0.18]">{s.n}</span>
                     <h3 className="mt-4 text-lg font-semibold tracking-[-0.01em]">{s.t}</h3>
                     <p className="mt-3 text-[14px] leading-6 text-white/35">{s.d}</p>
                   </div>
@@ -399,10 +401,10 @@ export default function Home() {
               {tiers.map((t, i) => (
                 <ScrollReveal key={t.name} delay={i * 70}>
                   <div
-                    className={`relative h-full p-7 sm:p-8 ${
+                    className={`relative h-full p-7 transition-[background,box-shadow] duration-500 sm:p-8 ${
                       t.featured
-                        ? "bg-gradient-to-b from-sky-500/[0.08] via-sky-500/[0.02] to-white/[0.02]"
-                        : "bg-white/[0.02]"
+                        ? "bg-gradient-to-b from-sky-500/[0.08] via-sky-500/[0.02] to-white/[0.02] hover:from-sky-500/[0.12] hover:via-sky-500/[0.04] hover:shadow-[inset_0_1px_0_rgba(120,180,255,0.18),0_0_60px_-20px_rgba(80,140,255,0.35)]"
+                        : "bg-white/[0.02] hover:bg-white/[0.04]"
                     }`}
                   >
                     <div className="flex items-center justify-between">
@@ -451,14 +453,15 @@ export default function Home() {
                       href={APPSTORE}
                       target="_blank"
                       rel="noreferrer"
-                      className={`mt-8 inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-2.5 text-[13px] font-semibold transition-colors ${
+                      className={`group mt-8 inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-2.5 text-[13px] font-semibold transition-all duration-300 ${
                         t.featured
-                          ? "bg-white text-[#050a12] hover:bg-white/90"
-                          : "border border-white/10 text-white hover:border-white/30 hover:bg-white/[0.03]"
+                          ? "bg-white text-[#050a12] hover:-translate-y-0.5 hover:bg-white hover:shadow-[0_12px_40px_-10px_rgba(255,255,255,0.4)]"
+                          : "border border-white/10 text-white hover:-translate-y-0.5 hover:border-white/30 hover:bg-white/[0.03]"
                       }`}
                     >
                       <AppleIcon />
                       {t.featured ? "Start free trial" : t.name === "Lifetime" ? "Buy lifetime" : "Start monthly"}
+                      <span className="ml-0.5 inline-block transition-transform duration-300 group-hover:translate-x-0.5">→</span>
                     </a>
                   </div>
                 </ScrollReveal>
@@ -485,10 +488,11 @@ export default function Home() {
                 href={APPSTORE}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-9 inline-flex items-center gap-2 rounded-full bg-white px-7 py-3.5 text-[15px] font-semibold text-[#050a12] transition-colors hover:bg-white/85"
+                className="group mt-9 inline-flex items-center gap-2 rounded-full bg-white px-7 py-3.5 text-[15px] font-semibold text-[#050a12] shadow-[0_10px_40px_-10px_rgba(255,255,255,0.3)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_60px_-10px_rgba(255,255,255,0.45)]"
               >
                 <AppleIcon />
                 Download on App Store
+                <span className="ml-0.5 inline-block transition-transform duration-300 group-hover:translate-x-0.5">→</span>
               </a>
             </div>
           </ScrollReveal>
@@ -512,14 +516,14 @@ export default function Home() {
 
             {/* Links — wrapping row on mobile, 3-col on desktop */}
             <div className="mt-8 flex flex-wrap justify-center gap-x-8 gap-y-2 text-[12px] text-white/30 md:mt-0 md:gap-x-12">
-              <a href="#features" className="transition-colors hover:text-white/70">Features</a>
-              <a href="#how-it-works" className="transition-colors hover:text-white/70">How it works</a>
-              <a href="#pricing" className="transition-colors hover:text-white/70">Pricing</a>
-              <Link href="/privacy" className="transition-colors hover:text-white/70">Privacy</Link>
-              <Link href="/terms" className="transition-colors hover:text-white/70">Terms</Link>
-              <a href={GITHUB} target="_blank" rel="noreferrer" className="transition-colors hover:text-white/70">GitHub</a>
-              <a href="https://x.com/apoorvdarshan" target="_blank" rel="noreferrer" className="transition-colors hover:text-white/70">X</a>
-              <a href="mailto:ad13dtu@gmail.com" className="transition-colors hover:text-white/70">Contact</a>
+              <a href="#features" className="nav-link transition-colors hover:text-white/70">Features</a>
+              <a href="#how-it-works" className="nav-link transition-colors hover:text-white/70">How it works</a>
+              <a href="#pricing" className="nav-link transition-colors hover:text-white/70">Pricing</a>
+              <Link href="/privacy" className="nav-link transition-colors hover:text-white/70">Privacy</Link>
+              <Link href="/terms" className="nav-link transition-colors hover:text-white/70">Terms</Link>
+              <a href={GITHUB} target="_blank" rel="noreferrer" className="nav-link transition-colors hover:text-white/70">GitHub</a>
+              <a href="https://x.com/apoorvdarshan" target="_blank" rel="noreferrer" className="nav-link transition-colors hover:text-white/70">X</a>
+              <a href="mailto:ad13dtu@gmail.com" className="nav-link transition-colors hover:text-white/70">Contact</a>
             </div>
           </div>
 
