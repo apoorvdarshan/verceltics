@@ -28,35 +28,6 @@ Primary: Developer Tools
 Secondary: Utilities
 ```
 
-## What's New (v1.1)
-```
-Verceltics 1.1 — full iPad layout, soft paywall, lifetime tier, and a redesigned analytics view.
-
-NEW
-• iPad ready — adaptive grid + sidebar tab style on regular size class. Cards no longer stretch full-width on big screens.
-• Soft paywall — browse all your projects free. The paywall only appears when you tap into a project's analytics. After purchase the sheet auto-dismisses and continues into the project you tapped.
-• Lifetime tier — one-time $59.99 non-consumable alongside Monthly and Yearly. Yearly now includes a 7-day free trial for first-time subscribers (was 3 days).
-• Native rate prompt — fires once per install, 3 seconds after your first project loads, for both free and paid users. No App Store round-trip.
-• Redesigned analytics chart — peak indicator pill, dashed average reference line, gradient line stroke, 3-stop area gradient, drag-to-inspect with date capsule + haptic feedback.
-• Stat cards — heavy rounded numerals, change badges with stroked outlines, staggered entrance across visitors / page views / bounce rate.
-• Framework-tinted live deploy dots — Astro orange, Vite purple, Remix cyan, Angular red, Eleventy yellow, Next/Nuxt/SvelteKit/Gatsby and friends each get their own accent. Pulses green when a deployment is under 30 minutes old.
-• Robust favicons — multi-source race across apple-touch-icon, favicon paths, HTML scrape, and SVG → PNG rasterisation via images.weserv.nl. Falls back through DuckDuckGo, Google s2, and icon.horse.
-• Long *.vercel.app URLs collapse — projects whose bulk listing only returned the long alias now enrich via the per-project domains endpoint and display the short canonical hostname.
-• Share Verceltics — system share sheet with a plain message including App Store + website links.
-• About page — restructured into Support, Links, Help, Account, Legal sections matching the Projects card chrome. Every row is fully tappable end-to-end.
-
-Polish
-• Live deploy dot pulse no longer drags sibling views.
-• Login screen connect button auto-scrolls above the keyboard while you paste a token.
-• Pure black (#000000) background throughout.
-• Numbers use system rounded heavy with monospaced digits so columns align cleanly.
-
-Bug fixes
-• User-prefixed Vercel account IDs (user_…) no longer get rejected by the API.
-• www subdomain probes on *.vercel.app removed — Vercel's TLS cert is single-level wildcard, so those requests were stalling on first paint.
-• Scoped animations replaced every withAnimation block inside onAppear, fixing transaction leaks.
-```
-
 ## Description
 ```
 Verceltics puts your Vercel web analytics in your pocket. Check visitors, page views, bounce rate, referrers, countries, devices, browsers, and more — all from a fast native iPhone and iPad app.
@@ -96,6 +67,28 @@ Terms of Service: https://verceltics.com/terms
 Contact: ad13dtu@gmail.com
 
 Not affiliated with Vercel Inc.
+```
+
+## What's New (v1.1)
+```
+Verceltics 1.1 — iPad layout, soft paywall, and a Lifetime tier.
+
+NEW
+• iPad ready — adaptive grid + sidebar tab style on regular size class.
+• Soft paywall — browse all your projects free. The paywall only appears when you tap into a project's analytics, then auto-dismisses on purchase.
+• Lifetime tier — one-time $59.99 alongside Monthly and Yearly. Yearly now ships with a 7-day free trial (was 3 days).
+• Redesigned analytics chart — peak pill, average reference line, drag-to-inspect with haptic feedback.
+• Framework-tinted live deploy dots — Astro, Vite, Remix, Angular, Eleventy, Next, Nuxt, SvelteKit, Gatsby and friends each get their own accent.
+• Robust favicons — multi-source race with SVG rasterisation and DuckDuckGo / Google s2 / icon.horse fallbacks.
+• Native rate prompt 3 seconds after your first project loads — for free and paid users.
+• Share Verceltics from the About page.
+
+Polish & fixes
+• Long *.vercel.app URLs now collapse to the short canonical hostname.
+• Live deploy dot pulse no longer drags sibling views.
+• Login connect button auto-scrolls above the keyboard.
+• Numbers use rounded heavy with monospaced digits.
+• User_… account IDs no longer get rejected by the API.
 ```
 
 ## Privacy URL
