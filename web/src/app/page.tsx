@@ -207,7 +207,7 @@ export default function Home() {
       <main>
         {/* ══ HERO ══ */}
         <section className="relative flex min-h-svh items-center overflow-hidden">
-          <div className="mx-auto grid w-full max-w-6xl items-center gap-8 px-5 pb-6 pt-20 sm:gap-12 sm:px-8 sm:pt-24 lg:grid-cols-[1fr_0.95fr] lg:gap-12 lg:pb-0 lg:pt-16">
+          <div className="mx-auto grid w-full max-w-[1320px] items-center gap-8 px-5 pb-6 pt-20 sm:gap-12 sm:px-8 sm:pt-24 lg:grid-cols-[0.85fr_1.15fr] lg:gap-10 lg:pb-0 lg:pt-16">
             {/* Copy */}
             <div className="max-w-xl text-center lg:text-left">
               <p
@@ -276,14 +276,14 @@ export default function Home() {
 
             {/* Hero phones — single transparent product shot */}
             <div className="animate-fade-up relative w-full" style={{ animationDelay: "0.35s" }}>
-              <div className="absolute inset-x-[10%] top-[12%] h-[60%] rounded-[40%] bg-[radial-gradient(ellipse,rgba(80,140,255,0.18),transparent_70%)] blur-2xl" aria-hidden />
+              <div className="absolute inset-x-[5%] top-[8%] h-[70%] rounded-[40%] bg-[radial-gradient(ellipse,rgba(80,140,255,0.22),transparent_70%)] blur-3xl" aria-hidden />
               <Image
                 src="/hero-phones.png"
                 alt="Verceltics on three iPhones — projects list, welcome chart, analytics dashboard"
                 width={1920}
                 height={1440}
                 priority
-                className="relative h-auto w-full drop-shadow-[0_40px_70px_rgba(0,0,0,0.55)]"
+                className="relative h-auto w-full drop-shadow-[0_50px_90px_rgba(0,0,0,0.6)] lg:w-[118%] lg:max-w-none lg:-translate-x-[6%]"
               />
             </div>
           </div>
