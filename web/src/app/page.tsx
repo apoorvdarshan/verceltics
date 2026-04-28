@@ -518,8 +518,10 @@ export default function Home() {
               <Link href="/privacy" className="transition-colors hover:text-white/70">Privacy</Link>
               <Link href="/terms" className="transition-colors hover:text-white/70">Terms</Link>
               <a href={GITHUB} target="_blank" rel="noreferrer" className="transition-colors hover:text-white/70">GitHub</a>
+              <a href="https://github.com/apoorvdarshan/verceltics/issues" target="_blank" rel="noreferrer" className="transition-colors hover:text-white/70">Report issue</a>
               <a href="https://x.com/apoorvdarshan" target="_blank" rel="noreferrer" className="transition-colors hover:text-white/70">X</a>
               <a href="mailto:ad13dtu@gmail.com" className="transition-colors hover:text-white/70">Contact</a>
+              <a href="https://paypal.me/apoorvdarshan" target="_blank" rel="noreferrer" className="transition-colors hover:text-white/70">Support · PayPal</a>
             </div>
           </div>
 
