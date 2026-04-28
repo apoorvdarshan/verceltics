@@ -120,24 +120,18 @@ https://verceltics.com
 
 ## Reviewer Notes
 ```
-1) Verceltics is a third-party client for Vercel Web Analytics. It is not affiliated with Vercel Inc. — disclaimer is shown in the app's About tab and on the website.
+This app uses a Vercel personal access token for authentication (not username/password).
 
-2) The app requires a Vercel personal access token to fetch any data. To test:
-   • Visit https://vercel.com/account/tokens
-   • Create a token with full account scope (the same scope a developer would use for the Vercel CLI)
-   • Paste the token on the Sign In screen
+To test:
+1. Go to https://vercel.com/account/tokens
+2. Create a token with any name and your account scope
+3. Paste the token in the app's login screen
 
-3) Tokens are stored in iOS Keychain. Outbound destinations:
-   • api.vercel.com and vercel.com/api — authenticated with the user's token
-   • images.weserv.nl, icons.duckduckgo.com, www.google.com/s2/favicons, icon.horse — favicon CDNs that never receive the token, only public hostnames
+If you don't have a Vercel account, create a free one at vercel.com and deploy any project to see analytics data.
 
-4) Soft paywall: the project list is fully accessible without a subscription. The paywall sheet only appears when a user taps into a project's analytics. Three products:
-   • com.apoorvdarshan.verceltics.monthly — $4.99/mo, no trial
-   • com.apoorvdarshan.verceltics.yearly — $34.99/yr, 7-day intro offer (P1W in StoreKit config; production duration is set in App Store Connect)
-   • com.apoorvdarshan.verceltics.lifetime — $59.99 non-consumable
-   Restore Purchases is available in the paywall and in About → Account → Manage Subscription.
+Note: Some analytics features (UTM parameters, custom events, flags) require a Vercel Pro or Enterprise plan. These sections will show a lock icon or "Requires Pro" message on Hobby (free) accounts. This is expected behavior.
 
-5) Universal app — supports iPhone and iPad with an adaptive grid + sidebar tab style on regular size class.
+The app offers Monthly ($4.99), Yearly ($34.99 with a 7-day free trial), and Lifetime ($59.99 one-time) purchase options. Subscriptions can be tested via StoreKit sandbox.
 
-6) The app is open source under MIT (github.com/apoorvdarshan/verceltics). The App Store build is identical to what's in the repo at the matching tag.
+This app is universal — designed for both iPhone and iPad, with an adaptive grid and sidebar tab style on regular size class.
 ```
