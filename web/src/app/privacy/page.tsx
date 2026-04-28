@@ -13,7 +13,7 @@ export default function Privacy() {
     <div className="mx-auto max-w-2xl px-6 py-28 sm:px-8">
       <Link href="/" className="text-[13px] text-white/30 transition-colors hover:text-white/60">&larr; Back to Verceltics</Link>
       <h1 className="mt-10 font-serif text-4xl italic tracking-[-0.03em]">Privacy Policy</h1>
-      <p className="mt-2 text-[13px] text-white/25">Last updated: April 3, 2026</p>
+      <p className="mt-2 text-[13px] text-white/25">Last updated: April 28, 2026 — applies to v1.1</p>
 
       <div className="mt-12 space-y-10 text-[15px] leading-7 text-white/40">
         <section>
@@ -26,15 +26,15 @@ export default function Privacy() {
           <p className="mt-3"><strong className="text-white/60">We do not collect any personal data.</strong> Specifically:</p>
           <ul className="mt-3 list-disc space-y-1 pl-5">
             <li>We do not track you</li>
-            <li>We do not use analytics or telemetry</li>
-            <li>We do not store your data on our servers</li>
+            <li>We do not use analytics or telemetry inside the app</li>
+            <li>We do not store your data on our servers — there are no servers</li>
             <li>We do not share any data with third parties</li>
           </ul>
         </section>
 
         <section>
           <h2 className="text-lg font-semibold text-white/80">Vercel API Token</h2>
-          <p className="mt-3">Your Vercel personal access token is stored locally on your device in the iOS Keychain — Apple&apos;s encrypted, hardware-backed secure storage. The token is never sent to our servers. It is only used to authenticate directly with Vercel&apos;s API from your device.</p>
+          <p className="mt-3">Your Vercel personal access token is stored locally on your device in the iOS Keychain — Apple&apos;s encrypted, hardware-backed secure storage. The token is sent only to <code className="text-white/60">api.vercel.com</code> and <code className="text-white/60">vercel.com/api</code> to fetch your projects and analytics. It never crosses our infrastructure.</p>
         </section>
 
         <section>
@@ -43,8 +43,13 @@ export default function Privacy() {
         </section>
 
         <section>
+          <h2 className="text-lg font-semibold text-white/80">Favicon Services</h2>
+          <p className="mt-3">To display project favicons in the project list, the app may issue plain GET requests for favicon URLs to <code className="text-white/60">images.weserv.nl</code> (SVG rasterisation), <code className="text-white/60">icons.duckduckgo.com</code>, <code className="text-white/60">www.google.com/s2/favicons</code>, and <code className="text-white/60">icon.horse</code>. These requests carry only the favicon URL — they never include your Vercel token or any account data.</p>
+        </section>
+
+        <section>
           <h2 className="text-lg font-semibold text-white/80">Subscriptions</h2>
-          <p className="mt-3">Subscriptions are managed entirely by Apple through the App Store. We do not process or store any payment information.</p>
+          <p className="mt-3">Subscriptions and the lifetime in-app purchase are managed entirely by Apple through the App Store. We do not process or store any payment information. We can&apos;t see your card.</p>
         </section>
 
         <section>

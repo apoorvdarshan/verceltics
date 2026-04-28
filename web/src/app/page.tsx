@@ -8,28 +8,12 @@ export const metadata: Metadata = {
   alternates: { canonical: "https://verceltics.com" },
 };
 
-const heroShots = [
-  {
-    src: "/projects.png",
-    alt: "Verceltics project browser",
-    className: "absolute left-0 top-6 z-10 w-[38%] -rotate-6 opacity-70",
-    delay: "0.55s",
-  },
-  {
-    src: "/analytics.png",
-    alt: "Verceltics analytics dashboard",
-    className: "relative z-30 mx-auto w-[48%]",
-    delay: "0.3s",
-  },
-  {
-    src: "/referrers.png",
-    alt: "Verceltics referrers",
-    className: "absolute right-0 top-6 z-10 w-[38%] rotate-6 opacity-70",
-    delay: "0.8s",
-  },
-] as const;
+const APPSTORE = "https://apps.apple.com/us/app/verceltics/id6761645656";
+const GITHUB = "https://github.com/apoorvdarshan/verceltics";
+const PRODUCTHUNT = "https://www.producthunt.com/products/verceltics";
 
 const ticker = [
+  "v1.1.0 — universal binary",
   "SwiftUI",
   "Swift Charts",
   "Private by design",
@@ -37,57 +21,80 @@ const ticker = [
   "iOS Keychain",
   "No tracking",
   "No servers",
-  "Offline-ready",
+  "iPad ready",
 ] as const;
 
 const features = [
   {
     label: "Dashboard",
     title: "Your numbers, one glance.",
-    body: "Visitors, views, bounce rate, and trends in a native layout that stays legible on the smallest screen.",
-    bullets: ["Period comparisons", "Swift Charts", "Mobile-first design"],
+    body: "Visitors, page views, bounce rate, and trends in a native layout that stays legible on the smallest screen. Drag the chart to inspect any day — peak indicator and dashed average line travel with the data.",
+    bullets: ["Period comparisons", "Swift Charts native", "Drag-to-inspect with haptics"],
     image: "/analytics.png",
-    alt: "Dashboard",
+    alt: "Verceltics analytics dashboard with chart",
   },
   {
     label: "Breakdowns",
     title: "Where the traffic moved.",
-    body: "Referrers, countries, UTMs, devices, browsers — sliced and surfaced without the tab maze.",
-    bullets: ["Referrer ranking", "Country and device mix", "Launch day ready"],
+    body: "Pages, routes, hostnames, referrers, UTM, countries, devices, browsers, OS, events, flags, query params — twelve dimensions, all ranked by visitors with blue gradient bars.",
+    bullets: ["Twelve breakdowns surfaced", "Country flag emoji", "Ranked by visitors"],
     image: "/referrers.png",
-    alt: "Breakdowns",
+    alt: "Pages, routes, hostnames, and referrers ranked",
   },
   {
     label: "Projects",
     title: "Every project, one tap.",
-    body: "Switch between sites instantly. Favicons, domains, and deployment context travel with you.",
-    bullets: ["Fast switching with search", "Favicon detection", "Multi-site support"],
+    body: "All your Vercel projects with favicons, framework, last commit, and a pulsing green dot when something deployed in the last thirty minutes. Switch instantly. Search by name, domain, or framework.",
+    bullets: ["Live deploy indicator", "Framework-tinted dots — Astro orange, Vite purple", "Search & filter"],
     image: "/projects.png",
-    alt: "Projects",
+    alt: "Verceltics project list with favicons and live deploy dots",
   },
   {
-    label: "Devices",
-    title: "Know your audience.",
-    body: "See which devices, browsers, and operating systems your visitors use — at a glance.",
-    bullets: ["Device type split", "Browser and OS stats", "Spot mobile vs desktop trends"],
+    label: "Audience",
+    title: "Who's visiting, from where.",
+    body: "Country, device, browser, OS — every audience axis from the same data Vercel renders on the web. Read it all without rotating your phone.",
+    bullets: ["Country with flag emoji", "Device & browser splits", "OS distribution"],
     image: "/devices.png",
-    alt: "Devices",
+    alt: "Country, device, and browser breakdowns",
   },
   {
-    label: "Countries",
-    title: "Traffic by region.",
-    body: "Country-level breakdowns show exactly where your visitors are coming from.",
-    bullets: ["Top countries ranked", "Geographic distribution", "Spot new markets fast"],
+    label: "Depth",
+    title: "Down to the query parameter.",
+    body: "Operating systems. Custom events. Feature flags. UTM source. Query strings. Everything Vercel tracks in the web dashboard, surfaced in the same legible cards on iPhone.",
+    bullets: ["Events & flags", "UTM source ranking", "Query params"],
     image: "/breakdowns.png",
-    alt: "Country breakdowns",
+    alt: "OS, events, flags, and query parameter breakdowns",
   },
 ] as const;
 
-const pricingFeatures = [
-  "3-day free trial",
-  "Unlimited projects",
-  "Native charts",
-  "Open source",
+const tiers = [
+  {
+    name: "Monthly",
+    price: "$4.99",
+    cadence: "/mo",
+    pitch: "Cancel anytime. Full access.",
+    badge: null as string | null,
+    featured: false,
+    features: ["Unlimited projects", "All twelve breakdowns", "Native Swift Charts", "Open source"],
+  },
+  {
+    name: "Yearly",
+    price: "$34.99",
+    cadence: "/yr",
+    pitch: "$2.92 / month equivalent.",
+    badge: "Best value",
+    featured: true,
+    features: ["7-day free trial", "Unlimited projects", "All twelve breakdowns", "Save 42% vs monthly"],
+  },
+  {
+    name: "Lifetime",
+    price: "$59.99",
+    cadence: "once",
+    pitch: "Pay once. No recurring charges. Ever.",
+    badge: "Forever",
+    featured: false,
+    features: ["Unlimited projects", "All twelve breakdowns", "No subscription", "Yours forever"],
+  },
 ] as const;
 
 const jsonLd = {
@@ -97,7 +104,7 @@ const jsonLd = {
   operatingSystem: "iOS",
   applicationCategory: "DeveloperApplication",
   description:
-    "Vercel web analytics viewer for iPhone. Track visitors, page views, bounce rate, referrers, countries, devices, browsers, and operating systems. Built with SwiftUI and Swift Charts. Open source, private by default, no tracking, no servers.",
+    "Vercel web analytics viewer for iPhone and iPad. Track visitors, page views, bounce rate, referrers, countries, devices, browsers, and operating systems. Built with SwiftUI and Swift Charts. Open source, private by default, no tracking, no servers.",
   url: "https://verceltics.com",
   image: "https://verceltics.com/og.jpg",
   screenshot: [
@@ -113,18 +120,9 @@ const jsonLd = {
     url: "https://x.com/apoorvdarshan",
   },
   offers: [
-    {
-      "@type": "Offer",
-      price: "3.99",
-      priceCurrency: "USD",
-      description: "Monthly subscription with 3-day free trial",
-    },
-    {
-      "@type": "Offer",
-      price: "29.99",
-      priceCurrency: "USD",
-      description: "Yearly subscription with 3-day free trial",
-    },
+    { "@type": "Offer", price: "4.99", priceCurrency: "USD", description: "Monthly subscription" },
+    { "@type": "Offer", price: "34.99", priceCurrency: "USD", description: "Yearly subscription with 7-day free trial" },
+    { "@type": "Offer", price: "59.99", priceCurrency: "USD", description: "Lifetime, one-time purchase" },
   ],
   aggregateRating: {
     "@type": "AggregateRating",
@@ -145,19 +143,21 @@ export default function Home() {
       <div className="sr-only" aria-hidden="true">
         <h2>Verceltics — Vercel Analytics iOS App</h2>
         <p>
-          Verceltics is a native iOS app for viewing Vercel web analytics on your iPhone.
+          Verceltics is a native iOS and iPadOS app for viewing Vercel web analytics on your iPhone or iPad.
           Monitor your Vercel dashboard, check website traffic, track visitors, page views,
           unique visitors, bounce rate, session duration, referral sources, UTM campaigns,
           country traffic, device types, browser stats, operating system breakdown, top pages,
-          route analytics, hostname analytics, event tracking, and query parameters.
-          Built with SwiftUI, Swift Charts, async/await, and StoreKit 2.
+          route analytics, hostname analytics, event tracking, feature flags, and query parameters.
+          Built with SwiftUI, Swift Charts, async/await, and StoreKit 2. Live deploy indicator,
+          framework-tinted dots, soft paywall flow.
           Token stored in iOS Keychain. No data collection. No telemetry. No servers.
           Open source on GitHub. Works with Vercel Hobby and Pro plans.
           Alternative to Vercel dashboard for mobile. Best Vercel analytics app for iPhone.
           Vercel mobile app. Vercel stats on phone. Web analytics iOS. Developer tools iOS.
           Indie developer tools. Vercel project monitoring. Website traffic monitor iPhone.
-          Real-time analytics mobile. Privacy-first analytics viewer. Subscription: $3.99/month
-          or $29.99/year with 3-day free trial. Compatible with iOS 18 and later.
+          Real-time analytics mobile. Privacy-first analytics viewer.
+          Subscription: $4.99/month, $34.99/year with 7-day free trial, or $59.99 lifetime
+          one-time purchase. Compatible with iOS 18 and later.
         </p>
       </div>
 
@@ -179,7 +179,7 @@ export default function Home() {
               { text: "Features", href: "#features" },
               { text: "How it works", href: "#how-it-works" },
               { text: "Pricing", href: "#pricing" },
-              { text: "GitHub", href: "https://github.com/apoorvdarshan/verceltics", ext: true },
+              { text: "GitHub", href: GITHUB, ext: true },
             ].map((l) => (
               <a
                 key={l.text}
@@ -194,7 +194,7 @@ export default function Home() {
           </div>
 
           <a
-            href="https://apps.apple.com/us/app/verceltics/id6761645656"
+            href={APPSTORE}
             target="_blank"
             rel="noreferrer"
             className="rounded-full bg-white px-4 py-1.5 text-[13px] font-semibold text-[#050a12] transition-colors hover:bg-white/85"
@@ -207,14 +207,14 @@ export default function Home() {
       <main>
         {/* ══ HERO ══ */}
         <section className="relative flex min-h-svh items-center overflow-hidden">
-          <div className="mx-auto grid w-full max-w-6xl items-center gap-8 px-5 pb-6 pt-20 sm:gap-12 sm:px-8 sm:pt-24 lg:grid-cols-[1fr_0.9fr] lg:gap-12 lg:pb-0 lg:pt-16">
+          <div className="mx-auto grid w-full max-w-6xl items-center gap-8 px-5 pb-6 pt-20 sm:gap-12 sm:px-8 sm:pt-24 lg:grid-cols-[1fr_0.95fr] lg:gap-12 lg:pb-0 lg:pt-16">
             {/* Copy */}
             <div className="max-w-xl text-center lg:text-left">
               <p
                 className="animate-fade-up text-[11px] font-medium uppercase tracking-[0.35em] text-white/30"
                 style={{ animationDelay: "0.05s" }}
               >
-                Open source &middot; iOS
+                Open source &middot; iOS 18+ &middot; v1.1
               </p>
 
               <h1
@@ -232,7 +232,8 @@ export default function Home() {
                 className="animate-fade-up mt-7 max-w-md text-[15px] leading-7 text-white/45 lg:text-base"
                 style={{ animationDelay: "0.28s" }}
               >
-                Visitors, referrers, devices, and page views — from your iPhone. Private by design. Fully open source.
+                Visitors, referrers, devices, page views, twelve breakdowns —
+                from your iPhone or iPad. Token in your Keychain. Nothing in between.
               </p>
 
               <div
@@ -240,7 +241,7 @@ export default function Home() {
                 style={{ animationDelay: "0.4s" }}
               >
                 <a
-                  href="https://apps.apple.com/us/app/verceltics/id6761645656"
+                  href={APPSTORE}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-6 py-3 text-[14px] font-semibold text-[#050a12] transition-colors hover:bg-white/85 sm:text-[15px]"
@@ -249,7 +250,7 @@ export default function Home() {
                   Download on App Store
                 </a>
                 <a
-                  href="https://www.producthunt.com/products/verceltics"
+                  href={PRODUCTHUNT}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center justify-center gap-2.5 rounded-full border border-[#FF6154]/20 bg-[#FF6154]/[0.06] px-5 py-2.5 transition-colors hover:bg-[#FF6154]/[0.12]"
@@ -273,33 +274,17 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Phones */}
-            <div className="animate-fade-up w-full" style={{ animationDelay: "0.35s" }}>
-              {/* Mobile */}
-              <div className="lg:hidden">
-                <div className="relative mx-auto flex max-w-[360px] items-center justify-center">
-                  {heroShots.map((s) => (
-                    <div key={s.src} className={`animate-fade-up ${s.className.replace('z-30', 'z-30').replace('w-[48%]', 'w-[50%]').replace('w-[38%]', 'w-[40%]')}`} style={{ animationDelay: s.delay }}>
-                      <div className="overflow-hidden rounded-xl border border-white/[0.06] shadow-[0_12px_40px_rgba(0,0,0,0.5)]">
-                        <Image src={s.src} alt={s.alt} width={200} height={433} className="h-auto w-full" priority={s.src === "/analytics.png"} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Desktop */}
-              <div className="relative mx-auto hidden w-full max-w-[560px] lg:block xl:max-w-[600px]">
-                <div className="relative flex h-[min(55vh,480px)] items-center justify-center">
-                  {heroShots.map((s) => (
-                    <div key={s.src} className={`animate-fade-up ${s.className}`} style={{ animationDelay: s.delay }}>
-                      <div className="overflow-hidden rounded-2xl border border-white/[0.06] shadow-[0_20px_70px_rgba(0,0,0,0.6)]">
-                        <Image src={s.src} alt={s.alt} width={300} height={650} className="h-auto w-full" priority={s.src === "/analytics.png"} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+            {/* Hero phones — single transparent product shot */}
+            <div className="animate-fade-up relative w-full" style={{ animationDelay: "0.35s" }}>
+              <div className="absolute inset-x-[10%] top-[12%] h-[60%] rounded-[40%] bg-[radial-gradient(ellipse,rgba(80,140,255,0.18),transparent_70%)] blur-2xl" aria-hidden />
+              <Image
+                src="/hero-phones.png"
+                alt="Verceltics on three iPhones — projects list, welcome chart, analytics dashboard"
+                width={1920}
+                height={1440}
+                priority
+                className="relative h-auto w-full drop-shadow-[0_40px_70px_rgba(0,0,0,0.55)]"
+              />
             </div>
           </div>
         </section>
@@ -379,7 +364,7 @@ export default function Home() {
               {[
                 { n: "01", t: "Create a token", d: "Generate a read-only token in your Vercel dashboard." },
                 { n: "02", t: "Paste it in", d: "Enter it once. Stored in the iOS Keychain." },
-                { n: "03", t: "Check anytime", d: "Open the app. See your stats. That\u2019s the whole flow." },
+                { n: "03", t: "Check anytime", d: "Open the app. See your stats. That’s the whole flow." },
               ].map((s, i) => (
                 <ScrollReveal key={s.n} delay={i * 80}>
                   <div className="h-full bg-white/[0.02] p-8 transition-colors hover:bg-white/[0.04]">
@@ -402,61 +387,87 @@ export default function Home() {
               <div className="text-center">
                 <p className="text-[11px] font-medium uppercase tracking-[0.35em] text-white/30">Pricing</p>
                 <h2 className="mt-4 font-serif text-[clamp(2rem,4.5vw,3.8rem)] italic leading-[0.95] tracking-[-0.03em]">
-                  Simple pricing.
+                  Three plans. No tricks.
                 </h2>
-                <p className="mt-4 text-[14px] text-white/35">Both plans include a 3-day free trial.</p>
+                <p className="mt-4 max-w-md mx-auto text-[14px] leading-6 text-white/35">
+                  Yearly comes with a real 7-day free trial. Lifetime is one payment, no recurring charges ever. Or build from source for free with your own token.
+                </p>
               </div>
             </ScrollReveal>
 
-            <div className="mx-auto mt-12 grid max-w-3xl gap-px overflow-hidden rounded-2xl border border-white/[0.04] lg:grid-cols-2">
-              {/* Monthly */}
-              <ScrollReveal>
-                <div className="h-full bg-white/[0.02] p-7 sm:p-8">
-                  <p className="text-[11px] font-medium uppercase tracking-[0.3em] text-white/30">Monthly</p>
-                  <div className="mt-5 flex items-baseline gap-1">
-                    <span className="text-4xl font-semibold tracking-tight sm:text-5xl">$3.99</span>
-                    <span className="text-sm text-white/30">/mo</span>
-                  </div>
-                  <p className="mt-4 text-[14px] leading-6 text-white/35">Full access. Cancel anytime.</p>
-                  <ul className="mt-7 space-y-2.5">
-                    {pricingFeatures.map((f) => (
-                      <li key={f} className="flex items-center gap-2.5 text-[13px] text-white/40">
-                        <Tick />
-                        {f}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </ScrollReveal>
+            <div className="mx-auto mt-12 grid max-w-5xl gap-px overflow-hidden rounded-2xl border border-white/[0.04] lg:grid-cols-3">
+              {tiers.map((t, i) => (
+                <ScrollReveal key={t.name} delay={i * 70}>
+                  <div
+                    className={`relative h-full p-7 sm:p-8 ${
+                      t.featured
+                        ? "bg-gradient-to-b from-sky-500/[0.08] via-sky-500/[0.02] to-white/[0.02]"
+                        : "bg-white/[0.02]"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <p
+                        className={`text-[11px] font-medium uppercase tracking-[0.3em] ${
+                          t.featured ? "text-sky-300/70" : "text-white/30"
+                        }`}
+                      >
+                        {t.name}
+                      </p>
+                      {t.badge && (
+                        <span
+                          className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] ${
+                            t.featured
+                              ? "bg-sky-400/[0.10] text-sky-300/80"
+                              : "border border-white/10 text-white/45"
+                          }`}
+                        >
+                          {t.badge}
+                        </span>
+                      )}
+                    </div>
 
-              {/* Yearly */}
-              <ScrollReveal delay={80}>
-                <div className="relative h-full bg-gradient-to-b from-sky-500/[0.06] to-white/[0.02] p-7 sm:p-8">
-                  <div className="flex items-center justify-between">
-                    <p className="text-[11px] font-medium uppercase tracking-[0.3em] text-sky-300/50">Yearly</p>
-                    <span className="rounded-full bg-sky-400/[0.08] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-sky-300/70">
-                      Best value
-                    </span>
+                    <div className="mt-5 flex items-baseline gap-1">
+                      <span className="text-4xl font-semibold tracking-tight sm:text-5xl">{t.price}</span>
+                      <span className="text-sm text-white/30">{t.cadence}</span>
+                    </div>
+
+                    <p className="mt-4 text-[14px] leading-6 text-white/35">{t.pitch}</p>
+
+                    <ul className="mt-7 space-y-2.5">
+                      {t.features.map((f) => (
+                        <li
+                          key={f}
+                          className={`flex items-center gap-2.5 text-[13px] ${
+                            t.featured ? "text-white/55" : "text-white/45"
+                          }`}
+                        >
+                          <Tick className={t.featured ? "text-sky-400/55" : "text-white/25"} />
+                          {f}
+                        </li>
+                      ))}
+                    </ul>
+
+                    <a
+                      href={APPSTORE}
+                      target="_blank"
+                      rel="noreferrer"
+                      className={`mt-8 inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-2.5 text-[13px] font-semibold transition-colors ${
+                        t.featured
+                          ? "bg-white text-[#050a12] hover:bg-white/90"
+                          : "border border-white/10 text-white hover:border-white/30 hover:bg-white/[0.03]"
+                      }`}
+                    >
+                      <AppleIcon />
+                      {t.featured ? "Start free trial" : t.name === "Lifetime" ? "Buy lifetime" : "Start monthly"}
+                    </a>
                   </div>
-                  <div className="mt-5 flex items-baseline gap-1">
-                    <span className="text-4xl font-semibold tracking-tight sm:text-5xl">$29.99</span>
-                    <span className="text-sm text-white/30">/yr</span>
-                  </div>
-                  <div className="mt-2 inline-flex rounded-full bg-emerald-500/[0.08] px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.15em] text-emerald-400/70">
-                    Save 37%
-                  </div>
-                  <p className="mt-4 text-[14px] leading-6 text-white/35">Best for regular use.</p>
-                  <ul className="mt-7 space-y-2.5">
-                    {pricingFeatures.map((f) => (
-                      <li key={f} className="flex items-center gap-2.5 text-[13px] text-white/45">
-                        <Tick className="text-sky-400/50" />
-                        {f}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </ScrollReveal>
+                </ScrollReveal>
+              ))}
             </div>
+
+            <p className="mt-6 text-center text-[11px] uppercase tracking-[0.18em] text-white/20">
+              All payments via Apple. Subscriptions auto-renew until cancelled in Settings.
+            </p>
           </div>
         </section>
 
@@ -467,11 +478,11 @@ export default function Home() {
           <ScrollReveal>
             <div className="mx-auto max-w-2xl text-center">
               <h2 className="font-serif text-[clamp(2.4rem,5vw,4.2rem)] italic leading-[0.92] tracking-[-0.03em]">
-                Try it free for three days.
+                Try it free for seven days.
               </h2>
               <p className="mt-5 text-[15px] text-white/35">Your Vercel analytics, always in your pocket.</p>
               <a
-                href="https://apps.apple.com/us/app/verceltics/id6761645656"
+                href={APPSTORE}
                 target="_blank"
                 rel="noreferrer"
                 className="mt-9 inline-flex items-center gap-2 rounded-full bg-white px-7 py-3.5 text-[15px] font-semibold text-[#050a12] transition-colors hover:bg-white/85"
@@ -506,14 +517,14 @@ export default function Home() {
               <a href="#pricing" className="transition-colors hover:text-white/70">Pricing</a>
               <Link href="/privacy" className="transition-colors hover:text-white/70">Privacy</Link>
               <Link href="/terms" className="transition-colors hover:text-white/70">Terms</Link>
-              <a href="https://github.com/apoorvdarshan/verceltics" target="_blank" rel="noreferrer" className="transition-colors hover:text-white/70">GitHub</a>
+              <a href={GITHUB} target="_blank" rel="noreferrer" className="transition-colors hover:text-white/70">GitHub</a>
               <a href="https://x.com/apoorvdarshan" target="_blank" rel="noreferrer" className="transition-colors hover:text-white/70">X</a>
               <a href="mailto:ad13dtu@gmail.com" className="transition-colors hover:text-white/70">Contact</a>
             </div>
           </div>
 
           <p className="mt-8 text-center text-[11px] text-white/15 md:text-left">
-            Not affiliated with Vercel Inc. &copy; 2026 Apoorv Darshan.
+            Built with <span className="text-white/30">♥</span> by Apoorv Darshan. Not affiliated with Vercel Inc. &copy; 2026.
           </p>
         </div>
       </footer>
