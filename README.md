@@ -20,12 +20,12 @@
 | Projects | Analytics |
 |:---:|:---:|
 | ![Projects](docs/screenshots/projects.png) | ![Analytics](docs/screenshots/analytics.png) |
-| All your Vercel projects with favicons, git repo, and last commit | Visitors, page views, bounce rate with interactive chart |
+| All your Vercel projects — favicons, framework dot, last commit, live deploy indicator | Visitors, page views, bounce rate, and the interactive chart with peak + average markers |
 
-| Pages & Routes | Referrers & Countries | Devices & Browsers |
+| Pages & Routes | Countries & Devices | Deep Breakdowns |
 |:---:|:---:|:---:|
-| ![Breakdowns](docs/screenshots/breakdowns.png) | ![Referrers](docs/screenshots/referrers.png) | ![Devices](docs/screenshots/devices.png) |
-| Pages, routes, and hostnames with visitor counts | Referrers, UTM parameters, and countries with flags | Device types, browsers, and operating systems |
+| ![Pages and Routes](docs/screenshots/breakdowns.png) | ![Countries and Devices](docs/screenshots/referrers.png) | ![Devices and OS](docs/screenshots/devices.png) |
+| Pages, routes, hostnames, and referrers — ranked by visitors | Countries with flags, devices, and browsers | Operating systems, events, flags, and query parameters |
 
 ## Features
 
