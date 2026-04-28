@@ -39,9 +39,9 @@ NEW
 • Native rate prompt — fires once per install, 3 seconds after your first project loads, for both free and paid users. No App Store round-trip.
 • Redesigned analytics chart — peak indicator pill, dashed average reference line, gradient line stroke, 3-stop area gradient, drag-to-inspect with date capsule + haptic feedback.
 • Stat cards — heavy rounded numerals, change badges with stroked outlines, staggered entrance across visitors / page views / bounce rate.
-• Framework-tinted live deploy dots — Astro orange, Vite purple, Remix cyan, Angular red, Eleventy yellow, Next/Nuxt/SvelteKit/Gatsby and friends each get their own accent. Pulses green when a deployment is < 30 minutes old.
+• Framework-tinted live deploy dots — Astro orange, Vite purple, Remix cyan, Angular red, Eleventy yellow, Next/Nuxt/SvelteKit/Gatsby and friends each get their own accent. Pulses green when a deployment is under 30 minutes old.
 • Robust favicons — multi-source race across apple-touch-icon, favicon paths, HTML scrape, and SVG → PNG rasterisation via images.weserv.nl. Falls back through DuckDuckGo, Google s2, and icon.horse.
-• Long *.vercel.app URLs collapse — projects whose bulk listing only returned the long alias now enrich via /v9/projects/{id}/domains and display the short canonical hostname.
+• Long *.vercel.app URLs collapse — projects whose bulk listing only returned the long alias now enrich via the per-project domains endpoint and display the short canonical hostname.
 • Share Verceltics — system share sheet with a plain message including App Store + website links.
 • About page — restructured into Support, Links, Help, Account, Legal sections matching the Projects card chrome. Every row is fully tappable end-to-end.
 
@@ -53,8 +53,8 @@ Polish
 
 Bug fixes
 • User-prefixed Vercel account IDs (user_…) no longer get rejected by the API.
-• www.<sub>.vercel.app probes removed — Vercel's TLS cert is single-level wildcard, so those requests were stalling on first paint.
-• Scoped animations replaced every withAnimation { } block inside onAppear, fixing transaction leaks.
+• www subdomain probes on *.vercel.app removed — Vercel's TLS cert is single-level wildcard, so those requests were stalling on first paint.
+• Scoped animations replaced every withAnimation block inside onAppear, fixing transaction leaks.
 ```
 
 ## Description
