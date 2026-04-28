@@ -4,12 +4,12 @@ App Store Connect submission details for Verceltics v1.1. Each field is in a cod
 
 ## App Name
 ```
-Verceltics - Vercel Analytics
+Verceltics
 ```
 
 ## Subtitle (30 chars max)
 ```
-Web Analytics in your pocket
+Vercel Web Analytics on Mobile
 ```
 
 ## Promotional Text (170 chars max)
