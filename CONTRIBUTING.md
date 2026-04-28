@@ -72,8 +72,8 @@ The card chrome is layered, not flat. New cards should match what's already in `
 - Major architecture changes without discussion
 - Features that don't align with the app's purpose
 - Light mode (this is a dark mode app)
-- Launch-time paywalls
-- Weekly subscription tiers (deliberate choice — see PR discussion)
+- Launch-time paywalls — the soft paywall flow is deliberate
+- Weekly subscription tiers — at sub-$5 monthly the abuse cost is too low to deter, and the dev community treats weekly subs in tooling apps as a red flag. Trial is yearly-only on purpose.
 
 ## Reporting Issues
 

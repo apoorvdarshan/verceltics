@@ -10,9 +10,11 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/apoorvdarshan/verceltics/releases/latest"><img src="https://img.shields.io/github/v/release/apoorvdarshan/verceltics?label=release&color=d6ff5c" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" /></a>
   <a href="https://swift.org"><img src="https://img.shields.io/badge/Swift-6-orange.svg" /></a>
   <a href="https://developer.apple.com/ios/"><img src="https://img.shields.io/badge/Platform-iOS%2018%2B-black.svg" /></a>
+  <a href="https://github.com/apoorvdarshan/verceltics/stargazers"><img src="https://img.shields.io/github/stars/apoorvdarshan/verceltics?style=flat&color=yellow" /></a>
 </p>
 
 ## Screenshots
@@ -109,9 +111,11 @@ The app uses a [Vercel personal access token](https://vercel.com/account/tokens)
 
 To test the paywall in Xcode:
 
-1. Edit Scheme → Run → Options → StoreKit Configuration → select `Products.storekit`
+1. Edit Scheme → Run → Options → StoreKit Configuration → select `ios/verceltics/Paywall/Products.storekit`
 2. Build and run
 3. Use Debug → StoreKit → Manage Transactions to reset purchases
+
+The local config has all three products: monthly, yearly (with 7-day intro offer), and lifetime non-consumable. Production prices and trial duration are set independently in App Store Connect.
 
 ## API
 
@@ -169,3 +173,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 - **Email**: ad13dtu@gmail.com
 - **X**: [@apoorvdarshan](https://x.com/apoorvdarshan)
 - **Issues**: [github.com/apoorvdarshan/verceltics/issues](https://github.com/apoorvdarshan/verceltics/issues)
+- **Security**: see [SECURITY.md](SECURITY.md) for private vulnerability reporting
+
+---
+
+<p align="center">Built with ❤︎ by <a href="https://x.com/apoorvdarshan">Apoorv Darshan</a></p>
