@@ -25,7 +25,7 @@ vercel,analytics,web traffic,visitors,referrers,bounce rate,developer,deploy,web
 ## Category
 ```
 Primary: Developer Tools
-Secondary: Productivity
+Secondary: Utilities
 ```
 
 ## What's New (v1.1)
