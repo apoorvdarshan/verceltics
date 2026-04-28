@@ -1,12 +1,18 @@
 import type { Metadata } from "next";
-import { DM_Sans, Instrument_Serif } from "next/font/google";
+import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
-const dmSans = DM_Sans({
-  variable: "--font-dm-sans",
+const geist = Geist({
+  variable: "--font-geist",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700", "800"],
+  weight: ["300", "400", "500", "600", "700"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
 });
 
 const instrumentSerif = Instrument_Serif({
@@ -23,10 +29,10 @@ export const metadata: Metadata = {
     template: "%s — Verceltics",
   },
   description:
-    "Track your Vercel web analytics on the go. Visitors, page views, bounce rate, referrers, countries, devices — all from your iPhone. Open source and private by default.",
+    "Vercel web analytics from your iPhone. Visitors, page views, bounce rate, referrers, countries, devices — every breakdown Vercel tracks. Open source, native, private.",
   keywords: [
     "Vercel",
-    "analytics",
+    "Vercel analytics",
     "iOS",
     "iPhone",
     "web analytics",
@@ -37,6 +43,7 @@ export const metadata: Metadata = {
     "page views",
     "referrers",
     "bounce rate",
+    "developer tools",
   ],
   authors: [{ name: "Apoorv Darshan", url: "https://x.com/apoorvdarshan" }],
   creator: "Apoorv Darshan",
@@ -47,7 +54,7 @@ export const metadata: Metadata = {
     siteName: "Verceltics",
     title: "Verceltics — Vercel Analytics on Your iPhone",
     description:
-      "Track visitors, page views, referrers, countries, and devices from your iPhone. Open source. Private by default.",
+      "Visitors, page views, referrers, countries, devices — every breakdown Vercel tracks, on the iPhone you already carry.",
     url: "https://verceltics.com",
     images: [
       {
@@ -63,7 +70,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Verceltics — Vercel Analytics on Your iPhone",
     description:
-      "Track visitors, page views, referrers, and devices from your iPhone. Open source.",
+      "Visitors, page views, referrers, devices — every breakdown Vercel tracks, on iPhone. Open source.",
     creator: "@apoorvdarshan",
     images: [
       {
@@ -96,8 +103,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${dmSans.variable} ${instrumentSerif.variable} antialiased`}>
-      <body className="min-h-screen bg-black font-[family-name:var(--font-dm-sans)] text-white">
+    <html
+      lang="en"
+      className={`${geist.variable} ${geistMono.variable} ${instrumentSerif.variable} antialiased`}
+    >
+      <body className="min-h-screen bg-black text-[#f0e9d6]" style={{ fontFamily: "var(--font-geist)" }}>
         {children}
         <Analytics />
       </body>
