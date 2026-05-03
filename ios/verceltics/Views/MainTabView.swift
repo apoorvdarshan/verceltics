@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct MainTabView: View {
+    @Environment(AppUpdateChecker.self) private var appUpdateChecker
+
     var body: some View {
         TabView {
             Tab("Projects", systemImage: "triangle.fill") {
@@ -14,8 +16,12 @@ struct MainTabView: View {
             Tab("About", systemImage: "info.circle") {
                 AboutView()
             }
+            .badge(appUpdateChecker.isUpdateAvailable ? Text("") : nil)
         }
         .tabViewStyle(.sidebarAdaptable)
         .tint(.white)
+        .task {
+            await appUpdateChecker.checkForUpdates()
+        }
     }
 }

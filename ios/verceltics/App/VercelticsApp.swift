@@ -4,6 +4,7 @@ import SwiftUI
 struct VercelticsApp: App {
     @State private var authManager = AuthManager()
     @State private var paywallManager = PaywallManager()
+    @State private var appUpdateChecker = AppUpdateChecker()
 
     var body: some Scene {
         WindowGroup {
@@ -22,6 +23,7 @@ struct VercelticsApp: App {
             }
             .environment(authManager)
             .environment(paywallManager)
+            .environment(appUpdateChecker)
             .preferredColorScheme(.dark)
         }
     }

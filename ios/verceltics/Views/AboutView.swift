@@ -3,7 +3,9 @@ import StoreKit
 
 struct AboutView: View {
     @Environment(AuthManager.self) private var authManager
+    @Environment(AppUpdateChecker.self) private var appUpdateChecker
     @Environment(\.horizontalSizeClass) private var hSize
+    @Environment(\.openURL) private var openURL
     @Environment(\.requestReview) private var requestReview
 
     var body: some View {
@@ -20,6 +22,11 @@ struct AboutView: View {
                             shareAppRow
                             AboutRow(icon: "star.fill", title: "Star on GitHub", subtitle: "Help us reach more developers", url: "https://github.com/apoorvdarshan/verceltics")
                             AboutRow(icon: "arrow.up.circle.fill", title: "Upvote on Product Hunt", subtitle: "producthunt.com/products/verceltics", url: "https://www.producthunt.com/products/verceltics")
+                        }
+
+                        // App
+                        aboutSection(title: "APP") {
+                            updateCheckRow
                         }
 
                         // Links — outward connections
@@ -113,7 +120,63 @@ struct AboutView: View {
             .background(Color.black)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarColorScheme(.dark, for: .navigationBar)
+            .task {
+                await appUpdateChecker.checkForUpdates()
+            }
         }
+    }
+
+    private var updateCheckRow: some View {
+        Button {
+            if appUpdateChecker.isUpdateAvailable {
+                openURL(appUpdateChecker.appStoreURL)
+            } else {
+                Task { await appUpdateChecker.checkForUpdates(force: true) }
+            }
+        } label: {
+            AboutRowContent(
+                icon: updateIcon,
+                iconColor: updateIconColor,
+                title: updateTitle,
+                subtitle: updateSubtitle
+            )
+        }
+        .buttonStyle(PressScaleButtonStyle())
+        .disabled(appUpdateChecker.isChecking)
+    }
+
+    private var updateIcon: String {
+        if appUpdateChecker.isChecking { return "arrow.triangle.2.circlepath" }
+        if appUpdateChecker.isUpdateAvailable { return "arrow.down.circle.fill" }
+        if appUpdateChecker.errorMessage != nil { return "exclamationmark.triangle.fill" }
+        return "checkmark.seal.fill"
+    }
+
+    private var updateIconColor: Color {
+        if appUpdateChecker.isUpdateAvailable { return Color(red: 0.84, green: 1.0, blue: 0.36) }
+        if appUpdateChecker.errorMessage != nil { return Color(red: 1.0, green: 0.72, blue: 0.35) }
+        return .white.opacity(0.55)
+    }
+
+    private var updateTitle: String {
+        if appUpdateChecker.isUpdateAvailable { return "Update Available" }
+        return "Check for Updates"
+    }
+
+    private var updateSubtitle: String {
+        if appUpdateChecker.isChecking {
+            return "Checking App Store..."
+        }
+        if let errorMessage = appUpdateChecker.errorMessage {
+            return errorMessage
+        }
+        if appUpdateChecker.isUpdateAvailable, let latestVersion = appUpdateChecker.latestVersion {
+            return "Version \(latestVersion) is ready"
+        }
+        if appUpdateChecker.hasChecked {
+            return "Version \(appUpdateChecker.currentVersion) is current"
+        }
+        return "Version \(appUpdateChecker.currentVersion)"
     }
 
     private var shareAppRow: some View {
