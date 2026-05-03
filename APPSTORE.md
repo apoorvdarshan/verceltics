@@ -4,7 +4,7 @@ App Store Connect submission details for Verceltics v1.1.1. Each field is in a c
 
 ## App Name
 ```
-Verceltics
+Vercel Analytics — Verceltics
 ```
 
 ## Subtitle (30 chars max)
