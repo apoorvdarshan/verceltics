@@ -1,6 +1,6 @@
 # App Store Listing
 
-App Store Connect submission details for Verceltics v1.1. Each field is in a code block for easy copy-paste.
+App Store Connect submission details for Verceltics v1.1.1. Each field is in a code block for easy copy-paste.
 
 ## App Name
 ```
@@ -14,7 +14,7 @@ Vercel Web Analytics on Mobile
 
 ## Promotional Text (170 chars max)
 ```
-Vercel Web Analytics on your iPhone and iPad. Visitors, page views, bounce rate, twelve breakdowns — token in your Keychain, no servers in between. Now with Lifetime.
+Vercel Web Analytics on your iPhone and iPad. Visitors, page views, bounce rate, twelve breakdowns — token in Keychain, no servers. Now with update checks.
 ```
 
 ## Keywords (100 chars max)
@@ -41,6 +41,7 @@ WHAT YOU GET
 • Multi-project switching with search and favicon detection
 • Pull to refresh for live data
 • iPad layout — adaptive grid + sidebar tab style on regular size class
+• App Store update checks from About
 
 PRIVATE BY DESIGN
 • Your Vercel token stays in the iOS Keychain — never leaves your device
@@ -69,26 +70,17 @@ Contact: ad13dtu@gmail.com
 Not affiliated with Vercel Inc.
 ```
 
-## What's New (v1.1)
+## What's New (v1.1.1)
 ```
-Verceltics 1.1 — iPad layout, soft paywall, and a Lifetime tier.
+Verceltics 1.1.1 — update checker and small polish.
 
 NEW
-• iPad ready — adaptive grid + sidebar tab style on regular size class.
-• Soft paywall — browse all your projects free. The paywall only appears when you tap into a project's analytics, then auto-dismisses on purchase.
-• Lifetime tier — one-time $59.99 alongside Monthly and Yearly. Yearly now ships with a 7-day free trial (was 3 days).
-• Redesigned analytics chart — peak pill, average reference line, drag-to-inspect with haptic feedback.
-• Framework-tinted live deploy dots — Astro, Vite, Remix, Angular, Eleventy, Next, Nuxt, SvelteKit, Gatsby and friends each get their own accent.
-• Robust favicons — multi-source race with SVG rasterisation and DuckDuckGo / Google s2 / icon.horse fallbacks.
-• Native rate prompt 3 seconds after your first project loads — for free and paid users.
-• Share Verceltics from the About page.
+• Added an App Store update checker in About.
+• The About tab now shows a dot when a newer App Store version is available.
 
 Polish & fixes
-• Long *.vercel.app URLs now collapse to the short canonical hostname.
-• Live deploy dot pulse no longer drags sibling views.
-• Login connect button auto-scrolls above the keyboard.
-• Numbers use rounded heavy with monospaced digits.
-• User_… account IDs no longer get rejected by the API.
+• About shows the current installed version status.
+• Tapping the update row opens the App Store when an update is available.
 ```
 
 ## Privacy URL

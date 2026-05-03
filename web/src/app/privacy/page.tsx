@@ -13,7 +13,7 @@ export default function Privacy() {
     <div className="mx-auto max-w-2xl px-6 py-28 sm:px-8">
       <Link href="/" className="text-[13px] text-white/30 transition-colors hover:text-white/60">&larr; Back to Verceltics</Link>
       <h1 className="mt-10 font-serif text-4xl italic tracking-[-0.03em]">Privacy Policy</h1>
-      <p className="mt-2 text-[13px] text-white/25">Last updated: April 28, 2026 — applies to v1.1</p>
+      <p className="mt-2 text-[13px] text-white/25">Last updated: May 3, 2026 — applies to v1.1.1</p>
 
       <div className="mt-12 space-y-10 text-[15px] leading-7 text-white/40">
         <section>
@@ -28,7 +28,7 @@ export default function Privacy() {
             <li>We do not track you</li>
             <li>We do not use analytics or telemetry inside the app</li>
             <li>We do not store your data on our servers — there are no servers</li>
-            <li>We do not share any data with third parties</li>
+            <li>We do not sell or share your Vercel token, account data, or analytics data with third parties</li>
           </ul>
         </section>
 
@@ -45,6 +45,11 @@ export default function Privacy() {
         <section>
           <h2 className="text-lg font-semibold text-white/80">Favicon Services</h2>
           <p className="mt-3">To display project favicons in the project list, the app may issue plain GET requests for favicon URLs to <code className="text-white/60">images.weserv.nl</code> (SVG rasterisation), <code className="text-white/60">icons.duckduckgo.com</code>, <code className="text-white/60">www.google.com/s2/favicons</code>, and <code className="text-white/60">icon.horse</code>. These requests carry only the favicon URL — they never include your Vercel token or any account data.</p>
+        </section>
+
+        <section>
+          <h2 className="text-lg font-semibold text-white/80">App Store Update Checks</h2>
+          <p className="mt-3">To check whether a new version is available, the app may call Apple&apos;s public App Store lookup endpoint with the Verceltics app ID and country. This request never includes your Vercel token, account data, or analytics data.</p>
         </section>
 
         <section>

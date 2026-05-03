@@ -13,7 +13,7 @@ const GITHUB = "https://github.com/apoorvdarshan/verceltics";
 const PRODUCTHUNT = "https://www.producthunt.com/products/verceltics";
 
 const ticker = [
-  "v1.1.0 — universal binary",
+  "v1.1.1 — update checks",
   "SwiftUI",
   "Swift Charts",
   "Private by design",
@@ -149,7 +149,7 @@ export default function Home() {
           country traffic, device types, browser stats, operating system breakdown, top pages,
           route analytics, hostname analytics, event tracking, feature flags, and query parameters.
           Built with SwiftUI, Swift Charts, async/await, and StoreKit 2. Live deploy indicator,
-          framework-tinted dots, soft paywall flow.
+          framework-tinted dots, soft paywall flow, and App Store update checker.
           Token stored in iOS Keychain. No data collection. No telemetry. No servers.
           Open source on GitHub. Works with Vercel Hobby and Pro plans.
           Alternative to Vercel dashboard for mobile. Best Vercel analytics app for iPhone.
@@ -214,7 +214,7 @@ export default function Home() {
                 className="animate-fade-up text-[11px] font-medium uppercase tracking-[0.35em] text-white/30"
                 style={{ animationDelay: "0.05s" }}
               >
-                Open source &middot; iOS 18+ &middot; v1.1
+                Open source &middot; iOS 18+ &middot; v1.1.1
               </p>
 
               <h1

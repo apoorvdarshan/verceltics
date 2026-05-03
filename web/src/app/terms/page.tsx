@@ -13,7 +13,7 @@ export default function Terms() {
     <div className="mx-auto max-w-2xl px-6 py-28 sm:px-8">
       <Link href="/" className="text-[13px] text-white/30 transition-colors hover:text-white/60">&larr; Back to Verceltics</Link>
       <h1 className="mt-10 font-serif text-4xl italic tracking-[-0.03em]">Terms of Service</h1>
-      <p className="mt-2 text-[13px] text-white/25">Last updated: April 28, 2026 — applies to v1.1</p>
+      <p className="mt-2 text-[13px] text-white/25">Last updated: May 3, 2026 — applies to v1.1.1</p>
 
       <div className="mt-12 space-y-10 text-[15px] leading-7 text-white/40">
         <section>
@@ -52,6 +52,11 @@ export default function Terms() {
         <section>
           <h2 className="text-lg font-semibold text-white/80">Building From Source</h2>
           <p className="mt-3">Verceltics is open source under the MIT license. You&apos;re free to clone the repository at <a href="https://github.com/apoorvdarshan/verceltics" className="text-white/60 underline underline-offset-2 transition-colors hover:text-white">github.com/apoorvdarshan/verceltics</a> and build the app yourself for personal use. The App Store version exists for convenience and to fund continued development.</p>
+        </section>
+
+        <section>
+          <h2 className="text-lg font-semibold text-white/80">Updates</h2>
+          <p className="mt-3">Verceltics may check Apple&apos;s public App Store lookup endpoint to show when a newer version is available. Installing updates is optional, but older versions may stop receiving fixes over time.</p>
         </section>
 
         <section>
