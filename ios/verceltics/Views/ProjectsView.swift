@@ -160,8 +160,7 @@ struct ProjectsView: View {
             }
         } label: {
             HStack(spacing: 5) {
-                Image(systemName: "person.crop.circle.fill")
-                    .font(.system(size: 15, weight: .heavy))
+                activeAccountAvatar
                 Image(systemName: "chevron.down")
                     .font(.system(size: 8, weight: .heavy))
                     .foregroundStyle(.white.opacity(0.45))
@@ -170,6 +169,31 @@ struct ProjectsView: View {
             .frame(height: 30)
             .accessibilityLabel("Switch Vercel account")
         }
+    }
+
+    @ViewBuilder
+    private var activeAccountAvatar: some View {
+        if let avatarURL = authManager.activeAccount?.avatarURL,
+           let url = URL(string: avatarURL) {
+            AsyncImage(url: url) { phase in
+                if let image = phase.image {
+                    image
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    accountAvatarFallback
+                }
+            }
+            .frame(width: 21, height: 21)
+            .clipShape(Circle())
+        } else {
+            accountAvatarFallback
+        }
+    }
+
+    private var accountAvatarFallback: some View {
+        Image(systemName: "person.crop.circle.fill")
+            .font(.system(size: 18, weight: .heavy))
     }
 
     private func handlePaywallDismiss() {
