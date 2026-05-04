@@ -13,7 +13,7 @@ export default function Privacy() {
     <div className="mx-auto max-w-2xl px-6 py-28 sm:px-8">
       <Link href="/" className="text-[13px] text-white/30 transition-colors hover:text-white/60">&larr; Back to Verceltics</Link>
       <h1 className="mt-10 font-serif text-4xl italic tracking-[-0.03em]">Privacy Policy</h1>
-      <p className="mt-2 text-[13px] text-white/25">Last updated: May 4, 2026 — applies to v1.1.2</p>
+      <p className="mt-2 text-[13px] text-white/25">Last updated: May 5, 2026 — applies to v1.1.3</p>
 
       <div className="mt-12 space-y-10 text-[15px] leading-7 text-white/40">
         <section>

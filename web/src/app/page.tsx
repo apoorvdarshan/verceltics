@@ -13,7 +13,7 @@ const GITHUB = "https://github.com/apoorvdarshan/verceltics";
 const PRODUCTHUNT = "https://www.producthunt.com/products/verceltics";
 
 const ticker = [
-  "v1.1.2 — multi-account",
+  "v1.1.3 — quick actions",
   "SwiftUI",
   "Swift Charts",
   "Private by design",
@@ -44,8 +44,8 @@ const features = [
   {
     label: "Projects",
     title: "Every project, one tap.",
-    body: "All your Vercel projects with favicons, framework, last commit, and a pulsing green dot when something deployed in the last thirty minutes. Switch Vercel accounts from the toolbar, then search by name, domain, or framework.",
-    bullets: ["Multi-account switcher", "Live deploy indicator", "Search & filter"],
+    body: "All your Vercel projects with favicons, framework, last commit, and a pulsing green dot when something deployed in the last thirty minutes. Switch Vercel accounts from the toolbar, then search, copy URLs, or open live deployments.",
+    bullets: ["Multi-account switcher", "Copy project URLs", "Search & filter"],
     image: "/projects.png",
     alt: "Verceltics project list with favicons and live deploy dots",
   },
@@ -214,7 +214,7 @@ export default function Home() {
                 className="animate-fade-up text-[11px] font-medium uppercase tracking-[0.35em] text-white/30"
                 style={{ animationDelay: "0.05s" }}
               >
-                Open source &middot; iOS 18+ &middot; v1.1.2
+                Open source &middot; iOS 18+ &middot; v1.1.3
               </p>
 
               <h1

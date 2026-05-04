@@ -1,6 +1,6 @@
 # App Store Listing
 
-App Store Connect submission details for Verceltics v1.1.2. Each field is in a code block for easy copy-paste.
+App Store Connect submission details for Verceltics v1.1.3. Each field is in a code block for easy copy-paste.
 
 ## App Name
 ```
@@ -14,7 +14,7 @@ Vercel Web Analytics on Mobile
 
 ## Promotional Text (170 chars max)
 ```
-Vercel Web Analytics on your iPhone and iPad. Switch accounts, search projects, check visitors and referrers — tokens in Keychain, no servers.
+Vercel Web Analytics on your iPhone and iPad. Switch accounts, copy project URLs, check visitors and referrers — tokens in Keychain.
 ```
 
 ## Keywords (100 chars max)
@@ -73,19 +73,17 @@ Contact: ad13dtu@gmail.com
 Not affiliated with Vercel Inc.
 ```
 
-## What's New (v1.1.2)
+## What's New (v1.1.3)
 ```
-Verceltics 1.1.2 — multi-account support and polish.
+Verceltics 1.1.3 — quicker project navigation.
 
 NEW
-• Add multiple Vercel accounts.
-• Switch accounts directly from Projects.
-• Vercel profile avatars now appear in the account switcher.
+• Copy project URLs directly from the project card context menu.
+• Analytics project domains are now shown as clearer tappable buttons.
 
 Polish & fixes
-• Refined the native toolbar search/account layout.
-• Existing saved accounts refresh profile metadata safely.
-• Small stability fixes around account profile loading.
+• Improved project quick actions without changing the existing native search/account layout.
+• Small UI polish for opening live deployments from Analytics.
 ```
 
 ## Privacy URL
