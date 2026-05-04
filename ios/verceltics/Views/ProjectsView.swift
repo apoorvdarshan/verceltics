@@ -40,6 +40,7 @@ struct ProjectsView: View {
     @State private var searchText = ""
     @State private var isSearching = false
     @State private var showPaywall = false
+    @State private var showingAddAccount = false
     @State private var navigationProjectId: String?
     @State private var pendingProjectId: String?
 
@@ -85,6 +86,11 @@ struct ProjectsView: View {
             }
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, isPresented: $isSearching, prompt: "Search projects...")
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    accountSwitcherMenu
+                }
+            }
             .task { await loadProjects() }
             .onAppear {
                 if startWithSearch { isSearching = true }
@@ -97,9 +103,82 @@ struct ProjectsView: View {
             .sheet(isPresented: $showPaywall, onDismiss: handlePaywallDismiss) {
                 PaywallView()
             }
+            .sheet(isPresented: $showingAddAccount) {
+                LoginView()
+            }
             .onChange(of: authManager.activeAccountId) { _, _ in
                 Task { await refreshProjects() }
             }
+        }
+    }
+
+    private var accountSwitcherMenu: some View {
+        Menu {
+            if authManager.accounts.isEmpty {
+                Text("No accounts connected")
+            } else {
+                Section("Switch Account") {
+                    ForEach(authManager.accounts) { account in
+                        Button {
+                            authManager.switchAccount(to: account.id)
+                        } label: {
+                            Label(
+                                account.name,
+                                systemImage: authManager.activeAccountId == account.id
+                                    ? "checkmark.circle.fill"
+                                    : "person.crop.circle"
+                            )
+                        }
+                    }
+                }
+            }
+
+            Section {
+                Button {
+                    showingAddAccount = true
+                } label: {
+                    Label("Add Account", systemImage: "plus.circle.fill")
+                }
+            }
+
+            if authManager.activeAccount != nil {
+                Section {
+                    Button(role: .destructive) {
+                        authManager.logout()
+                    } label: {
+                        Label("Sign Out Current", systemImage: "rectangle.portrait.and.arrow.right")
+                    }
+
+                    if authManager.accounts.count > 1 {
+                        Button(role: .destructive) {
+                            authManager.logoutAll()
+                        } label: {
+                            Label("Remove All Accounts", systemImage: "trash.fill")
+                        }
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "person.crop.circle.fill")
+                    .font(.system(size: 15, weight: .heavy))
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8, weight: .heavy))
+                    .foregroundStyle(.white.opacity(0.45))
+            }
+            .foregroundStyle(.white.opacity(0.82))
+            .frame(height: 30)
+            .padding(.horizontal, 8)
+            .background(
+                LinearGradient(
+                    colors: [Color.white.opacity(0.11), Color.white.opacity(0.05)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .clipShape(Capsule())
+            .overlay(Capsule().strokeBorder(Color.white.opacity(0.10), lineWidth: 0.5))
+            .accessibilityLabel("Switch Vercel account")
         }
     }
 
