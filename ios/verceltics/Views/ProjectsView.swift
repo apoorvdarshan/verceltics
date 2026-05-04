@@ -168,16 +168,6 @@ struct ProjectsView: View {
             }
             .foregroundStyle(.white.opacity(0.82))
             .frame(height: 30)
-            .padding(.horizontal, 8)
-            .background(
-                LinearGradient(
-                    colors: [Color.white.opacity(0.11), Color.white.opacity(0.05)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
-            .clipShape(Capsule())
-            .overlay(Capsule().strokeBorder(Color.white.opacity(0.10), lineWidth: 0.5))
             .accessibilityLabel("Switch Vercel account")
         }
     }
