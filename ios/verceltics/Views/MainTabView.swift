@@ -13,6 +13,10 @@ struct MainTabView: View {
                 ProjectsView(startWithSearch: true)
             }
 
+            Tab("Accounts", systemImage: "person.crop.circle") {
+                AccountsView()
+            }
+
             Tab("About", systemImage: "info.circle") {
                 AboutView()
             }
