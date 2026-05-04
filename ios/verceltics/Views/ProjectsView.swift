@@ -229,6 +229,12 @@ struct ProjectsView: View {
                             } label: {
                                 Label("Open Website", systemImage: "globe")
                             }
+
+                            Button {
+                                UIPasteboard.general.string = "https://\(domain)"
+                            } label: {
+                                Label("Copy URL", systemImage: "doc.on.doc")
+                            }
                         }
                         
                         if let url = URL(string: "https://vercel.com/\(authManager.activeAccount?.name ?? "")/\(project.name)") {
