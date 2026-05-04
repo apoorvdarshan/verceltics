@@ -208,18 +208,34 @@ struct AnalyticsView: View {
                     Button {
                         UIApplication.shared.open(url)
                     } label: {
-                        HStack(spacing: 5) {
-                            Image(systemName: "link")
-                                .font(.system(size: 9, weight: .heavy))
-                                .foregroundStyle(.white.opacity(0.3))
+                        HStack(spacing: 7) {
                             Text(domain)
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(.white.opacity(0.5))
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(.white.opacity(0.72))
                                 .lineLimit(1)
                                 .truncationMode(.middle)
+
+                            Image(systemName: "arrow.up.right")
+                                .font(.system(size: 8, weight: .heavy))
+                                .foregroundStyle(Color.blue.opacity(0.75))
+                                .frame(width: 17, height: 17)
+                                .background(Color.blue.opacity(0.12))
+                                .clipShape(Circle())
                         }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.08), Color.white.opacity(0.035)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                        .clipShape(Capsule())
+                        .overlay(Capsule().strokeBorder(Color.white.opacity(0.09), lineWidth: 0.5))
                     }
                     .buttonStyle(PressScaleButtonStyle())
+                    .accessibilityLabel("Open \(domain)")
                 }
                 Spacer()
             }
