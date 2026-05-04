@@ -12,8 +12,11 @@ final class ProjectsViewModel {
 
     func load(token: String, forceRefresh: Bool = false) async {
         if hasLoaded && !forceRefresh { return }
-        isLoading = !hasLoaded
+        
+        // Show skeleton when it's the first load OR when we're switching accounts/forcing a refresh
+        isLoading = true
         error = nil
+        
         do {
             projects = try await VercelAPI(token: token).fetchProjects()
             hasLoaded = true
@@ -93,6 +96,9 @@ struct ProjectsView: View {
             }
             .sheet(isPresented: $showPaywall, onDismiss: handlePaywallDismiss) {
                 PaywallView()
+            }
+            .onChange(of: authManager.activeAccountId) { _, _ in
+                Task { await refreshProjects() }
             }
         }
     }

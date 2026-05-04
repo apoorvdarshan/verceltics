@@ -7,6 +7,8 @@ struct AboutView: View {
     @Environment(\.horizontalSizeClass) private var hSize
     @Environment(\.openURL) private var openURL
     @Environment(\.requestReview) private var requestReview
+    
+    @State private var showingAddAccount = false
 
     var body: some View {
         NavigationStack {
@@ -16,6 +18,63 @@ struct AboutView: View {
 
                     // Sections
                     VStack(spacing: 24) {
+                        // Accounts
+                        aboutSection(title: "ACCOUNTS") {
+                            ForEach(authManager.accounts) { account in
+                                Button {
+                                    authManager.switchAccount(to: account.id)
+                                } label: {
+                                    HStack(spacing: 14) {
+                                        Image(systemName: "person.crop.circle.fill")
+                                            .font(.system(size: 16, weight: .heavy))
+                                            .foregroundStyle(authManager.activeAccountId == account.id ? .blue : .white.opacity(0.4))
+                                            .frame(width: 34, height: 34)
+                                            .background(Color.white.opacity(0.06))
+                                            .clipShape(Circle())
+
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(account.name)
+                                                .font(.system(size: 14, weight: .bold))
+                                                .foregroundStyle(.white)
+                                            Text(account.token.prefix(12) + "...")
+                                                .font(.system(size: 10, design: .monospaced))
+                                                .foregroundStyle(.white.opacity(0.3))
+                                        }
+
+                                        Spacer()
+
+                                        if authManager.activeAccountId == account.id {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .foregroundStyle(.blue)
+                                                .font(.system(size: 14))
+                                        } else {
+                                            Button {
+                                                authManager.removeAccount(id: account.id)
+                                            } label: {
+                                                Image(systemName: "trash")
+                                                    .font(.system(size: 12))
+                                                    .foregroundStyle(.red.opacity(0.6))
+                                            }
+                                        }
+                                    }
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 12)
+                                }
+                                .buttonStyle(PressScaleButtonStyle())
+                                
+                                if account.id != authManager.accounts.last?.id {
+                                    Divider().overlay(Color.white.opacity(0.06)).padding(.leading, 60)
+                                }
+                            }
+                            
+                            Button {
+                                showingAddAccount = true
+                            } label: {
+                                AboutRowContent(icon: "plus.circle.fill", title: "Add Another Account", subtitle: "Connect another Vercel token", showsChevron: true)
+                            }
+                            .buttonStyle(PressScaleButtonStyle())
+                        }
+                        
                         // Support — most important to surface first
                         aboutSection(title: "SUPPORT") {
                             AboutRow(icon: "star.bubble.fill", title: "Rate Verceltics", subtitle: "Tap a star, no App Store needed", action: { requestReview() })
@@ -120,6 +179,9 @@ struct AboutView: View {
             .background(Color.black)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarColorScheme(.dark, for: .navigationBar)
+            .sheet(isPresented: $showingAddAccount) {
+                LoginView()
+            }
             .task {
                 await appUpdateChecker.checkForUpdates()
             }
