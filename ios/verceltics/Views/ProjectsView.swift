@@ -129,6 +129,31 @@ struct ProjectsView: View {
                         ProjectCard(project: project, appearDelay: min(Double(idx), 11) * 0.04)
                     }
                     .buttonStyle(PressScaleButtonStyle())
+                    .contextMenu {
+                        if let domain = project.primaryDomain, let url = URL(string: "https://\(domain)") {
+                            Button {
+                                UIApplication.shared.open(url)
+                            } label: {
+                                Label("Open Website", systemImage: "globe")
+                            }
+                        }
+                        
+                        if let url = URL(string: "https://vercel.com/\(authManager.activeAccount?.name ?? "")/\(project.name)") {
+                            Button {
+                                UIApplication.shared.open(url)
+                            } label: {
+                                Label("View on Vercel", systemImage: "triangle.fill")
+                            }
+                        }
+                        
+                        Divider()
+                        
+                        Button {
+                            openProject(project)
+                        } label: {
+                            Label("View Analytics", systemImage: "chart.bar.fill")
+                        }
+                    }
                 }
             }
             .padding(.horizontal)

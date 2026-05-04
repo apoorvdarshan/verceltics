@@ -204,17 +204,22 @@ struct AnalyticsView: View {
             HStack(alignment: .center, spacing: 12) {
                 ProjectIcon(domain: project.primaryDomain, name: project.name)
 
-                if let domain = project.primaryDomain {
-                    HStack(spacing: 5) {
-                        Image(systemName: "link")
-                            .font(.system(size: 9, weight: .heavy))
-                            .foregroundStyle(.white.opacity(0.3))
-                        Text(domain)
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.5))
-                            .lineLimit(1)
-                            .truncationMode(.middle)
+                if let domain = project.primaryDomain, let url = URL(string: "https://\(domain)") {
+                    Button {
+                        UIApplication.shared.open(url)
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "link")
+                                .font(.system(size: 9, weight: .heavy))
+                                .foregroundStyle(.white.opacity(0.3))
+                            Text(domain)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.5))
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
                     }
+                    .buttonStyle(PressScaleButtonStyle())
                 }
                 Spacer()
             }
