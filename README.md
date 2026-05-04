@@ -32,6 +32,7 @@
 ## Features
 
 - **Projects Dashboard** — All your Vercel projects with favicons, git repo, last commit, framework
+- **Multi-account** — Add multiple Vercel accounts, switch from the Projects toolbar, and see the active Vercel avatar
 - **Live Deploy Indicator** — Pulsing green dot when a deployment is < 30 minutes old
 - **Framework-tinted dots** — Astro orange, Vite purple, Remix cyan, Angular red, Eleventy yellow, etc.
 - **Analytics** — Visitors, page views, bounce rate with % change badges and staggered entrance
@@ -41,9 +42,10 @@
 - **Robust Favicons** — Multi-source race (apple-touch-icon, scrape, weserv.nl SVG rasterise, DuckDuckGo, Google s2, icon.horse)
 - **Search** — Filter projects by name, domain, or framework
 - **Pull to Refresh** — Live data from Vercel API
+- **Update Checks** — About tab shows when a newer App Store version is available
 - **iPad** — Adaptive grid + sidebar tab style on regular size class
 - **Dark Mode** — Pure black (#000000) Vercel-style design
-- **Secure** — Token stored in iOS Keychain, open source code
+- **Secure** — Vercel tokens stored in iOS Keychain, open source code
 
 ## Pricing
 
@@ -99,13 +101,14 @@ npm install
 npm run dev
 ```
 
-### Vercel Token
+### Vercel Tokens
 
-The app uses a [Vercel personal access token](https://vercel.com/account/tokens) for authentication:
+The app uses [Vercel personal access tokens](https://vercel.com/account/tokens) for authentication:
 
 1. Go to [vercel.com/account/tokens](https://vercel.com/account/tokens)
 2. Create a token with your account scope
 3. Paste it in the app
+4. Add more accounts from the account switcher in Projects
 
 ### StoreKit Testing
 
@@ -123,7 +126,7 @@ The app uses two Vercel API hosts:
 
 | Host | Endpoints | Auth |
 |------|-----------|------|
-| `api.vercel.com` | `/v9/projects` | Bearer token |
+| `api.vercel.com` | `/v2/user`, `/v9/projects`, `/v9/projects/{id}`, `/v9/projects/{id}/domains` | Bearer token |
 | `vercel.com/api` | `/web-analytics/*` | Bearer token |
 
 Analytics endpoints use `groupBy` parameter: `path`, `route`, `hostname`, `referrer`, `utm`, `country`, `device_type`, `client_name`, `os_name`, `event_name`, `flags`, `query_params`
@@ -134,18 +137,19 @@ Analytics endpoints use `groupBy` parameter: `path`, `route`, `hostname`, `refer
 ios/verceltics/
 ├── App/VercelticsApp.swift          # Entry point, soft paywall routing
 ├── Auth/
-│   ├── AuthManager.swift            # Token validation, login/logout
+│   ├── AuthManager.swift            # Multi-account auth, token validation, profile refresh
 │   └── KeychainHelper.swift         # Secure token storage
 ├── Network/VercelAPI.swift          # All API calls (actor-based)
 ├── Models/
+│   ├── VercelAccount.swift          # Saved Vercel account metadata
 │   ├── Project.swift                # Project, deployment, alias, /domains
 │   └── Analytics.swift              # Analytics data models, time ranges
 ├── Views/
 │   ├── LoginView.swift              # Token login with animated demo chart
 │   ├── MainTabView.swift            # Tab bar (Projects, About, Search)
-│   ├── ProjectsView.swift           # Project list, favicons, paywall sheet
+│   ├── ProjectsView.swift           # Project list, search, account switcher, favicons, paywall sheet
 │   ├── AnalyticsView.swift          # Full analytics dashboard
-│   └── AboutView.swift              # Support, links, legal, sign out
+│   └── AboutView.swift              # Support, links, legal, update checks, sign out
 ├── Components/
 │   ├── StatCard.swift               # Metric card with change badge
 │   ├── AnalyticsChart.swift         # Interactive Swift Charts line graph

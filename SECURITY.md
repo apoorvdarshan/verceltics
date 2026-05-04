@@ -1,6 +1,6 @@
 # Security Policy
 
-Verceltics handles a Vercel personal access token, so we take security reports seriously. Thanks for helping keep the app and its users safe.
+Verceltics handles Vercel personal access tokens, so we take security reports seriously. Thanks for helping keep the app and its users safe.
 
 ## Supported Versions
 
@@ -52,14 +52,14 @@ You can expect:
 
 ## Token Safety
 
-Verceltics stores your Vercel personal access token in the iOS Keychain, scoped to the app. The token is sent **only** to:
+Verceltics stores your Vercel personal access tokens in the iOS Keychain, scoped to the app. Tokens are sent **only** to:
 
-- `api.vercel.com` (project listing, project detail, domain list)
+- `api.vercel.com` (user profile, project listing, project detail, domain list)
 - `vercel.com/api` (analytics endpoints)
 
-Favicon fetches and SVG rasterisation hit third-party hosts (listed in scope above) but those requests **do not include your token** — they're plain GET requests for the favicon URL.
+Favicon fetches, SVG rasterisation, and Vercel avatar image loads do **not** include your tokens — they're plain image/GET requests.
 
-If you suspect your token has been exposed, revoke it immediately at [vercel.com/account/tokens](https://vercel.com/account/tokens) and generate a new one.
+If you suspect a token has been exposed, revoke it immediately at [vercel.com/account/tokens](https://vercel.com/account/tokens) and generate a new one.
 
 ## Disclosure Policy
 
