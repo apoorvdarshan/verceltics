@@ -21,28 +21,32 @@ final class AnalyticsViewModel {
         let api = VercelAPI(token: token)
         let pid = project.id
         let tid = project.teamId
+        
         let range = selectedRange
+        
         let from = range.fromDate
         let to = range.toDate
         let prevFrom = range.previousFromDate
         let prevTo = range.previousToDate
+        
+        let env = selectedEnvironment.queryValue ?? "production"
 
         do {
-            async let overview = api.fetchOverview(projectId: pid, teamId: tid, from: from, to: to)
-            async let previous = api.fetchPreviousOverview(projectId: pid, teamId: tid, from: prevFrom, to: prevTo)
-            async let timeseries = api.fetchTimeseries(projectId: pid, teamId: tid, from: from, to: to)
-            async let pages = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "path")
-            async let referrers = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "referrer")
-            async let countries = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "country")
-            async let devices = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "device_type")
-            async let browsers = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "client_name")
-            async let os = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "os_name")
-            async let utmSources = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "utm")
-            async let routes = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "route")
-            async let hostnames = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "hostname")
-            async let events = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "event_name")
-            async let flags = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "flags")
-            async let queryParams = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "query_params")
+            async let overview = api.fetchOverview(projectId: pid, teamId: tid, from: from, to: to, environment: env)
+            async let previous = api.fetchPreviousOverview(projectId: pid, teamId: tid, from: prevFrom, to: prevTo, environment: env)
+            async let timeseries = api.fetchTimeseries(projectId: pid, teamId: tid, from: from, to: to, environment: env)
+            async let pages = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "path", environment: env)
+            async let referrers = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "referrer", environment: env)
+            async let countries = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "country", environment: env)
+            async let devices = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "device_type", environment: env)
+            async let browsers = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "client_name", environment: env)
+            async let os = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "os_name", environment: env)
+            async let utmSources = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "utm", environment: env)
+            async let routes = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "route", environment: env)
+            async let hostnames = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "hostname", environment: env)
+            async let events = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "event_name", environment: env)
+            async let flags = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "flags", environment: env)
+            async let queryParams = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "query_params", environment: env)
 
             data.overview = try await overview
             data.previousOverview = try? await previous
@@ -114,7 +118,9 @@ struct AnalyticsView: View {
                 .sensoryFeedback(.impact(weight: .light), trigger: refreshSpin)
             }
         }
-        .task { await loadData() }
+        .task { 
+            await loadData() 
+        }
         .onChange(of: vm.selectedRange) {
             Task { await loadData() }
         }
@@ -198,17 +204,22 @@ struct AnalyticsView: View {
             HStack(alignment: .center, spacing: 12) {
                 ProjectIcon(domain: project.primaryDomain, name: project.name)
 
-                if let domain = project.primaryDomain {
-                    HStack(spacing: 5) {
-                        Image(systemName: "link")
-                            .font(.system(size: 9, weight: .heavy))
-                            .foregroundStyle(.white.opacity(0.3))
-                        Text(domain)
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.5))
-                            .lineLimit(1)
-                            .truncationMode(.middle)
+                if let domain = project.primaryDomain, let url = URL(string: "https://\(domain)") {
+                    Button {
+                        UIApplication.shared.open(url)
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "link")
+                                .font(.system(size: 9, weight: .heavy))
+                                .foregroundStyle(.white.opacity(0.3))
+                            Text(domain)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.5))
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
                     }
+                    .buttonStyle(PressScaleButtonStyle())
                 }
                 Spacer()
             }

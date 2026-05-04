@@ -1,6 +1,6 @@
 # App Store Listing
 
-App Store Connect submission details for Verceltics v1.1.1. Each field is in a code block for easy copy-paste.
+App Store Connect submission details for Verceltics v1.1.2. Each field is in a code block for easy copy-paste.
 
 ## App Name
 ```
@@ -14,7 +14,7 @@ Vercel Web Analytics on Mobile
 
 ## Promotional Text (170 chars max)
 ```
-Vercel Web Analytics on your iPhone and iPad. Visitors, page views, bounce rate, twelve breakdowns — token in Keychain, no servers. Now with update checks.
+Vercel Web Analytics on your iPhone and iPad. Switch accounts, search projects, check visitors and referrers — tokens in Keychain, no servers.
 ```
 
 ## Keywords (100 chars max)
@@ -35,6 +35,8 @@ Verceltics puts your Vercel web analytics in your pocket. Check visitors, page v
 WHAT YOU GET
 • Real-time analytics dashboard with interactive Swift Charts
 • Period comparisons: 24h, 7d, 30d, 3 months, 12 months
+• Multiple Vercel accounts with quick switching
+• Vercel profile avatars in the account switcher
 • Referrers, UTMs, countries with flags
 • Device, browser, and OS breakdowns
 • Pages, routes, hostnames, events, feature flags, and query params
@@ -44,14 +46,15 @@ WHAT YOU GET
 • App Store update checks from About
 
 PRIVATE BY DESIGN
-• Your Vercel token stays in the iOS Keychain — never leaves your device
+• Your Vercel tokens stay in the iOS Keychain — never leave your device
 • No tracking, no telemetry, no servers in between
 • Fully open source on GitHub
 
 HOW IT WORKS
 1. Create a token at vercel.com/account/tokens
 2. Paste it in the app once
-3. View your analytics anytime
+3. Add more accounts from the account switcher if needed
+4. View your analytics anytime
 
 PRICING
 • Monthly: $4.99/month
@@ -70,17 +73,19 @@ Contact: ad13dtu@gmail.com
 Not affiliated with Vercel Inc.
 ```
 
-## What's New (v1.1.1)
+## What's New (v1.1.2)
 ```
-Verceltics 1.1.1 — update checker and small polish.
+Verceltics 1.1.2 — multi-account support and polish.
 
 NEW
-• Added an App Store update checker in About.
-• The About tab now shows a dot when a newer App Store version is available.
+• Add multiple Vercel accounts.
+• Switch accounts directly from Projects.
+• Vercel profile avatars now appear in the account switcher.
 
 Polish & fixes
-• About shows the current installed version status.
-• Tapping the update row opens the App Store when an update is available.
+• Refined the native toolbar search/account layout.
+• Existing saved accounts refresh profile metadata safely.
+• Small stability fixes around account profile loading.
 ```
 
 ## Privacy URL
@@ -105,12 +110,13 @@ https://verceltics.com
 
 ## Reviewer Notes
 ```
-This app uses a Vercel personal access token for authentication (not username/password).
+This app uses Vercel personal access tokens for authentication (not username/password).
 
 To test:
 1. Go to https://vercel.com/account/tokens
 2. Create a token with any name and your account scope
 3. Paste the token in the app's login screen
+4. To test multi-account support, open the account switcher in Projects and tap Add Account
 
 If you don't have a Vercel account, create a free one at vercel.com and deploy any project to see analytics data.
 

@@ -2,7 +2,6 @@ import SwiftUI
 import StoreKit
 
 struct AboutView: View {
-    @Environment(AuthManager.self) private var authManager
     @Environment(AppUpdateChecker.self) private var appUpdateChecker
     @Environment(\.horizontalSizeClass) private var hSize
     @Environment(\.openURL) private var openURL
@@ -76,41 +75,6 @@ struct AboutView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.horizontal, 28)
                         .padding(.top, 12)
-
-                        // Sign out
-                        Button {
-                            authManager.logout()
-                        } label: {
-                            HStack(spacing: 8) {
-                                Image(systemName: "rectangle.portrait.and.arrow.right")
-                                    .font(.system(size: 13, weight: .heavy))
-                                Text("Sign Out")
-                                    .font(.system(size: 14, weight: .bold))
-                            }
-                            .foregroundStyle(Color(red: 1.0, green: 0.42, blue: 0.42))
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 50)
-                            .background(
-                                LinearGradient(
-                                    colors: [Color.red.opacity(0.14), Color.red.opacity(0.06)],
-                                    startPoint: .top, endPoint: .bottom
-                                )
-                            )
-                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                    .strokeBorder(
-                                        LinearGradient(
-                                            colors: [Color.red.opacity(0.22), Color.red.opacity(0.08)],
-                                            startPoint: .top, endPoint: .bottom
-                                        ),
-                                        lineWidth: 0.5
-                                    )
-                            )
-                        }
-                        .buttonStyle(PressScaleButtonStyle())
-                        .padding(.horizontal, 16)
-                        .padding(.top, 8)
                         .padding(.bottom, 40)
                     }
                 }

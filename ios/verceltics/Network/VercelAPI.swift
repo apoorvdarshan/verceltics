@@ -8,10 +8,17 @@ enum APIError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .unauthorized: "Session expired. Please log in again."
-        case .serverError(let code): "Server error (\(code)). Try again later."
-        case .decodingError: "Failed to parse response."
-        case .networkError(let err): err.localizedDescription
+        case .unauthorized: 
+            return "Session expired. Please log in again."
+        case .serverError(let code):
+            if code == 400 {
+                return "Bad Request (400). Please ensure Web Analytics is enabled for this project on Vercel and your plan supports the selected time range."
+            }
+            return "Server error (\(code)). Try again later."
+        case .decodingError: 
+            return "Failed to parse response."
+        case .networkError(let err): 
+            return err.localizedDescription
         }
     }
 }
@@ -55,33 +62,33 @@ actor VercelAPI {
 
     // MARK: - Analytics
 
-    func fetchOverview(projectId: String, teamId: String?, from: String, to: String) async throws -> AnalyticsOverview {
+    func fetchOverview(projectId: String, teamId: String?, from: String, to: String, environment: String) async throws -> AnalyticsOverview {
         try await request(
             base: "https://vercel.com/api",
             path: "/web-analytics/overview",
-            queryItems: analyticsParams(projectId: projectId, teamId: teamId, from: from, to: to)
+            queryItems: analyticsParams(projectId: projectId, teamId: teamId, from: from, to: to, environment: environment)
         )
     }
 
-    func fetchPreviousOverview(projectId: String, teamId: String?, from: String, to: String) async throws -> AnalyticsOverview {
+    func fetchPreviousOverview(projectId: String, teamId: String?, from: String, to: String, environment: String) async throws -> AnalyticsOverview {
         try await request(
             base: "https://vercel.com/api",
             path: "/web-analytics/overview",
-            queryItems: analyticsParams(projectId: projectId, teamId: teamId, from: from, to: to)
+            queryItems: analyticsParams(projectId: projectId, teamId: teamId, from: from, to: to, environment: environment)
         )
     }
 
-    func fetchTimeseries(projectId: String, teamId: String?, from: String, to: String) async throws -> [TimeseriesPoint] {
+    func fetchTimeseries(projectId: String, teamId: String?, from: String, to: String, environment: String) async throws -> [TimeseriesPoint] {
         let response: TimeseriesResponse = try await request(
             base: "https://vercel.com/api",
             path: "/web-analytics/timeseries",
-            queryItems: analyticsParams(projectId: projectId, teamId: teamId, from: from, to: to)
+            queryItems: analyticsParams(projectId: projectId, teamId: teamId, from: from, to: to, environment: environment)
         )
         return response.data.groups["all"] ?? []
     }
 
-    func fetchBreakdown(projectId: String, teamId: String?, from: String, to: String, groupBy: String) async throws -> [BreakdownItem] {
-        var params = analyticsParams(projectId: projectId, teamId: teamId, from: from, to: to)
+    func fetchBreakdown(projectId: String, teamId: String?, from: String, to: String, groupBy: String, environment: String) async throws -> [BreakdownItem] {
+        var params = analyticsParams(projectId: projectId, teamId: teamId, from: from, to: to, environment: environment)
         params.append(URLQueryItem(name: "groupBy", value: groupBy))
         let response: TimeseriesResponse = try await request(
             base: "https://vercel.com/api",
@@ -138,12 +145,13 @@ actor VercelAPI {
         return items
     }
 
-    private func analyticsParams(projectId: String, teamId: String?, from: String, to: String) -> [URLQueryItem] {
+    private func analyticsParams(projectId: String, teamId: String?, from: String, to: String, environment: String) -> [URLQueryItem] {
         var items = projectQueryItems(teamId: teamId)
         items.append(contentsOf: [
             URLQueryItem(name: "projectId", value: projectId),
             URLQueryItem(name: "from", value: from),
-            URLQueryItem(name: "to", value: to)
+            URLQueryItem(name: "to", value: to),
+            URLQueryItem(name: "environment", value: environment)
         ])
         return items
     }
@@ -153,7 +161,8 @@ actor VercelAPI {
         if !queryItems.isEmpty {
             components.queryItems = queryItems
         }
-        var request = URLRequest(url: components.url!)
+        let url = components.url!
+        var request = URLRequest(url: url)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
         let (data, response): (Data, URLResponse)

@@ -3,16 +3,21 @@ import SwiftUI
 struct LoginView: View {
     @Environment(AuthManager.self) private var authManager
     @Environment(\.horizontalSizeClass) private var hSize
+    @Environment(\.dismiss) private var dismiss
     @State private var tokenInput = ""
     @State private var showTokenField = false
     @FocusState private var isTokenFocused: Bool
+
+    var isAddingAccount: Bool {
+        authManager.isAuthenticated
+    }
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
 
             Group {
-                if showTokenField {
+                if showTokenField || isAddingAccount {
                     tokenFieldView
                 } else {
                     welcomeView
@@ -188,7 +193,12 @@ struct LoginView: View {
 
                     // Connect
                     Button {
-                        Task { await authManager.login(token: tokenInput.trimmingCharacters(in: .whitespacesAndNewlines)) }
+                        Task {
+                            await authManager.login(token: tokenInput.trimmingCharacters(in: .whitespacesAndNewlines))
+                            if authManager.error == nil {
+                                dismiss()
+                            }
+                        }
                     } label: {
                         HStack(spacing: 10) {
                             if authManager.isLoading {
