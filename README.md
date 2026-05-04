@@ -179,6 +179,12 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 - **Issues**: [github.com/apoorvdarshan/verceltics/issues](https://github.com/apoorvdarshan/verceltics/issues)
 - **Security**: see [SECURITY.md](SECURITY.md) for private vulnerability reporting
 
+## Contributors
+
+<a href="https://github.com/apoorvdarshan/verceltics/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=apoorvdarshan/verceltics" alt="Verceltics contributors" />
+</a>
+
 ---
 
 <p align="center">Built with ❤︎ by <a href="https://x.com/apoorvdarshan">Apoorv Darshan</a></p>
