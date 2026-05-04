@@ -69,7 +69,7 @@ final class AuthManager {
             case 401, 403:
                 self.error = "Invalid token. Please check and try again."
             default:
-                self.error = "Unexpected error (\(http.statusCode))."
+                self.error = "Unexpected error (\(result.statusCode))."
             }
         } catch {
             self.error = "Network error. Check your connection."
