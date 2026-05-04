@@ -13,7 +13,7 @@ export default function Terms() {
     <div className="mx-auto max-w-2xl px-6 py-28 sm:px-8">
       <Link href="/" className="text-[13px] text-white/30 transition-colors hover:text-white/60">&larr; Back to Verceltics</Link>
       <h1 className="mt-10 font-serif text-4xl italic tracking-[-0.03em]">Terms of Service</h1>
-      <p className="mt-2 text-[13px] text-white/25">Last updated: May 3, 2026 — applies to v1.1.1</p>
+      <p className="mt-2 text-[13px] text-white/25">Last updated: May 4, 2026 — applies to v1.1.2</p>
 
       <div className="mt-12 space-y-10 text-[15px] leading-7 text-white/40">
         <section>
@@ -23,12 +23,12 @@ export default function Terms() {
 
         <section>
           <h2 className="text-lg font-semibold text-white/80">The Service</h2>
-          <p className="mt-3">Verceltics is a mobile app that displays your Vercel web analytics using your own Vercel personal access token. The app fetches data directly from Vercel&apos;s API on your behalf.</p>
+          <p className="mt-3">Verceltics is a mobile app that displays your Vercel web analytics using your own Vercel personal access tokens. The app fetches data directly from Vercel&apos;s API on your behalf.</p>
         </section>
 
         <section>
           <h2 className="text-lg font-semibold text-white/80">Your Account</h2>
-          <p className="mt-3">You are responsible for your Vercel access token and any activity that occurs through it. Keep your token secure. We recommend creating a token specifically for Verceltics and revoking it if you stop using the app.</p>
+          <p className="mt-3">You are responsible for your Vercel access tokens and any activity that occurs through them. Keep your tokens secure. We recommend creating tokens specifically for Verceltics and revoking them if you stop using the app.</p>
         </section>
 
         <section>

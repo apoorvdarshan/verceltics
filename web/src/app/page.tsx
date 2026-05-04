@@ -13,13 +13,13 @@ const GITHUB = "https://github.com/apoorvdarshan/verceltics";
 const PRODUCTHUNT = "https://www.producthunt.com/products/verceltics";
 
 const ticker = [
-  "v1.1.1 — update checks",
+  "v1.1.2 — multi-account",
   "SwiftUI",
   "Swift Charts",
   "Private by design",
   "Open source",
   "iOS Keychain",
-  "No tracking",
+  "No app tracking",
   "No servers",
   "iPad ready",
 ] as const;
@@ -44,8 +44,8 @@ const features = [
   {
     label: "Projects",
     title: "Every project, one tap.",
-    body: "All your Vercel projects with favicons, framework, last commit, and a pulsing green dot when something deployed in the last thirty minutes. Switch instantly. Search by name, domain, or framework.",
-    bullets: ["Live deploy indicator", "Framework-tinted dots — Astro orange, Vite purple", "Search & filter"],
+    body: "All your Vercel projects with favicons, framework, last commit, and a pulsing green dot when something deployed in the last thirty minutes. Switch Vercel accounts from the toolbar, then search by name, domain, or framework.",
+    bullets: ["Multi-account switcher", "Live deploy indicator", "Search & filter"],
     image: "/projects.png",
     alt: "Verceltics project list with favicons and live deploy dots",
   },
@@ -149,8 +149,8 @@ export default function Home() {
           country traffic, device types, browser stats, operating system breakdown, top pages,
           route analytics, hostname analytics, event tracking, feature flags, and query parameters.
           Built with SwiftUI, Swift Charts, async/await, and StoreKit 2. Live deploy indicator,
-          framework-tinted dots, soft paywall flow, and App Store update checker.
-          Token stored in iOS Keychain. No data collection. No telemetry. No servers.
+          multi-account switching, framework-tinted dots, soft paywall flow, and App Store update checker.
+          Vercel tokens stored in iOS Keychain. No app data collection. No app telemetry. No servers.
           Open source on GitHub. Works with Vercel Hobby and Pro plans.
           Alternative to Vercel dashboard for mobile. Best Vercel analytics app for iPhone.
           Vercel mobile app. Vercel stats on phone. Web analytics iOS. Developer tools iOS.
@@ -214,7 +214,7 @@ export default function Home() {
                 className="animate-fade-up text-[11px] font-medium uppercase tracking-[0.35em] text-white/30"
                 style={{ animationDelay: "0.05s" }}
               >
-                Open source &middot; iOS 18+ &middot; v1.1.1
+                Open source &middot; iOS 18+ &middot; v1.1.2
               </p>
 
               <h1
@@ -233,7 +233,7 @@ export default function Home() {
                 style={{ animationDelay: "0.28s" }}
               >
                 Visitors, referrers, devices, page views, twelve breakdowns —
-                from your iPhone or iPad. Token in your Keychain. Nothing in between.
+                from your iPhone or iPad. Tokens in your Keychain. Nothing in between.
               </p>
 
               <div
@@ -363,7 +363,7 @@ export default function Home() {
             <div className="mt-16 grid gap-px overflow-hidden rounded-2xl border border-white/[0.04] md:grid-cols-3">
               {[
                 { n: "01", t: "Create a token", d: "Generate a read-only token in your Vercel dashboard." },
-                { n: "02", t: "Paste it in", d: "Enter it once. Stored in the iOS Keychain." },
+                { n: "02", t: "Paste it in", d: "Enter it once. Add more accounts later if needed." },
                 { n: "03", t: "Check anytime", d: "Open the app. See your stats. That’s the whole flow." },
               ].map((s, i) => (
                 <ScrollReveal key={s.n} delay={i * 80}>
@@ -390,7 +390,7 @@ export default function Home() {
                   Three plans. No tricks.
                 </h2>
                 <p className="mt-4 max-w-md mx-auto text-[14px] leading-6 text-white/35">
-                  Yearly comes with a real 7-day free trial. Lifetime is one payment, no recurring charges ever. Or build from source for free with your own token.
+                  Yearly comes with a real 7-day free trial. Lifetime is one payment, no recurring charges ever. Or build from source for free with your own Vercel tokens.
                 </p>
               </div>
             </ScrollReveal>

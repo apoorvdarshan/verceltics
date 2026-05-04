@@ -10,13 +10,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
     },
     {
       url: "https://verceltics.com/privacy",
-      lastModified: new Date("2026-04-03"),
+      lastModified: new Date("2026-05-04"),
       changeFrequency: "yearly",
       priority: 0.3,
     },
     {
       url: "https://verceltics.com/terms",
-      lastModified: new Date("2026-04-03"),
+      lastModified: new Date("2026-05-04"),
       changeFrequency: "yearly",
       priority: 0.3,
     },

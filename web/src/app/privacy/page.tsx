@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Privacy Policy",
   description:
-    "Verceltics privacy policy. We collect no personal data. Your Vercel token is stored locally in the iOS Keychain. No tracking, no telemetry, no servers.",
+    "Verceltics privacy policy. Your Vercel tokens are stored locally in the iOS Keychain. No app tracking, no app telemetry, no app servers.",
   alternates: { canonical: "https://verceltics.com/privacy" },
 };
 
@@ -13,7 +13,7 @@ export default function Privacy() {
     <div className="mx-auto max-w-2xl px-6 py-28 sm:px-8">
       <Link href="/" className="text-[13px] text-white/30 transition-colors hover:text-white/60">&larr; Back to Verceltics</Link>
       <h1 className="mt-10 font-serif text-4xl italic tracking-[-0.03em]">Privacy Policy</h1>
-      <p className="mt-2 text-[13px] text-white/25">Last updated: May 3, 2026 — applies to v1.1.1</p>
+      <p className="mt-2 text-[13px] text-white/25">Last updated: May 4, 2026 — applies to v1.1.2</p>
 
       <div className="mt-12 space-y-10 text-[15px] leading-7 text-white/40">
         <section>
@@ -23,18 +23,18 @@ export default function Privacy() {
 
         <section>
           <h2 className="text-lg font-semibold text-white/80">Data We Collect</h2>
-          <p className="mt-3"><strong className="text-white/60">We do not collect any personal data.</strong> Specifically:</p>
+          <p className="mt-3"><strong className="text-white/60">The iOS app does not collect any personal data.</strong> Specifically:</p>
           <ul className="mt-3 list-disc space-y-1 pl-5">
             <li>We do not track you</li>
             <li>We do not use analytics or telemetry inside the app</li>
             <li>We do not store your data on our servers — there are no servers</li>
-            <li>We do not sell or share your Vercel token, account data, or analytics data with third parties</li>
+            <li>We do not sell or share your Vercel tokens, account data, or analytics data with third parties</li>
           </ul>
         </section>
 
         <section>
-          <h2 className="text-lg font-semibold text-white/80">Vercel API Token</h2>
-          <p className="mt-3">Your Vercel personal access token is stored locally on your device in the iOS Keychain — Apple&apos;s encrypted, hardware-backed secure storage. The token is sent only to <code className="text-white/60">api.vercel.com</code> and <code className="text-white/60">vercel.com/api</code> to fetch your projects and analytics. It never crosses our infrastructure.</p>
+          <h2 className="text-lg font-semibold text-white/80">Vercel API Tokens</h2>
+          <p className="mt-3">Your Vercel personal access tokens are stored locally on your device in the iOS Keychain — Apple&apos;s encrypted, hardware-backed secure storage. Tokens are sent only to <code className="text-white/60">api.vercel.com</code> and <code className="text-white/60">vercel.com/api</code> to fetch your Vercel profile, projects, domains, and analytics. They never cross our infrastructure.</p>
         </section>
 
         <section>
@@ -43,13 +43,18 @@ export default function Privacy() {
         </section>
 
         <section>
-          <h2 className="text-lg font-semibold text-white/80">Favicon Services</h2>
-          <p className="mt-3">To display project favicons in the project list, the app may issue plain GET requests for favicon URLs to <code className="text-white/60">images.weserv.nl</code> (SVG rasterisation), <code className="text-white/60">icons.duckduckgo.com</code>, <code className="text-white/60">www.google.com/s2/favicons</code>, and <code className="text-white/60">icon.horse</code>. These requests carry only the favicon URL — they never include your Vercel token or any account data.</p>
+          <h2 className="text-lg font-semibold text-white/80">Images, Favicons, and Avatars</h2>
+          <p className="mt-3">To display project favicons in the project list, the app may issue plain GET requests for favicon URLs to <code className="text-white/60">images.weserv.nl</code> (SVG rasterisation), <code className="text-white/60">icons.duckduckgo.com</code>, <code className="text-white/60">www.google.com/s2/favicons</code>, and <code className="text-white/60">icon.horse</code>. Vercel profile avatars may be loaded from Vercel&apos;s avatar endpoint. These image requests never include your Vercel tokens or analytics data.</p>
         </section>
 
         <section>
           <h2 className="text-lg font-semibold text-white/80">App Store Update Checks</h2>
-          <p className="mt-3">To check whether a new version is available, the app may call Apple&apos;s public App Store lookup endpoint with the Verceltics app ID and country. This request never includes your Vercel token, account data, or analytics data.</p>
+          <p className="mt-3">To check whether a new version is available, the app may call Apple&apos;s public App Store lookup endpoint with the Verceltics app ID and country. This request never includes your Vercel tokens, account data, or analytics data.</p>
+        </section>
+
+        <section>
+          <h2 className="text-lg font-semibold text-white/80">Website Analytics</h2>
+          <p className="mt-3">The marketing website may use Vercel Web Analytics to understand aggregate page visits. This does not include your Vercel tokens, app account data, or analytics data from your Vercel projects.</p>
         </section>
 
         <section>
