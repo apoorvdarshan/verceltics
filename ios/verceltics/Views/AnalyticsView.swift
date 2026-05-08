@@ -8,6 +8,7 @@ final class AnalyticsViewModel {
     var data = AnalyticsData()
     var selectedRange: TimeRange = .week
     var selectedEnvironment: VercelEnvironment = .production
+    var unlockedProRangeIDs: Set<String> = []
     var isLoading = true
     var error: String?
 
@@ -63,6 +64,9 @@ final class AnalyticsViewModel {
             data.events = (try? await events) ?? []
             data.flags = (try? await flags) ?? []
             data.queryParams = (try? await queryParams) ?? []
+            if range.isPro {
+                unlockedProRangeIDs.formUnion(TimeRange.allCases.filter(\.isPro).map(\.id))
+            }
 
         } catch {
             self.error = error.localizedDescription
@@ -248,7 +252,7 @@ struct AnalyticsView: View {
                         } label: {
                             HStack {
                                 Text(range.label)
-                                if range.isPro {
+                                if range.isPro && !vm.unlockedProRangeIDs.contains(range.id) {
                                     Image(systemName: "lock.fill")
                                 }
                                 if vm.selectedRange == range {
