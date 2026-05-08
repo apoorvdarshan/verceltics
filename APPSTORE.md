@@ -1,6 +1,6 @@
 # App Store Listing
 
-App Store Connect submission details for Verceltics v1.1.3. Each field is in a code block for easy copy-paste.
+App Store Connect submission details for Verceltics v1.1.4. Each field is in a code block for easy copy-paste.
 
 ## App Name
 ```
@@ -58,7 +58,7 @@ HOW IT WORKS
 
 PRICING
 • Monthly: $4.99/month
-• Yearly: $34.99/year with a 7-day free trial (save 41%)
+• Yearly: $34.99/year with a 7-day free trial (save 42%)
 • Lifetime: $59.99 one-time purchase
 • Cancel subscriptions anytime from Apple ID settings
 
@@ -73,17 +73,18 @@ Contact: ad13dtu@gmail.com
 Not affiliated with Vercel Inc.
 ```
 
-## What's New (v1.1.3)
+## What's New (v1.1.4)
 ```
-Verceltics 1.1.3 — quicker project navigation.
+Verceltics 1.1.4 — purchase and analytics polish.
 
 NEW
-• Copy project URLs directly from the project card context menu.
-• Analytics project domains are now shown as clearer tappable buttons.
+• RevenueCat-backed purchase entitlement checks for subscriptions, lifetime unlock, and restores.
+• Follow on LinkedIn link in About.
 
 Polish & fixes
-• Improved project quick actions without changing the existing native search/account layout.
-• Small UI polish for opening live deployments from Analytics.
+• Paid analytics range locks now stay unlocked once data is detected for that account.
+• Clearer Web Analytics Plus messaging for UTM sections.
+• Internal Xcode project cleanup for the latest recommended settings.
 ```
 
 ## Privacy URL

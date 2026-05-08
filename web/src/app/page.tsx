@@ -13,7 +13,7 @@ const GITHUB = "https://github.com/apoorvdarshan/verceltics";
 const PRODUCTHUNT = "https://www.producthunt.com/products/verceltics";
 
 const ticker = [
-  "v1.1.3 — quick actions",
+  "v1.1.4 — purchase polish",
   "SwiftUI",
   "Swift Charts",
   "Private by design",
@@ -214,7 +214,7 @@ export default function Home() {
                 className="animate-fade-up text-[11px] font-medium uppercase tracking-[0.35em] text-white/30"
                 style={{ animationDelay: "0.05s" }}
               >
-                Open source &middot; iOS 18+ &middot; v1.1.3
+                Open source &middot; iOS 18+ &middot; v1.1.4
               </p>
 
               <h1

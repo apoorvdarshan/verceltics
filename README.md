@@ -175,6 +175,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 - **Email**: ad13dtu@gmail.com
 - **X**: [@apoorvdarshan](https://x.com/apoorvdarshan)
+- **LinkedIn**: [Verceltics](https://www.linkedin.com/company/verceltics)
 - **Issues**: [github.com/apoorvdarshan/verceltics/issues](https://github.com/apoorvdarshan/verceltics/issues)
 - **Security**: see [SECURITY.md](SECURITY.md) for private vulnerability reporting
 

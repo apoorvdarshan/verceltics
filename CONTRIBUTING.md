@@ -22,7 +22,7 @@ Thanks for your interest in contributing! Here's how to get started.
 ## Guidelines
 
 - **SwiftUI only** — No UIKit wrappers unless absolutely necessary
-- **No third-party dependencies** — Keep it dependency-free
+- **No new third-party dependencies without discussion** — RevenueCat is already used for App Store entitlements; keep everything else lean
 - **Dark mode only** — All UI must work on pure black (#000000) background
 - **iOS 18.0+** — Minimum deployment target
 - **Swift 6 strict concurrency** — Project sets `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`. Mark pure data models / pure helpers `nonisolated`. Use `async/await`, actors, `@Observable`
