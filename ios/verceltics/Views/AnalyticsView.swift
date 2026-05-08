@@ -8,7 +8,7 @@ final class AnalyticsViewModel {
     var data = AnalyticsData()
     var selectedRange: TimeRange = .week
     var selectedEnvironment: VercelEnvironment = .production
-    var unlockedProRangeIDs: Set<String> = []
+    var hasLongAnalyticsHistory = false
     var isLoading = true
     var error: String?
 
@@ -16,9 +16,11 @@ final class AnalyticsViewModel {
         self.project = project
     }
 
-    func load(token: String) async {
+    func load(token: String, hasLongAnalyticsHistory: Bool) async -> Bool {
         isLoading = true
         error = nil
+        self.hasLongAnalyticsHistory = hasLongAnalyticsHistory
+        var didUnlockLongAnalyticsHistory = false
         let api = VercelAPI(token: token)
         let pid = project.id
         let tid = project.teamId
@@ -65,13 +67,15 @@ final class AnalyticsViewModel {
             data.flags = (try? await flags) ?? []
             data.queryParams = (try? await queryParams) ?? []
             if range.isPro {
-                unlockedProRangeIDs.formUnion(TimeRange.allCases.filter(\.isPro).map(\.id))
+                self.hasLongAnalyticsHistory = true
+                didUnlockLongAnalyticsHistory = true
             }
 
         } catch {
             self.error = error.localizedDescription
         }
         isLoading = false
+        return didUnlockLongAnalyticsHistory
     }
 }
 
@@ -252,7 +256,7 @@ struct AnalyticsView: View {
                         } label: {
                             HStack {
                                 Text(range.label)
-                                if range.isPro && !vm.unlockedProRangeIDs.contains(range.id) {
+                                if range.isPro && !vm.hasLongAnalyticsHistory {
                                     Image(systemName: "lock.fill")
                                 }
                                 if vm.selectedRange == range {
@@ -471,7 +475,14 @@ struct AnalyticsView: View {
 
     private func loadData() async {
         guard let token = authManager.token else { return }
-        await vm.load(token: token)
+        let accountId = authManager.activeAccountId
+        let didUnlockLongAnalyticsHistory = await vm.load(
+            token: token,
+            hasLongAnalyticsHistory: authManager.hasLongAnalyticsHistory(for: accountId)
+        )
+        if didUnlockLongAnalyticsHistory {
+            authManager.markLongAnalyticsHistoryAvailable(for: accountId)
+        }
         lastUpdated = Date()
     }
 

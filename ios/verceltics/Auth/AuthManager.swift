@@ -6,6 +6,7 @@ import Observation
 final class AuthManager {
     var accounts: [VercelAccount] = []
     var activeAccountId: UUID?
+    var accountsWithLongAnalyticsHistory: Set<UUID> = []
     var isLoading = false
     var error: String?
 
@@ -113,8 +114,19 @@ final class AuthManager {
         }
     }
 
+    func hasLongAnalyticsHistory(for id: UUID?) -> Bool {
+        guard let id else { return false }
+        return accountsWithLongAnalyticsHistory.contains(id)
+    }
+
+    func markLongAnalyticsHistoryAvailable(for id: UUID?) {
+        guard let id else { return }
+        accountsWithLongAnalyticsHistory.insert(id)
+    }
+
     func removeAccount(id: UUID) {
         accounts.removeAll { $0.id == id }
+        accountsWithLongAnalyticsHistory.remove(id)
         KeychainHelper.saveAccounts(accounts)
         
         if activeAccountId == id {
@@ -132,6 +144,7 @@ final class AuthManager {
     func logoutAll() {
         accounts = []
         activeAccountId = nil
+        accountsWithLongAnalyticsHistory.removeAll()
         KeychainHelper.deleteEverything()
     }
 
