@@ -189,7 +189,7 @@ struct AnalyticsView: View {
                         title: "UTM Parameters",
                         icon: "tag",
                         items: vm.data.utmSources,
-                        lockedTitle: "Upgrade to Web Analytics Plus",
+                        lockedTitle: vm.hasLongAnalyticsHistory ? "Upgrade to Web Analytics Plus" : "Requires Pro + Web Analytics Plus",
                         lockedSubtitle: "to access this feature"
                     )
 
