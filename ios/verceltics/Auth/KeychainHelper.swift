@@ -5,6 +5,7 @@ enum KeychainHelper {
     private static let service = "com.apoorvdarshan.verceltics"
     private static let accountsKey = "vercel_accounts"
     private static let activeAccountIdKey = "active_account_id"
+    private static let longAnalyticsHistoryAccountIdsKey = "long_analytics_history_account_ids"
 
     static func saveAccounts(_ accounts: [VercelAccount]) {
         do {
@@ -50,6 +51,15 @@ enum KeychainHelper {
         return UUID(uuidString: string)
     }
 
+    static func saveLongAnalyticsHistoryAccountIds(_ ids: Set<UUID>) {
+        UserDefaults.standard.set(ids.map(\.uuidString), forKey: longAnalyticsHistoryAccountIdsKey)
+    }
+
+    static func getLongAnalyticsHistoryAccountIds() -> Set<UUID> {
+        let strings = UserDefaults.standard.stringArray(forKey: longAnalyticsHistoryAccountIdsKey) ?? []
+        return Set(strings.compactMap(UUID.init(uuidString:)))
+    }
+
     static func deleteEverything() {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -57,5 +67,6 @@ enum KeychainHelper {
         ]
         SecItemDelete(query as CFDictionary)
         UserDefaults.standard.removeObject(forKey: activeAccountIdKey)
+        UserDefaults.standard.removeObject(forKey: longAnalyticsHistoryAccountIdsKey)
     }
 }

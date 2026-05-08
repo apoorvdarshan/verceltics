@@ -25,6 +25,7 @@ final class AuthManager {
     init() {
         self.accounts = KeychainHelper.getAccounts()
         self.activeAccountId = KeychainHelper.getActiveAccountId()
+        self.accountsWithLongAnalyticsHistory = KeychainHelper.getLongAnalyticsHistoryAccountIds()
         
         // Default to first account if active one is missing
         if activeAccountId == nil, let first = accounts.first {
@@ -122,12 +123,14 @@ final class AuthManager {
     func markLongAnalyticsHistoryAvailable(for id: UUID?) {
         guard let id else { return }
         accountsWithLongAnalyticsHistory.insert(id)
+        KeychainHelper.saveLongAnalyticsHistoryAccountIds(accountsWithLongAnalyticsHistory)
     }
 
     func removeAccount(id: UUID) {
         accounts.removeAll { $0.id == id }
         accountsWithLongAnalyticsHistory.remove(id)
         KeychainHelper.saveAccounts(accounts)
+        KeychainHelper.saveLongAnalyticsHistoryAccountIds(accountsWithLongAnalyticsHistory)
         
         if activeAccountId == id {
             activeAccountId = accounts.first?.id
