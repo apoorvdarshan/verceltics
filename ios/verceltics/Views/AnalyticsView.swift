@@ -185,7 +185,13 @@ struct AnalyticsView: View {
                     breakdownCard(title: "Hostnames", icon: "server.rack", items: vm.data.hostnames)
 
                     breakdownCard(title: "Referrers", icon: "link", items: vm.data.referrers, emptyLabel: "Direct")
-                    breakdownCard(title: "UTM Parameters", icon: "tag", items: vm.data.utmSources, proHint: "Pro + Analytics Plus")
+                    breakdownCard(
+                        title: "UTM Parameters",
+                        icon: "tag",
+                        items: vm.data.utmSources,
+                        lockedTitle: "Upgrade to Web Analytics Plus",
+                        lockedSubtitle: "to access this feature"
+                    )
 
                     breakdownCard(title: "Countries", icon: "globe.americas", items: vm.data.countries, isCountry: true)
 
@@ -347,6 +353,8 @@ struct AnalyticsView: View {
         isPath: Bool = false,
         isCountry: Bool = false,
         isPercentage: Bool = false,
+        lockedTitle: String? = nil,
+        lockedSubtitle: String? = nil,
         proHint: String? = nil
     ) -> some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -375,15 +383,16 @@ struct AnalyticsView: View {
             Divider().overlay(Color.white.opacity(0.06))
 
             if items.isEmpty {
-                if let proHint {
+                let lockTitle = lockedTitle ?? proHint.map { "Requires \($0)" }
+                if let lockTitle {
                     VStack(spacing: 8) {
                         Image(systemName: "lock.fill")
                             .font(.system(size: 18))
                             .foregroundStyle(.white.opacity(0.2))
-                        Text("Requires \(proHint)")
+                        Text(lockTitle)
                             .font(.system(size: 12, weight: .bold))
                             .foregroundStyle(.white.opacity(0.7))
-                        Text("Upgrade your Vercel plan")
+                        Text(lockedSubtitle ?? "Upgrade your Vercel plan")
                             .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(.white.opacity(0.35))
                     }
