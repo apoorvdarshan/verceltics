@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Privacy Policy",
   description:
-    "Verceltics privacy policy. Your Vercel tokens are stored locally in the iOS Keychain. No app tracking, no app telemetry, no app servers.",
+    "Verceltics privacy policy. Your Vercel tokens are stored locally in the iOS Keychain. No app tracking, no app telemetry, no Vercel data proxy.",
   alternates: { canonical: "https://verceltics.com/privacy" },
 };
 
@@ -13,7 +13,7 @@ export default function Privacy() {
     <div className="mx-auto max-w-2xl px-6 py-28 sm:px-8">
       <Link href="/" className="text-[13px] text-white/30 transition-colors hover:text-white/60">&larr; Back to Verceltics</Link>
       <h1 className="mt-10 font-serif text-4xl italic tracking-[-0.03em]">Privacy Policy</h1>
-      <p className="mt-2 text-[13px] text-white/25">Last updated: May 5, 2026 — applies to v1.1.3</p>
+      <p className="mt-2 text-[13px] text-white/25">Last updated: May 8, 2026 — applies to v1.1.3</p>
 
       <div className="mt-12 space-y-10 text-[15px] leading-7 text-white/40">
         <section>
@@ -23,11 +23,11 @@ export default function Privacy() {
 
         <section>
           <h2 className="text-lg font-semibold text-white/80">Data We Collect</h2>
-          <p className="mt-3"><strong className="text-white/60">The iOS app does not collect any personal data.</strong> Specifically:</p>
+          <p className="mt-3"><strong className="text-white/60">The iOS app does not collect your Vercel account data or analytics data.</strong> Specifically:</p>
           <ul className="mt-3 list-disc space-y-1 pl-5">
             <li>We do not track you</li>
-            <li>We do not use analytics or telemetry inside the app</li>
-            <li>We do not store your data on our servers — there are no servers</li>
+            <li>We do not use product analytics, advertising tracking, or Vercel data telemetry inside the app</li>
+            <li>We do not proxy or store your Vercel account data or analytics data on our servers</li>
             <li>We do not sell or share your Vercel tokens, account data, or analytics data with third parties</li>
           </ul>
         </section>
@@ -59,7 +59,8 @@ export default function Privacy() {
 
         <section>
           <h2 className="text-lg font-semibold text-white/80">Subscriptions</h2>
-          <p className="mt-3">Subscriptions and the lifetime in-app purchase are managed entirely by Apple through the App Store. We do not process or store any payment information. We can&apos;t see your card.</p>
+          <p className="mt-3">Subscriptions and the lifetime in-app purchase are processed by Apple through the App Store. Verceltics uses RevenueCat to manage entitlement status and restore purchases. RevenueCat may receive Apple purchase receipt data, an anonymous RevenueCat app user identifier, and subscription status needed to unlock the app.</p>
+          <p className="mt-3">RevenueCat does not receive your Vercel tokens, Vercel account data, project data, or analytics data from Verceltics. We do not process or store any payment card information. We can&apos;t see your card.</p>
         </section>
 
         <section>

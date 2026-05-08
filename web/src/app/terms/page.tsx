@@ -13,7 +13,7 @@ export default function Terms() {
     <div className="mx-auto max-w-2xl px-6 py-28 sm:px-8">
       <Link href="/" className="text-[13px] text-white/30 transition-colors hover:text-white/60">&larr; Back to Verceltics</Link>
       <h1 className="mt-10 font-serif text-4xl italic tracking-[-0.03em]">Terms of Service</h1>
-      <p className="mt-2 text-[13px] text-white/25">Last updated: May 5, 2026 — applies to v1.1.3</p>
+      <p className="mt-2 text-[13px] text-white/25">Last updated: May 8, 2026 — applies to v1.1.3</p>
 
       <div className="mt-12 space-y-10 text-[15px] leading-7 text-white/40">
         <section>
@@ -46,6 +46,7 @@ export default function Terms() {
             <li>You can manage and cancel subscriptions in your Apple ID settings (<code className="text-white/60">Settings → Apple ID → Subscriptions</code>)</li>
             <li>Any unused portion of a free trial is forfeited when you purchase a subscription</li>
           </ul>
+          <p className="mt-4">Purchases are processed by Apple. Verceltics uses RevenueCat to manage entitlement status, purchase history, and restore purchases for the Verceltics Pro entitlement.</p>
           <p className="mt-4">The Lifetime purchase is non-refundable through Verceltics; refunds for any purchase are processed by Apple per their App Store refund policy.</p>
         </section>
 

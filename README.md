@@ -63,10 +63,9 @@ Build from source for free with your own Vercel token. App Store distribution ex
 - **SwiftUI** — Entire UI, layered gradient cards, scoped animations
 - **Swift Charts** — Interactive line + area chart with peak / average / drag-select
 - **Swift 6** — Strict concurrency (`SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`)
-- **StoreKit 2** — Auto-renewable subscriptions + non-consumable lifetime
+- **RevenueCat + StoreKit** — Entitlements, purchase restore, auto-renewable subscriptions, and lifetime unlock
 - **Keychain** — Secure token storage
 - **async/await** + **actors** — All API calls
-- **Zero dependencies** — No third-party libraries
 
 **Web**
 - **Next.js** — Landing page, privacy, terms
@@ -110,15 +109,15 @@ The app uses [Vercel personal access tokens](https://vercel.com/account/tokens) 
 3. Paste it in the app
 4. Add more accounts from the account switcher in Projects
 
-### StoreKit Testing
+### Purchase Testing
 
 To test the paywall in Xcode:
 
-1. Edit Scheme → Run → Options → StoreKit Configuration → select `ios/verceltics/Paywall/Products.storekit`
-2. Build and run
-3. Use Debug → StoreKit → Manage Transactions to reset purchases
+1. Open `ios/verceltics.xcodeproj` in Xcode and let Swift Package Manager resolve RevenueCat
+2. Run the app with an Apple sandbox tester or TestFlight build
+3. Use RevenueCat customer history and Apple sandbox tools to inspect purchase state
 
-The local config has all three products: monthly, yearly (with 7-day intro offer), and lifetime non-consumable. Production prices and trial duration are set independently in App Store Connect.
+The checked-in StoreKit config still mirrors all three products for local reference: monthly, yearly with a 7-day intro offer, and lifetime non-consumable. Production prices, trial duration, and entitlement state are managed through App Store Connect and RevenueCat.
 
 ## API
 
@@ -155,7 +154,7 @@ ios/verceltics/
 │   ├── AnalyticsChart.swift         # Interactive Swift Charts line graph
 │   └── Shimmer.swift                # Loading skeleton shimmer modifier
 └── Paywall/
-    ├── PaywallManager.swift         # StoreKit 2 purchase logic
+    ├── PaywallManager.swift         # RevenueCat entitlement + purchase logic
     ├── PaywallView.swift            # Subscription + lifetime paywall UI
     └── Products.storekit            # StoreKit testing config
 ```

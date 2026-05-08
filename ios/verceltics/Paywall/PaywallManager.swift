@@ -1,6 +1,6 @@
 import Foundation
-import StoreKit
 import Observation
+import RevenueCat
 
 @Observable
 @MainActor
@@ -9,127 +9,126 @@ final class PaywallManager {
     static let yearlyProductID = "com.apoorvdarshan.verceltics.yearly"
     static let lifetimeProductID = "com.apoorvdarshan.verceltics.lifetime"
 
-    var products: [Product] = []
+    private static let revenueCatAPIKey = "appl_kIbnXTGTOxEEAuvRXUhenQYtzlk"
+    private static let entitlementID = "Verceltics Pro"
+
+    var packages: [Package] = []
     var purchasedProductIDs: Set<String> = []
+    var hasActiveEntitlement = false
     var isLoading = true
     var hasCheckedEntitlements = false
     var error: String?
 
-    /// True when the user has any active entitlement — auto-renewing
-    /// subscription OR the lifetime non-consumable.
     var hasActiveSubscription: Bool {
-        !purchasedProductIDs.isEmpty
+        hasActiveEntitlement
     }
 
-    var monthlyProduct: Product? {
-        products.first { $0.id == Self.monthlyProductID }
+    var monthlyPackage: Package? {
+        package(for: Self.monthlyProductID, type: .monthly)
     }
 
-    var yearlyProduct: Product? {
-        products.first { $0.id == Self.yearlyProductID }
+    var yearlyPackage: Package? {
+        package(for: Self.yearlyProductID, type: .annual)
     }
 
-    var lifetimeProduct: Product? {
-        products.first { $0.id == Self.lifetimeProductID }
+    var lifetimePackage: Package? {
+        package(for: Self.lifetimeProductID, type: .lifetime)
     }
-
-    private var updateTask: Task<Void, Never>?
 
     init() {
-        updateTask = Task {
-            await updatePurchasedProducts()
-            hasCheckedEntitlements = true
-            await listenForTransactions()
+        configureRevenueCat()
+        Task {
+            await checkEntitlements()
+            await loadProducts()
         }
     }
 
     func loadProducts() async {
-        // Skip if already loaded
-        if !products.isEmpty {
+        if !packages.isEmpty {
             isLoading = false
             return
         }
+
         isLoading = true
         error = nil
+
         do {
-            products = try await Product.products(for: [
-                Self.monthlyProductID,
-                Self.yearlyProductID,
-                Self.lifetimeProductID
-            ])
+            let offerings = try await Purchases.shared.offerings()
+            let offering = offerings.current ?? offerings.offering(identifier: "default")
+            packages = offering?.availablePackages ?? []
+            if packages.isEmpty {
+                error = "No purchase options are available right now."
+            }
         } catch {
-            self.error = "Failed to load products."
+            self.error = "Failed to load purchase options."
         }
-        // Always check entitlements even if product load fails
-        await updatePurchasedProducts()
+
+        await checkEntitlements()
         isLoading = false
     }
 
-    func purchase(_ product: Product) async -> Bool {
+    func purchase(_ package: Package) async -> Bool {
+        error = nil
+
         do {
-            let result = try await product.purchase()
-            switch result {
-            case .success(let verification):
-                let transaction = try checkVerified(verification)
-                purchasedProductIDs.insert(transaction.productID)
-                await transaction.finish()
-                await updatePurchasedProducts()
-                return true
-            case .userCancelled:
-                return false
-            case .pending:
-                return false
-            @unknown default:
-                return false
-            }
+            let result = try await Purchases.shared.purchase(package: package)
+            apply(customerInfo: result.customerInfo)
+            return !result.userCancelled && hasActiveSubscription
         } catch {
             self.error = "Purchase failed. Please try again."
+            await checkEntitlements()
             return false
         }
     }
 
     func restorePurchases() async {
-        try? await AppStore.sync()
-        await updatePurchasedProducts()
+        error = nil
+
+        do {
+            let customerInfo = try await Purchases.shared.restorePurchases()
+            apply(customerInfo: customerInfo)
+        } catch {
+            self.error = "Restore failed. Please try again."
+            await checkEntitlements()
+        }
     }
 
     func checkEntitlements() async {
-        await updatePurchasedProducts()
-    }
-
-    private func updatePurchasedProducts() async {
-        var purchased: Set<String> = []
-        for await result in Transaction.currentEntitlements {
-            if let transaction = try? checkVerified(result) {
-                purchased.insert(transaction.productID)
+        do {
+            let customerInfo = try await Purchases.shared.customerInfo()
+            apply(customerInfo: customerInfo)
+        } catch {
+            if !hasCheckedEntitlements {
+                purchasedProductIDs = []
+                hasActiveEntitlement = false
             }
         }
-        purchasedProductIDs = purchased
+        hasCheckedEntitlements = true
     }
 
-    private func checkVerified<T>(_ result: VerificationResult<T>) throws -> T {
-        switch result {
-        case .unverified:
-            throw StoreError.verificationFailed
-        case .verified(let safe):
-            return safe
-        }
+    func isEligibleForTrial(_ package: Package?) async -> Bool {
+        guard let package,
+              package.storeProduct.introductoryDiscount?.paymentMode == .freeTrial else { return false }
+        let status = await Purchases.shared.checkTrialOrIntroDiscountEligibility(product: package.storeProduct)
+        return status.isEligible
     }
 
-    private func listenForTransactions() async {
-        for await result in Transaction.updates {
-            if let transaction = try? checkVerified(result) {
-                await transaction.finish()
-                await updatePurchasedProducts()
-            }
-        }
+    private func package(for productID: String, type: PackageType) -> Package? {
+        packages.first { $0.storeProduct.productIdentifier == productID }
+            ?? packages.first { $0.packageType == type }
     }
-}
 
-enum StoreError: LocalizedError {
-    case verificationFailed
+    private func apply(customerInfo: CustomerInfo) {
+        let hasPro = customerInfo.entitlements[Self.entitlementID]?.isActive == true
+        hasActiveEntitlement = hasPro
+        purchasedProductIDs = hasPro ? customerInfo.allPurchasedProductIdentifiers : []
+    }
 
-    var errorDescription: String? {
-        "Transaction verification failed."
+    private func configureRevenueCat() {
+        guard !Purchases.isConfigured else { return }
+        #if DEBUG
+        Purchases.logLevel = .debug
+        #endif
+        Purchases.configure(withAPIKey: Self.revenueCatAPIKey)
     }
 }

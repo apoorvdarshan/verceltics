@@ -1,13 +1,13 @@
 import SwiftUI
-import StoreKit
 import Combine
+import RevenueCat
 
 struct PaywallView: View {
     @Environment(PaywallManager.self) private var paywall
     @Environment(AuthManager.self) private var authManager
     @Environment(\.horizontalSizeClass) private var hSize
     @Environment(\.dismiss) private var dismiss
-    @State private var selectedProduct: Product?
+    @State private var selectedPackage: Package?
     @State private var isPurchasing = false
     @State private var isEligibleForTrial = true
     @State private var currentMemeIndex = 0
@@ -28,19 +28,19 @@ struct PaywallView: View {
     @State private var memeTimer = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
 
     private var subscribeButtonLabel: String {
-        guard let product = selectedProduct else { return "Subscribe" }
-        if product.id == PaywallManager.lifetimeProductID { return "Buy Lifetime" }
-        if product.id == PaywallManager.yearlyProductID, isEligibleForTrial { return "Start Free Trial" }
+        guard let package = selectedPackage else { return "Subscribe" }
+        if package.storeProduct.productIdentifier == PaywallManager.lifetimeProductID { return "Buy Lifetime" }
+        if package.storeProduct.productIdentifier == PaywallManager.yearlyProductID, isEligibleForTrial { return "Start Free Trial" }
         return "Subscribe"
     }
 
-    /// Reads the actual trial duration from the live StoreKit product so
+    /// Reads the actual trial duration from RevenueCat's StoreKit product so
     /// the badge stays in sync with whatever App Store Connect is serving
     /// (3-day, 7-day, etc.) — no hardcoded copy.
     private var trialBadgeText: String {
-        guard let intro = paywall.yearlyProduct?.subscription?.introductoryOffer,
+        guard let intro = paywall.yearlyPackage?.storeProduct.introductoryDiscount,
               intro.paymentMode == .freeTrial else { return "Free trial" }
-        let period = intro.period
+        let period = intro.subscriptionPeriod
         let count: Int
         switch period.unit {
         case .day:   count = period.value
@@ -156,40 +156,37 @@ struct PaywallView: View {
                             .padding(.vertical, 20)
                     } else {
                         VStack(spacing: 10) {
-                            if let yearly = paywall.yearlyProduct {
+                            if let yearly = paywall.yearlyPackage {
                                 PlanCard(
-                                    product: yearly,
                                     label: "Yearly",
-                                    price: yearly.displayPrice,
+                                    price: yearly.localizedPriceString,
                                     detail: "per year",
-                                    isSelected: selectedProduct?.id == yearly.id,
+                                    isSelected: selectedPackage?.identifier == yearly.identifier,
                                     badge: "Best Value",
                                     showTrial: isEligibleForTrial
-                                ) { selectedProduct = yearly }
+                                ) { selectedPackage = yearly }
                             }
 
-                            if let lifetime = paywall.lifetimeProduct {
+                            if let lifetime = paywall.lifetimePackage {
                                 PlanCard(
-                                    product: lifetime,
                                     label: "Lifetime",
-                                    price: lifetime.displayPrice,
+                                    price: lifetime.localizedPriceString,
                                     detail: "one-time, yours forever",
-                                    isSelected: selectedProduct?.id == lifetime.id,
+                                    isSelected: selectedPackage?.identifier == lifetime.identifier,
                                     badge: "Forever",
                                     showTrial: false
-                                ) { selectedProduct = lifetime }
+                                ) { selectedPackage = lifetime }
                             }
 
-                            if let monthly = paywall.monthlyProduct {
+                            if let monthly = paywall.monthlyPackage {
                                 PlanCard(
-                                    product: monthly,
                                     label: "Monthly",
-                                    price: monthly.displayPrice,
+                                    price: monthly.localizedPriceString,
                                     detail: "per month",
-                                    isSelected: selectedProduct?.id == monthly.id,
+                                    isSelected: selectedPackage?.identifier == monthly.identifier,
                                     badge: nil,
                                     showTrial: false
-                                ) { selectedProduct = monthly }
+                                ) { selectedPackage = monthly }
                             }
                         }
                         .padding(.horizontal, 20)
@@ -199,10 +196,10 @@ struct PaywallView: View {
 
                     // Subscribe
                     Button {
-                        guard let product = selectedProduct else { return }
+                        guard let package = selectedPackage else { return }
                         isPurchasing = true
                         Task {
-                            _ = await paywall.purchase(product)
+                            _ = await paywall.purchase(package)
                             isPurchasing = false
                         }
                     } label: {
@@ -220,7 +217,7 @@ struct PaywallView: View {
                         .frame(height: 56)
                         .background(
                             LinearGradient(
-                                colors: selectedProduct != nil
+                                colors: selectedPackage != nil
                                     ? [.white, Color.white.opacity(0.92)]
                                     : [Color.white.opacity(0.2), Color.white.opacity(0.12)],
                                 startPoint: .top, endPoint: .bottom
@@ -234,7 +231,7 @@ struct PaywallView: View {
                         )
                     }
                     .buttonStyle(PressScaleButtonStyle())
-                    .disabled(selectedProduct == nil || isPurchasing)
+                    .disabled(selectedPackage == nil || isPurchasing)
                     .padding(.horizontal, 20)
 
                     if let error = paywall.error {
@@ -288,12 +285,10 @@ struct PaywallView: View {
         }
         .task {
             await paywall.loadProducts()
-            if selectedProduct == nil {
-                selectedProduct = paywall.yearlyProduct ?? paywall.monthlyProduct ?? paywall.lifetimeProduct
+            if selectedPackage == nil {
+                selectedPackage = paywall.yearlyPackage ?? paywall.monthlyPackage ?? paywall.lifetimePackage
             }
-            if let yearly = paywall.yearlyProduct {
-                isEligibleForTrial = await yearly.subscription?.isEligibleForIntroOffer ?? false
-            }
+            isEligibleForTrial = await paywall.isEligibleForTrial(paywall.yearlyPackage)
         }
         .onChange(of: paywall.hasActiveSubscription) { _, isActive in
             // Auto-dismiss when shown as a sheet over Projects after a
@@ -384,7 +379,6 @@ struct FeatureRow: View {
 // MARK: - Plan Card
 
 struct PlanCard: View {
-    let product: Product
     let label: String
     let price: String
     let detail: String

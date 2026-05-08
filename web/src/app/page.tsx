@@ -20,7 +20,7 @@ const ticker = [
   "Open source",
   "iOS Keychain",
   "No app tracking",
-  "No servers",
+  "No data proxy",
   "iPad ready",
 ] as const;
 
@@ -104,7 +104,7 @@ const jsonLd = {
   operatingSystem: "iOS",
   applicationCategory: "DeveloperApplication",
   description:
-    "Vercel web analytics viewer for iPhone and iPad. Track visitors, page views, bounce rate, referrers, countries, devices, browsers, and operating systems. Built with SwiftUI and Swift Charts. Open source, private by default, no tracking, no servers.",
+    "Vercel web analytics viewer for iPhone and iPad. Track visitors, page views, bounce rate, referrers, countries, devices, browsers, and operating systems. Built with SwiftUI and Swift Charts. Open source, private by default, no tracking, no data proxy.",
   url: "https://verceltics.com",
   image: "https://verceltics.com/og.jpg",
   screenshot: [
@@ -148,9 +148,9 @@ export default function Home() {
           unique visitors, bounce rate, session duration, referral sources, UTM campaigns,
           country traffic, device types, browser stats, operating system breakdown, top pages,
           route analytics, hostname analytics, event tracking, feature flags, and query parameters.
-          Built with SwiftUI, Swift Charts, async/await, and StoreKit 2. Live deploy indicator,
+          Built with SwiftUI, Swift Charts, async/await, RevenueCat, and StoreKit. Live deploy indicator,
           multi-account switching, framework-tinted dots, soft paywall flow, and App Store update checker.
-          Vercel tokens stored in iOS Keychain. No app data collection. No app telemetry. No servers.
+          Vercel tokens stored in iOS Keychain. No app data collection. No app telemetry. No data proxy.
           Open source on GitHub. Works with Vercel Hobby and Pro plans.
           Alternative to Vercel dashboard for mobile. Best Vercel analytics app for iPhone.
           Vercel mobile app. Vercel stats on phone. Web analytics iOS. Developer tools iOS.

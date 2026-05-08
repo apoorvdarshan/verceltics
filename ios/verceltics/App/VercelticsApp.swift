@@ -12,8 +12,8 @@ struct VercelticsApp: App {
                 if !authManager.isAuthenticated {
                     LoginView()
                 } else if !paywallManager.hasCheckedEntitlements {
-                    // Brief flash-prevention while StoreKit boots — entitlements
-                    // are needed to know whether to gate the analytics drilldown.
+                    // Brief flash-prevention while RevenueCat checks entitlements
+                    // needed to know whether to gate the analytics drilldown.
                     Color.black.ignoresSafeArea()
                 } else {
                     // Soft paywall: everyone sees the projects list. Analytics

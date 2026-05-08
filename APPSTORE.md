@@ -47,7 +47,7 @@ WHAT YOU GET
 
 PRIVATE BY DESIGN
 • Your Vercel tokens stay in the iOS Keychain — never leave your device
-• No tracking, no telemetry, no servers in between
+• No tracking, no telemetry, no data proxy in between
 • Fully open source on GitHub
 
 HOW IT WORKS
@@ -62,7 +62,7 @@ PRICING
 • Lifetime: $59.99 one-time purchase
 • Cancel subscriptions anytime from Apple ID settings
 
-Built with SwiftUI and Swift Charts. Zero third-party dependencies.
+Built with SwiftUI, Swift Charts, and RevenueCat for App Store purchase entitlement checks.
 
 Website: https://verceltics.com
 GitHub: https://github.com/apoorvdarshan/verceltics
@@ -120,7 +120,7 @@ If you don't have a Vercel account, create a free one at vercel.com and deploy a
 
 Note: Some analytics features (UTM parameters, custom events, flags) require a Vercel Pro or Enterprise plan. These sections will show a lock icon or "Requires Pro" message on Hobby (free) accounts. This is expected behavior.
 
-The app offers Monthly ($4.99), Yearly ($34.99 with a 7-day free trial), and Lifetime ($59.99 one-time) purchase options. Subscriptions can be tested via StoreKit sandbox.
+The app offers Monthly ($4.99), Yearly ($34.99 with a 7-day free trial), and Lifetime ($59.99 one-time) purchase options. Purchases are processed by Apple and entitlement state is managed through RevenueCat. Subscriptions can be tested with Apple sandbox/TestFlight.
 
 This app is universal — designed for both iPhone and iPad, with an adaptive grid and sidebar tab style on regular size class.
 ```
