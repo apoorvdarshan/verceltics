@@ -10,6 +10,7 @@ export const metadata: Metadata = {
 
 const APPSTORE = "https://apps.apple.com/us/app/verceltics/id6761645656";
 const GITHUB = "https://github.com/apoorvdarshan/verceltics";
+const LINKEDIN = "https://www.linkedin.com/company/verceltics";
 const PRODUCTHUNT = "https://www.producthunt.com/products/verceltics";
 
 const ticker = [
@@ -106,6 +107,7 @@ const jsonLd = {
   description:
     "Vercel web analytics viewer for iPhone and iPad. Track visitors, page views, bounce rate, referrers, countries, devices, browsers, and operating systems. Built with SwiftUI and Swift Charts. Open source, private by default, no tracking, no data proxy.",
   url: "https://verceltics.com",
+  sameAs: [GITHUB, LINKEDIN, PRODUCTHUNT, "https://x.com/apoorvdarshan"],
   image: "https://verceltics.com/og.jpg",
   screenshot: [
     "https://verceltics.com/analytics.png",
@@ -518,6 +520,7 @@ export default function Home() {
               <Link href="/privacy" className="transition-colors hover:text-white/70">Privacy</Link>
               <Link href="/terms" className="transition-colors hover:text-white/70">Terms</Link>
               <a href={GITHUB} target="_blank" rel="noreferrer" className="transition-colors hover:text-white/70">GitHub</a>
+              <a href={LINKEDIN} target="_blank" rel="noreferrer" className="transition-colors hover:text-white/70">LinkedIn</a>
               <a href="https://github.com/apoorvdarshan/verceltics/issues" target="_blank" rel="noreferrer" className="transition-colors hover:text-white/70">Report issue</a>
               <a href="https://x.com/apoorvdarshan" target="_blank" rel="noreferrer" className="transition-colors hover:text-white/70">X</a>
               <a href="mailto:ad13dtu@gmail.com" className="transition-colors hover:text-white/70">Contact</a>
