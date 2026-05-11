@@ -20,6 +20,7 @@ struct AboutView: View {
                             AboutRow(icon: "star.bubble.fill", title: "Rate Verceltics", subtitle: "Tap a star, no App Store needed", action: { requestReview() })
                             shareAppRow
                             AboutRow(icon: "star.fill", title: "Star on GitHub", subtitle: "Help us reach more developers", url: "https://github.com/apoorvdarshan/verceltics")
+                            AboutRow(icon: "cup.and.saucer.fill", title: "Support My Work", subtitle: "ko-fi.com/apoorvdarshan", url: "https://ko-fi.com/apoorvdarshan")
                             AboutRow(icon: "arrow.up.circle.fill", title: "Upvote on Product Hunt", subtitle: "producthunt.com/products/verceltics", url: "https://www.producthunt.com/products/verceltics")
                         }
 
@@ -33,6 +34,7 @@ struct AboutView: View {
                             AboutRow(icon: "globe", title: "Website", subtitle: "verceltics.com", url: "https://verceltics.com")
                             AboutRow(icon: "chevron.left.forwardslash.chevron.right", title: "Source Code", subtitle: "github.com/apoorvdarshan/verceltics", url: "https://github.com/apoorvdarshan/verceltics")
                             AboutRow(icon: "building.2.fill", title: "Follow on LinkedIn", subtitle: "linkedin.com/company/verceltics", url: "https://www.linkedin.com/company/verceltics")
+                            AboutRow(icon: "camera.fill", title: "Follow on Instagram", subtitle: "instagram.com/verceltics", url: "https://www.instagram.com/verceltics/")
                             AboutRow(icon: "at", title: "Follow on X", subtitle: "@apoorvdarshan", url: "https://x.com/apoorvdarshan")
                         }
 
