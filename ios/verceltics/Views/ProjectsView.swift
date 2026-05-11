@@ -392,6 +392,22 @@ struct ProjectCard: View {
                     .overlay(Capsule().strokeBorder(Color.white.opacity(0.05), lineWidth: 0.5))
                 }
 
+                if let scope = project.sourceScope, scope.isTeam {
+                    HStack(spacing: 5) {
+                        Image(systemName: "person.3.fill")
+                            .font(.system(size: 8, weight: .heavy))
+                        Text(scope.name)
+                            .font(.system(size: 11, weight: .semibold))
+                            .lineLimit(1)
+                    }
+                    .foregroundStyle(.white.opacity(0.46))
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 4)
+                    .background(Color.white.opacity(0.05))
+                    .clipShape(Capsule())
+                    .overlay(Capsule().strokeBorder(Color.white.opacity(0.05), lineWidth: 0.5))
+                }
+
                 if let framework = project.framework {
                     HStack(spacing: 5) {
                         Circle()

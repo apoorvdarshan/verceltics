@@ -6,6 +6,9 @@ final class AnalyticsViewModel {
     let project: Project
 
     var data = AnalyticsData()
+    var projectDetails: Project
+    var domains: [String] = []
+    var recentDeployments: [RecentDeployment] = []
     var selectedRange: TimeRange = .week
     var selectedEnvironment: VercelEnvironment = .production
     var hasLongAnalyticsHistory = false
@@ -14,6 +17,8 @@ final class AnalyticsViewModel {
 
     init(project: Project) {
         self.project = project
+        self.projectDetails = project
+        self.domains = project.primaryDomain.map { [$0] } ?? []
     }
 
     func load(token: String, hasLongAnalyticsHistory: Bool) async -> Bool {
@@ -50,6 +55,9 @@ final class AnalyticsViewModel {
             async let events = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "event_name", environment: env)
             async let flags = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "flags", environment: env)
             async let queryParams = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "query_params", environment: env)
+            async let fetchedProject: Project? = try? await api.fetchProject(id: pid, teamId: tid)
+            async let fetchedDomains: [String] = (try? await api.fetchProjectDomains(projectId: pid, teamId: tid)) ?? []
+            async let fetchedDeployments: [RecentDeployment] = (try? await api.fetchDeployments(projectId: pid, teamId: tid)) ?? []
 
             data.overview = try await overview
             data.previousOverview = try? await previous
@@ -66,6 +74,12 @@ final class AnalyticsViewModel {
             data.events = (try? await events) ?? []
             data.flags = (try? await flags) ?? []
             data.queryParams = (try? await queryParams) ?? []
+            if let fetchedProject = await fetchedProject {
+                projectDetails = fetchedProject
+            }
+            let domains = await fetchedDomains
+            self.domains = domains.isEmpty ? project.primaryDomain.map { [$0] } ?? [] : domains
+            recentDeployments = await fetchedDeployments
             if range.isPro {
                 self.hasLongAnalyticsHistory = true
                 didUnlockLongAnalyticsHistory = true
@@ -178,6 +192,8 @@ struct AnalyticsView: View {
                                 lineWidth: 0.5
                             )
                     )
+
+                projectExtras
 
                 LazyVGrid(columns: breakdownColumns, spacing: 16) {
                     breakdownCard(title: "Pages", icon: "doc.text", items: vm.data.pages, isPath: true)
@@ -340,6 +356,283 @@ struct AnalyticsView: View {
                 icon: "arrow.uturn.left",
                 appearDelay: 0.12
             )
+        }
+    }
+
+    // MARK: - Vercel Project Metadata
+
+    private var projectExtras: some View {
+        LazyVGrid(columns: breakdownColumns, spacing: 16) {
+            projectSnapshotCard
+            deploymentsCard
+            domainsCard
+        }
+    }
+
+    private var projectSnapshotCard: some View {
+        infoPanel(title: "Project", icon: "folder.fill") {
+            VStack(spacing: 0) {
+                detailRow(
+                    icon: "triangle.fill",
+                    title: "Scope",
+                    value: vm.projectDetails.sourceScope?.name ?? project.sourceScope?.name ?? "Personal"
+                )
+
+                detailRow(
+                    icon: "square.stack.3d.up.fill",
+                    title: "Framework",
+                    value: vm.projectDetails.framework ?? project.framework ?? "Not set"
+                )
+
+                if let link = vm.projectDetails.link ?? project.link,
+                   let org = link.org,
+                   let repo = link.repo {
+                    detailRow(
+                        icon: "chevron.left.forwardslash.chevron.right",
+                        title: "Repository",
+                        value: "\(org)/\(repo)"
+                    )
+                }
+
+                if let deployment = vm.projectDetails.lastDeployment ?? project.lastDeployment {
+                    detailRow(
+                        icon: "text.bubble.fill",
+                        title: "Last Commit",
+                        value: deployment.commitMessage ?? "No commit message"
+                    )
+
+                    if let date = deployment.date {
+                        detailRow(
+                            icon: "clock.fill",
+                            title: "Last Deploy",
+                            value: date.formatted(.relative(presentation: .named))
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private var deploymentsCard: some View {
+        infoPanel(title: "Recent Deployments", icon: "shippingbox.fill") {
+            if vm.recentDeployments.isEmpty {
+                emptyInfoState("No deployments returned")
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(vm.recentDeployments.prefix(5)) { deployment in
+                        deploymentRow(deployment)
+                    }
+                }
+            }
+        }
+    }
+
+    private var domainsCard: some View {
+        infoPanel(title: "Domains", icon: "globe") {
+            if vm.domains.isEmpty {
+                emptyInfoState("No verified domains returned")
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(vm.domains.prefix(8), id: \.self) { domain in
+                        detailRow(
+                            icon: Project.isVercelDomain(domain) ? "triangle.fill" : "checkmark.seal.fill",
+                            title: Project.isVercelDomain(domain) ? "Vercel Alias" : "Custom Domain",
+                            value: domain,
+                            url: URL(string: "https://\(domain)")
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private func infoPanel<Content: View>(
+        title: String,
+        icon: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 11, weight: .heavy))
+                    .foregroundStyle(.blue)
+                    .frame(width: 22, height: 22)
+                    .background(Color.blue.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+
+                Text(title)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(.white)
+
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+
+            Divider().overlay(Color.white.opacity(0.06))
+
+            content()
+        }
+        .background(
+            ZStack {
+                LinearGradient(
+                    colors: [Color.white.opacity(0.06), Color.white.opacity(0.02)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                LinearGradient(
+                    colors: [Color.white.opacity(0.04), .clear],
+                    startPoint: .top,
+                    endPoint: .center
+                )
+            }
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.12), Color.white.opacity(0.04)],
+                        startPoint: .top, endPoint: .bottom
+                    ),
+                    lineWidth: 0.5
+                )
+        )
+    }
+
+    @ViewBuilder
+    private func detailRow(icon: String, title: String, value: String, url: URL? = nil) -> some View {
+        let content = HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 10, weight: .heavy))
+                .foregroundStyle(.white.opacity(0.35))
+                .frame(width: 18)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 10, weight: .heavy))
+                    .foregroundStyle(.white.opacity(0.35))
+                    .textCase(.uppercase)
+                    .tracking(0.7)
+
+                Text(value)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.78))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+
+            Spacer(minLength: 8)
+
+            if url != nil {
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 9, weight: .heavy))
+                    .foregroundStyle(.blue.opacity(0.75))
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 11)
+        .contentShape(Rectangle())
+
+        if let url {
+            Button {
+                UIApplication.shared.open(url)
+            } label: {
+                content
+            }
+            .buttonStyle(PressScaleButtonStyle())
+        } else {
+            content
+        }
+    }
+
+    private func deploymentRow(_ deployment: RecentDeployment) -> some View {
+        let title = deployment.meta?.githubCommitMessage ?? deployment.name ?? deployment.url ?? "Deployment"
+        let branch = deployment.meta?.githubCommitRef
+        let sha = deployment.meta?.githubCommitSha.map { String($0.prefix(7)) }
+        let date = deployment.date?.formatted(.relative(presentation: .named))
+        let url = deployment.url.flatMap { URL(string: "https://\($0)") }
+
+        return HStack(alignment: .top, spacing: 10) {
+            Circle()
+                .fill(deploymentStatusColor(deployment.displayState))
+                .frame(width: 8, height: 8)
+                .padding(.top, 5)
+                .shadow(color: deploymentStatusColor(deployment.displayState).opacity(0.45), radius: 3)
+
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(title)
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.82))
+                        .lineLimit(1)
+
+                    Text(deployment.displayState.capitalized)
+                        .font(.system(size: 9, weight: .heavy))
+                        .foregroundStyle(deploymentStatusColor(deployment.displayState))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(deploymentStatusColor(deployment.displayState).opacity(0.12))
+                        .clipShape(Capsule())
+                }
+
+                HStack(spacing: 6) {
+                    Text(deployment.displayTarget)
+                    if let branch {
+                        Text("·")
+                        Image(systemName: "arrow.triangle.branch")
+                        Text(branch)
+                    }
+                    if let sha {
+                        Text("·")
+                        Text(sha)
+                    }
+                    if let date {
+                        Text("·")
+                        Text(date)
+                    }
+                }
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.38))
+                .lineLimit(1)
+            }
+
+            Spacer(minLength: 8)
+
+            if let url {
+                Button {
+                    UIApplication.shared.open(url)
+                } label: {
+                    Image(systemName: "arrow.up.right")
+                        .font(.system(size: 9, weight: .heavy))
+                        .foregroundStyle(.blue.opacity(0.75))
+                        .frame(width: 24, height: 24)
+                        .background(Color.blue.opacity(0.10))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(PressScaleButtonStyle())
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+
+    private func emptyInfoState(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(.white.opacity(0.3))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 28)
+    }
+
+    private func deploymentStatusColor(_ state: String) -> Color {
+        switch state.uppercased() {
+        case "READY": Color(red: 0.30, green: 0.85, blue: 0.55)
+        case "ERROR", "FAILED": Color(red: 1.0, green: 0.35, blue: 0.35)
+        case "BUILDING", "INITIALIZING": Color.blue
+        case "QUEUED", "PENDING": Color(red: 1.0, green: 0.72, blue: 0.35)
+        case "CANCELED", "CANCELLED": Color.white.opacity(0.35)
+        default: Color.white.opacity(0.45)
         }
     }
 

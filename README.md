@@ -31,9 +31,10 @@
 
 ## Features
 
-- **Projects Dashboard** — All your Vercel projects with favicons, git repo, last commit, framework
+- **Projects Dashboard** — Personal and team Vercel projects with favicons, git repo, last commit, framework
 - **Multi-account** — Add multiple Vercel accounts, switch from the Projects toolbar, and see the active Vercel avatar
 - **Live Deploy Indicator** — Pulsing green dot when a deployment is < 30 minutes old
+- **Project Details** — Scope, framework, connected repository, verified domains, and recent deployments
 - **Framework-tinted dots** — Astro orange, Vite purple, Remix cyan, Angular red, Eleventy yellow, etc.
 - **Analytics** — Visitors, page views, bounce rate with % change badges and staggered entrance
 - **Interactive Chart** — Peak indicator, average reference line, drag-to-inspect with haptic feedback

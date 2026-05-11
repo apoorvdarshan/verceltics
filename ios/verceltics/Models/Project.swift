@@ -11,6 +11,7 @@ nonisolated struct Project: Identifiable, Decodable {
     let link: GitLink?
     var alias: [AliasEntry]?
     let customEnvironments: [CustomEnvironment]?
+    var sourceScope: ProjectSourceScope?
 
     var teamId: String? {
         guard let accountId else { return nil }
@@ -123,6 +124,12 @@ nonisolated struct Project: Identifiable, Decodable {
         let normalized = domain.lowercased()
         return normalized == "vercel.app" || normalized.hasSuffix(".vercel.app")
     }
+
+    func withSourceScope(_ scope: ProjectSourceScope) -> Project {
+        var copy = self
+        copy.sourceScope = scope
+        return copy
+    }
 }
 
 nonisolated struct ProjectsResponse: Decodable {
@@ -136,5 +143,88 @@ nonisolated struct ProjectDomainsResponse: Decodable {
         let name: String
         let verified: Bool?
         let redirect: String?
+    }
+}
+
+nonisolated struct ProjectSourceScope: Decodable, Equatable {
+    let id: String?
+    let name: String
+    let slug: String?
+    let isTeam: Bool
+}
+
+nonisolated struct VercelTeamsResponse: Decodable {
+    let teams: [VercelTeam]
+}
+
+nonisolated struct VercelTeam: Identifiable, Decodable, Equatable {
+    let id: String
+    let slug: String
+    let name: String?
+    let avatar: String?
+    let membership: Membership?
+
+    var displayName: String {
+        let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? slug : trimmed
+    }
+
+    var isConfirmedMember: Bool {
+        membership?.confirmed ?? true
+    }
+
+    struct Membership: Decodable, Equatable {
+        let confirmed: Bool?
+        let role: String?
+    }
+}
+
+nonisolated struct DeploymentsResponse: Decodable {
+    let deployments: [RecentDeployment]
+}
+
+nonisolated struct RecentDeployment: Identifiable, Decodable, Equatable {
+    let uid: String?
+    let name: String?
+    let url: String?
+    let state: String?
+    let readyState: String?
+    let target: String?
+    let createdAt: Int?
+    let meta: Meta?
+    let creator: Creator?
+
+    var id: String {
+        uid ?? url ?? "\(name ?? "deployment")-\(createdAt ?? 0)"
+    }
+
+    var date: Date? {
+        guard let createdAt else { return nil }
+        let seconds = createdAt > 10_000_000_000
+            ? Double(createdAt) / 1000
+            : Double(createdAt)
+        return Date(timeIntervalSince1970: seconds)
+    }
+
+    var displayState: String {
+        state ?? readyState ?? "UNKNOWN"
+    }
+
+    var displayTarget: String {
+        target?.capitalized ?? "Preview"
+    }
+
+    struct Meta: Decodable, Equatable {
+        let githubCommitMessage: String?
+        let githubCommitRef: String?
+        let githubCommitSha: String?
+        let githubCommitAuthorName: String?
+        let githubOrg: String?
+        let githubRepo: String?
+    }
+
+    struct Creator: Decodable, Equatable {
+        let username: String?
+        let email: String?
     }
 }

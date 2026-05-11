@@ -34,11 +34,71 @@ actor VercelAPI {
     // MARK: - Projects
 
     func fetchProjects() async throws -> [Project] {
+        let personalScope = ProjectSourceScope(
+            id: nil,
+            name: "Personal",
+            slug: nil,
+            isTeam: false
+        )
+
+        let personalProjects: [Project]
+        do {
+            let projects = try await fetchProjectList(teamId: nil)
+            personalProjects = projects.map { $0.withSourceScope(personalScope) }
+        } catch {
+            personalProjects = []
+        }
+
+        let teams = (try? await fetchTeams()).map { teams in
+            teams.filter(\.isConfirmedMember)
+        } ?? []
+
+        var allProjects = personalProjects
+
+        await withTaskGroup(of: [Project].self) { group in
+            for team in teams {
+                group.addTask {
+                    let scope = ProjectSourceScope(
+                        id: team.id,
+                        name: team.displayName,
+                        slug: team.slug,
+                        isTeam: true
+                    )
+                    return ((try? await self.fetchProjectList(teamId: team.id)) ?? [])
+                        .map { $0.withSourceScope(scope) }
+                }
+            }
+
+            for await teamProjects in group {
+                allProjects.append(contentsOf: teamProjects)
+            }
+        }
+
+        if allProjects.isEmpty {
+            let fallbackProjects = try await fetchProjectList(teamId: nil)
+            return await enrichProjectsNeedingDomainRefresh(
+                fallbackProjects.map { $0.withSourceScope(personalScope) }
+            )
+        }
+
+        return await enrichProjectsNeedingDomainRefresh(deduplicatedProjects(allProjects))
+    }
+
+    private func fetchProjectList(teamId: String?) async throws -> [Project] {
         let response: ProjectsResponse = try await request(
             base: "https://api.vercel.com",
-            path: "/v9/projects"
+            path: "/v9/projects",
+            queryItems: projectQueryItems(teamId: teamId)
         )
-        return await enrichProjectsNeedingDomainRefresh(response.projects)
+        return response.projects
+    }
+
+    func fetchTeams() async throws -> [VercelTeam] {
+        let response: VercelTeamsResponse = try await request(
+            base: "https://api.vercel.com",
+            path: "/v2/teams"
+        )
+        return response.teams
     }
 
     func fetchProject(id: String, teamId: String?) async throws -> Project {
@@ -58,6 +118,19 @@ actor VercelAPI {
         return response.domains
             .filter { ($0.verified ?? true) && ($0.redirect ?? "").isEmpty }
             .map(\.name)
+    }
+
+    func fetchDeployments(projectId: String, teamId: String?, limit: Int = 6) async throws -> [RecentDeployment] {
+        var items = projectQueryItems(teamId: teamId)
+        items.append(URLQueryItem(name: "projectId", value: projectId))
+        items.append(URLQueryItem(name: "limit", value: "\(limit)"))
+
+        let response: DeploymentsResponse = try await request(
+            base: "https://api.vercel.com",
+            path: "/v6/deployments",
+            queryItems: items
+        )
+        return response.deployments
     }
 
     // MARK: - Analytics
@@ -143,6 +216,18 @@ actor VercelAPI {
             items.append(URLQueryItem(name: "teamId", value: teamId))
         }
         return items
+    }
+
+    private func deduplicatedProjects(_ projects: [Project]) -> [Project] {
+        var seen = Set<String>()
+        var result: [Project] = []
+
+        for project in projects {
+            guard seen.insert(project.id).inserted else { continue }
+            result.append(project)
+        }
+
+        return result
     }
 
     private func analyticsParams(projectId: String, teamId: String?, from: String, to: String, environment: String) -> [URLQueryItem] {
