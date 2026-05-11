@@ -100,6 +100,7 @@ struct AnalyticsView: View {
     @State private var vm: AnalyticsViewModel
     @State private var lastUpdated: Date?
     @State private var refreshSpin: Double = 0
+    @State private var hasLoadedInitialData = false
 
     init(project: Project) {
         self.project = project
@@ -140,8 +141,10 @@ struct AnalyticsView: View {
                 .sensoryFeedback(.impact(weight: .light), trigger: refreshSpin)
             }
         }
-        .task { 
-            await loadData() 
+        .task {
+            guard !hasLoadedInitialData else { return }
+            hasLoadedInitialData = true
+            await loadData()
         }
         .onChange(of: vm.selectedRange) {
             Task { await loadData() }
