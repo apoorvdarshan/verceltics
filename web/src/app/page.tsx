@@ -11,8 +11,10 @@ export const metadata: Metadata = {
 const APPSTORE = "https://apps.apple.com/us/app/verceltics/id6761645656";
 const GITHUB = "https://github.com/apoorvdarshan/verceltics";
 const LINKEDIN = "https://www.linkedin.com/company/verceltics";
+const INSTAGRAM = "https://www.instagram.com/verceltics/";
 const PRODUCTHUNT = "https://www.producthunt.com/products/verceltics";
 const TRUSTMRR = "https://trustmrr.com/startup/vercel-analytics-verceltics";
+const KOFI = "https://ko-fi.com/apoorvdarshan";
 
 const ticker = [
   "v1.1.4 — purchase polish",
@@ -20,6 +22,8 @@ const ticker = [
   "Swift Charts",
   "Private by design",
   "Open source",
+  "Deployment details",
+  "Account avatars",
   "iOS Keychain",
   "No app tracking",
   "No data proxy",
@@ -46,8 +50,8 @@ const features = [
   {
     label: "Projects",
     title: "Every project, one tap.",
-    body: "All your Vercel projects with favicons, framework, last commit, and a pulsing green dot when something deployed in the last thirty minutes. Switch Vercel accounts from the toolbar, then search, copy URLs, or open live deployments.",
-    bullets: ["Multi-account switcher", "Copy project URLs", "Search & filter"],
+    body: "All your Vercel projects with favicons, framework, last commit, and a pulsing green dot when something deployed in the last thirty minutes. Switch Vercel accounts from the toolbar with the active Vercel avatar, search, copy URLs, or inspect recent deployments.",
+    bullets: ["Multi-account avatars", "Deployment details", "Search & filter"],
     image: "/projects.png",
     alt: "Verceltics project list with favicons and live deploy dots",
   },
@@ -108,7 +112,7 @@ const jsonLd = {
   description:
     "Vercel web analytics viewer for iPhone and iPad. Track visitors, page views, bounce rate, referrers, countries, devices, browsers, and operating systems. Built with SwiftUI and Swift Charts. Open source, private by default, no tracking, no data proxy.",
   url: "https://verceltics.com",
-  sameAs: [GITHUB, LINKEDIN, PRODUCTHUNT, TRUSTMRR, "https://x.com/apoorvdarshan"],
+  sameAs: [GITHUB, LINKEDIN, INSTAGRAM, PRODUCTHUNT, TRUSTMRR, KOFI, "https://x.com/apoorvdarshan"],
   image: "https://verceltics.com/og.jpg",
   screenshot: [
     "https://verceltics.com/analytics.png",
@@ -152,7 +156,8 @@ export default function Home() {
           country traffic, device types, browser stats, operating system breakdown, top pages,
           route analytics, hostname analytics, event tracking, feature flags, and query parameters.
           Built with SwiftUI, Swift Charts, async/await, RevenueCat, and StoreKit. Live deploy indicator,
-          multi-account switching, framework-tinted dots, soft paywall flow, and App Store update checker.
+          deployment details, multi-account switching, Vercel account avatars, framework-tinted dots,
+          soft paywall flow, and App Store update checker.
           Vercel tokens stored in iOS Keychain. No app data collection. No app telemetry. No data proxy.
           Open source on GitHub. Works with Vercel Hobby and Pro plans.
           Alternative to Vercel dashboard for mobile. Best Vercel analytics app for iPhone.
@@ -522,10 +527,12 @@ export default function Home() {
               <Link href="/terms" className="transition-colors hover:text-white/70">Terms</Link>
               <a href={GITHUB} target="_blank" rel="noreferrer" className="transition-colors hover:text-white/70">GitHub</a>
               <a href={LINKEDIN} target="_blank" rel="noreferrer" className="transition-colors hover:text-white/70">LinkedIn</a>
+              <a href={INSTAGRAM} target="_blank" rel="noreferrer" className="transition-colors hover:text-white/70">Instagram</a>
               <a href={TRUSTMRR} target="_blank" rel="noreferrer" className="transition-colors hover:text-white/70">TrustMRR</a>
               <a href="https://github.com/apoorvdarshan/verceltics/issues" target="_blank" rel="noreferrer" className="transition-colors hover:text-white/70">Report issue</a>
               <a href="https://x.com/apoorvdarshan" target="_blank" rel="noreferrer" className="transition-colors hover:text-white/70">X</a>
               <a href="mailto:ad13dtu@gmail.com" className="transition-colors hover:text-white/70">Contact</a>
+              <a href={KOFI} target="_blank" rel="noreferrer" className="transition-colors hover:text-white/70">Support · Ko-fi</a>
               <a href="https://paypal.me/apoorvdarshan" target="_blank" rel="noreferrer" className="transition-colors hover:text-white/70">Support · PayPal</a>
             </div>
           </div>

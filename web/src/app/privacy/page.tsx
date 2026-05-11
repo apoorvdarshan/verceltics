@@ -13,7 +13,7 @@ export default function Privacy() {
     <div className="mx-auto max-w-2xl px-6 py-28 sm:px-8">
       <Link href="/" className="text-[13px] text-white/30 transition-colors hover:text-white/60">&larr; Back to Verceltics</Link>
       <h1 className="mt-10 font-serif text-4xl italic tracking-[-0.03em]">Privacy Policy</h1>
-      <p className="mt-2 text-[13px] text-white/25">Last updated: May 8, 2026 — applies to v1.1.4</p>
+      <p className="mt-2 text-[13px] text-white/25">Last updated: May 11, 2026 — applies to v1.1.4</p>
 
       <div className="mt-12 space-y-10 text-[15px] leading-7 text-white/40">
         <section>
@@ -61,6 +61,12 @@ export default function Privacy() {
           <h2 className="text-lg font-semibold text-white/80">Subscriptions</h2>
           <p className="mt-3">Subscriptions and the lifetime in-app purchase are processed by Apple through the App Store. Verceltics uses RevenueCat to manage entitlement status and restore purchases. RevenueCat may receive Apple purchase receipt data, an anonymous RevenueCat app user identifier, and subscription status needed to unlock the app.</p>
           <p className="mt-3">RevenueCat does not receive your Vercel tokens, Vercel account data, project data, or analytics data from Verceltics. We do not process or store any payment card information. We can&apos;t see your card.</p>
+        </section>
+
+        <section>
+          <h2 className="text-lg font-semibold text-white/80">External Links and Support</h2>
+          <p className="mt-3">The app and website may link to GitHub, Product Hunt, LinkedIn, Instagram, TrustMRR, Ko-fi, PayPal, X, Apple, and Vercel. Opening those links sends you to third-party services with their own privacy practices.</p>
+          <p className="mt-3">Optional support payments through Ko-fi or PayPal are handled outside Verceltics. They do not unlock app features and do not give those services access to your Vercel tokens, Vercel account data, project data, or analytics data.</p>
         </section>
 
         <section>

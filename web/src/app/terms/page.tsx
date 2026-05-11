@@ -13,7 +13,7 @@ export default function Terms() {
     <div className="mx-auto max-w-2xl px-6 py-28 sm:px-8">
       <Link href="/" className="text-[13px] text-white/30 transition-colors hover:text-white/60">&larr; Back to Verceltics</Link>
       <h1 className="mt-10 font-serif text-4xl italic tracking-[-0.03em]">Terms of Service</h1>
-      <p className="mt-2 text-[13px] text-white/25">Last updated: May 8, 2026 — applies to v1.1.4</p>
+      <p className="mt-2 text-[13px] text-white/25">Last updated: May 11, 2026 — applies to v1.1.4</p>
 
       <div className="mt-12 space-y-10 text-[15px] leading-7 text-white/40">
         <section>
@@ -53,6 +53,12 @@ export default function Terms() {
         <section>
           <h2 className="text-lg font-semibold text-white/80">Building From Source</h2>
           <p className="mt-3">Verceltics is open source under the MIT license. You&apos;re free to clone the repository at <a href="https://github.com/apoorvdarshan/verceltics" className="text-white/60 underline underline-offset-2 transition-colors hover:text-white">github.com/apoorvdarshan/verceltics</a> and build the app yourself for personal use. The App Store version exists for convenience and to fund continued development.</p>
+        </section>
+
+        <section>
+          <h2 className="text-lg font-semibold text-white/80">External Links and Voluntary Support</h2>
+          <p className="mt-3">Verceltics may link to external services such as GitHub, Product Hunt, LinkedIn, Instagram, TrustMRR, Ko-fi, PayPal, X, Apple, and Vercel. We are not responsible for the content, policies, or availability of those third-party services.</p>
+          <p className="mt-3">Ko-fi and PayPal support links are voluntary support options for the developer. They are not a subscription, do not unlock Verceltics Pro, and do not replace App Store purchases.</p>
         </section>
 
         <section>

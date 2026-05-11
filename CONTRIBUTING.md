@@ -90,6 +90,8 @@ For security vulnerabilities, please follow [SECURITY.md](SECURITY.md) instead â
 
 - **Email**: ad13dtu@gmail.com
 - **X**: [@apoorvdarshan](https://x.com/apoorvdarshan)
+- **Instagram**: [@verceltics](https://www.instagram.com/verceltics/)
+- **Support**: [ko-fi.com/apoorvdarshan](https://ko-fi.com/apoorvdarshan)
 
 ## License
 

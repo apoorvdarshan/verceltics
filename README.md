@@ -6,7 +6,7 @@
 
 <p align="center">
   Vercel Web Analytics on your iPhone.<br>
-  <a href="https://apps.apple.com/us/app/verceltics/id6761645656">App Store</a> · <a href="https://verceltics.com">Website</a>
+  <a href="https://apps.apple.com/us/app/verceltics/id6761645656">App Store</a> · <a href="https://verceltics.com">Website</a> · <a href="https://www.instagram.com/verceltics/">Instagram</a>
 </p>
 
 <p align="center">
@@ -45,6 +45,7 @@
 - **Search** — Filter projects by name, domain, or framework
 - **Pull to Refresh** — Live data from Vercel API
 - **Update Checks** — About tab shows when a newer App Store version is available
+- **Support & Social Links** — About includes GitHub, LinkedIn, Instagram, Product Hunt, Ko-fi, contact, legal, and subscription management
 - **iPad** — Adaptive grid + sidebar tab style on regular size class
 - **Dark Mode** — Pure black (#000000) Vercel-style design
 - **Secure** — Vercel tokens stored in iOS Keychain, open source code
@@ -178,6 +179,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 - **Email**: ad13dtu@gmail.com
 - **X**: [@apoorvdarshan](https://x.com/apoorvdarshan)
 - **LinkedIn**: [Verceltics](https://www.linkedin.com/company/verceltics)
+- **Instagram**: [@verceltics](https://www.instagram.com/verceltics/)
+- **Support**: [ko-fi.com/apoorvdarshan](https://ko-fi.com/apoorvdarshan)
 - **Issues**: [github.com/apoorvdarshan/verceltics/issues](https://github.com/apoorvdarshan/verceltics/issues)
 - **Security**: see [SECURITY.md](SECURITY.md) for private vulnerability reporting
 

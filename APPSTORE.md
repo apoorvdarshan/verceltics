@@ -44,6 +44,7 @@ WHAT YOU GET
 • Pull to refresh for live data
 • iPad layout — adaptive grid + sidebar tab style on regular size class
 • App Store update checks from About
+• GitHub, LinkedIn, Instagram, Product Hunt, and support links in About
 
 PRIVATE BY DESIGN
 • Your Vercel tokens stay in the iOS Keychain — never leave your device
@@ -79,7 +80,8 @@ Verceltics 1.1.4 — purchase and analytics polish.
 
 NEW
 • RevenueCat-backed purchase entitlement checks for subscriptions, lifetime unlock, and restores.
-• Follow on LinkedIn link in About.
+• Follow on LinkedIn and Instagram links in About.
+• Support My Work link in About.
 
 Polish & fixes
 • Paid analytics range locks now stay unlocked once data is detected for that account.
