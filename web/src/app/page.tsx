@@ -17,7 +17,7 @@ const TRUSTMRR = "https://trustmrr.com/startup/vercel-analytics-verceltics";
 const KOFI = "https://ko-fi.com/apoorvdarshan";
 
 const ticker = [
-  "v1.1.4 — purchase polish",
+  "v1.1.5 — project polish",
   "SwiftUI",
   "Swift Charts",
   "Private by design",
@@ -222,7 +222,7 @@ export default function Home() {
                 className="animate-fade-up text-[11px] font-medium uppercase tracking-[0.35em] text-white/30"
                 style={{ animationDelay: "0.05s" }}
               >
-                Open source &middot; iOS 18+ &middot; v1.1.4
+                Open source &middot; iOS 18+ &middot; v1.1.5
               </p>
 
               <h1

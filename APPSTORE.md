@@ -1,6 +1,6 @@
 # App Store Listing
 
-App Store Connect submission details for Verceltics v1.1.4. Each field is in a code block for easy copy-paste.
+App Store Connect submission details for Verceltics v1.1.5. Each field is in a code block for easy copy-paste.
 
 ## App Name
 ```
@@ -74,19 +74,19 @@ Contact: ad13dtu@gmail.com
 Not affiliated with Vercel Inc.
 ```
 
-## What's New (v1.1.4)
+## What's New (v1.1.5)
 ```
-Verceltics 1.1.4 — purchase and analytics polish.
+Verceltics 1.1.5 — project detail, navigation, and link polish.
 
 NEW
-• RevenueCat-backed purchase entitlement checks for subscriptions, lifetime unlock, and restores.
-• Follow on LinkedIn and Instagram links in About.
-• Support My Work link in About.
+• Richer project metadata: scope, framework, repository, domains, and recent deployments.
+• Deployment details now include build events and more deployment context.
+• Follow on Instagram and Support My Work links in About.
 
 Polish & fixes
-• Paid analytics range locks now stay unlocked once data is detected for that account.
-• Clearer Web Analytics Plus messaging for UTM sections.
-• Internal Xcode project cleanup for the latest recommended settings.
+• Returning from deployment details no longer reloads the previous screen unnecessarily.
+• Website, README, App Store copy, privacy, and terms now match the latest support/social links.
+• Version 1.1.5, build 9.
 ```
 
 ## Privacy URL
