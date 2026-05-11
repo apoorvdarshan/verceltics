@@ -133,6 +133,21 @@ actor VercelAPI {
         return response.deployments
     }
 
+    func fetchDeploymentEvents(idOrUrl: String, teamId: String?, limit: Int = 80) async throws -> [DeploymentEvent] {
+        var items = projectQueryItems(teamId: teamId)
+        items.append(URLQueryItem(name: "direction", value: "backward"))
+        items.append(URLQueryItem(name: "limit", value: "\(limit)"))
+        items.append(URLQueryItem(name: "builds", value: "1"))
+
+        let safeID = idOrUrl.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? idOrUrl
+        let response: [DeploymentEvent]? = try await request(
+            base: "https://api.vercel.com",
+            path: "/v3/deployments/\(safeID)/events",
+            queryItems: items
+        )
+        return response ?? []
+    }
+
     // MARK: - Analytics
 
     func fetchOverview(projectId: String, teamId: String?, from: String, to: String, environment: String) async throws -> AnalyticsOverview {

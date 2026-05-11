@@ -35,6 +35,7 @@
 - **Multi-account** — Add multiple Vercel accounts, switch from the Projects toolbar, and see the active Vercel avatar
 - **Live Deploy Indicator** — Pulsing green dot when a deployment is < 30 minutes old
 - **Project Details** — Scope, framework, connected repository, verified domains, and recent deployments
+- **Deployment Details** — Open deployments to inspect target, branch, commit, creator, live URL, and build events
 - **Framework-tinted dots** — Astro orange, Vite purple, Remix cyan, Angular red, Eleventy yellow, etc.
 - **Analytics** — Visitors, page views, bounce rate with % change badges and staggered entrance
 - **Interactive Chart** — Peak indicator, average reference line, drag-to-inspect with haptic feedback

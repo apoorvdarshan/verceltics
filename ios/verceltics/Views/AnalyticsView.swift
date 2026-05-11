@@ -547,11 +547,19 @@ struct AnalyticsView: View {
     }
 
     private func deploymentRow(_ deployment: RecentDeployment) -> some View {
+        NavigationLink {
+            DeploymentDetailView(project: project, deployment: deployment)
+        } label: {
+            deploymentRowContent(deployment)
+        }
+        .buttonStyle(PressScaleButtonStyle())
+    }
+
+    private func deploymentRowContent(_ deployment: RecentDeployment) -> some View {
         let title = deployment.meta?.githubCommitMessage ?? deployment.name ?? deployment.url ?? "Deployment"
         let branch = deployment.meta?.githubCommitRef
         let sha = deployment.meta?.githubCommitSha.map { String($0.prefix(7)) }
         let date = deployment.date?.formatted(.relative(presentation: .named))
-        let url = deployment.url.flatMap { URL(string: "https://\($0)") }
 
         return HStack(alignment: .top, spacing: 10) {
             Circle()
@@ -599,19 +607,10 @@ struct AnalyticsView: View {
 
             Spacer(minLength: 8)
 
-            if let url {
-                Button {
-                    UIApplication.shared.open(url)
-                } label: {
-                    Image(systemName: "arrow.up.right")
-                        .font(.system(size: 9, weight: .heavy))
-                        .foregroundStyle(.blue.opacity(0.75))
-                        .frame(width: 24, height: 24)
-                        .background(Color.blue.opacity(0.10))
-                        .clipShape(Circle())
-                }
-                .buttonStyle(PressScaleButtonStyle())
-            }
+            Image(systemName: "chevron.right")
+                .font(.system(size: 10, weight: .heavy))
+                .foregroundStyle(.white.opacity(0.22))
+                .frame(width: 24, height: 24)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
