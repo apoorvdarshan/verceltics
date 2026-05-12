@@ -5,7 +5,7 @@ export const metadata: Metadata = {
   title: "Terms of Service",
   description:
     "Verceltics terms of service. Subscription plans: $4.99/month, $34.99/year with 7-day free trial, and $59.99 lifetime one-time purchase. Manage subscriptions through Apple ID settings.",
-  alternates: { canonical: "https://verceltics.com/terms" },
+  alternates: { canonical: "https://www.verceltics.com/terms" },
 };
 
 export default function Terms() {

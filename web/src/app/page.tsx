@@ -4,8 +4,10 @@ import Link from "next/link";
 
 import { ScrollReveal } from "@/components/scroll-reveal";
 
+const SITE_URL = "https://www.verceltics.com";
+
 export const metadata: Metadata = {
-  alternates: { canonical: "https://verceltics.com" },
+  alternates: { canonical: SITE_URL },
 };
 
 const APPSTORE = "https://apps.apple.com/us/app/verceltics/id6761645656";
@@ -15,6 +17,49 @@ const INSTAGRAM = "https://www.instagram.com/verceltics/";
 const PRODUCTHUNT = "https://www.producthunt.com/products/verceltics";
 const TRUSTMRR = "https://trustmrr.com/startup/vercel-analytics-verceltics";
 const KOFI = "https://ko-fi.com/apoorvdarshan";
+
+const useCases = [
+  {
+    title: "Vercel analytics on iPhone",
+    body: "Check Vercel Web Analytics from a native iOS app: visitors, page views, bounce rate, referrers, countries, devices, browsers, operating systems, routes, hostnames, UTM, events, flags, and query parameters.",
+  },
+  {
+    title: "Vercel projects and deployments",
+    body: "Search projects, see favicons, spot fresh deployments, inspect recent deployment details, copy project URLs, and switch between Vercel accounts without opening the desktop dashboard.",
+  },
+  {
+    title: "Private Vercel mobile dashboard",
+    body: "Your Vercel token stays in iOS Keychain and talks directly to Vercel. Verceltics does not proxy, track, or store your Vercel account data or analytics data.",
+  },
+] as const;
+
+const faqs = [
+  {
+    question: "Is Verceltics an official Vercel app?",
+    answer:
+      "No. Verceltics is an independent, open-source iOS app for viewing Vercel Web Analytics, projects, deployments, and domains. It is not affiliated with, endorsed by, or sponsored by Vercel Inc.",
+  },
+  {
+    question: "Can I use Verceltics as a Vercel mobile app?",
+    answer:
+      "Yes. It is built for quick Vercel checks on iPhone and iPad: analytics, project search, deployment details, domains, account switching, and mobile-friendly traffic breakdowns.",
+  },
+  {
+    question: "What Vercel Analytics data does it show?",
+    answer:
+      "Verceltics shows visitors, page views, bounce rate, trends, pages, routes, hostnames, referrers, UTM parameters, countries, devices, browsers, operating systems, events, feature flags, and query parameters where Vercel provides that data.",
+  },
+  {
+    question: "Does Verceltics proxy my Vercel token?",
+    answer:
+      "No. Vercel tokens are stored locally in the iOS Keychain and are sent only to Vercel endpoints needed to load your account, projects, domains, deployments, and analytics.",
+  },
+  {
+    question: "Does it work on iPad?",
+    answer:
+      "Yes. Verceltics supports iPhone and iPad on iOS 18 and later.",
+  },
+] as const;
 
 const ticker = [
   "v1.1.5 — project polish",
@@ -109,17 +154,20 @@ const jsonLd = {
   name: "Verceltics",
   operatingSystem: "iOS",
   applicationCategory: "DeveloperApplication",
+  softwareVersion: "1.1.5",
   description:
     "Vercel web analytics viewer for iPhone and iPad. Track visitors, page views, bounce rate, referrers, countries, devices, browsers, and operating systems. Built with SwiftUI and Swift Charts. Open source, private by default, no tracking, no data proxy.",
-  url: "https://verceltics.com",
+  url: SITE_URL,
+  downloadUrl: APPSTORE,
+  mainEntityOfPage: SITE_URL,
   sameAs: [GITHUB, LINKEDIN, INSTAGRAM, PRODUCTHUNT, TRUSTMRR, KOFI, "https://x.com/apoorvdarshan"],
-  image: "https://verceltics.com/og.jpg",
+  image: `${SITE_URL}/og.jpg`,
   screenshot: [
-    "https://verceltics.com/analytics.png",
-    "https://verceltics.com/referrers.png",
-    "https://verceltics.com/projects.png",
-    "https://verceltics.com/devices.png",
-    "https://verceltics.com/breakdowns.png",
+    `${SITE_URL}/analytics.png`,
+    `${SITE_URL}/referrers.png`,
+    `${SITE_URL}/projects.png`,
+    `${SITE_URL}/devices.png`,
+    `${SITE_URL}/breakdowns.png`,
   ],
   author: {
     "@type": "Person",
@@ -138,6 +186,19 @@ const jsonLd = {
   },
 };
 
+const faqJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: faqs.map((faq) => ({
+    "@type": "Question",
+    name: faq.question,
+    acceptedAnswer: {
+      "@type": "Answer",
+      text: faq.answer,
+    },
+  })),
+};
+
 export default function Home() {
   return (
     <div className="grain relative bg-[#050a12] text-[#e8e8ed]">
@@ -145,29 +206,10 @@ export default function Home() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-
-      {/* Hidden SEO content — semantic keywords for crawlers */}
-      <div className="sr-only" aria-hidden="true">
-        <h2>Verceltics — Vercel Analytics iOS App</h2>
-        <p>
-          Verceltics is a native iOS and iPadOS app for viewing Vercel web analytics on your iPhone or iPad.
-          Monitor your Vercel dashboard, check website traffic, track visitors, page views,
-          unique visitors, bounce rate, session duration, referral sources, UTM campaigns,
-          country traffic, device types, browser stats, operating system breakdown, top pages,
-          route analytics, hostname analytics, event tracking, feature flags, and query parameters.
-          Built with SwiftUI, Swift Charts, async/await, RevenueCat, and StoreKit. Live deploy indicator,
-          deployment details, multi-account switching, Vercel account avatars, framework-tinted dots,
-          soft paywall flow, and App Store update checker.
-          Vercel tokens stored in iOS Keychain. No app data collection. No app telemetry. No data proxy.
-          Open source on GitHub. Works with Vercel Hobby and Pro plans.
-          Alternative to Vercel dashboard for mobile. Best Vercel analytics app for iPhone.
-          Vercel mobile app. Vercel stats on phone. Web analytics iOS. Developer tools iOS.
-          Indie developer tools. Vercel project monitoring. Website traffic monitor iPhone.
-          Real-time analytics mobile. Privacy-first analytics viewer.
-          Subscription: $4.99/month, $34.99/year with 7-day free trial, or $59.99 lifetime
-          one-time purchase. Compatible with iOS 18 and later.
-        </p>
-      </div>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+      />
 
       {/* ── Ambient ── */}
       <div aria-hidden className="pointer-events-none fixed inset-0 overflow-hidden">
@@ -476,6 +518,62 @@ export default function Home() {
             <p className="mt-6 text-center text-[11px] uppercase tracking-[0.18em] text-white/20">
               All payments via Apple. Subscriptions auto-renew until cancelled in Settings.
             </p>
+          </div>
+        </section>
+
+        {/* ══ USE CASES ══ */}
+        <section id="vercel-mobile-app" className="scroll-mt-24 border-y border-white/[0.04] bg-white/[0.015] px-5 py-20 sm:px-8 sm:py-24">
+          <div className="mx-auto max-w-6xl">
+            <ScrollReveal>
+              <div className="max-w-3xl">
+                <p className="text-[11px] font-medium uppercase tracking-[0.35em] text-white/30">
+                  Vercel mobile dashboard
+                </p>
+                <h2 className="mt-4 font-serif text-[clamp(2rem,4.5vw,3.8rem)] italic leading-[0.95] tracking-[-0.03em]">
+                  Built for the checks you do between deploys.
+                </h2>
+                <p className="mt-5 max-w-2xl text-[15px] leading-7 text-white/40">
+                  Verceltics is a Vercel Analytics iOS app for developers, founders, and indie hackers who want a clean way to monitor Vercel projects from iPhone or iPad.
+                </p>
+              </div>
+            </ScrollReveal>
+
+            <div className="mt-12 grid gap-8 md:grid-cols-3">
+              {useCases.map((item, i) => (
+                <ScrollReveal key={item.title} delay={i * 70}>
+                  <article className="border-l border-white/10 pl-5">
+                    <h3 className="text-lg font-semibold tracking-[-0.01em] text-white/85">{item.title}</h3>
+                    <p className="mt-3 text-[14px] leading-7 text-white/40">{item.body}</p>
+                  </article>
+                </ScrollReveal>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ══ FAQ ══ */}
+        <section id="faq" className="scroll-mt-24 px-5 py-20 sm:px-8 sm:py-24">
+          <div className="mx-auto max-w-4xl">
+            <ScrollReveal>
+              <p className="text-[11px] font-medium uppercase tracking-[0.35em] text-white/30">FAQ</p>
+              <h2 className="mt-4 font-serif text-[clamp(2rem,4.5vw,3.6rem)] italic leading-[0.95] tracking-[-0.03em]">
+                Quick answers before you install.
+              </h2>
+            </ScrollReveal>
+
+            <div className="mt-10 divide-y divide-white/[0.06]">
+              {faqs.map((faq, i) => (
+                <ScrollReveal key={faq.question} delay={i * 55}>
+                  <details className="group py-6">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-6 text-left text-[16px] font-semibold text-white/80">
+                      {faq.question}
+                      <span className="text-2xl font-light text-white/25 transition-transform group-open:rotate-45">+</span>
+                    </summary>
+                    <p className="mt-4 max-w-3xl text-[14px] leading-7 text-white/40">{faq.answer}</p>
+                  </details>
+                </ScrollReveal>
+              ))}
+            </div>
           </div>
         </section>
 

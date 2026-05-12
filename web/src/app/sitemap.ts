@@ -3,19 +3,19 @@ import type { MetadataRoute } from "next";
 export default function sitemap(): MetadataRoute.Sitemap {
   return [
     {
-      url: "https://verceltics.com",
-      lastModified: new Date(),
+      url: "https://www.verceltics.com",
+      lastModified: new Date("2026-05-12"),
       changeFrequency: "weekly",
       priority: 1,
     },
     {
-      url: "https://verceltics.com/privacy",
+      url: "https://www.verceltics.com/privacy",
       lastModified: new Date("2026-05-08"),
       changeFrequency: "yearly",
       priority: 0.3,
     },
     {
-      url: "https://verceltics.com/terms",
+      url: "https://www.verceltics.com/terms",
       lastModified: new Date("2026-05-08"),
       changeFrequency: "yearly",
       priority: 0.3,

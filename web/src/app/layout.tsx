@@ -17,18 +17,29 @@ const instrumentSerif = Instrument_Serif({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://verceltics.com"),
+  metadataBase: new URL("https://www.verceltics.com"),
   title: {
-    default: "Verceltics — Vercel Web Analytics on Your iPhone, Open Source",
+    default: "Verceltics — Vercel Analytics iOS App for iPhone and iPad",
     template: "%s — Verceltics",
   },
   description:
-    "Track your Vercel web analytics on the go. Visitors, page views, bounce rate, referrers, countries, devices — all from your iPhone. Open source and private by default.",
+    "Open-source iOS app for Vercel Web Analytics: visitors, page views, referrers, devices, deployments, domains, and projects on iPhone.",
   keywords: [
     "Vercel",
     "analytics",
+    "Vercel Analytics",
+    "Vercel Web Analytics",
+    "Vercel analytics iOS app",
+    "Vercel mobile app",
+    "Vercel iPhone app",
+    "Vercel iPad app",
+    "Vercel dashboard mobile",
+    "Vercel project monitoring",
+    "Vercel deployments",
+    "Vercel domains",
     "iOS",
     "iPhone",
+    "iPad",
     "web analytics",
     "mobile analytics",
     "SwiftUI",
@@ -45,37 +56,37 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_US",
     siteName: "Verceltics",
-    title: "Verceltics — Vercel Analytics on Your iPhone",
+    title: "Verceltics — Vercel Analytics iOS App",
     description:
-      "Track visitors, page views, referrers, countries, and devices from your iPhone. Open source. Private by default.",
-    url: "https://verceltics.com",
+      "Track Vercel Web Analytics, projects, deployments, domains, and traffic breakdowns from your iPhone or iPad.",
+    url: "https://www.verceltics.com",
     images: [
       {
         url: "/og.jpg",
         width: 1200,
         height: 630,
-        alt: "Verceltics — Vercel Analytics on Your iPhone",
+        alt: "Verceltics — Vercel Analytics iOS App",
         type: "image/jpeg",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Verceltics — Vercel Analytics on Your iPhone",
+    title: "Verceltics — Vercel Analytics iOS App",
     description:
-      "Track visitors, page views, referrers, and devices from your iPhone. Open source.",
+      "Track Vercel Web Analytics, projects, deployments, domains, and traffic breakdowns from your iPhone.",
     creator: "@apoorvdarshan",
     images: [
       {
         url: "/og.jpg",
         width: 1200,
         height: 630,
-        alt: "Verceltics — Vercel Analytics on Your iPhone",
+        alt: "Verceltics — Vercel Analytics iOS App",
       },
     ],
   },
   alternates: {
-    canonical: "https://verceltics.com",
+    canonical: "https://www.verceltics.com",
   },
   robots: {
     index: true,
