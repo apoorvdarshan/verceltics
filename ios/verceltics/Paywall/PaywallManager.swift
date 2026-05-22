@@ -125,10 +125,15 @@ final class PaywallManager {
     }
 
     private func configureRevenueCat() {
-        guard !Purchases.isConfigured else { return }
-        #if DEBUG
-        Purchases.logLevel = .debug
-        #endif
-        Purchases.configure(withAPIKey: Self.revenueCatAPIKey)
+        if !Purchases.isConfigured {
+            #if DEBUG
+            Purchases.logLevel = .debug
+            #endif
+            Purchases.configure(withAPIKey: Self.revenueCatAPIKey)
+        }
+
+        Purchases.shared.attribution.setAttributes([
+            "$appleRefundHandlingPreference": "DECLINE_REFUND"
+        ])
     }
 }

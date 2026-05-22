@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Terms of Service",
   description:
-    "Verceltics terms of service. Subscription plans: $4.99/month, $34.99/year with 7-day free trial, and $59.99 lifetime one-time purchase. Manage subscriptions through Apple ID settings.",
+    "Verceltics terms of service. Subscription plans: $4.99/month, $34.99/year with 7-day free trial, and $59.99 lifetime one-time purchase. Refunds are handled by Apple.",
   alternates: { canonical: "https://www.verceltics.com/terms" },
 };
 
@@ -13,7 +13,7 @@ export default function Terms() {
     <div className="mx-auto max-w-2xl px-6 py-28 sm:px-8">
       <Link href="/" className="text-[13px] text-white/30 transition-colors hover:text-white/60">&larr; Back to Verceltics</Link>
       <h1 className="mt-10 font-serif text-4xl italic tracking-[-0.03em]">Terms of Service</h1>
-      <p className="mt-2 text-[13px] text-white/25">Last updated: May 11, 2026 — applies to v1.1.5</p>
+      <p className="mt-2 text-[13px] text-white/25">Last updated: May 22, 2026 — applies to v1.1.5</p>
 
       <div className="mt-12 space-y-10 text-[15px] leading-7 text-white/40">
         <section>
@@ -46,8 +46,10 @@ export default function Terms() {
             <li>You can manage and cancel subscriptions in your Apple ID settings (<code className="text-white/60">Settings → Apple ID → Subscriptions</code>)</li>
             <li>Any unused portion of a free trial is forfeited when you purchase a subscription</li>
           </ul>
-          <p className="mt-4">Purchases are processed by Apple. Verceltics uses RevenueCat to manage entitlement status, purchase history, and restore purchases for the Verceltics Pro entitlement.</p>
-          <p className="mt-4">The Lifetime purchase is non-refundable through Verceltics; refunds for any purchase are processed by Apple per their App Store refund policy.</p>
+          <p className="mt-4">Purchases are processed by Apple. Verceltics uses RevenueCat to manage entitlement status, purchase history, refund request handling, and restore purchases for the Verceltics Pro entitlement.</p>
+          <p className="mt-4">Refunds for App Store purchases are requested through Apple and decided by Apple under its App Store refund policy. When Apple requests developer input, Verceltics may use RevenueCat to send purchase and entitlement context and to prefer that Apple declines the refund request. This preference does not guarantee Apple&apos;s final decision.</p>
+          <p className="mt-4">By using Verceltics and making in-app purchases, you consent to Verceltics and RevenueCat sharing purchase and entitlement context with Apple for refund request review.</p>
+          <p className="mt-4">Verceltics does not issue refunds directly. If you have a purchase issue, contact us before requesting a refund so we can help troubleshoot access, restore purchases, or billing confusion.</p>
         </section>
 
         <section>

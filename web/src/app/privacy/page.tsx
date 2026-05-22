@@ -13,7 +13,7 @@ export default function Privacy() {
     <div className="mx-auto max-w-2xl px-6 py-28 sm:px-8">
       <Link href="/" className="text-[13px] text-white/30 transition-colors hover:text-white/60">&larr; Back to Verceltics</Link>
       <h1 className="mt-10 font-serif text-4xl italic tracking-[-0.03em]">Privacy Policy</h1>
-      <p className="mt-2 text-[13px] text-white/25">Last updated: May 11, 2026 — applies to v1.1.5</p>
+      <p className="mt-2 text-[13px] text-white/25">Last updated: May 22, 2026 — applies to v1.1.5</p>
 
       <div className="mt-12 space-y-10 text-[15px] leading-7 text-white/40">
         <section>
@@ -61,6 +61,13 @@ export default function Privacy() {
           <h2 className="text-lg font-semibold text-white/80">Subscriptions</h2>
           <p className="mt-3">Subscriptions and the lifetime in-app purchase are processed by Apple through the App Store. Verceltics uses RevenueCat to manage entitlement status and restore purchases. RevenueCat may receive Apple purchase receipt data, an anonymous RevenueCat app user identifier, and subscription status needed to unlock the app.</p>
           <p className="mt-3">RevenueCat does not receive your Vercel tokens, Vercel account data, project data, or analytics data from Verceltics. We do not process or store any payment card information. We can&apos;t see your card.</p>
+        </section>
+
+        <section>
+          <h2 className="text-lg font-semibold text-white/80">Refund Requests</h2>
+          <p className="mt-3">Refund requests for App Store purchases are handled by Apple. If you request a refund through Apple, RevenueCat may send Apple purchase and entitlement context needed to respond to Apple&apos;s refund review, such as receipt data, product identifiers, purchase history, subscription status, and whether the purchase was delivered or restored.</p>
+          <p className="mt-3">Verceltics configures RevenueCat to prefer that Apple declines refund requests. Apple makes the final refund decision. This refund handling data does not include your Vercel tokens, Vercel account data, project data, or analytics data.</p>
+          <p className="mt-3">By using Verceltics and making in-app purchases, you consent to Verceltics and RevenueCat sharing this purchase and entitlement context with Apple for refund request review.</p>
         </section>
 
         <section>

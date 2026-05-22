@@ -122,6 +122,12 @@ To test the paywall in Xcode:
 
 The checked-in StoreKit config still mirrors all three products for local reference: monthly, yearly with a 7-day intro offer, and lifetime non-consumable. Production prices, trial duration, and entitlement state are managed through App Store Connect and RevenueCat.
 
+### RevenueCat Refund Handling
+
+The app sets RevenueCat's `$appleRefundHandlingPreference` customer attribute to `DECLINE_REFUND`, matching the production preference to ask Apple to decline refund requests when Apple asks for developer input.
+
+Also keep the RevenueCat Dashboard setting enabled: Project -> Apps & providers -> iOS App Store -> Handling of refund requests -> Always prefer declining refunds. Apple still makes the final refund decision.
+
 ## API
 
 The app uses two Vercel API hosts:

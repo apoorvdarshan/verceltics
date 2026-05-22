@@ -125,5 +125,7 @@ Note: Some analytics features (UTM parameters, custom events, flags) require a V
 
 The app offers Monthly ($4.99), Yearly ($34.99 with a 7-day free trial), and Lifetime ($59.99 one-time) purchase options. Purchases are processed by Apple and entitlement state is managed through RevenueCat. Subscriptions can be tested with Apple sandbox/TestFlight.
 
+Refund requests are handled by Apple. Verceltics uses RevenueCat refund request handling and sets its Apple refund handling preference to prefer declining refund requests when Apple asks for developer input. Apple makes the final refund decision.
+
 This app is universal — designed for both iPhone and iPad, with an adaptive grid and sidebar tab style on regular size class.
 ```
