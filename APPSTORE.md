@@ -1,6 +1,6 @@
 # App Store Listing
 
-App Store Connect submission details for Verceltics v1.1.5. Each field is in a code block for easy copy-paste.
+App Store Connect submission details for Verceltics v1.1.6. Each field is in a code block for easy copy-paste.
 
 ## App Name
 ```
@@ -74,19 +74,17 @@ Contact: ad13dtu@gmail.com
 Not affiliated with Vercel Inc.
 ```
 
-## What's New (v1.1.5)
+## What's New (v1.1.6)
 ```
-Verceltics 1.1.5 — project detail, navigation, and link polish.
+Verceltics 1.1.6 — safer analytics handling.
 
 NEW
-• Richer project metadata: scope, framework, repository, domains, and recent deployments.
-• Deployment details now include build events and more deployment context.
-• Follow on Instagram and Support My Work links in About.
+• Project pages now stay usable when Vercel Web Analytics is unavailable through token access.
+• Project details, domains, and recent deployments still load instead of showing a full-screen 404 error.
 
 Polish & fixes
-• Returning from deployment details no longer reloads the previous screen unnecessarily.
-• Website, README, App Store copy, privacy, and terms now match the latest support/social links.
-• Version 1.1.5, build 9.
+• Replaced misleading “Server error” wording with clearer Vercel request failure copy.
+• Version 1.1.6, build 10.
 ```
 
 ## Privacy URL

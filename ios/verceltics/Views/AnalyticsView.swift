@@ -14,6 +14,7 @@ final class AnalyticsViewModel {
     var hasLongAnalyticsHistory = false
     var isLoading = true
     var error: String?
+    var analyticsUnavailableMessage: String?
 
     init(project: Project) {
         self.project = project
@@ -24,6 +25,7 @@ final class AnalyticsViewModel {
     func load(token: String, hasLongAnalyticsHistory: Bool) async -> Bool {
         isLoading = true
         error = nil
+        analyticsUnavailableMessage = nil
         self.hasLongAnalyticsHistory = hasLongAnalyticsHistory
         var didUnlockLongAnalyticsHistory = false
         let api = VercelAPI(token: token)
@@ -38,6 +40,10 @@ final class AnalyticsViewModel {
         let prevTo = range.previousToDate
         
         let env = selectedEnvironment.queryValue ?? "production"
+
+        async let fetchedProject: Project? = try? await api.fetchProject(id: pid, teamId: tid)
+        async let fetchedDomains: [String] = (try? await api.fetchProjectDomains(projectId: pid, teamId: tid)) ?? []
+        async let fetchedDeployments: [RecentDeployment] = (try? await api.fetchDeployments(projectId: pid, teamId: tid)) ?? []
 
         do {
             async let overview = api.fetchOverview(projectId: pid, teamId: tid, from: from, to: to, environment: env)
@@ -55,10 +61,8 @@ final class AnalyticsViewModel {
             async let events = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "event_name", environment: env)
             async let flags = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "flags", environment: env)
             async let queryParams = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "query_params", environment: env)
-            async let fetchedProject: Project? = try? await api.fetchProject(id: pid, teamId: tid)
-            async let fetchedDomains: [String] = (try? await api.fetchProjectDomains(projectId: pid, teamId: tid)) ?? []
-            async let fetchedDeployments: [RecentDeployment] = (try? await api.fetchDeployments(projectId: pid, teamId: tid)) ?? []
 
+            data = AnalyticsData()
             data.overview = try await overview
             data.previousOverview = try? await previous
             data.timeseries = try await timeseries
@@ -74,20 +78,35 @@ final class AnalyticsViewModel {
             data.events = (try? await events) ?? []
             data.flags = (try? await flags) ?? []
             data.queryParams = (try? await queryParams) ?? []
-            if let fetchedProject = await fetchedProject {
-                projectDetails = fetchedProject
-            }
-            let domains = await fetchedDomains
-            self.domains = domains.isEmpty ? project.primaryDomain.map { [$0] } ?? [] : domains
-            recentDeployments = await fetchedDeployments
             if range.isPro {
                 self.hasLongAnalyticsHistory = true
                 didUnlockLongAnalyticsHistory = true
             }
 
+        } catch let apiError as APIError {
+            switch apiError {
+            case .unauthorized:
+                self.error = apiError.localizedDescription
+            case .serverError(let code) where code == 400 || code == 404:
+                data = AnalyticsData()
+                analyticsUnavailableMessage = "Vercel Web Analytics is not available through token access right now. Project details, domains, and deployments are still shown below."
+            case .serverError(let code):
+                data = AnalyticsData()
+                analyticsUnavailableMessage = "Vercel Web Analytics returned HTTP \(code). Project details, domains, and deployments are still shown below."
+            default:
+                self.error = apiError.localizedDescription
+            }
         } catch {
             self.error = error.localizedDescription
         }
+
+        if let fetchedProject = await fetchedProject {
+            projectDetails = fetchedProject
+        }
+        let domains = await fetchedDomains
+        self.domains = domains.isEmpty ? project.primaryDomain.map { [$0] } ?? [] : domains
+        recentDeployments = await fetchedDeployments
+
         isLoading = false
         return didUnlockLongAnalyticsHistory
     }
@@ -162,65 +181,18 @@ struct AnalyticsView: View {
         ScrollView {
             VStack(spacing: 16) {
                 header
-                statsCards
 
-                AnalyticsChart(data: vm.data.timeseries)
-                    .frame(height: 260)
-                    .padding(18)
-                    .background(
-                        ZStack {
-                            LinearGradient(
-                                colors: [Color.white.opacity(0.06), Color.white.opacity(0.02)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                            LinearGradient(
-                                colors: [Color.blue.opacity(0.04), .clear],
-                                startPoint: .topLeading, endPoint: .bottomTrailing
-                            )
-                            LinearGradient(
-                                colors: [Color.white.opacity(0.04), .clear],
-                                startPoint: .top, endPoint: .center
-                            )
-                        }
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 20, style: .continuous)
-                            .strokeBorder(
-                                LinearGradient(
-                                    colors: [Color.white.opacity(0.14), Color.white.opacity(0.04)],
-                                    startPoint: .top, endPoint: .bottom
-                                ),
-                                lineWidth: 0.5
-                            )
-                    )
+                if let analyticsUnavailableMessage = vm.analyticsUnavailableMessage {
+                    analyticsUnavailableCard(analyticsUnavailableMessage)
+                } else {
+                    statsCards
+                    analyticsChartCard
+                }
 
                 projectExtras
 
-                LazyVGrid(columns: breakdownColumns, spacing: 16) {
-                    breakdownCard(title: "Pages", icon: "doc.text", items: vm.data.pages, isPath: true)
-                    breakdownCard(title: "Routes", icon: "arrow.triangle.branch", items: vm.data.routes, isPath: true)
-                    breakdownCard(title: "Hostnames", icon: "server.rack", items: vm.data.hostnames)
-
-                    breakdownCard(title: "Referrers", icon: "link", items: vm.data.referrers, emptyLabel: "Direct")
-                    breakdownCard(
-                        title: "UTM Parameters",
-                        icon: "tag",
-                        items: vm.data.utmSources,
-                        lockedTitle: vm.hasLongAnalyticsHistory ? "Upgrade to Web Analytics Plus" : "Requires Pro + Web Analytics Plus",
-                        lockedSubtitle: "to access this feature"
-                    )
-
-                    breakdownCard(title: "Countries", icon: "globe.americas", items: vm.data.countries, isCountry: true)
-
-                    breakdownCard(title: "Devices", icon: "desktopcomputer", items: vm.data.devices, isPercentage: true)
-                    breakdownCard(title: "Browsers", icon: "safari", items: vm.data.browsers, isPercentage: true)
-                    breakdownCard(title: "Operating Systems", icon: "laptopcomputer", items: vm.data.os, isPercentage: true)
-
-                    breakdownCard(title: "Events", icon: "bolt.fill", items: vm.data.events, proHint: "Pro")
-                    breakdownCard(title: "Flags", icon: "flag.fill", items: vm.data.flags)
-                    breakdownCard(title: "Query Parameters", icon: "questionmark.circle", items: vm.data.queryParams)
+                if vm.analyticsUnavailableMessage == nil {
+                    analyticsBreakdowns
                 }
             }
             .padding()
@@ -228,6 +200,104 @@ struct AnalyticsView: View {
             .frame(maxWidth: .infinity)
         }
         .refreshable { await loadData() }
+    }
+
+    private func analyticsUnavailableCard(_ message: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "chart.bar.xaxis")
+                .font(.system(size: 17, weight: .heavy))
+                .foregroundStyle(.blue)
+                .frame(width: 34, height: 34)
+                .background(Color.blue.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Analytics unavailable")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.86))
+
+                Text(message)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.42))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(16)
+        .background(
+            LinearGradient(
+                colors: [Color.white.opacity(0.06), Color.white.opacity(0.025)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5)
+        )
+    }
+
+    private var analyticsChartCard: some View {
+        AnalyticsChart(data: vm.data.timeseries)
+            .frame(height: 260)
+            .padding(18)
+            .background(
+                ZStack {
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.06), Color.white.opacity(0.02)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    LinearGradient(
+                        colors: [Color.blue.opacity(0.04), .clear],
+                        startPoint: .topLeading, endPoint: .bottomTrailing
+                    )
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.04), .clear],
+                        startPoint: .top, endPoint: .center
+                    )
+                }
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.14), Color.white.opacity(0.04)],
+                            startPoint: .top, endPoint: .bottom
+                        ),
+                        lineWidth: 0.5
+                    )
+            )
+    }
+
+    private var analyticsBreakdowns: some View {
+        LazyVGrid(columns: breakdownColumns, spacing: 16) {
+            breakdownCard(title: "Pages", icon: "doc.text", items: vm.data.pages, isPath: true)
+            breakdownCard(title: "Routes", icon: "arrow.triangle.branch", items: vm.data.routes, isPath: true)
+            breakdownCard(title: "Hostnames", icon: "server.rack", items: vm.data.hostnames)
+
+            breakdownCard(title: "Referrers", icon: "link", items: vm.data.referrers, emptyLabel: "Direct")
+            breakdownCard(
+                title: "UTM Parameters",
+                icon: "tag",
+                items: vm.data.utmSources,
+                lockedTitle: vm.hasLongAnalyticsHistory ? "Upgrade to Web Analytics Plus" : "Requires Pro + Web Analytics Plus",
+                lockedSubtitle: "to access this feature"
+            )
+
+            breakdownCard(title: "Countries", icon: "globe.americas", items: vm.data.countries, isCountry: true)
+
+            breakdownCard(title: "Devices", icon: "desktopcomputer", items: vm.data.devices, isPercentage: true)
+            breakdownCard(title: "Browsers", icon: "safari", items: vm.data.browsers, isPercentage: true)
+            breakdownCard(title: "Operating Systems", icon: "laptopcomputer", items: vm.data.os, isPercentage: true)
+
+            breakdownCard(title: "Events", icon: "bolt.fill", items: vm.data.events, proHint: "Pro")
+            breakdownCard(title: "Flags", icon: "flag.fill", items: vm.data.flags)
+            breakdownCard(title: "Query Parameters", icon: "questionmark.circle", items: vm.data.queryParams)
+        }
     }
 
     // MARK: - Header

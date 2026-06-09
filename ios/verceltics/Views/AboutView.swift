@@ -27,6 +27,8 @@ struct AboutView: View {
                         // App
                         aboutSection(title: "APP") {
                             updateCheckRow
+                            sectionDivider
+                            whatsNewCard
                         }
 
                         // Links — outward connections
@@ -144,6 +146,69 @@ struct AboutView: View {
             return "Version \(appUpdateChecker.currentVersion) is current"
         }
         return "Version \(appUpdateChecker.currentVersion)"
+    }
+
+    private var sectionDivider: some View {
+        Rectangle()
+            .fill(Color.white.opacity(0.07))
+            .frame(height: 0.5)
+            .padding(.leading, 62)
+    }
+
+    private var whatsNewCard: some View {
+        HStack(alignment: .top, spacing: 14) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 13, weight: .heavy))
+                .foregroundStyle(Color(red: 0.84, green: 1.0, blue: 0.36))
+                .frame(width: 34, height: 34)
+                .background(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.10), Color.white.opacity(0.04)],
+                        startPoint: .top, endPoint: .bottom
+                    )
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.06), lineWidth: 0.5)
+                )
+
+            VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("What's New in \(appUpdateChecker.currentVersion)")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(.white)
+                    Text("Safer analytics handling")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.4))
+                }
+
+                VStack(alignment: .leading, spacing: 7) {
+                    whatsNewItem("Project pages stay usable when Vercel Web Analytics is unavailable through token access.")
+                    whatsNewItem("Project details, domains, and recent deployments still load instead of a full-screen 404.")
+                    whatsNewItem("Clearer Vercel request failure messages.")
+                }
+                .padding(.top, 2)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 13)
+    }
+
+    private func whatsNewItem(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 7) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 9, weight: .heavy))
+                .foregroundStyle(Color(red: 0.84, green: 1.0, blue: 0.36).opacity(0.78))
+                .padding(.top, 3)
+
+            Text(text)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.42))
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     private var shareAppRow: some View {

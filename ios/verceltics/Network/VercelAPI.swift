@@ -14,7 +14,7 @@ enum APIError: LocalizedError {
             if code == 400 {
                 return "Bad Request (400). Please ensure Web Analytics is enabled for this project on Vercel and your plan supports the selected time range."
             }
-            return "Server error (\(code)). Try again later."
+            return "Vercel request failed (\(code)). Try again later."
         case .decodingError: 
             return "Failed to parse response."
         case .networkError(let err): 
