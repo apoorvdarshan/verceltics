@@ -7,6 +7,8 @@ struct AboutView: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.requestReview) private var requestReview
 
+    @State private var isWhatsNewExpanded = false
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -156,45 +158,63 @@ struct AboutView: View {
     }
 
     private var whatsNewCard: some View {
-        HStack(alignment: .top, spacing: 14) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 13, weight: .heavy))
-                .foregroundStyle(Color(red: 0.84, green: 1.0, blue: 0.36))
-                .frame(width: 34, height: 34)
-                .background(
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.10), Color.white.opacity(0.04)],
-                        startPoint: .top, endPoint: .bottom
-                    )
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.06), lineWidth: 0.5)
-                )
-
-            VStack(alignment: .leading, spacing: 8) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("What's New in \(appUpdateChecker.currentVersion)")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(.white)
-                    Text("Safer analytics handling")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.4))
-                }
-
-                VStack(alignment: .leading, spacing: 7) {
-                    whatsNewItem("Project pages stay usable when Vercel Web Analytics is unavailable through token access.")
-                    whatsNewItem("Project details, domains, and recent deployments still load instead of a full-screen 404.")
-                    whatsNewItem("Clearer Vercel request failure messages.")
-                }
-                .padding(.top, 2)
+        Button {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+                isWhatsNewExpanded.toggle()
             }
+        } label: {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .top, spacing: 14) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 13, weight: .heavy))
+                        .foregroundStyle(Color(red: 0.84, green: 1.0, blue: 0.36))
+                        .frame(width: 34, height: 34)
+                        .background(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.10), Color.white.opacity(0.04)],
+                                startPoint: .top, endPoint: .bottom
+                            )
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                .strokeBorder(Color.white.opacity(0.06), lineWidth: 0.5)
+                        )
 
-            Spacer(minLength: 0)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("What's New in \(appUpdateChecker.currentVersion)")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(.white)
+                        Text("Safer analytics handling")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.4))
+                    }
+
+                    Spacer(minLength: 0)
+
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 12, weight: .heavy))
+                        .foregroundStyle(.white.opacity(0.35))
+                        .rotationEffect(.degrees(isWhatsNewExpanded ? 180 : 0))
+                        .padding(.top, 11)
+                }
+
+                if isWhatsNewExpanded {
+                    VStack(alignment: .leading, spacing: 7) {
+                        whatsNewItem("Project pages stay usable when Vercel Web Analytics is unavailable through token access.")
+                        whatsNewItem("Project details, domains, and recent deployments still load instead of a full-screen 404.")
+                        whatsNewItem("Clearer Vercel request failure messages.")
+                    }
+                    .padding(.leading, 48)
+                    .padding(.top, 10)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 13)
+            .contentShape(Rectangle())
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 13)
+        .buttonStyle(PressScaleButtonStyle())
     }
 
     private func whatsNewItem(_ text: String) -> some View {
