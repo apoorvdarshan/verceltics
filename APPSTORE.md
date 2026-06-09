@@ -76,14 +76,14 @@ Not affiliated with Vercel Inc.
 
 ## What's New (v1.1.6)
 ```
-Verceltics 1.1.6 — safer analytics handling.
+Verceltics 1.1.6 — web analytics is back.
 
 NEW
-• Project pages now stay usable when Vercel Web Analytics is unavailable through token access.
-• Project details, domains, and recent deployments still load instead of showing a full-screen 404 error.
+• Web Analytics works again — visitors, page views, and trends are restored.
+• Top pages, referrers, countries, devices, browsers, and more breakdowns are back.
 
 Polish & fixes
-• Replaced misleading “Server error” wording with clearer Vercel request failure copy.
+• Projects, domains, and deployments stay reliable, with clearer request failure copy.
 • Version 1.1.6, build 10.
 ```
 

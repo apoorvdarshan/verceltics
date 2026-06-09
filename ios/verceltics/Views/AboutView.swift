@@ -167,7 +167,7 @@ struct AboutView: View {
                 HStack(alignment: .top, spacing: 14) {
                     Image(systemName: "sparkles")
                         .font(.system(size: 13, weight: .heavy))
-                        .foregroundStyle(Color(red: 0.84, green: 1.0, blue: 0.36))
+                        .foregroundStyle(.white.opacity(0.55))
                         .frame(width: 34, height: 34)
                         .background(
                             LinearGradient(
@@ -185,7 +185,7 @@ struct AboutView: View {
                         Text("What's New in \(appUpdateChecker.currentVersion)")
                             .font(.system(size: 14, weight: .bold))
                             .foregroundStyle(.white)
-                        Text("Safer analytics handling")
+                        Text("Web analytics is back")
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(.white.opacity(0.4))
                     }
@@ -201,9 +201,9 @@ struct AboutView: View {
 
                 if isWhatsNewExpanded {
                     VStack(alignment: .leading, spacing: 7) {
-                        whatsNewItem("Project pages stay usable when Vercel Web Analytics is unavailable through token access.")
-                        whatsNewItem("Project details, domains, and recent deployments still load instead of a full-screen 404.")
-                        whatsNewItem("Clearer Vercel request failure messages.")
+                        whatsNewItem("Web Analytics works again — visitors, page views, and trends are restored.")
+                        whatsNewItem("Top pages, referrers, countries, devices, browsers, and more breakdowns are back.")
+                        whatsNewItem("Projects, domains, and deployments stay reliable, with clearer error messages.")
                     }
                     .padding(.leading, 48)
                     .padding(.top, 10)
