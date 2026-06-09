@@ -23,7 +23,7 @@ export const metadata: Metadata = {
     template: "%s — Verceltics",
   },
   description:
-    "Open-source iOS app for Vercel Web Analytics: visitors, page views, referrers, devices, deployments, domains, and projects on iPhone.",
+    "Open-source iOS app for Vercel Web Analytics: native Swift Charts for visitors, page views, referrers, countries, devices, deployments, domains, and projects on iPhone and iPad.",
   keywords: [
     "Vercel",
     "analytics",
@@ -101,6 +101,35 @@ export const metadata: Metadata = {
   },
 };
 
+const siteJsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://www.verceltics.com/#organization",
+      name: "Verceltics",
+      url: "https://www.verceltics.com",
+      logo: "https://www.verceltics.com/icon.png",
+      founder: { "@type": "Person", name: "Apoorv Darshan", url: "https://x.com/apoorvdarshan" },
+      sameAs: [
+        "https://github.com/apoorvdarshan/verceltics",
+        "https://www.linkedin.com/company/verceltics",
+        "https://www.instagram.com/verceltics/",
+        "https://www.producthunt.com/products/verceltics",
+        "https://x.com/apoorvdarshan",
+      ],
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://www.verceltics.com/#website",
+      name: "Verceltics",
+      url: "https://www.verceltics.com",
+      inLanguage: "en-US",
+      publisher: { "@id": "https://www.verceltics.com/#organization" },
+    },
+  ],
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -109,6 +138,10 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${dmSans.variable} ${instrumentSerif.variable} antialiased`}>
       <body className="min-h-screen bg-black font-[family-name:var(--font-dm-sans)] text-white">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(siteJsonLd) }}
+        />
         {children}
         <Analytics />
       </body>

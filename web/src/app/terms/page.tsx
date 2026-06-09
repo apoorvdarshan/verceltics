@@ -6,6 +6,15 @@ export const metadata: Metadata = {
   description:
     "Verceltics terms of service. Subscription plans: $4.99/month, $34.99/year with 7-day free trial, and $59.99 lifetime one-time purchase. Refunds are handled by Apple.",
   alternates: { canonical: "https://www.verceltics.com/terms" },
+  openGraph: {
+    type: "article",
+    siteName: "Verceltics",
+    title: "Terms of Service — Verceltics",
+    description:
+      "Verceltics terms of service: subscription plans, lifetime purchase, and Apple-handled refunds.",
+    url: "https://www.verceltics.com/terms",
+    images: [{ url: "/og.jpg", width: 1200, height: 630, alt: "Verceltics" }],
+  },
 };
 
 export default function Terms() {

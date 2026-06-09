@@ -62,7 +62,7 @@ const faqs = [
 ] as const;
 
 const ticker = [
-  "v1.1.6 — analytics fallback",
+  "v1.1.6 — web analytics restored",
   "SwiftUI",
   "Swift Charts",
   "Private by design",

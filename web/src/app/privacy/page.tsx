@@ -6,6 +6,15 @@ export const metadata: Metadata = {
   description:
     "Verceltics privacy policy. Your Vercel tokens are stored locally in the iOS Keychain. No app tracking, no app telemetry, no Vercel data proxy.",
   alternates: { canonical: "https://www.verceltics.com/privacy" },
+  openGraph: {
+    type: "article",
+    siteName: "Verceltics",
+    title: "Privacy Policy — Verceltics",
+    description:
+      "How Verceltics handles your data: Vercel tokens stay in the iOS Keychain, no tracking, no telemetry, no data proxy.",
+    url: "https://www.verceltics.com/privacy",
+    images: [{ url: "/og.jpg", width: 1200, height: 630, alt: "Verceltics" }],
+  },
 };
 
 export default function Privacy() {
