@@ -196,6 +196,16 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
   <img src="https://contrib.rocks/image?repo=apoorvdarshan/verceltics" alt="Verceltics contributors" />
 </a>
 
+## Star History
+
+<a href="https://www.star-history.com/#apoorvdarshan/verceltics&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=apoorvdarshan/verceltics&type=Date&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=apoorvdarshan/verceltics&type=Date" />
+    <img alt="Verceltics star history chart" src="https://api.star-history.com/svg?repos=apoorvdarshan/verceltics&type=Date" />
+  </picture>
+</a>
+
 ---
 
 <p align="center">Built with ❤︎ by <a href="https://x.com/apoorvdarshan">Apoorv Darshan</a></p>
