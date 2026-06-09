@@ -199,11 +199,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 ## Star History
 
 <a href="https://star-history.com/#apoorvdarshan/verceltics&Date">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=apoorvdarshan/verceltics&type=Date&theme=dark" />
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=apoorvdarshan/verceltics&type=Date" />
-    <img alt="Verceltics star history chart" src="https://api.star-history.com/svg?repos=apoorvdarshan/verceltics&type=Date" />
-  </picture>
+  <img alt="Verceltics star history chart" src="https://starchart.cc/apoorvdarshan/verceltics.svg" width="640" />
 </a>
 
 ---
