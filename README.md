@@ -22,7 +22,7 @@
 | Projects | Analytics |
 |:---:|:---:|
 | ![Projects](docs/screenshots/projects.png) | ![Analytics](docs/screenshots/analytics.png) |
-| All your Vercel projects — favicons, framework dot, last commit, live deploy indicator | Visitors, page views, bounce rate, and the interactive chart with peak + average markers |
+| All your Vercel projects — favicons, framework dot, last commit, live deploy indicator | Visitors, page views, and the interactive chart with peak + average markers |
 
 | Pages & Routes | Countries & Devices | Deep Breakdowns |
 |:---:|:---:|:---:|
@@ -37,7 +37,7 @@
 - **Project Details** — Scope, framework, connected repository, verified domains, and recent deployments
 - **Deployment Details** — Open deployments to inspect target, branch, commit, creator, live URL, and build events
 - **Framework-tinted dots** — Astro orange, Vite purple, Remix cyan, Angular red, Eleventy yellow, etc.
-- **Analytics** — Visitors, page views, bounce rate with % change badges and staggered entrance
+- **Analytics** — Visitors, page views, and trends with % change badges and staggered entrance
 - **Interactive Chart** — Peak indicator, average reference line, drag-to-inspect with haptic feedback
 - **Full Breakdowns** — Pages, routes, hostnames, referrers, UTM, countries, devices, browsers, OS, events, flags, query params
 - **Soft Paywall** — Browse projects free; analytics gated per project tap
@@ -135,7 +135,7 @@ The app uses two Vercel API hosts:
 | Host | Endpoints | Auth |
 |------|-----------|------|
 | `api.vercel.com` | `/v2/user`, `/v9/projects`, `/v9/projects/{id}`, `/v9/projects/{id}/domains` | Bearer token |
-| `vercel.com/api` | `/web-analytics/*` | Bearer token |
+| `vercel.com/api` | `/web-analytics/v2/*` | Bearer token |
 
 Analytics endpoints use `groupBy` parameter: `path`, `route`, `hostname`, `referrer`, `utm`, `country`, `device_type`, `client_name`, `os_name`, `event_name`, `flags`, `query_params`
 

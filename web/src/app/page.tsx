@@ -21,7 +21,7 @@ const KOFI = "https://ko-fi.com/apoorvdarshan";
 const useCases = [
   {
     title: "Vercel analytics on iPhone",
-    body: "Check Vercel Web Analytics from a native iOS app: visitors, page views, bounce rate, referrers, countries, devices, browsers, operating systems, routes, hostnames, UTM, events, flags, and query parameters.",
+    body: "Check Vercel Web Analytics from a native iOS app: visitors, page views, referrers, countries, devices, browsers, operating systems, routes, hostnames, UTM, events, flags, and query parameters.",
   },
   {
     title: "Vercel projects and deployments",
@@ -47,7 +47,7 @@ const faqs = [
   {
     question: "What Vercel Analytics data does it show?",
     answer:
-      "Verceltics shows visitors, page views, bounce rate, trends, pages, routes, hostnames, referrers, UTM parameters, countries, devices, browsers, operating systems, events, feature flags, and query parameters where Vercel provides that data.",
+      "Verceltics shows visitors, page views, trends, pages, routes, hostnames, referrers, UTM parameters, countries, devices, browsers, operating systems, events, feature flags, and query parameters where Vercel provides that data.",
   },
   {
     question: "Does Verceltics proxy my Vercel token?",
@@ -79,7 +79,7 @@ const features = [
   {
     label: "Dashboard",
     title: "Your numbers, one glance.",
-    body: "Visitors, page views, bounce rate, and trends in a native layout that stays legible on the smallest screen. Drag the chart to inspect any day — peak indicator and dashed average line travel with the data.",
+    body: "Visitors, page views, and trends in a native layout that stays legible on the smallest screen. Drag the chart to inspect any day — peak indicator and dashed average line travel with the data.",
     bullets: ["Period comparisons", "Swift Charts native", "Drag-to-inspect with haptics"],
     image: "/analytics.png",
     alt: "Verceltics analytics dashboard with chart",
@@ -156,7 +156,7 @@ const jsonLd = {
   applicationCategory: "DeveloperApplication",
   softwareVersion: "1.1.6",
   description:
-    "Vercel web analytics viewer for iPhone and iPad. Track visitors, page views, bounce rate, referrers, countries, devices, browsers, and operating systems. Built with SwiftUI and Swift Charts. Open source, private by default, no tracking, no data proxy.",
+    "Vercel web analytics viewer for iPhone and iPad. Track visitors, page views, referrers, countries, devices, browsers, and operating systems. Built with SwiftUI and Swift Charts. Open source, private by default, no tracking, no data proxy.",
   url: SITE_URL,
   downloadUrl: APPSTORE,
   mainEntityOfPage: SITE_URL,

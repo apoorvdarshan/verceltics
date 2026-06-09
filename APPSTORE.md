@@ -19,7 +19,7 @@ Vercel Web Analytics on your iPhone and iPad. Switch accounts, copy project URLs
 
 ## Keywords (100 chars max)
 ```
-vercel,analytics,web traffic,visitors,referrers,bounce rate,developer,deploy,website,open source
+vercel,analytics,web traffic,visitors,referrers,charts,developer,deploy,website,open source
 ```
 
 ## Category
@@ -30,7 +30,7 @@ Secondary: Utilities
 
 ## Description
 ```
-Verceltics puts your Vercel web analytics in your pocket. Check visitors, page views, bounce rate, referrers, countries, devices, browsers, and more — all from a fast native iPhone and iPad app.
+Verceltics puts your Vercel web analytics in your pocket. Check visitors, page views, referrers, countries, devices, browsers, and more — all from a fast native iPhone and iPad app.
 
 WHAT YOU GET
 • Real-time analytics dashboard with interactive Swift Charts
