@@ -423,7 +423,7 @@ struct AnalyticsView: View {
             )
             StatCard(
                 title: "Bounce Rate",
-                value: "\(vm.data.overview?.bounceRate ?? 0)%",
+                value: (vm.data.overview?.bounceRate).map { "\($0)%" } ?? "—",
                 change: vm.data.bounceRateChange,
                 invertChange: true,
                 icon: "arrow.uturn.left",

@@ -5,7 +5,8 @@ import Foundation
 nonisolated struct AnalyticsOverview: Decodable {
     let total: Int
     let devices: Int
-    let bounceRate: Int
+    // Vercel's v2 analytics endpoints no longer return bounce rate; optional so decoding succeeds without it.
+    let bounceRate: Int?
 }
 
 // MARK: - Timeseries Response
@@ -23,7 +24,7 @@ nonisolated struct TimeseriesPoint: Identifiable, Decodable {
     let key: String
     let total: Int
     let devices: Int
-    let bounceRate: Int
+    let bounceRate: Int?
 
     private static let isoFormatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
