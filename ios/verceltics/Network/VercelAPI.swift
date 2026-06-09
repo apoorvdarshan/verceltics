@@ -153,7 +153,7 @@ actor VercelAPI {
     func fetchOverview(projectId: String, teamId: String?, from: String, to: String, environment: String) async throws -> AnalyticsOverview {
         try await request(
             base: "https://vercel.com/api",
-            path: "/web-analytics/overview",
+            path: "/web-analytics/v2/overview",
             queryItems: analyticsParams(projectId: projectId, teamId: teamId, from: from, to: to, environment: environment)
         )
     }
@@ -161,7 +161,7 @@ actor VercelAPI {
     func fetchPreviousOverview(projectId: String, teamId: String?, from: String, to: String, environment: String) async throws -> AnalyticsOverview {
         try await request(
             base: "https://vercel.com/api",
-            path: "/web-analytics/overview",
+            path: "/web-analytics/v2/overview",
             queryItems: analyticsParams(projectId: projectId, teamId: teamId, from: from, to: to, environment: environment)
         )
     }
@@ -169,7 +169,7 @@ actor VercelAPI {
     func fetchTimeseries(projectId: String, teamId: String?, from: String, to: String, environment: String) async throws -> [TimeseriesPoint] {
         let response: TimeseriesResponse = try await request(
             base: "https://vercel.com/api",
-            path: "/web-analytics/timeseries",
+            path: "/web-analytics/v2/timeseries",
             queryItems: analyticsParams(projectId: projectId, teamId: teamId, from: from, to: to, environment: environment)
         )
         return response.data.groups["all"] ?? []
@@ -180,7 +180,7 @@ actor VercelAPI {
         params.append(URLQueryItem(name: "groupBy", value: groupBy))
         let response: TimeseriesResponse = try await request(
             base: "https://vercel.com/api",
-            path: "/web-analytics/timeseries",
+            path: "/web-analytics/v2/timeseries",
             queryItems: params
         )
         return response.data.groups
