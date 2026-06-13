@@ -260,6 +260,21 @@ export default function Home() {
           <div className="mx-auto grid w-full max-w-[1320px] items-center gap-8 px-5 pb-6 pt-20 sm:gap-12 sm:px-8 sm:pt-24 lg:grid-cols-[0.85fr_1.15fr] lg:gap-10 lg:pb-0 lg:pt-16">
             {/* Copy */}
             <div className="max-w-xl text-center lg:text-left">
+              <a
+                href={TRUSTMRR}
+                target="_blank"
+                rel="noreferrer"
+                className="animate-fade-up mb-5 inline-flex items-center gap-2 rounded-full border border-amber-400/25 bg-amber-400/[0.08] px-3.5 py-1.5 text-[12px] font-medium text-amber-200/90 transition-colors hover:bg-amber-400/[0.14]"
+                style={{ animationDelay: "0s" }}
+              >
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400/70" />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-amber-400" />
+                </span>
+                This app is for sale — view the offer
+                <span aria-hidden>&rarr;</span>
+              </a>
+
               <p
                 className="animate-fade-up text-[11px] font-medium uppercase tracking-[0.35em] text-white/30"
                 style={{ animationDelay: "0.05s" }}
