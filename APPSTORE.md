@@ -86,7 +86,7 @@ NEW
 
 Polish & fixes
 • About is now its own tab for app info, links, help, and legal.
-• Version 1.2, build 11.
+• Version 1.2, build 12.
 ```
 
 ## Privacy URL
