@@ -171,7 +171,7 @@ struct AboutView: View {
                         Text("What's New in \(appUpdateChecker.currentVersion)")
                             .font(.system(size: 14, weight: .bold))
                             .foregroundStyle(.white)
-                        Text("Web analytics is back")
+                        Text("Tip jar + new Support tab")
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(.white.opacity(0.4))
                     }
@@ -187,9 +187,9 @@ struct AboutView: View {
 
                 if isWhatsNewExpanded {
                     VStack(alignment: .leading, spacing: 7) {
-                        whatsNewItem("Web Analytics works again — visitors, page views, and trends are restored.")
-                        whatsNewItem("Top pages, referrers, countries, devices, browsers, and more breakdowns are back.")
-                        whatsNewItem("Projects, domains, and deployments stay reliable, with clearer error messages.")
+                        whatsNewItem("New in-app Tip Jar — support development with an optional one-time tip: Coffee, Lunch, Big, or Huge.")
+                        whatsNewItem("Added a dedicated Support tab — rate, share, star, and tip, all in one place.")
+                        whatsNewItem("About is now its own tab for app info, links, help, and legal.")
                     }
                     .padding(.leading, 48)
                     .padding(.top, 10)
