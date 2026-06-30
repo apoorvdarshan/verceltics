@@ -45,7 +45,8 @@
 - **Search** — Filter projects by name, domain, or framework
 - **Pull to Refresh** — Live data from Vercel API
 - **Update Checks** — About tab shows when a newer App Store version is available
-- **Support & Social Links** — About includes GitHub, LinkedIn, Instagram, Product Hunt, Ko-fi, contact, legal, and subscription management
+- **Support Tab** — Optional in-app tips (Coffee, Lunch, Big Tip, Huge Supporter) plus rate, share, star on GitHub, and Product Hunt
+- **About Tab** — Links (GitHub, LinkedIn, Instagram, X), contact, legal, and subscription management
 - **iPad** — Adaptive grid + sidebar tab style on regular size class
 - **Dark Mode** — Pure black (#000000) Vercel-style design
 - **Secure** — Vercel tokens stored in iOS Keychain, open source code

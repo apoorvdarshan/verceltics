@@ -22,7 +22,7 @@ export default function Terms() {
     <div className="mx-auto max-w-2xl px-6 py-28 sm:px-8">
       <Link href="/" className="text-[13px] text-white/30 transition-colors hover:text-white/60">&larr; Back to Verceltics</Link>
       <h1 className="mt-10 font-serif text-4xl italic tracking-[-0.03em]">Terms of Service</h1>
-      <p className="mt-2 text-[13px] text-white/25">Last updated: May 22, 2026 — applies to v1.1.6</p>
+      <p className="mt-2 text-[13px] text-white/25">Last updated: June 30, 2026 — applies to v1.2</p>
 
       <div className="mt-12 space-y-10 text-[15px] leading-7 text-white/40">
         <section>
@@ -56,6 +56,7 @@ export default function Terms() {
             <li>Any unused portion of a free trial is forfeited when you purchase a subscription</li>
           </ul>
           <p className="mt-4">Purchases are processed by Apple. Verceltics uses RevenueCat to manage entitlement status, purchase history, refund request handling, and restore purchases for the Verceltics Pro entitlement.</p>
+          <p className="mt-4">Verceltics also offers optional tips — one-time consumable in-app purchases (Coffee, Lunch, Big, and Huge). Tips are voluntary, processed directly by Apple, unlock no content or features, and are non-refundable consumables. They are not subscriptions and are not managed by RevenueCat.</p>
           <p className="mt-4">Refunds for App Store purchases are requested through Apple and decided by Apple under its App Store refund policy. When Apple requests developer input, Verceltics may use RevenueCat to send purchase and entitlement context and to prefer that Apple declines the refund request. This preference does not guarantee Apple&apos;s final decision.</p>
           <p className="mt-4">By using Verceltics and making in-app purchases, you consent to Verceltics and RevenueCat sharing purchase and entitlement context with Apple for refund request review.</p>
           <p className="mt-4">Verceltics does not issue refunds directly. If you have a purchase issue, contact us before requesting a refund so we can help troubleshoot access, restore purchases, or billing confusion.</p>

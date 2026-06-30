@@ -1,6 +1,6 @@
 # App Store Listing
 
-App Store Connect submission details for Verceltics v1.1.6. Each field is in a code block for easy copy-paste.
+App Store Connect submission details for Verceltics v1.2. Each field is in a code block for easy copy-paste.
 
 ## App Name
 ```
@@ -44,7 +44,8 @@ WHAT YOU GET
 • Pull to refresh for live data
 • iPad layout — adaptive grid + sidebar tab style on regular size class
 • App Store update checks from About
-• GitHub, LinkedIn, Instagram, Product Hunt, and support links in About
+• Support tab — leave an optional tip, rate, share, star on GitHub, upvote on Product Hunt
+• About tab — links, contact, legal, and subscription management
 
 PRIVATE BY DESIGN
 • Your Vercel tokens stay in the iOS Keychain — never leave your device
@@ -61,6 +62,7 @@ PRICING
 • Monthly: $4.99/month
 • Yearly: $34.99/year with a 7-day free trial (save 42%)
 • Lifetime: $59.99 one-time purchase
+• Optional tips: Coffee $2.99, Lunch $5.99, Big $9.99, Huge $19.99 — support development, unlock nothing
 • Cancel subscriptions anytime from Apple ID settings
 
 Built with SwiftUI, Swift Charts, and RevenueCat for App Store purchase entitlement checks.
@@ -74,17 +76,17 @@ Contact: ad13dtu@gmail.com
 Not affiliated with Vercel Inc.
 ```
 
-## What's New (v1.1.6)
+## What's New (v1.2)
 ```
-Verceltics 1.1.6 — web analytics is back.
+Verceltics 1.2 — support the developer, cleaner layout.
 
 NEW
-• Web Analytics works again — visitors, page views, and trends are restored.
-• Top pages, referrers, countries, devices, browsers, and more breakdowns are back.
+• Tip Jar — leave an optional one-time tip (Coffee, Lunch, Big, or Huge). Tips are optional and unlock nothing.
+• New Support tab — rate, share, star on GitHub, Product Hunt, and tips, all in one place.
 
 Polish & fixes
-• Projects, domains, and deployments stay reliable, with clearer request failure copy.
-• Version 1.1.6, build 10.
+• About is now its own tab for app info, links, help, and legal.
+• Version 1.2, build 11.
 ```
 
 ## Privacy URL
@@ -122,6 +124,8 @@ If you don't have a Vercel account, create a free one at vercel.com and deploy a
 Note: Some analytics features (UTM parameters, custom events, flags) require a Vercel Pro or Enterprise plan. These sections will show a lock icon or "Requires Pro" message on Hobby (free) accounts. This is expected behavior.
 
 The app offers Monthly ($4.99), Yearly ($34.99 with a 7-day free trial), and Lifetime ($59.99 one-time) purchase options. Purchases are processed by Apple and entitlement state is managed through RevenueCat. Subscriptions can be tested with Apple sandbox/TestFlight.
+
+The app also offers four optional consumable "tip" in-app purchases (Coffee $2.99, Lunch $5.99, Big $9.99, Huge $19.99) in the Support tab. Tips are voluntary, processed directly by Apple via StoreKit (not RevenueCat), and unlock no content, features, or functionality.
 
 Refund requests are handled by Apple. Verceltics uses RevenueCat refund request handling and sets its Apple refund handling preference to prefer declining refund requests when Apple asks for developer input. Apple makes the final refund decision.
 
