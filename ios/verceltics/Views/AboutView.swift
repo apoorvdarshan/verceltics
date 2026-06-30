@@ -8,7 +8,8 @@ struct AboutView: View {
     @Environment(\.requestReview) private var requestReview
 
     @State private var isWhatsNewExpanded = false
-    @State private var showTipJar = false
+    @State private var selectedTab = 0
+    @State private var tipStore = TipStore()
 
     var body: some View {
         NavigationStack {
@@ -16,74 +17,20 @@ struct AboutView: View {
                 VStack(spacing: 0) {
                     Spacer().frame(height: 8)
 
-                    // Sections
+                    Picker("View", selection: $selectedTab) {
+                        Text("Support").tag(0)
+                        Text("About").tag(1)
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 18)
+
                     VStack(spacing: 24) {
-                        // Support — most important to surface first
-                        aboutSection(title: "SUPPORT") {
-                            AboutRow(icon: "star.bubble.fill", title: "Rate Verceltics", subtitle: "Tap a star, no App Store needed", action: { requestReview() })
-                            shareAppRow
-                            AboutRow(icon: "star.fill", title: "Star on GitHub", subtitle: "Help us reach more developers", url: "https://github.com/apoorvdarshan/verceltics")
-                            AboutRow(icon: "cup.and.saucer.fill", title: "Support My Work", subtitle: "Leave a tip — completely optional", action: { showTipJar = true })
-                            AboutRow(icon: "arrow.up.circle.fill", title: "Upvote on Product Hunt", subtitle: "producthunt.com/products/verceltics", url: "https://www.producthunt.com/products/verceltics")
+                        if selectedTab == 0 {
+                            supportTab
+                        } else {
+                            aboutTab
                         }
-
-                        // App
-                        aboutSection(title: "APP") {
-                            updateCheckRow
-                            sectionDivider
-                            whatsNewCard
-                        }
-
-                        // Links — outward connections
-                        aboutSection(title: "LINKS") {
-                            AboutRow(icon: "globe", title: "Website", subtitle: "verceltics.com", url: "https://verceltics.com")
-                            AboutRow(icon: "chevron.left.forwardslash.chevron.right", title: "Source Code", subtitle: "github.com/apoorvdarshan/verceltics", url: "https://github.com/apoorvdarshan/verceltics")
-                            AboutRow(icon: "building.2.fill", title: "Follow on LinkedIn", subtitle: "linkedin.com/company/verceltics", url: "https://www.linkedin.com/company/verceltics")
-                            AboutRow(icon: "camera.fill", title: "Follow on Instagram", subtitle: "instagram.com/verceltics", url: "https://www.instagram.com/verceltics/")
-                            AboutRow(icon: "at", title: "Follow on X", subtitle: "@apoorvdarshan", url: "https://x.com/apoorvdarshan")
-                        }
-
-                        // Help — actionable user assistance
-                        aboutSection(title: "HELP") {
-                            AboutRow(icon: "envelope.fill", title: "Contact", subtitle: "ad13dtu@gmail.com", url: "mailto:ad13dtu@gmail.com")
-                            AboutRow(icon: "ant", title: "Report an Issue", subtitle: "Open a GitHub issue", url: "https://github.com/apoorvdarshan/verceltics/issues")
-                        }
-
-                        // Account
-                        aboutSection(title: "ACCOUNT") {
-                            AboutRow(icon: "creditcard.fill", title: "Manage Subscription", subtitle: "Change plan or cancel", url: "https://apps.apple.com/account/subscriptions")
-                        }
-
-                        // Legal
-                        aboutSection(title: "LEGAL") {
-                            AboutRow(icon: "hand.raised.fill", title: "Privacy Policy", subtitle: "verceltics.com/privacy", url: "https://verceltics.com/privacy")
-                            AboutRow(icon: "doc.text.fill", title: "Terms of Service", subtitle: "verceltics.com/terms", url: "https://verceltics.com/terms")
-                            AboutRow(icon: "checkmark.seal.fill", title: "License", subtitle: "MIT License", url: "https://github.com/apoorvdarshan/verceltics/blob/main/LICENSE")
-                        }
-
-                        // Footer
-                        VStack(spacing: 10) {
-                            HStack(spacing: 5) {
-                                Text("Built with")
-                                    .font(.system(size: 11, weight: .bold))
-                                Image(systemName: "heart.fill")
-                                    .font(.system(size: 10, weight: .heavy))
-                                    .foregroundStyle(Color(red: 1.0, green: 0.42, blue: 0.42))
-                                Text("by Apoorv Darshan")
-                                    .font(.system(size: 11, weight: .bold))
-                            }
-                            .foregroundStyle(.white.opacity(0.4))
-
-                            Text("Verceltics is not affiliated with, endorsed by, or sponsored by Vercel Inc. Vercel and the Vercel logo are trademarks of Vercel Inc.")
-                                .font(.system(size: 10, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.22))
-                                .multilineTextAlignment(.center)
-                                .lineSpacing(2)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.horizontal, 28)
-                        .padding(.top, 12)
-                        .padding(.bottom, 40)
                     }
                 }
                 .frame(maxWidth: hSize == .regular ? 640 : .infinity)
@@ -95,10 +42,84 @@ struct AboutView: View {
             .task {
                 await appUpdateChecker.checkForUpdates()
             }
-            .sheet(isPresented: $showTipJar) {
-                TipJarView()
-            }
         }
+    }
+
+    // MARK: - Tabs
+
+    private var supportTab: some View {
+        Group {
+            // Ways to help — quick, free actions
+            aboutSection(title: "WAYS TO HELP") {
+                AboutRow(icon: "star.bubble.fill", title: "Rate Verceltics", subtitle: "Tap a star, no App Store needed", action: { requestReview() })
+                shareAppRow
+                AboutRow(icon: "star.fill", title: "Star on GitHub", subtitle: "Help us reach more developers", url: "https://github.com/apoorvdarshan/verceltics")
+                AboutRow(icon: "arrow.up.circle.fill", title: "Upvote on Product Hunt", subtitle: "producthunt.com/products/verceltics", url: "https://www.producthunt.com/products/verceltics")
+            }
+
+            // Tip jar — shown inline, four tiers
+            TipSectionView(store: tipStore)
+        }
+    }
+
+    private var aboutTab: some View {
+        Group {
+            aboutSection(title: "APP") {
+                updateCheckRow
+                sectionDivider
+                whatsNewCard
+            }
+
+            aboutSection(title: "LINKS") {
+                AboutRow(icon: "globe", title: "Website", subtitle: "verceltics.com", url: "https://verceltics.com")
+                AboutRow(icon: "chevron.left.forwardslash.chevron.right", title: "Source Code", subtitle: "github.com/apoorvdarshan/verceltics", url: "https://github.com/apoorvdarshan/verceltics")
+                AboutRow(icon: "building.2.fill", title: "Follow on LinkedIn", subtitle: "linkedin.com/company/verceltics", url: "https://www.linkedin.com/company/verceltics")
+                AboutRow(icon: "camera.fill", title: "Follow on Instagram", subtitle: "instagram.com/verceltics", url: "https://www.instagram.com/verceltics/")
+                AboutRow(icon: "at", title: "Follow on X", subtitle: "@apoorvdarshan", url: "https://x.com/apoorvdarshan")
+            }
+
+            aboutSection(title: "HELP") {
+                AboutRow(icon: "envelope.fill", title: "Contact", subtitle: "ad13dtu@gmail.com", url: "mailto:ad13dtu@gmail.com")
+                AboutRow(icon: "ant", title: "Report an Issue", subtitle: "Open a GitHub issue", url: "https://github.com/apoorvdarshan/verceltics/issues")
+            }
+
+            aboutSection(title: "ACCOUNT") {
+                AboutRow(icon: "creditcard.fill", title: "Manage Subscription", subtitle: "Change plan or cancel", url: "https://apps.apple.com/account/subscriptions")
+            }
+
+            aboutSection(title: "LEGAL") {
+                AboutRow(icon: "hand.raised.fill", title: "Privacy Policy", subtitle: "verceltics.com/privacy", url: "https://verceltics.com/privacy")
+                AboutRow(icon: "doc.text.fill", title: "Terms of Service", subtitle: "verceltics.com/terms", url: "https://verceltics.com/terms")
+                AboutRow(icon: "checkmark.seal.fill", title: "License", subtitle: "MIT License", url: "https://github.com/apoorvdarshan/verceltics/blob/main/LICENSE")
+            }
+
+            footer
+        }
+    }
+
+    private var footer: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 5) {
+                Text("Built with")
+                    .font(.system(size: 11, weight: .bold))
+                Image(systemName: "heart.fill")
+                    .font(.system(size: 10, weight: .heavy))
+                    .foregroundStyle(Color(red: 1.0, green: 0.42, blue: 0.42))
+                Text("by Apoorv Darshan")
+                    .font(.system(size: 11, weight: .bold))
+            }
+            .foregroundStyle(.white.opacity(0.4))
+
+            Text("Verceltics is not affiliated with, endorsed by, or sponsored by Vercel Inc. Vercel and the Vercel logo are trademarks of Vercel Inc.")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.white.opacity(0.22))
+                .multilineTextAlignment(.center)
+                .lineSpacing(2)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 28)
+        .padding(.top, 12)
+        .padding(.bottom, 40)
     }
 
     private var updateCheckRow: some View {
