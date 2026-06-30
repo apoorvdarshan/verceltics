@@ -1,5 +1,5 @@
 import SwiftUI
-import StoreKit
+import RevenueCat
 
 private let tipLime = Color(red: 0.84, green: 1.0, blue: 0.36)
 
@@ -69,7 +69,7 @@ struct TipSectionView: View {
             } else if store.loadFailed {
                 retryRow
             } else {
-                ForEach(Array(store.products.enumerated()), id: \.element.id) { idx, product in
+                ForEach(Array(store.products.enumerated()), id: \.element.productIdentifier) { idx, product in
                     tierRow(product)
                     if idx < store.products.count - 1 { rowDivider }
                 }
@@ -102,9 +102,9 @@ struct TipSectionView: View {
             .padding(.leading, 62)
     }
 
-    private func tierRow(_ product: Product) -> some View {
-        let meta = TipMeta.of(product.id)
-        let busy = store.purchasingID == product.id
+    private func tierRow(_ product: StoreProduct) -> some View {
+        let meta = TipMeta.of(product.productIdentifier)
+        let busy = store.purchasingID == product.productIdentifier
         return Button {
             Task { await store.purchase(product) }
         } label: {
@@ -147,7 +147,7 @@ struct TipSectionView: View {
                     if busy {
                         ProgressView().tint(.black).scaleEffect(0.8)
                     } else {
-                        Text(product.displayPrice)
+                        Text(product.localizedPriceString)
                             .font(.system(size: 13, weight: .heavy))
                             .foregroundStyle(.black)
                     }
