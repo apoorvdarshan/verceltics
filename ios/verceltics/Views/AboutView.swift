@@ -8,6 +8,7 @@ struct AboutView: View {
     @Environment(\.requestReview) private var requestReview
 
     @State private var isWhatsNewExpanded = false
+    @State private var showTipJar = false
 
     var body: some View {
         NavigationStack {
@@ -22,7 +23,7 @@ struct AboutView: View {
                             AboutRow(icon: "star.bubble.fill", title: "Rate Verceltics", subtitle: "Tap a star, no App Store needed", action: { requestReview() })
                             shareAppRow
                             AboutRow(icon: "star.fill", title: "Star on GitHub", subtitle: "Help us reach more developers", url: "https://github.com/apoorvdarshan/verceltics")
-                            AboutRow(icon: "cup.and.saucer.fill", title: "Support My Work", subtitle: "ko-fi.com/apoorvdarshan", url: "https://ko-fi.com/apoorvdarshan")
+                            AboutRow(icon: "cup.and.saucer.fill", title: "Support My Work", subtitle: "Leave a tip — completely optional", action: { showTipJar = true })
                             AboutRow(icon: "arrow.up.circle.fill", title: "Upvote on Product Hunt", subtitle: "producthunt.com/products/verceltics", url: "https://www.producthunt.com/products/verceltics")
                         }
 
@@ -93,6 +94,9 @@ struct AboutView: View {
             .toolbarColorScheme(.dark, for: .navigationBar)
             .task {
                 await appUpdateChecker.checkForUpdates()
+            }
+            .sheet(isPresented: $showTipJar) {
+                TipJarView()
             }
         }
     }
