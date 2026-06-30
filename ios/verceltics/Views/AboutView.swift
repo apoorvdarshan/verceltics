@@ -1,15 +1,11 @@
 import SwiftUI
-import StoreKit
 
 struct AboutView: View {
     @Environment(AppUpdateChecker.self) private var appUpdateChecker
     @Environment(\.horizontalSizeClass) private var hSize
     @Environment(\.openURL) private var openURL
-    @Environment(\.requestReview) private var requestReview
 
     @State private var isWhatsNewExpanded = false
-    @State private var selectedTab = 0
-    @State private var tipStore = TipStore()
 
     var body: some View {
         NavigationStack {
@@ -17,20 +13,37 @@ struct AboutView: View {
                 VStack(spacing: 0) {
                     Spacer().frame(height: 8)
 
-                    Picker("View", selection: $selectedTab) {
-                        Text("Support").tag(0)
-                        Text("About").tag(1)
-                    }
-                    .pickerStyle(.segmented)
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 18)
-
                     VStack(spacing: 24) {
-                        if selectedTab == 0 {
-                            supportTab
-                        } else {
-                            aboutTab
+                        SectionCard(title: "APP") {
+                            updateCheckRow
+                            sectionDivider
+                            whatsNewCard
                         }
+
+                        SectionCard(title: "LINKS") {
+                            AboutRow(icon: "globe", title: "Website", subtitle: "verceltics.com", url: "https://verceltics.com")
+                            AboutRow(icon: "chevron.left.forwardslash.chevron.right", title: "Source Code", subtitle: "github.com/apoorvdarshan/verceltics", url: "https://github.com/apoorvdarshan/verceltics")
+                            AboutRow(icon: "building.2.fill", title: "Follow on LinkedIn", subtitle: "linkedin.com/company/verceltics", url: "https://www.linkedin.com/company/verceltics")
+                            AboutRow(icon: "camera.fill", title: "Follow on Instagram", subtitle: "instagram.com/verceltics", url: "https://www.instagram.com/verceltics/")
+                            AboutRow(icon: "at", title: "Follow on X", subtitle: "@apoorvdarshan", url: "https://x.com/apoorvdarshan")
+                        }
+
+                        SectionCard(title: "HELP") {
+                            AboutRow(icon: "envelope.fill", title: "Contact", subtitle: "ad13dtu@gmail.com", url: "mailto:ad13dtu@gmail.com")
+                            AboutRow(icon: "ant", title: "Report an Issue", subtitle: "Open a GitHub issue", url: "https://github.com/apoorvdarshan/verceltics/issues")
+                        }
+
+                        SectionCard(title: "ACCOUNT") {
+                            AboutRow(icon: "creditcard.fill", title: "Manage Subscription", subtitle: "Change plan or cancel", url: "https://apps.apple.com/account/subscriptions")
+                        }
+
+                        SectionCard(title: "LEGAL") {
+                            AboutRow(icon: "hand.raised.fill", title: "Privacy Policy", subtitle: "verceltics.com/privacy", url: "https://verceltics.com/privacy")
+                            AboutRow(icon: "doc.text.fill", title: "Terms of Service", subtitle: "verceltics.com/terms", url: "https://verceltics.com/terms")
+                            AboutRow(icon: "checkmark.seal.fill", title: "License", subtitle: "MIT License", url: "https://github.com/apoorvdarshan/verceltics/blob/main/LICENSE")
+                        }
+
+                        footer
                     }
                 }
                 .frame(maxWidth: hSize == .regular ? 640 : .infinity)
@@ -42,58 +55,6 @@ struct AboutView: View {
             .task {
                 await appUpdateChecker.checkForUpdates()
             }
-        }
-    }
-
-    // MARK: - Tabs
-
-    private var supportTab: some View {
-        Group {
-            // Ways to help — quick, free actions
-            aboutSection(title: "WAYS TO HELP") {
-                AboutRow(icon: "star.bubble.fill", title: "Rate Verceltics", subtitle: "Tap a star, no App Store needed", action: { requestReview() })
-                shareAppRow
-                AboutRow(icon: "star.fill", title: "Star on GitHub", subtitle: "Help us reach more developers", url: "https://github.com/apoorvdarshan/verceltics")
-                AboutRow(icon: "arrow.up.circle.fill", title: "Upvote on Product Hunt", subtitle: "producthunt.com/products/verceltics", url: "https://www.producthunt.com/products/verceltics")
-            }
-
-            // Tip jar — shown inline, four tiers
-            TipSectionView(store: tipStore)
-        }
-    }
-
-    private var aboutTab: some View {
-        Group {
-            aboutSection(title: "APP") {
-                updateCheckRow
-                sectionDivider
-                whatsNewCard
-            }
-
-            aboutSection(title: "LINKS") {
-                AboutRow(icon: "globe", title: "Website", subtitle: "verceltics.com", url: "https://verceltics.com")
-                AboutRow(icon: "chevron.left.forwardslash.chevron.right", title: "Source Code", subtitle: "github.com/apoorvdarshan/verceltics", url: "https://github.com/apoorvdarshan/verceltics")
-                AboutRow(icon: "building.2.fill", title: "Follow on LinkedIn", subtitle: "linkedin.com/company/verceltics", url: "https://www.linkedin.com/company/verceltics")
-                AboutRow(icon: "camera.fill", title: "Follow on Instagram", subtitle: "instagram.com/verceltics", url: "https://www.instagram.com/verceltics/")
-                AboutRow(icon: "at", title: "Follow on X", subtitle: "@apoorvdarshan", url: "https://x.com/apoorvdarshan")
-            }
-
-            aboutSection(title: "HELP") {
-                AboutRow(icon: "envelope.fill", title: "Contact", subtitle: "ad13dtu@gmail.com", url: "mailto:ad13dtu@gmail.com")
-                AboutRow(icon: "ant", title: "Report an Issue", subtitle: "Open a GitHub issue", url: "https://github.com/apoorvdarshan/verceltics/issues")
-            }
-
-            aboutSection(title: "ACCOUNT") {
-                AboutRow(icon: "creditcard.fill", title: "Manage Subscription", subtitle: "Change plan or cancel", url: "https://apps.apple.com/account/subscriptions")
-            }
-
-            aboutSection(title: "LEGAL") {
-                AboutRow(icon: "hand.raised.fill", title: "Privacy Policy", subtitle: "verceltics.com/privacy", url: "https://verceltics.com/privacy")
-                AboutRow(icon: "doc.text.fill", title: "Terms of Service", subtitle: "verceltics.com/terms", url: "https://verceltics.com/terms")
-                AboutRow(icon: "checkmark.seal.fill", title: "License", subtitle: "MIT License", url: "https://github.com/apoorvdarshan/verceltics/blob/main/LICENSE")
-            }
-
-            footer
         }
     }
 
@@ -253,64 +214,6 @@ struct AboutView: View {
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.42))
                 .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    private var shareAppRow: some View {
-        let message = """
-        Verceltics — Vercel Web Analytics on your iPhone. Open source, no ads.
-
-        App Store: https://apps.apple.com/us/app/verceltics/id6761645656
-        Website: https://verceltics.com
-        """
-        return ShareLink(item: message) {
-            AboutRowContent(
-                icon: "square.and.arrow.up.fill",
-                title: "Share Verceltics",
-                subtitle: "Tell others about the app"
-            )
-        }
-        .buttonStyle(PressScaleButtonStyle())
-    }
-
-    private func aboutSection(title: String, @ViewBuilder content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(title)
-                .font(.system(size: 10, weight: .heavy))
-                .foregroundStyle(.white.opacity(0.4))
-                .tracking(1.4)
-                .padding(.horizontal, 22)
-                .padding(.bottom, 10)
-
-            VStack(spacing: 0) {
-                content()
-            }
-            .background(
-                ZStack {
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.07), Color.white.opacity(0.02)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.04), .clear],
-                        startPoint: .top,
-                        endPoint: .center
-                    )
-                }
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(
-                        LinearGradient(
-                            colors: [Color.white.opacity(0.12), Color.white.opacity(0.04)],
-                            startPoint: .top, endPoint: .bottom
-                        ),
-                        lineWidth: 0.5
-                    )
-            )
-            .padding(.horizontal, 16)
         }
     }
 }
