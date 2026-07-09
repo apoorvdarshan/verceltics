@@ -85,6 +85,11 @@ Verceltics 1.2.1 — small cleanup and polish.
 • Version 1.2.1, build 13.
 ```
 
+## Keywords (100 chars max)
+```
+vercel,analytics,web traffic,visitors,referrers,charts,developer,deploy,website,open source
+```
+
 ## Privacy URL
 ```
 https://verceltics.com/privacy
