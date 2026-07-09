@@ -13,7 +13,6 @@ export const metadata: Metadata = {
 const APPSTORE = "https://apps.apple.com/us/app/verceltics/id6761645656";
 const GITHUB = "https://github.com/apoorvdarshan/verceltics";
 const LINKEDIN = "https://www.linkedin.com/company/verceltics";
-const INSTAGRAM = "https://www.instagram.com/verceltics/";
 const PRODUCTHUNT = "https://www.producthunt.com/products/verceltics";
 const TRUSTMRR = "https://trustmrr.com/startup/vercel-analytics-verceltics";
 const KOFI = "https://ko-fi.com/apoorvdarshan";
@@ -160,7 +159,7 @@ const jsonLd = {
   url: SITE_URL,
   downloadUrl: APPSTORE,
   mainEntityOfPage: SITE_URL,
-  sameAs: [GITHUB, LINKEDIN, INSTAGRAM, PRODUCTHUNT, TRUSTMRR, KOFI, "https://x.com/apoorvdarshan"],
+  sameAs: [GITHUB, LINKEDIN, PRODUCTHUNT, TRUSTMRR, KOFI, "https://x.com/apoorvdarshan"],
   image: `${SITE_URL}/og.jpg`,
   screenshot: [
     `${SITE_URL}/analytics.png`,
@@ -640,7 +639,6 @@ export default function Home() {
               <Link href="/terms" className="transition-colors hover:text-white/70">Terms</Link>
               <a href={GITHUB} target="_blank" rel="noreferrer" className="transition-colors hover:text-white/70">GitHub</a>
               <a href={LINKEDIN} target="_blank" rel="noreferrer" className="transition-colors hover:text-white/70">LinkedIn</a>
-              <a href={INSTAGRAM} target="_blank" rel="noreferrer" className="transition-colors hover:text-white/70">Instagram</a>
               <a href={TRUSTMRR} target="_blank" rel="noreferrer" className="transition-colors hover:text-white/70">TrustMRR</a>
               <a href="https://github.com/apoorvdarshan/verceltics/issues" target="_blank" rel="noreferrer" className="transition-colors hover:text-white/70">Report issue</a>
               <a href="https://x.com/apoorvdarshan" target="_blank" rel="noreferrer" className="transition-colors hover:text-white/70">X</a>

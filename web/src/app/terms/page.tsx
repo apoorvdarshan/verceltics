@@ -69,7 +69,7 @@ export default function Terms() {
 
         <section>
           <h2 className="text-lg font-semibold text-white/80">External Links and Voluntary Support</h2>
-          <p className="mt-3">Verceltics may link to external services such as GitHub, Product Hunt, LinkedIn, Instagram, TrustMRR, Ko-fi, PayPal, X, Apple, and Vercel. We are not responsible for the content, policies, or availability of those third-party services.</p>
+          <p className="mt-3">Verceltics may link to external services such as GitHub, Product Hunt, LinkedIn, TrustMRR, Ko-fi, PayPal, X, Apple, and Vercel. We are not responsible for the content, policies, or availability of those third-party services.</p>
           <p className="mt-3">Ko-fi and PayPal support links are voluntary support options for the developer. They are not a subscription, do not unlock Verceltics Pro, and do not replace App Store purchases.</p>
         </section>
 

@@ -82,7 +82,7 @@ export default function Privacy() {
 
         <section>
           <h2 className="text-lg font-semibold text-white/80">External Links and Support</h2>
-          <p className="mt-3">The app and website may link to GitHub, Product Hunt, LinkedIn, Instagram, TrustMRR, Ko-fi, PayPal, X, Apple, and Vercel. Opening those links sends you to third-party services with their own privacy practices.</p>
+          <p className="mt-3">The app and website may link to GitHub, Product Hunt, LinkedIn, TrustMRR, Ko-fi, PayPal, X, Apple, and Vercel. Opening those links sends you to third-party services with their own privacy practices.</p>
           <p className="mt-3">Optional support payments through Ko-fi or PayPal are handled outside Verceltics. They do not unlock app features and do not give those services access to your Vercel tokens, Vercel account data, project data, or analytics data.</p>
         </section>
 

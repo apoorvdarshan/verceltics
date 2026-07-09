@@ -115,7 +115,6 @@ const siteJsonLd = {
       sameAs: [
         "https://github.com/apoorvdarshan/verceltics",
         "https://www.linkedin.com/company/verceltics",
-        "https://www.instagram.com/verceltics/",
         "https://www.producthunt.com/products/verceltics",
         "https://x.com/apoorvdarshan",
       ],
