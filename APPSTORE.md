@@ -82,7 +82,6 @@ Verceltics 1.2.1 — small cleanup and polish.
 
 • Streamlined the About tab.
 • Behind-the-scenes maintenance and minor fixes.
-• Version 1.2.1, build 13.
 ```
 
 ## Keywords (100 chars max)
