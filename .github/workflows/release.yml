@@ -26,13 +26,19 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
         run: |
-          # Annotated tag: use its first line as the release title and the rest
-          # as the release notes. Lightweight tag with no message: let GitHub
+          # actions/checkout can leave refs/tags/<tag> pointing at the commit
+          # (lightweight) rather than the annotated tag object, which loses the
+          # tag message. Force-fetch the real tag object from origin first.
+          git fetch --force origin "refs/tags/${TAG}:refs/tags/${TAG}"
+
+          # Annotated tag -> first line is the release title, the rest the notes.
+          # Lightweight tag (object type is "commit", not "tag") -> let GitHub
           # auto-generate notes from the commits/PRs since the previous tag.
+          type="$(git cat-file -t "${TAG}" 2>/dev/null || echo commit)"
           subject="$(git for-each-ref "refs/tags/${TAG}" --format='%(contents:subject)')"
           body="$(git for-each-ref "refs/tags/${TAG}" --format='%(contents:body)')"
 
-          if [ -n "${subject}" ]; then
+          if [ "${type}" = "tag" ] && [ -n "${subject}" ]; then
             gh release create "${TAG}" --title "${subject}" --notes "${body}"
           else
             gh release create "${TAG}" --title "${TAG}" --generate-notes
