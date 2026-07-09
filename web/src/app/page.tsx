@@ -49,6 +49,16 @@ const faqs = [
       "Verceltics shows visitors, page views, trends, pages, routes, hostnames, referrers, UTM parameters, countries, devices, browsers, operating systems, events, feature flags, and query parameters where Vercel provides that data.",
   },
   {
+    question: "Does Verceltics show Vercel charts on iPhone?",
+    answer:
+      "Yes. Verceltics renders your Vercel Web Analytics as native, interactive Swift Charts. Drag across the visitors chart to inspect any day, with peak and average markers, right on your iPhone or iPad.",
+  },
+  {
+    question: "Is there a Vercel Analytics app for iPhone?",
+    answer:
+      "Verceltics is a Vercel Analytics app for iPhone and iPad. Create a Vercel personal access token, paste it once, and check visitors, page views, referrers, and full traffic breakdowns from your phone.",
+  },
+  {
     question: "Does Verceltics proxy my Vercel token?",
     answer:
       "No. Vercel tokens are stored locally in the iOS Keychain and are sent only to Vercel endpoints needed to load your account, projects, domains, deployments, and analytics.",
@@ -178,11 +188,6 @@ const jsonLd = {
     { "@type": "Offer", price: "34.99", priceCurrency: "USD", description: "Yearly subscription with 7-day free trial" },
     { "@type": "Offer", price: "59.99", priceCurrency: "USD", description: "Lifetime, one-time purchase" },
   ],
-  aggregateRating: {
-    "@type": "AggregateRating",
-    ratingValue: "5",
-    ratingCount: "1",
-  },
 };
 
 const faqJsonLd = {
@@ -296,8 +301,9 @@ export default function Home() {
                 className="animate-fade-up mt-7 max-w-md text-[15px] leading-7 text-white/45 lg:text-base"
                 style={{ animationDelay: "0.28s" }}
               >
-                Visitors, referrers, devices, page views, twelve breakdowns —
-                from your iPhone or iPad. Tokens in your Keychain. Nothing in between.
+                Vercel Web Analytics on iPhone and iPad — visitors, referrers,
+                devices, page views, and twelve breakdowns. Tokens in your
+                Keychain. Nothing in between.
               </p>
 
               <div

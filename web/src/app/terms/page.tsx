@@ -20,6 +20,19 @@ export const metadata: Metadata = {
 export default function Terms() {
   return (
     <div className="mx-auto max-w-2xl px-6 py-28 sm:px-8">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            itemListElement: [
+              { "@type": "ListItem", position: 1, name: "Home", item: "https://www.verceltics.com" },
+              { "@type": "ListItem", position: 2, name: "Terms of Service", item: "https://www.verceltics.com/terms" },
+            ],
+          }),
+        }}
+      />
       <Link href="/" className="text-[13px] text-white/30 transition-colors hover:text-white/60">&larr; Back to Verceltics</Link>
       <h1 className="mt-10 font-serif text-4xl italic tracking-[-0.03em]">Terms of Service</h1>
       <p className="mt-2 text-[13px] text-white/25">Last updated: July 9, 2026 — applies to v1.2.1</p>
