@@ -1,6 +1,6 @@
 # App Store Listing
 
-App Store Connect submission details for Verceltics v1.2. Each field is in a code block for easy copy-paste.
+App Store Connect submission details for Verceltics v1.2.1. Each field is in a code block for easy copy-paste.
 
 ## App Name
 ```
@@ -76,17 +76,13 @@ Contact: ad13dtu@gmail.com
 Not affiliated with Vercel Inc.
 ```
 
-## What's New (v1.2)
+## What's New (v1.2.1)
 ```
-Verceltics 1.2 — support the developer, cleaner layout.
+Verceltics 1.2.1 — small cleanup and polish.
 
-NEW
-• Tip Jar — leave an optional one-time tip (Coffee, Lunch, Big, or Huge). Tips are optional and unlock nothing.
-• New Support tab — rate, share, star on GitHub, Product Hunt, and tips, all in one place.
-
-Polish & fixes
-• About is now its own tab for app info, links, help, and legal.
-• Version 1.2, build 12.
+• Streamlined the About tab.
+• Behind-the-scenes maintenance and minor fixes.
+• Version 1.2.1, build 13.
 ```
 
 ## Privacy URL

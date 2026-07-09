@@ -61,7 +61,7 @@ const faqs = [
 ] as const;
 
 const ticker = [
-  "v1.2 — tip jar & support tab",
+  "v1.2.1 — tip jar & support tab",
   "SwiftUI",
   "Swift Charts",
   "Private by design",
@@ -153,7 +153,7 @@ const jsonLd = {
   name: "Verceltics",
   operatingSystem: "iOS",
   applicationCategory: "DeveloperApplication",
-  softwareVersion: "1.2",
+  softwareVersion: "1.2.1",
   description:
     "Vercel web analytics viewer for iPhone and iPad. Track visitors, page views, referrers, countries, devices, browsers, and operating systems. Built with SwiftUI and Swift Charts. Open source, private by default, no tracking, no data proxy.",
   url: SITE_URL,
@@ -278,7 +278,7 @@ export default function Home() {
                 className="animate-fade-up text-[11px] font-medium uppercase tracking-[0.35em] text-white/30"
                 style={{ animationDelay: "0.05s" }}
               >
-                Open source &middot; iOS 18+ &middot; v1.2
+                Open source &middot; iOS 18+ &middot; v1.2.1
               </p>
 
               <h1
