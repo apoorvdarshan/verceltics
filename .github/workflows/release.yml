@@ -1,0 +1,39 @@
+name: Release
+
+# Publish a GitHub Release automatically whenever a v* tag is pushed.
+# The same tag push also triggers Xcode Cloud's "Default" workflow, which
+# builds/archives the iOS app and delivers it to App Store Connect. This job
+# only handles the GitHub Release — it does not build the app.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          # Annotated tag: use its first line as the release title and the rest
+          # as the release notes. Lightweight tag with no message: let GitHub
+          # auto-generate notes from the commits/PRs since the previous tag.
+          subject="$(git for-each-ref "refs/tags/${TAG}" --format='%(contents:subject)')"
+          body="$(git for-each-ref "refs/tags/${TAG}" --format='%(contents:body)')"
+
+          if [ -n "${subject}" ]; then
+            gh release create "${TAG}" --title "${subject}" --notes "${body}"
+          else
+            gh release create "${TAG}" --title "${TAG}" --generate-notes
+          fi
