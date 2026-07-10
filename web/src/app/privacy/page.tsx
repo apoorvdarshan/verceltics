@@ -35,7 +35,7 @@ export default function Privacy() {
       />
       <Link href="/" className="text-[13px] text-white/30 transition-colors hover:text-white/60">&larr; Back to Verceltics</Link>
       <h1 className="mt-10 font-serif text-4xl italic tracking-[-0.03em]">Privacy Policy</h1>
-      <p className="mt-2 text-[13px] text-white/25">Last updated: July 9, 2026 — applies to v1.2.1</p>
+      <p className="mt-2 text-[13px] text-white/25">Last updated: July 10, 2026 — applies to v1.2.1</p>
 
       <div className="mt-12 space-y-10 text-[15px] leading-7 text-white/40">
         <section>
@@ -75,8 +75,8 @@ export default function Privacy() {
         </section>
 
         <section>
-          <h2 className="text-lg font-semibold text-white/80">Website Analytics</h2>
-          <p className="mt-3">The marketing website may use Vercel Web Analytics to understand aggregate page visits. This does not include your Vercel tokens, app account data, or analytics data from your Vercel projects.</p>
+          <h2 className="text-lg font-semibold text-white/80">Website Hosting</h2>
+          <p className="mt-3">The marketing website is hosted on Cloudflare Pages. The website does not include client-side analytics. Cloudflare may process standard connection and security data needed to deliver and protect the site under its own privacy policy. This does not include your Vercel tokens, app account data, or analytics data from your Vercel projects.</p>
         </section>
 
         <section>
@@ -95,7 +95,7 @@ export default function Privacy() {
 
         <section>
           <h2 className="text-lg font-semibold text-white/80">External Links and Support</h2>
-          <p className="mt-3">The app and website may link to GitHub, Product Hunt, LinkedIn, TrustMRR, Ko-fi, PayPal, X, Apple, and Vercel. Opening those links sends you to third-party services with their own privacy practices.</p>
+          <p className="mt-3">The app and website may link to GitHub, Product Hunt, LinkedIn, TrustMRR, Ko-fi, PayPal, X, Apple, Vercel, and Cloudflare. Opening those links sends you to third-party services with their own privacy practices.</p>
           <p className="mt-3">Optional support payments through Ko-fi or PayPal are handled outside Verceltics. They do not unlock app features and do not give those services access to your Vercel tokens, Vercel account data, project data, or analytics data.</p>
         </section>
 

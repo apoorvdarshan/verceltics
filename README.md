@@ -74,7 +74,7 @@ Build from source for free with your own Vercel token. App Store distribution ex
 **Web**
 - **Next.js** — Landing page, privacy, terms
 - **Tailwind CSS** — Styling
-- Deployed on **Vercel**
+- Static export deployed on **Cloudflare Pages** with Wrangler
 
 ## Repository Structure
 
@@ -103,6 +103,15 @@ cd web
 npm install
 npm run dev
 ```
+
+Deploy the static export to Cloudflare Pages:
+
+```bash
+npm run deploy
+```
+
+For the production hostname, associate `www.verceltics.com` with the Pages
+project and point its DNS CNAME to `verceltics.pages.dev`.
 
 ### Vercel Tokens
 

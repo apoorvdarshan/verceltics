@@ -15,6 +15,7 @@ web/.next/
 web/out/
 web/build/
 web/.vercel/
+web/.wrangler/
 web/*.tsbuildinfo
 web/next-env.d.ts
 web/.env*
@@ -26,3 +27,4 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 .vercel
+.wrangler/
