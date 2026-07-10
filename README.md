@@ -74,7 +74,7 @@ Build from source for free with your own Vercel token. App Store distribution ex
 **Web**
 - **Next.js** — Landing page, privacy, terms
 - **Tailwind CSS** — Styling
-- Static export deployed on **Cloudflare Pages** with Wrangler
+- Static export deployed with **Cloudflare Workers Static Assets** and Wrangler
 
 ## Repository Structure
 
@@ -104,14 +104,14 @@ npm install
 npm run dev
 ```
 
-Deploy the static export to Cloudflare Pages:
+Deploy the static export to Cloudflare Workers Static Assets:
 
 ```bash
 npm run deploy
 ```
 
-For the production hostname, associate `www.verceltics.com` with the Pages
-project and point its DNS CNAME to `verceltics.pages.dev`.
+Wrangler manages the `verceltics.com` and `www.verceltics.com` custom-domain
+routes declared in `web/wrangler.jsonc`, including their Cloudflare DNS records.
 
 ### Vercel Tokens
 

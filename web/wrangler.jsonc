@@ -1,6 +1,20 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "verceltics",
-  "pages_build_output_dir": "./out",
-  "compatibility_date": "2026-07-10"
+  "name": "verceltics-web",
+  "compatibility_date": "2026-07-10",
+  "assets": {
+    "directory": "./out",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page"
+  },
+  "routes": [
+    {
+      "pattern": "verceltics.com",
+      "custom_domain": true
+    },
+    {
+      "pattern": "www.verceltics.com",
+      "custom_domain": true
+    }
+  ]
 }

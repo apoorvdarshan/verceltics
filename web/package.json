@@ -5,9 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "wrangler pages dev out",
-    "preview": "npm run build && wrangler pages dev out",
-    "deploy": "npm run build && wrangler pages deploy --branch=main"
+    "start": "wrangler dev",
+    "preview": "npm run build && wrangler dev",
+    "deploy": "npm run build && wrangler deploy"
   },
   "dependencies": {
     "next": "16.2.10",
