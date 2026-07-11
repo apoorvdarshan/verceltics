@@ -122,6 +122,16 @@ nonisolated enum TimeRange: String, CaseIterable, Identifiable {
 
     var shortLabel: String { rawValue }
 
+    var controlLabel: String {
+        switch self {
+        case .day: "24 Hours"
+        case .week: "7 Days"
+        case .month: "30 Days"
+        case .quarter: "3 Months"
+        case .year: "12 Months"
+        }
+    }
+
     var interval: TimeInterval {
         switch self {
         case .day: -86400
@@ -165,6 +175,14 @@ nonisolated enum VercelEnvironment: String, CaseIterable, Identifiable {
         case .production: "Production"
         case .preview: "Preview"
         case .all: "All Environments"
+        }
+    }
+
+    var controlLabel: String {
+        switch self {
+        case .production: "Production"
+        case .preview: "Preview"
+        case .all: "All"
         }
     }
 

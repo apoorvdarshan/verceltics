@@ -39,7 +39,7 @@ final class AnalyticsViewModel {
         let prevFrom = range.previousFromDate
         let prevTo = range.previousToDate
         
-        let env = selectedEnvironment.queryValue ?? "production"
+        let env = selectedEnvironment.queryValue
 
         async let fetchedProject: Project? = try? await api.fetchProject(id: pid, teamId: tid)
         async let fetchedDomains: [String] = (try? await api.fetchProjectDomains(projectId: pid, teamId: tid)) ?? []
@@ -369,13 +369,14 @@ struct AnalyticsView: View {
                         Image(systemName: "calendar")
                             .font(.system(size: 10, weight: .bold))
                             .foregroundStyle(.white.opacity(0.5))
-                        Text(vm.selectedRange.label)
+                        Text(vm.selectedRange.controlLabel)
                             .font(.system(size: 13, weight: .bold))
+                            .lineLimit(1)
                         Image(systemName: "chevron.down")
                             .font(.system(size: 9, weight: .heavy))
                             .foregroundStyle(.white.opacity(0.4))
                     }
-                    .padding(.horizontal, 14)
+                    .padding(.horizontal, 11)
                     .padding(.vertical, 9)
                     .background(
                         LinearGradient(
@@ -407,13 +408,14 @@ struct AnalyticsView: View {
                         Image(systemName: "shippingbox")
                             .font(.system(size: 10, weight: .bold))
                             .foregroundStyle(.white.opacity(0.5))
-                        Text(vm.selectedEnvironment.label)
+                        Text(vm.selectedEnvironment.controlLabel)
                             .font(.system(size: 13, weight: .bold))
+                            .lineLimit(1)
                         Image(systemName: "chevron.down")
                             .font(.system(size: 9, weight: .heavy))
                             .foregroundStyle(.white.opacity(0.4))
                     }
-                    .padding(.horizontal, 14)
+                    .padding(.horizontal, 11)
                     .padding(.vertical, 9)
                     .background(
                         LinearGradient(
@@ -426,6 +428,7 @@ struct AnalyticsView: View {
                     .overlay(Capsule().strokeBorder(Color.white.opacity(0.10), lineWidth: 0.5))
                 }
                 .buttonStyle(PressScaleButtonStyle())
+                .layoutPriority(1)
 
                 Spacer()
 
