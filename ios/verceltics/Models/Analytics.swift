@@ -58,6 +58,7 @@ nonisolated struct BreakdownItem: Identifiable {
     var id: String { key }
     let key: String
     let visitors: Int
+    let pageViews: Int
 }
 
 // MARK: - Full analytics data

@@ -168,7 +168,11 @@ struct AnalyticsView: View {
         .onChange(of: vm.selectedRange) {
             Task { await loadData() }
         }
+        .onChange(of: vm.selectedEnvironment) {
+            Task { await loadData() }
+        }
         .sensoryFeedback(.selection, trigger: vm.selectedRange)
+        .sensoryFeedback(.selection, trigger: vm.selectedEnvironment)
     }
 
     private var breakdownColumns: [GridItem] {
@@ -290,9 +294,9 @@ struct AnalyticsView: View {
 
             breakdownCard(title: "Countries", icon: "globe.americas", items: vm.data.countries, isCountry: true)
 
-            breakdownCard(title: "Devices", icon: "desktopcomputer", items: vm.data.devices, isPercentage: true)
-            breakdownCard(title: "Browsers", icon: "safari", items: vm.data.browsers, isPercentage: true)
-            breakdownCard(title: "Operating Systems", icon: "laptopcomputer", items: vm.data.os, isPercentage: true)
+            breakdownCard(title: "Devices", icon: "desktopcomputer", items: vm.data.devices)
+            breakdownCard(title: "Browsers", icon: "safari", items: vm.data.browsers)
+            breakdownCard(title: "Operating Systems", icon: "laptopcomputer", items: vm.data.os)
 
             breakdownCard(title: "Events", icon: "bolt.fill", items: vm.data.events, proHint: "Pro")
             breakdownCard(title: "Flags", icon: "flag.fill", items: vm.data.flags)
@@ -366,6 +370,44 @@ struct AnalyticsView: View {
                             .font(.system(size: 10, weight: .bold))
                             .foregroundStyle(.white.opacity(0.5))
                         Text(vm.selectedRange.label)
+                            .font(.system(size: 13, weight: .bold))
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 9, weight: .heavy))
+                            .foregroundStyle(.white.opacity(0.4))
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 9)
+                    .background(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.10), Color.white.opacity(0.04)],
+                            startPoint: .top, endPoint: .bottom
+                        )
+                    )
+                    .foregroundStyle(.white)
+                    .clipShape(Capsule())
+                    .overlay(Capsule().strokeBorder(Color.white.opacity(0.10), lineWidth: 0.5))
+                }
+                .buttonStyle(PressScaleButtonStyle())
+
+                Menu {
+                    ForEach(VercelEnvironment.allCases) { environment in
+                        Button {
+                            vm.selectedEnvironment = environment
+                        } label: {
+                            HStack {
+                                Text(environment.label)
+                                if vm.selectedEnvironment == environment {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "shippingbox")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.5))
+                        Text(vm.selectedEnvironment.label)
                             .font(.system(size: 13, weight: .bold))
                         Image(systemName: "chevron.down")
                             .font(.system(size: 9, weight: .heavy))
@@ -717,7 +759,6 @@ struct AnalyticsView: View {
         emptyLabel: String = "",
         isPath: Bool = false,
         isCountry: Bool = false,
-        isPercentage: Bool = false,
         lockedTitle: String? = nil,
         lockedSubtitle: String? = nil,
         proHint: String? = nil
@@ -737,10 +778,15 @@ struct AnalyticsView: View {
                         .foregroundStyle(.white)
                 }
                 Spacer()
-                Text("VISITORS")
-                    .font(.system(size: 9, weight: .heavy))
-                    .foregroundStyle(.white.opacity(0.35))
-                    .tracking(1.0)
+                HStack(spacing: 0) {
+                    Text("VIEWS")
+                        .frame(width: 54, alignment: .trailing)
+                    Text("VISITORS")
+                        .frame(width: 64, alignment: .trailing)
+                }
+                .font(.system(size: 8, weight: .heavy))
+                .foregroundStyle(.white.opacity(0.35))
+                .tracking(0.7)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
@@ -771,7 +817,6 @@ struct AnalyticsView: View {
                         .padding(.vertical, 28)
                 }
             } else {
-                let total = items.reduce(0) { $0 + $1.visitors }
                 let maxVal = items.first?.visitors ?? 1
                 ForEach(items.prefix(8)) { item in
                     HStack(spacing: 0) {
@@ -800,20 +845,15 @@ struct AnalyticsView: View {
                         }
                         .frame(height: 36)
 
-                        if isCountry || isPercentage {
-                            Text(total > 0 ? "\(item.visitors * 100 / total)%" : "0%")
-                                .font(.system(size: 12, weight: .bold).monospacedDigit())
-                                .foregroundStyle(.white.opacity(0.55))
-                                .frame(width: 50, alignment: .trailing)
-                                .padding(.trailing, 12)
-                        } else {
-                            Text("\(item.visitors)")
-                                .font(.system(size: 12, weight: .bold).monospacedDigit())
-                                .foregroundStyle(.white.opacity(0.55))
-                                .frame(width: 50, alignment: .trailing)
-                                .padding(.trailing, 12)
-                        }
+                        Text(formatNumber(item.pageViews))
+                            .frame(width: 54, alignment: .trailing)
+
+                        Text(formatNumber(item.visitors))
+                            .frame(width: 64, alignment: .trailing)
+                            .padding(.trailing, 12)
                     }
+                    .font(.system(size: 11, weight: .bold).monospacedDigit())
+                    .foregroundStyle(.white.opacity(0.55))
                 }
                 Spacer().frame(height: 4)
             }

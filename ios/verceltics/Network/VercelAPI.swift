@@ -185,7 +185,13 @@ actor VercelAPI {
         )
         return response.data.groups
             .filter { $0.key != "all" }
-            .map { BreakdownItem(key: $0.key, visitors: $0.value.reduce(0) { $0 + $1.devices }) }
+            .map { key, points in
+                BreakdownItem(
+                    key: key,
+                    visitors: points.reduce(0) { $0 + $1.devices },
+                    pageViews: points.reduce(0) { $0 + $1.total }
+                )
+            }
             .sorted { $0.visitors > $1.visitors }
     }
 
