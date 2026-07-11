@@ -3,12 +3,39 @@ import Charts
 
 struct AnalyticsChart: View {
     let data: [TimeseriesPoint]
-    @State private var selectedPoint: (date: Date, visitors: Int)?
+    @State private var selectedMetric: Metric = .visitors
+    @State private var selectedPoint: (date: Date, value: Int)?
 
-    private var filteredData: [(date: Date, visitors: Int)] {
-        let raw = data.compactMap { point -> (date: Date, visitors: Int)? in
+    private enum Metric: String, CaseIterable, Identifiable {
+        case visitors = "Visitors"
+        case pageViews = "Page Views"
+        case bounceRate = "Bounce Rate"
+
+        var id: Self { self }
+        var color: Color {
+            switch self {
+            case .visitors: .blue
+            case .pageViews: .purple
+            case .bounceRate: .orange
+            }
+        }
+    }
+
+    private var availableMetrics: [Metric] {
+        data.contains { $0.bounceRate != nil } ? Metric.allCases : [.visitors, .pageViews]
+    }
+
+    private var filteredData: [(date: Date, value: Int)] {
+        let raw = data.compactMap { point -> (date: Date, value: Int)? in
             guard let date = point.date else { return nil }
-            return (date, point.devices)
+            let value: Int?
+            switch selectedMetric {
+            case .visitors: value = point.devices
+            case .pageViews: value = point.total
+            case .bounceRate: value = point.bounceRate
+            }
+            guard let value else { return nil }
+            return (date, value)
         }
         // Aggregate to daily if more than 48 data points (hourly data)
         if raw.count > 48 {
@@ -17,27 +44,36 @@ struct AnalyticsChart: View {
         return raw
     }
 
-    private var totalVisitors: Int { filteredData.reduce(0) { $0 + $1.visitors } }
-
-    private var averageVisitors: Double {
+    private var headlineValue: Int {
+        guard selectedMetric == .bounceRate else {
+            return filteredData.reduce(0) { $0 + $1.value }
+        }
         guard !filteredData.isEmpty else { return 0 }
-        return Double(totalVisitors) / Double(filteredData.count)
+        return filteredData.reduce(0) { $0 + $1.value } / filteredData.count
     }
 
-    private var peakPoint: (date: Date, visitors: Int)? {
-        filteredData.max(by: { $0.visitors < $1.visitors })
+    private var averageValue: Double {
+        guard !filteredData.isEmpty else { return 0 }
+        return Double(filteredData.reduce(0) { $0 + $1.value }) / Double(filteredData.count)
     }
 
-    private func aggregateDaily(_ points: [(date: Date, visitors: Int)]) -> [(date: Date, visitors: Int)] {
+    private var peakPoint: (date: Date, value: Int)? {
+        filteredData.max(by: { $0.value < $1.value })
+    }
+
+    private func aggregateDaily(_ points: [(date: Date, value: Int)]) -> [(date: Date, value: Int)] {
         let calendar = Calendar.current
-        var grouped: [DateComponents: Int] = [:]
+        var grouped: [DateComponents: [Int]] = [:]
         for point in points {
             let day = calendar.dateComponents([.year, .month, .day], from: point.date)
-            grouped[day, default: 0] += point.visitors
+            grouped[day, default: []].append(point.value)
         }
-        return grouped.compactMap { (components, visitors) -> (date: Date, visitors: Int)? in
+        return grouped.compactMap { (components, values) -> (date: Date, value: Int)? in
             guard let date = calendar.date(from: components) else { return nil }
-            return (date, visitors)
+            let value = selectedMetric == .bounceRate
+                ? values.reduce(0, +) / values.count
+                : values.reduce(0, +)
+            return (date, value)
         }
         .sorted { $0.date < $1.date }
     }
@@ -51,7 +87,7 @@ struct AnalyticsChart: View {
                     Image(systemName: "chart.xyaxis.line")
                         .font(.system(size: 28))
                         .foregroundStyle(.white.opacity(0.15))
-                    Text("No visitor data")
+                    Text("No \(selectedMetric.rawValue.lowercased()) data")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.3))
                 }
@@ -66,14 +102,21 @@ struct AnalyticsChart: View {
 
     private var chartHeader: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("VISITORS")
+            Picker("Metric", selection: $selectedMetric) {
+                ForEach(availableMetrics) { metric in
+                    Text(metric.rawValue).tag(metric)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            Text(selectedMetric.rawValue.uppercased())
                 .font(.system(size: 10, weight: .heavy))
                 .foregroundStyle(.white.opacity(0.45))
                 .tracking(1.4)
 
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 if let selectedPoint {
-                    Text("\(selectedPoint.visitors)")
+                    Text(formatted(selectedPoint.value))
                         .font(.system(size: 28, weight: .heavy, design: .rounded).monospacedDigit())
                         .foregroundStyle(.white)
                         .contentTransition(.numericText())
@@ -87,16 +130,16 @@ struct AnalyticsChart: View {
                         .clipShape(Capsule())
                         .transition(.opacity)
                 } else {
-                    Text("\(totalVisitors)")
+                    Text(formatted(headlineValue))
                         .font(.system(size: 28, weight: .heavy, design: .rounded).monospacedDigit())
                         .foregroundStyle(.white)
                         .contentTransition(.numericText())
 
-                    if let peakPoint, totalVisitors > 0 {
+                    if let peakPoint, headlineValue > 0 {
                         HStack(spacing: 4) {
                             Image(systemName: "arrow.up.forward")
                                 .font(.system(size: 8, weight: .heavy))
-                            Text("Peak \(peakPoint.visitors)")
+                            Text("Peak \(formatted(peakPoint.value))")
                                 .font(.system(size: 10, weight: .bold).monospacedDigit())
                         }
                         .foregroundStyle(.white.opacity(0.5))
@@ -117,8 +160,8 @@ struct AnalyticsChart: View {
     private var chartBody: some View {
         Chart {
             // Subtle average reference line
-            if averageVisitors > 0 {
-                RuleMark(y: .value("Average", averageVisitors))
+            if averageValue > 0 {
+                RuleMark(y: .value("Average", averageValue))
                     .foregroundStyle(.white.opacity(0.08))
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 4]))
             }
@@ -126,14 +169,14 @@ struct AnalyticsChart: View {
             ForEach(filteredData, id: \.date) { item in
                 AreaMark(
                     x: .value("Date", item.date),
-                    y: .value("Visitors", item.visitors)
+                    y: .value(selectedMetric.rawValue, item.value)
                 )
                 .foregroundStyle(
                     LinearGradient(
                         stops: [
-                            .init(color: Color.blue.opacity(0.32), location: 0.00),
-                            .init(color: Color.blue.opacity(0.10), location: 0.55),
-                            .init(color: Color.blue.opacity(0.00), location: 1.00),
+                            .init(color: selectedMetric.color.opacity(0.32), location: 0.00),
+                            .init(color: selectedMetric.color.opacity(0.10), location: 0.55),
+                            .init(color: selectedMetric.color.opacity(0.00), location: 1.00),
                         ],
                         startPoint: .top, endPoint: .bottom
                     )
@@ -142,11 +185,11 @@ struct AnalyticsChart: View {
 
                 LineMark(
                     x: .value("Date", item.date),
-                    y: .value("Visitors", item.visitors)
+                    y: .value(selectedMetric.rawValue, item.value)
                 )
                 .foregroundStyle(
                     LinearGradient(
-                        colors: [Color.blue, Color(red: 0.45, green: 0.65, blue: 1.0)],
+                        colors: [selectedMetric.color, selectedMetric.color.opacity(0.65)],
                         startPoint: .leading, endPoint: .trailing
                     )
                 )
@@ -167,15 +210,15 @@ struct AnalyticsChart: View {
                 // Outer glow ring
                 PointMark(
                     x: .value("Date", selectedPoint.date),
-                    y: .value("Visitors", selectedPoint.visitors)
+                    y: .value(selectedMetric.rawValue, selectedPoint.value)
                 )
                 .symbolSize(320)
-                .foregroundStyle(.blue.opacity(0.18))
+                .foregroundStyle(selectedMetric.color.opacity(0.18))
 
                 // Inner dot
                 PointMark(
                     x: .value("Date", selectedPoint.date),
-                    y: .value("Visitors", selectedPoint.visitors)
+                    y: .value(selectedMetric.rawValue, selectedPoint.value)
                 )
                 .symbolSize(60)
                 .foregroundStyle(.white)
@@ -224,5 +267,10 @@ struct AnalyticsChart: View {
             }
         }
         .sensoryFeedback(.selection, trigger: selectedPoint?.date)
+        .onChange(of: selectedMetric) { _, _ in selectedPoint = nil }
+    }
+
+    private func formatted(_ value: Int) -> String {
+        selectedMetric == .bounceRate ? "\(value)%" : "\(value)"
     }
 }
