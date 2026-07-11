@@ -150,7 +150,7 @@ actor VercelAPI {
 
     // MARK: - Analytics
 
-    func fetchOverview(projectId: String, teamId: String?, from: String, to: String, environment: String?) async throws -> AnalyticsOverview {
+    func fetchOverview(projectId: String, teamId: String?, from: String, to: String, environment: String) async throws -> AnalyticsOverview {
         try await request(
             base: "https://vercel.com/api",
             path: "/web-analytics/v2/overview",
@@ -158,7 +158,7 @@ actor VercelAPI {
         )
     }
 
-    func fetchPreviousOverview(projectId: String, teamId: String?, from: String, to: String, environment: String?) async throws -> AnalyticsOverview {
+    func fetchPreviousOverview(projectId: String, teamId: String?, from: String, to: String, environment: String) async throws -> AnalyticsOverview {
         try await request(
             base: "https://vercel.com/api",
             path: "/web-analytics/v2/overview",
@@ -166,7 +166,7 @@ actor VercelAPI {
         )
     }
 
-    func fetchTimeseries(projectId: String, teamId: String?, from: String, to: String, environment: String?) async throws -> [TimeseriesPoint] {
+    func fetchTimeseries(projectId: String, teamId: String?, from: String, to: String, environment: String) async throws -> [TimeseriesPoint] {
         let response: TimeseriesResponse = try await request(
             base: "https://vercel.com/api",
             path: "/web-analytics/v2/timeseries",
@@ -175,7 +175,7 @@ actor VercelAPI {
         return response.data.groups["all"] ?? []
     }
 
-    func fetchBreakdown(projectId: String, teamId: String?, from: String, to: String, groupBy: String, environment: String?) async throws -> [BreakdownItem] {
+    func fetchBreakdown(projectId: String, teamId: String?, from: String, to: String, groupBy: String, environment: String) async throws -> [BreakdownItem] {
         var params = analyticsParams(projectId: projectId, teamId: teamId, from: from, to: to, environment: environment)
         params.append(URLQueryItem(name: "groupBy", value: groupBy))
         let response: TimeseriesResponse = try await request(
@@ -251,16 +251,14 @@ actor VercelAPI {
         return result
     }
 
-    private func analyticsParams(projectId: String, teamId: String?, from: String, to: String, environment: String?) -> [URLQueryItem] {
+    private func analyticsParams(projectId: String, teamId: String?, from: String, to: String, environment: String) -> [URLQueryItem] {
         var items = projectQueryItems(teamId: teamId)
         items.append(contentsOf: [
             URLQueryItem(name: "projectId", value: projectId),
             URLQueryItem(name: "from", value: from),
-            URLQueryItem(name: "to", value: to)
+            URLQueryItem(name: "to", value: to),
+            URLQueryItem(name: "environment", value: environment)
         ])
-        if let environment {
-            items.append(URLQueryItem(name: "environment", value: environment))
-        }
         return items
     }
 

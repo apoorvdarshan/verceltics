@@ -39,7 +39,7 @@ final class AnalyticsViewModel {
         let prevFrom = range.previousFromDate
         let prevTo = range.previousToDate
         
-        let env = selectedEnvironment.queryValue
+        let env = selectedEnvironment.queryValue ?? "production"
 
         async let fetchedProject: Project? = try? await api.fetchProject(id: pid, teamId: tid)
         async let fetchedDomains: [String] = (try? await api.fetchProjectDomains(projectId: pid, teamId: tid)) ?? []
@@ -347,7 +347,7 @@ struct AnalyticsView: View {
                 Spacer()
             }
 
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 Menu {
                     ForEach(TimeRange.allCases) { range in
                         Button {
@@ -371,7 +371,6 @@ struct AnalyticsView: View {
                             .foregroundStyle(.white.opacity(0.5))
                         Text(vm.selectedRange.label)
                             .font(.system(size: 13, weight: .bold))
-                            .lineLimit(1)
                         Image(systemName: "chevron.down")
                             .font(.system(size: 9, weight: .heavy))
                             .foregroundStyle(.white.opacity(0.4))
@@ -389,7 +388,6 @@ struct AnalyticsView: View {
                     .overlay(Capsule().strokeBorder(Color.white.opacity(0.10), lineWidth: 0.5))
                 }
                 .buttonStyle(PressScaleButtonStyle())
-                .frame(maxWidth: .infinity)
 
                 Menu {
                     ForEach(VercelEnvironment.allCases) { environment in
@@ -411,7 +409,6 @@ struct AnalyticsView: View {
                             .foregroundStyle(.white.opacity(0.5))
                         Text(vm.selectedEnvironment.label)
                             .font(.system(size: 13, weight: .bold))
-                            .lineLimit(1)
                         Image(systemName: "chevron.down")
                             .font(.system(size: 9, weight: .heavy))
                             .foregroundStyle(.white.opacity(0.4))
@@ -429,20 +426,20 @@ struct AnalyticsView: View {
                     .overlay(Capsule().strokeBorder(Color.white.opacity(0.10), lineWidth: 0.5))
                 }
                 .buttonStyle(PressScaleButtonStyle())
-                .frame(maxWidth: .infinity)
-            }
 
-            if let lastUpdated {
-                HStack(spacing: 5) {
-                    Circle()
-                        .fill(Color(red: 0.30, green: 0.85, blue: 0.55))
-                        .frame(width: 5, height: 5)
-                    Text("Updated \(lastUpdated.formatted(.relative(presentation: .named)))")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.4))
+                Spacer()
+
+                if let lastUpdated {
+                    HStack(spacing: 5) {
+                        Circle()
+                            .fill(Color(red: 0.30, green: 0.85, blue: 0.55))
+                            .frame(width: 5, height: 5)
+                        Text("Updated \(lastUpdated.formatted(.relative(presentation: .named)))")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.4))
+                    }
+                    .transition(.opacity)
                 }
-                .frame(maxWidth: .infinity, alignment: .trailing)
-                .transition(.opacity)
             }
         }
         .padding(.bottom, 2)
