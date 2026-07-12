@@ -90,6 +90,11 @@ nonisolated struct CloudflareRawResponse: Sendable {
     }
 }
 
+nonisolated enum CloudflareAnalyticsLimits {
+    static let hourlyWindowDays = 3
+    static let hourlyMaximumDuration = TimeInterval(hourlyWindowDays * 86_400)
+}
+
 actor CloudflareAPI {
     private static let baseURL = "https://api.cloudflare.com/client/v4"
 
@@ -330,7 +335,7 @@ actor CloudflareAPI {
             throw CloudflareAPIError.invalidRequest("The analytics start date must be before the end date.")
         }
 
-        let useDailyGroups = to.timeIntervalSince(from) > 7 * 86_400
+        let useDailyGroups = to.timeIntervalSince(from) > CloudflareAnalyticsLimits.hourlyMaximumDuration
         let query = analyticsQuery(daily: useDailyGroups)
         let variables = analyticsVariables(zoneID: zoneID, from: from, to: to, daily: useDailyGroups)
         let body = try JSONSerialization.data(withJSONObject: ["query": query, "variables": variables])

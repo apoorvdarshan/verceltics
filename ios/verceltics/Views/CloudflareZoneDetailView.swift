@@ -1,6 +1,10 @@
 import Charts
 import SwiftUI
 
+private enum CloudflareZoneAnalyticsWindow {
+    static let chartTitle = "REQUESTS · LAST \(CloudflareAnalyticsLimits.hourlyWindowDays) DAYS"
+}
+
 @Observable
 @MainActor
 final class CloudflareZoneDetailViewModel {
@@ -27,7 +31,7 @@ final class CloudflareZoneDetailViewModel {
         dnsError = nil
 
         let to = Date()
-        let from = Calendar.current.date(byAdding: .day, value: -7, to: to) ?? to.addingTimeInterval(-604_800)
+        let from = to.addingTimeInterval(-CloudflareAnalyticsLimits.hourlyMaximumDuration)
 
         async let analyticsResult = capture {
             try await api.fetchZoneAnalytics(zoneID: zone.id, from: from, to: to)
@@ -315,7 +319,7 @@ struct CloudflareZoneDetailView: View {
             if !analytics.series.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
-                        Text("REQUESTS · LAST 7 DAYS")
+                        Text(CloudflareZoneAnalyticsWindow.chartTitle)
                             .font(.system(size: 10, weight: .heavy))
                             .tracking(1.0)
                             .foregroundStyle(.white.opacity(0.4))
