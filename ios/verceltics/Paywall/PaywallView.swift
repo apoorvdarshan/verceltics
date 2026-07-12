@@ -69,7 +69,7 @@ struct PaywallView: View {
                             )
                         )
 
-                    Text("Your Vercel analytics, everywhere")
+                    Text("Your deployments and edge, everywhere")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.45))
                         .padding(.top, 4)
@@ -109,7 +109,7 @@ struct PaywallView: View {
                     VStack(spacing: 0) {
                         HStack(spacing: 0) {
                             FeatureCell(icon: "chart.line.uptrend.xyaxis", title: "Analytics")
-                            FeatureCell(icon: "globe", title: "Projects")
+                            FeatureCell(icon: "cloud.fill", title: "Cloudflare")
                             FeatureCell(icon: "clock.arrow.circlepath", title: "Real-Time")
                         }
                         HStack(spacing: 0) {

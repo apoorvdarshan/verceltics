@@ -32,7 +32,8 @@
 ## Features
 
 - **Projects Dashboard** — Personal and team Vercel projects with favicons, git repo, last commit, framework
-- **Multi-account** — Add multiple Vercel accounts, switch from the Projects toolbar, and see the active Vercel avatar
+- **Multi-provider accounts** — Add and switch between Vercel and Cloudflare accounts from one provider-aware menu
+- **Cloudflare Control** — Accounts, zones, DNS CRUD, analytics, Pages deployments/logs/actions, Workers deployments/actions, cache purge, and a guarded advanced API explorer
 - **Live Deploy Indicator** — Pulsing green dot when a deployment is < 30 minutes old
 - **Project Details** — Scope, framework, connected repository, verified domains, and recent deployments
 - **Deployment Details** — Open deployments to inspect target, branch, commit, creator, live URL, and build events
@@ -49,7 +50,7 @@
 - **About Tab** — Links (GitHub, LinkedIn, X), contact, legal, and subscription management
 - **iPad** — Adaptive grid + sidebar tab style on regular size class
 - **Dark Mode** — Pure black (#000000) Vercel-style design
-- **Secure** — Vercel tokens stored in iOS Keychain, open source code
+- **Secure** — Vercel tokens and Cloudflare Global API Keys use device-only iOS Keychain storage; destructive Cloudflare actions require confirmation
 
 ## Pricing
 
@@ -120,7 +121,11 @@ The app uses [Vercel personal access tokens](https://vercel.com/account/tokens) 
 1. Go to [vercel.com/account/tokens](https://vercel.com/account/tokens)
 2. Create a token with your account scope
 3. Paste it in the app
-4. Add more accounts from the account switcher in Projects
+4. Add more accounts from the account switcher
+
+### Cloudflare Global API Key
+
+Cloudflare accounts use the login email plus the legacy Global API Key from [Cloudflare User Profile → API Tokens](https://dash.cloudflare.com/profile/api-tokens). The key inherits the Cloudflare user's permissions, including write access. Credentials are sent directly to `api.cloudflare.com`; typed destructive actions and all non-GET advanced API requests require confirmation.
 
 ### Purchase Testing
 
@@ -140,12 +145,13 @@ Keep this setting enabled in RevenueCat Dashboard: Project -> Apps & providers -
 
 ## API
 
-The app uses two Vercel API hosts:
+The app communicates directly with these provider API hosts:
 
 | Host | Endpoints | Auth |
 |------|-----------|------|
 | `api.vercel.com` | `/v2/user`, `/v9/projects`, `/v9/projects/{id}`, `/v9/projects/{id}/domains` | Bearer token |
 | `vercel.com/api` | `/web-analytics/v2/*` | Bearer token |
+| `api.cloudflare.com` | `/client/v4/*`, including GraphQL analytics | `X-Auth-Email` + `X-Auth-Key` |
 
 Analytics endpoints use `groupBy` parameter: `path`, `route`, `hostname`, `referrer`, `utm`, `country`, `device_type`, `client_name`, `os_name`, `event_name`, `flags`, `query_params`
 
@@ -180,7 +186,7 @@ ios/verceltics/
 
 ## Disclaimer
 
-Verceltics is **not** affiliated with, endorsed by, or sponsored by Vercel Inc. Vercel and the Vercel logo are trademarks of Vercel Inc. This is an independent, open-source project that uses Vercel's API with user-provided authentication tokens.
+Verceltics is **not** affiliated with, endorsed by, or sponsored by Vercel Inc. or Cloudflare, Inc. Their names and marks are trademarks of their respective owners. This independent, open-source project communicates directly with provider APIs using user-provided credentials.
 
 ## Contributing
 

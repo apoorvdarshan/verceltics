@@ -11,24 +11,42 @@ final class AuthManager {
     var error: String?
 
     var isAuthenticated: Bool {
-        !accounts.isEmpty && activeAccountId != nil
+        activeAccount != nil
     }
 
     var token: String? {
-        activeAccount?.token
+        guard activeAccount?.provider == .vercel else { return nil }
+        return activeAccount?.token
     }
 
     var activeAccount: VercelAccount? {
         accounts.first { $0.id == activeAccountId }
     }
 
+    var activeProvider: AccountProvider? {
+        activeAccount?.provider
+    }
+
+    var cloudflareCredentials: (email: String, globalAPIKey: String)? {
+        guard let account = activeAccount,
+              account.provider == .cloudflare,
+              let email = account.email else { return nil }
+        return (email, account.token)
+    }
+
     init() {
         self.accounts = KeychainHelper.getAccounts()
         self.activeAccountId = KeychainHelper.getActiveAccountId()
         self.accountsWithLongAnalyticsHistory = KeychainHelper.getLongAnalyticsHistoryAccountIds()
+
+        // Re-save legacy Vercel-only records using the current schema and
+        // device-only Keychain accessibility without changing their UUIDs.
+        if !accounts.isEmpty {
+            KeychainHelper.saveAccounts(accounts)
+        }
         
         // Default to first account if active one is missing
-        if activeAccountId == nil, let first = accounts.first {
+        if activeAccount == nil, let first = accounts.first {
             activeAccountId = first.id
             KeychainHelper.saveActiveAccountId(first.id)
         }
@@ -56,7 +74,9 @@ final class AuthManager {
                 let name = result.profile?.name ?? "Account \(accounts.count + 1)"
                 
                 // Check if account already exists
-                if let existingIndex = accounts.firstIndex(where: { $0.token == token }) {
+                if let existingIndex = accounts.firstIndex(where: {
+                    $0.provider == .vercel && $0.token == token
+                }) {
                     accounts[existingIndex].name = name
                     accounts[existingIndex].avatarURL = result.profile?.avatarURL
                     activeAccountId = accounts[existingIndex].id
@@ -80,26 +100,85 @@ final class AuthManager {
         isLoading = false
     }
 
+    func loginCloudflare(email: String, globalAPIKey: String) async {
+        isLoading = true
+        error = nil
+
+        do {
+            let profile = try await CloudflareAPI(
+                email: email,
+                globalAPIKey: globalAPIKey
+            ).validateCredentials()
+            let normalizedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if let existingIndex = accounts.firstIndex(where: {
+                guard $0.provider == .cloudflare else { return false }
+                if let savedUserID = $0.providerUserId {
+                    return savedUserID == profile.id
+                }
+                return $0.email?.caseInsensitiveCompare(normalizedEmail) == .orderedSame
+            }) {
+                accounts[existingIndex].name = profile.displayName
+                accounts[existingIndex].email = normalizedEmail
+                accounts[existingIndex].token = globalAPIKey
+                accounts[existingIndex].providerUserId = profile.id
+                activeAccountId = accounts[existingIndex].id
+            } else {
+                let account = VercelAccount(
+                    name: profile.displayName,
+                    token: globalAPIKey,
+                    provider: .cloudflare,
+                    email: normalizedEmail,
+                    providerUserId: profile.id
+                )
+                accounts.append(account)
+                activeAccountId = account.id
+            }
+            KeychainHelper.saveAccounts(accounts)
+            KeychainHelper.saveActiveAccountId(activeAccountId)
+        } catch let error as LocalizedError {
+            self.error = error.errorDescription ?? "Cloudflare rejected these credentials."
+        } catch {
+            self.error = "Could not connect to Cloudflare. Check your connection."
+        }
+
+        isLoading = false
+    }
+
     func refreshAccountProfiles() async {
-        let savedAccounts = accounts.map { (id: $0.id, token: $0.token) }
+        let savedAccounts = accounts
         guard !savedAccounts.isEmpty else { return }
 
         var didUpdate = false
 
         for account in savedAccounts {
-            guard let result = try? await fetchAccountProfile(token: account.token),
-                  result.statusCode == 200,
-                  let profile = result.profile,
-                  let index = accounts.firstIndex(where: { $0.id == account.id }) else { continue }
+            switch account.provider {
+            case .vercel:
+                guard let result = try? await fetchAccountProfile(token: account.token),
+                      result.statusCode == 200,
+                      let profile = result.profile,
+                      let index = accounts.firstIndex(where: { $0.id == account.id }) else { continue }
 
-            if accounts[index].name != profile.name {
-                accounts[index].name = profile.name
-                didUpdate = true
-            }
+                if accounts[index].name != profile.name {
+                    accounts[index].name = profile.name
+                    didUpdate = true
+                }
 
-            if accounts[index].avatarURL != profile.avatarURL {
-                accounts[index].avatarURL = profile.avatarURL
-                didUpdate = true
+                if accounts[index].avatarURL != profile.avatarURL {
+                    accounts[index].avatarURL = profile.avatarURL
+                    didUpdate = true
+                }
+            case .cloudflare:
+                guard let email = account.email,
+                      let profile = try? await CloudflareAPI(email: email, globalAPIKey: account.token).validateCredentials(),
+                      let index = accounts.firstIndex(where: { $0.id == account.id }) else { continue }
+                if accounts[index].name != profile.displayName {
+                    accounts[index].name = profile.displayName
+                    didUpdate = true
+                }
+                if accounts[index].providerUserId != profile.id {
+                    accounts[index].providerUserId = profile.id
+                    didUpdate = true
+                }
             }
         }
 

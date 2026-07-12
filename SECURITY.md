@@ -1,6 +1,6 @@
 # Security Policy
 
-Verceltics handles Vercel personal access tokens, so we take security reports seriously. Thanks for helping keep the app and its users safe.
+Verceltics handles Vercel personal access tokens and Cloudflare Global API Keys, so we take security reports seriously. Thanks for helping keep the app and its users safe.
 
 ## Supported Versions
 
@@ -33,9 +33,9 @@ You can expect:
 ## In Scope
 
 - Token leakage (Keychain bypass, plaintext storage, accidental logging)
-- Token transmission outside `api.vercel.com` / `vercel.com/api` (other than the explicitly documented favicon services in `ProjectIcon`)
+- Credential transmission outside `api.vercel.com`, `vercel.com/api`, or `api.cloudflare.com` (other than the explicitly documented credential-free image services in `ProjectIcon`)
 - StoreKit verification bypass that grants entitlements without a real receipt
-- Memory disclosure or crashes triggered by malformed Vercel API responses
+- Memory disclosure or crashes triggered by malformed Vercel or Cloudflare API responses
 - ATS / TLS misconfiguration
 - Deep link or URL scheme injection
 - Vulnerabilities in the landing page (`web/`) that could affect users (XSS, CSRF on any form, etc.)
@@ -43,8 +43,8 @@ You can expect:
 ## Out of Scope
 
 - Anything requiring a jailbroken device
-- Vulnerabilities in third-party services Verceltics talks to (Vercel API, `images.weserv.nl`, `icon.horse`, `icons.duckduckgo.com`, `www.google.com/s2/favicons`) — please report those upstream
-- Behavior that is documented and intended (e.g. the user's own pasted token being transmitted to `api.vercel.com`)
+- Vulnerabilities in third-party services Verceltics talks to (Vercel API, Cloudflare API, `images.weserv.nl`, `icon.horse`, `icons.duckduckgo.com`, `www.google.com/s2/favicons`) — please report those upstream
+- Behavior that is documented and intended (for example, a pasted credential being sent directly to its provider API, or an explicitly confirmed Cloudflare write request)
 - Self-inflicted issues (sharing your own token publicly, pasting the wrong token)
 - Theoretical issues without a concrete attack scenario
 - Outdated or unsupported iOS versions
@@ -52,14 +52,15 @@ You can expect:
 
 ## Token Safety
 
-Verceltics stores your Vercel personal access tokens in the iOS Keychain, scoped to the app. Tokens are sent **only** to:
+Verceltics stores Vercel personal access tokens and Cloudflare Global API Keys in the iOS Keychain using device-only, when-unlocked accessibility. Credentials are sent **only** to:
 
 - `api.vercel.com` (user profile, project listing, project detail, domain list)
 - `vercel.com/api` (analytics endpoints)
+- `api.cloudflare.com` (Cloudflare profile, accounts, zones, DNS, Pages, Workers, analytics, and user-initiated API operations)
 
-Favicon fetches, SVG rasterisation, and Vercel avatar image loads do **not** include your tokens — they're plain image/GET requests.
+Favicon fetches, SVG rasterisation, and Vercel avatar image loads do **not** include credentials — they are plain image/GET requests.
 
-If you suspect a token has been exposed, revoke it immediately at [vercel.com/account/tokens](https://vercel.com/account/tokens) and generate a new one.
+Cloudflare Global API Keys inherit the Cloudflare user's permissions and can make destructive changes. The app requires an explicit confirmation before destructive typed actions and all non-GET requests in the advanced API explorer. If a credential may be exposed, revoke or rotate it immediately from [Vercel Tokens](https://vercel.com/account/tokens) or [Cloudflare API Tokens](https://dash.cloudflare.com/profile/api-tokens).
 
 ## Disclosure Policy
 

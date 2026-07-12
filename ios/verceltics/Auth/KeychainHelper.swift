@@ -15,10 +15,21 @@ enum KeychainHelper {
                 kSecAttrService as String: service,
                 kSecAttrAccount as String: accountsKey
             ]
-            SecItemDelete(query as CFDictionary)
-            var addQuery = query
-            addQuery[kSecValueData as String] = data
-            SecItemAdd(addQuery as CFDictionary, nil)
+            let attributes: [String: Any] = [
+                kSecValueData as String: data,
+                kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+            ]
+            let updateStatus = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+            if updateStatus == errSecItemNotFound {
+                var addQuery = query
+                attributes.forEach { addQuery[$0.key] = $0.value }
+                let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+                if addStatus != errSecSuccess {
+                    print("Failed to save accounts to Keychain: \(addStatus)")
+                }
+            } else if updateStatus != errSecSuccess {
+                print("Failed to update accounts in Keychain: \(updateStatus)")
+            }
         } catch {
             print("Failed to encode accounts: \(error)")
         }

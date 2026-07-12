@@ -35,7 +35,7 @@ export default function Terms() {
       />
       <Link href="/" className="text-[13px] text-white/30 transition-colors hover:text-white/60">&larr; Back to Verceltics</Link>
       <h1 className="mt-10 font-serif text-4xl italic tracking-[-0.03em]">Terms of Service</h1>
-      <p className="mt-2 text-[13px] text-white/25">Last updated: July 9, 2026 — applies to v1.2.1</p>
+      <p className="mt-2 text-[13px] text-white/25">Last updated: July 12, 2026 — applies to v2.0</p>
 
       <div className="mt-12 space-y-10 text-[15px] leading-7 text-white/40">
         <section>
@@ -45,12 +45,13 @@ export default function Terms() {
 
         <section>
           <h2 className="text-lg font-semibold text-white/80">The Service</h2>
-          <p className="mt-3">Verceltics is a mobile app that displays your Vercel web analytics using your own Vercel personal access tokens. The app fetches data directly from Vercel&apos;s API on your behalf.</p>
+          <p className="mt-3">Verceltics is a mobile dashboard for Vercel and Cloudflare. It uses credentials you provide to communicate directly with those providers, display account data, and perform actions you initiate.</p>
+          <p className="mt-3">Cloudflare&apos;s advanced API explorer can send GET, POST, PUT, PATCH, and DELETE requests to relative Cloudflare API paths. You are responsible for reviewing the method, path, and body before confirming a write.</p>
         </section>
 
         <section>
           <h2 className="text-lg font-semibold text-white/80">Your Account</h2>
-          <p className="mt-3">You are responsible for your Vercel access tokens and any activity that occurs through them. Keep your tokens secure. We recommend creating tokens specifically for Verceltics and revoking them if you stop using the app.</p>
+          <p className="mt-3">You are responsible for your Vercel tokens, Cloudflare Global API Keys, and all activity initiated through them. Keep credentials secure and revoke or rotate them if you stop using the app or suspect exposure. A Cloudflare Global API Key inherits your Cloudflare user&apos;s permissions and may allow configuration changes or destructive operations.</p>
         </section>
 
         <section>
@@ -82,7 +83,7 @@ export default function Terms() {
 
         <section>
           <h2 className="text-lg font-semibold text-white/80">External Links and Voluntary Support</h2>
-          <p className="mt-3">Verceltics may link to external services such as GitHub, Product Hunt, LinkedIn, TrustMRR, Ko-fi, PayPal, X, Apple, and Vercel. We are not responsible for the content, policies, or availability of those third-party services.</p>
+          <p className="mt-3">Verceltics may link to external services such as GitHub, Product Hunt, LinkedIn, TrustMRR, Ko-fi, PayPal, X, Apple, Vercel, and Cloudflare. We are not responsible for the content, policies, or availability of those third-party services.</p>
           <p className="mt-3">Ko-fi and PayPal support links are voluntary support options for the developer. They are not a subscription, do not unlock Verceltics Pro, and do not replace App Store purchases.</p>
         </section>
 
@@ -93,7 +94,7 @@ export default function Terms() {
 
         <section>
           <h2 className="text-lg font-semibold text-white/80">Disclaimer</h2>
-          <p className="mt-3">Verceltics is provided &quot;as is&quot; without warranty of any kind. We are not responsible for the accuracy or availability of data from Vercel&apos;s API. Verceltics is not affiliated with, endorsed by, or sponsored by Vercel Inc.</p>
+          <p className="mt-3">Verceltics is provided &quot;as is&quot; without warranty of any kind. We are not responsible for provider API availability, the accuracy of returned data, or changes resulting from actions you confirm. Verceltics is not affiliated with, endorsed by, or sponsored by Vercel Inc. or Cloudflare, Inc.</p>
         </section>
 
         <section>

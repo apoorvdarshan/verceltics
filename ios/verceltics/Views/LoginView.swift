@@ -5,21 +5,25 @@ struct LoginView: View {
     @Environment(\.horizontalSizeClass) private var hSize
     @Environment(\.dismiss) private var dismiss
     @State private var tokenInput = ""
-    @State private var showTokenField = false
+    @State private var selectedProvider: AccountProvider?
+    @State private var cloudflareEmail = ""
+    @State private var cloudflareGlobalAPIKey = ""
     @FocusState private var isTokenFocused: Bool
+    @FocusState private var focusedCloudflareField: CloudflareField?
 
-    var isAddingAccount: Bool {
-        authManager.isAuthenticated
-    }
+    private enum CloudflareField { case email, key }
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
 
             Group {
-                if showTokenField || isAddingAccount {
+                switch selectedProvider {
+                case .vercel:
                     tokenFieldView
-                } else {
+                case .cloudflare:
+                    cloudflareCredentialsView
+                case nil:
                     welcomeView
                 }
             }
@@ -44,40 +48,70 @@ struct LoginView: View {
 
             Spacer()
 
-            Button {
-                withAnimation(.spring(duration: 0.4)) {
-                    showTokenField = true
-                }
-            } label: {
-                HStack(spacing: 10) {
-                    Image(systemName: "triangle.fill")
-                        .font(.system(size: 13, weight: .heavy))
-                    Text("Sign in with Vercel")
-                        .font(.system(size: 16, weight: .heavy))
-                    Image(systemName: "arrow.right")
-                        .font(.system(size: 13, weight: .heavy))
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: 54)
-                .background(
-                    LinearGradient(
-                        colors: [.white, Color.white.opacity(0.92)],
-                        startPoint: .top, endPoint: .bottom
-                    )
-                )
-                .foregroundStyle(.black)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.1), lineWidth: 0.5)
-                )
-                .shadow(color: Color.white.opacity(0.08), radius: 18, x: 0, y: 4)
+            VStack(spacing: 12) {
+                providerButton(.vercel)
+                providerButton(.cloudflare)
             }
             .padding(.horizontal, 20)
-            .buttonStyle(PressScaleButtonStyle())
 
             Spacer().frame(height: 50)
         }
+    }
+
+    private func providerButton(_ provider: AccountProvider) -> some View {
+        let isCloudflare = provider == .cloudflare
+        let accent = Color(red: 0.96, green: 0.45, blue: 0.10)
+        return Button {
+            authManager.error = nil
+            withAnimation(.spring(duration: 0.4)) { selectedProvider = provider }
+        } label: {
+            HStack(spacing: 13) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(isCloudflare ? accent.opacity(0.16) : Color.black.opacity(0.08))
+                    if isCloudflare {
+                        Text("CF")
+                            .font(.system(size: 11, weight: .black, design: .rounded))
+                            .foregroundStyle(accent)
+                    } else {
+                        Image(systemName: "triangle.fill")
+                            .font(.system(size: 13, weight: .heavy))
+                    }
+                }
+                .frame(width: 34, height: 34)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Connect \(provider.displayName)")
+                        .font(.system(size: 15, weight: .heavy))
+                    Text(isCloudflare ? "Zones, Pages, Workers, DNS and analytics" : "Projects, deployments and Web Analytics")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(isCloudflare ? Color.white.opacity(0.45) : Color.black.opacity(0.5))
+                        .lineLimit(1)
+                }
+
+                Spacer()
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 12, weight: .heavy))
+            }
+            .padding(.horizontal, 14)
+            .frame(maxWidth: .infinity)
+            .frame(height: 62)
+            .background(
+                LinearGradient(
+                    colors: isCloudflare
+                        ? [Color.white.opacity(0.08), Color.white.opacity(0.035)]
+                        : [.white, Color.white.opacity(0.92)],
+                    startPoint: .top, endPoint: .bottom
+                )
+            )
+            .foregroundStyle(isCloudflare ? .white : .black)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(isCloudflare ? accent.opacity(0.28) : Color.white.opacity(0.1), lineWidth: 0.7)
+            )
+        }
+        .buttonStyle(PressScaleButtonStyle())
     }
 
     // MARK: - Token Field (scrollable)
@@ -86,9 +120,7 @@ struct LoginView: View {
         ScrollViewReader { proxy in
         ScrollView {
             VStack(spacing: 0) {
-                Spacer().frame(height: 60)
-
-                brandingHeader
+                credentialHeader(provider: .vercel)
 
                 if let error = authManager.error {
                     HStack(spacing: 8) {
@@ -252,6 +284,225 @@ struct LoginView: View {
         }
     }
 
+    private var cloudflareCredentialsView: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(spacing: 0) {
+                    credentialHeader(provider: .cloudflare)
+
+                    if let error = authManager.error {
+                        HStack(spacing: 8) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                            Text(error)
+                                .font(.system(size: 12, weight: .medium))
+                        }
+                        .foregroundStyle(.red)
+                        .padding(.top, 20)
+                    }
+
+                    VStack(spacing: 14) {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Text("Connect with Global API Key")
+                                .font(.system(size: 13, weight: .heavy))
+                                .foregroundStyle(.white)
+
+                            StepRow(number: 1, text: "Open Cloudflare My Profile → API Tokens")
+                            StepRow(number: 2, text: "In API Keys, tap View beside Global API Key")
+                            StepRow(number: 3, text: "Complete identity verification")
+                            StepRow(number: 4, text: "Paste your login email and key below")
+
+                            HStack(alignment: .top, spacing: 9) {
+                                Image(systemName: "lock.shield.fill")
+                                    .foregroundStyle(Color(red: 0.96, green: 0.45, blue: 0.10))
+                                Text("Stored only in this iPhone’s Keychain. The Global API Key has the same Cloudflare access as your user, including write access.")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(.white.opacity(0.48))
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                        .padding(18)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.07), Color.white.opacity(0.02)],
+                                startPoint: .topLeading, endPoint: .bottomTrailing
+                            )
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .strokeBorder(Color(red: 0.96, green: 0.45, blue: 0.10).opacity(0.24), lineWidth: 0.7)
+                        )
+
+                        Button {
+                            UIApplication.shared.open(URL(string: "https://dash.cloudflare.com/profile/api-tokens")!)
+                        } label: {
+                            Label("Open Cloudflare API Keys", systemImage: "arrow.up.right")
+                                .font(.system(size: 13, weight: .bold))
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 46)
+                                .foregroundStyle(.white.opacity(0.8))
+                                .background(Color.white.opacity(0.06))
+                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        }
+                        .buttonStyle(PressScaleButtonStyle())
+
+                        cloudflareTextField(
+                            "Cloudflare login email",
+                            text: $cloudflareEmail,
+                            field: .email,
+                            secure: false
+                        )
+                        .keyboardType(.emailAddress)
+
+                        cloudflareTextField(
+                            "Paste Global API Key",
+                            text: $cloudflareGlobalAPIKey,
+                            field: .key,
+                            secure: true
+                        )
+
+                        Button {
+                            Task {
+                                await authManager.loginCloudflare(
+                                    email: cloudflareEmail.trimmingCharacters(in: .whitespacesAndNewlines),
+                                    globalAPIKey: cloudflareGlobalAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+                                )
+                                if authManager.error == nil { dismiss() }
+                            }
+                        } label: {
+                            HStack(spacing: 10) {
+                                if authManager.isLoading {
+                                    ProgressView().tint(.white)
+                                } else {
+                                    Text("Connect Cloudflare")
+                                        .font(.system(size: 16, weight: .heavy))
+                                    Image(systemName: "arrow.right")
+                                        .font(.system(size: 14, weight: .heavy))
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 54)
+                            .background(
+                                LinearGradient(
+                                    colors: canConnectCloudflare
+                                        ? [Color(red: 1.0, green: 0.48, blue: 0.10), Color(red: 0.91, green: 0.31, blue: 0.06)]
+                                        : [Color.white.opacity(0.16), Color.white.opacity(0.09)],
+                                    startPoint: .topLeading, endPoint: .bottomTrailing
+                                )
+                            )
+                            .foregroundStyle(.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        }
+                        .buttonStyle(PressScaleButtonStyle())
+                        .disabled(!canConnectCloudflare || authManager.isLoading)
+                        .id("cloudflare-connect")
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 28)
+
+                    Spacer().frame(height: 40)
+                }
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .onChange(of: focusedCloudflareField) { _, field in
+                if field != nil {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                        withAnimation(.easeOut(duration: 0.25)) {
+                            proxy.scrollTo("cloudflare-connect", anchor: .bottom)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var canConnectCloudflare: Bool {
+        cloudflareEmail.contains("@") && !cloudflareGlobalAPIKey.isEmpty
+    }
+
+    @ViewBuilder
+    private func cloudflareTextField(
+        _ placeholder: String,
+        text: Binding<String>,
+        field: CloudflareField,
+        secure: Bool
+    ) -> some View {
+        let content = Group {
+            if secure {
+                SecureField(placeholder, text: text)
+            } else {
+                TextField(placeholder, text: text)
+            }
+        }
+        content
+            .textFieldStyle(.plain)
+            .font(.system(size: 14, design: .monospaced))
+            .padding(15)
+            .background(Color.white.opacity(0.055))
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(
+                        focusedCloudflareField == field
+                            ? Color(red: 0.96, green: 0.45, blue: 0.10).opacity(0.65)
+                            : Color.white.opacity(0.08),
+                        lineWidth: focusedCloudflareField == field ? 1 : 0.5
+                    )
+            )
+            .foregroundStyle(.white)
+            .focused($focusedCloudflareField, equals: field)
+            .autocorrectionDisabled()
+            .textInputAutocapitalization(.never)
+    }
+
+    private func credentialHeader(provider: AccountProvider) -> some View {
+        VStack(spacing: 22) {
+            HStack {
+                Button {
+                    authManager.error = nil
+                    withAnimation(.spring(duration: 0.35)) { selectedProvider = nil }
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 15, weight: .heavy))
+                        .frame(width: 42, height: 42)
+                        .background(Color.white.opacity(0.07))
+                        .clipShape(Circle())
+                }
+                .foregroundStyle(.white)
+                Spacer()
+            }
+
+            ZStack {
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(
+                        provider == .cloudflare
+                            ? Color(red: 0.96, green: 0.45, blue: 0.10).opacity(0.14)
+                            : Color.white.opacity(0.08)
+                    )
+                if provider == .cloudflare {
+                    Text("CF")
+                        .font(.system(size: 28, weight: .black, design: .rounded))
+                        .foregroundStyle(Color(red: 0.96, green: 0.45, blue: 0.10))
+                } else {
+                    Image(systemName: "triangle.fill")
+                        .font(.system(size: 33, weight: .black))
+                }
+            }
+            .frame(width: 92, height: 92)
+
+            VStack(spacing: 6) {
+                Text("Connect \(provider.displayName)")
+                    .font(.system(size: 26, weight: .heavy))
+                Text(provider == .cloudflare ? "Manage your Cloudflare edge" : "Analytics for your Vercel projects")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.42))
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 18)
+    }
+
     // MARK: - Shared branding
 
     private var brandingHeader: some View {
@@ -272,7 +523,7 @@ struct LoginView: View {
                         )
                     )
 
-                Text("Analytics for your Vercel projects")
+                Text("Vercel analytics and Cloudflare control")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.45))
             }
