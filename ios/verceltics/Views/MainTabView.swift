@@ -6,7 +6,7 @@ struct MainTabView: View {
 
     var body: some View {
         TabView {
-            Tab(homeTabTitle, systemImage: homeTabIcon) {
+            Tab("Projects", systemImage: "triangle.fill") {
                 providerHome()
                     .id(authManager.activeAccountId)
             }
@@ -30,14 +30,6 @@ struct MainTabView: View {
         .task {
             await appUpdateChecker.checkForUpdates()
         }
-    }
-
-    private var homeTabTitle: String {
-        authManager.activeProvider == .cloudflare ? "Cloudflare" : "Projects"
-    }
-
-    private var homeTabIcon: String {
-        authManager.activeProvider == .cloudflare ? "cloud.fill" : "triangle.fill"
     }
 
     @ViewBuilder
