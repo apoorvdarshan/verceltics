@@ -90,11 +90,6 @@ nonisolated struct CloudflareRawResponse: Sendable {
     }
 }
 
-nonisolated enum CloudflareAnalyticsLimits {
-    static let hourlyWindowDays = 3
-    static let hourlyMaximumDuration = TimeInterval(hourlyWindowDays * 86_400)
-}
-
 actor CloudflareAPI {
     private static let baseURL = "https://api.cloudflare.com/client/v4"
 
@@ -335,9 +330,14 @@ actor CloudflareAPI {
             throw CloudflareAPIError.invalidRequest("The analytics start date must be before the end date.")
         }
 
-        let useDailyGroups = to.timeIntervalSince(from) > CloudflareAnalyticsLimits.hourlyMaximumDuration
-        let query = analyticsQuery(daily: useDailyGroups)
-        let variables = analyticsVariables(zoneID: zoneID, from: from, to: to, daily: useDailyGroups)
+        let plan = try await analyticsQueryPlan(zoneID: zoneID, requestedFrom: from, requestedTo: to)
+        let query = analyticsQuery(granularity: plan.granularity, seriesLimit: plan.seriesLimit)
+        let variables = analyticsVariables(
+            zoneID: zoneID,
+            from: plan.from,
+            to: plan.to,
+            granularity: plan.granularity
+        )
         let body = try JSONSerialization.data(withJSONObject: ["query": query, "variables": variables])
         let (data, response) = try await execute(path: "/graphql", method: .post, body: body)
         try throwForHTTPFailure(data: data, response: response)
@@ -354,7 +354,17 @@ actor CloudflareAPI {
         }
 
         guard let zone = graphResponse.data?.viewer.zones.first else {
-            return CloudflareZoneAnalyticsSummary(zoneID: zoneID, from: from, to: to, totals: .zero, series: [])
+            return CloudflareZoneAnalyticsSummary(
+                zoneID: zoneID,
+                requestedFrom: from,
+                requestedTo: to,
+                from: plan.from,
+                to: plan.to,
+                granularity: plan.granularity,
+                isWindowLimited: plan.isWindowLimited,
+                totals: .zero,
+                series: []
+            )
         }
 
         let points = zone.series.compactMap { group -> CloudflareZoneAnalyticsPoint? in
@@ -365,8 +375,12 @@ actor CloudflareAPI {
 
         return CloudflareZoneAnalyticsSummary(
             zoneID: zoneID,
-            from: from,
-            to: to,
+            requestedFrom: from,
+            requestedTo: to,
+            from: plan.from,
+            to: plan.to,
+            granularity: plan.granularity,
+            isWindowLimited: plan.isWindowLimited,
             totals: totals,
             series: points.sorted { $0.timestamp < $1.timestamp }
         )
@@ -717,7 +731,189 @@ actor CloudflareAPI {
 
     // MARK: Analytics helpers
 
-    private func analyticsQuery(daily: Bool) -> String {
+    private func analyticsQueryPlan(
+        zoneID: String,
+        requestedFrom: Date,
+        requestedTo: Date
+    ) async throws -> CloudflareAnalyticsQueryPlan {
+        let settings = try await fetchZoneAnalyticsSettings(zoneID: zoneID)
+        let now = Date()
+        let candidates = [
+            analyticsCandidate(
+                granularity: .hourly,
+                settings: settings.hourly,
+                requestedFrom: requestedFrom,
+                requestedTo: requestedTo,
+                now: now
+            ),
+            analyticsCandidate(
+                granularity: .daily,
+                settings: settings.daily,
+                requestedFrom: requestedFrom,
+                requestedTo: requestedTo,
+                now: now
+            )
+        ]
+            .compactMap { $0 }
+            .compactMap(normalizeDailyAnalyticsPlan)
+
+        guard let selected = candidates.sorted(by: analyticsPlanPrecedes).first else {
+            throw CloudflareAPIError.graphQL([
+                "Cloudflare did not provide an enabled HTTP analytics dataset for this zone."
+            ])
+        }
+        return selected
+    }
+
+    private func fetchZoneAnalyticsSettings(
+        zoneID: String
+    ) async throws -> GraphQLAnalyticsSettingsResponse.Settings {
+        let query = """
+        query ZoneAnalyticsSettings($zoneTag: string) {
+          viewer {
+            zones(filter: { zoneTag: $zoneTag }) {
+              settings {
+                hourly: httpRequests1hGroups { enabled maxDuration maxPageSize notOlderThan }
+                daily: httpRequests1dGroups { enabled maxDuration maxPageSize notOlderThan }
+              }
+            }
+          }
+        }
+        """
+        let body = try JSONSerialization.data(
+            withJSONObject: ["query": query, "variables": ["zoneTag": zoneID]]
+        )
+        let (data, response) = try await execute(path: "/graphql", method: .post, body: body)
+        try throwForHTTPFailure(data: data, response: response)
+
+        let graphResponse: GraphQLAnalyticsSettingsResponse
+        do {
+            graphResponse = try decoder.decode(GraphQLAnalyticsSettingsResponse.self, from: data)
+        } catch {
+            throw CloudflareAPIError.decoding(error.localizedDescription)
+        }
+
+        if let settings = graphResponse.data?.viewer.zones.first?.settings,
+           settings.hourly != nil || settings.daily != nil {
+            return settings
+        }
+        if let errors = graphResponse.errors, !errors.isEmpty {
+            throw CloudflareAPIError.graphQL(errors.map(\.message))
+        }
+        throw CloudflareAPIError.decoding("Cloudflare did not return analytics settings for this zone.")
+    }
+
+    private func analyticsCandidate(
+        granularity: CloudflareAnalyticsGranularity,
+        settings: GraphQLAnalyticsDatasetSettings?,
+        requestedFrom: Date,
+        requestedTo: Date,
+        now: Date
+    ) -> CloudflareAnalyticsQueryPlan? {
+        guard
+            let settings,
+            settings.enabled != false,
+            let maximumDuration = settings.maxDuration,
+            maximumDuration > 0
+        else {
+            return nil
+        }
+
+        let effectiveEnd = min(requestedTo, now)
+        var effectiveStart = max(requestedFrom, effectiveEnd.addingTimeInterval(-TimeInterval(maximumDuration)))
+
+        if let notOlderThan = settings.notOlderThan, notOlderThan > 0 {
+            effectiveStart = max(effectiveStart, now.addingTimeInterval(-TimeInterval(notOlderThan)))
+        }
+
+        let bucketDuration = analyticsBucketDuration(for: granularity)
+        if let maxPageSize = settings.maxPageSize, maxPageSize > 1 {
+            let pageCapacity = TimeInterval(maxPageSize - 1) * bucketDuration
+            effectiveStart = max(effectiveStart, effectiveEnd.addingTimeInterval(-pageCapacity))
+        }
+
+        guard effectiveStart < effectiveEnd else { return nil }
+
+        let duration = effectiveEnd.timeIntervalSince(effectiveStart)
+        let expectedBuckets = max(1, Int(ceil(duration / bucketDuration)) + 1)
+        let seriesLimit = max(1, min(settings.maxPageSize ?? expectedBuckets, expectedBuckets))
+        let tolerance: TimeInterval = 1
+        let coversRequestedWindow = effectiveStart <= requestedFrom.addingTimeInterval(tolerance)
+            && effectiveEnd >= requestedTo.addingTimeInterval(-tolerance)
+
+        return CloudflareAnalyticsQueryPlan(
+            granularity: granularity,
+            from: effectiveStart,
+            to: effectiveEnd,
+            seriesLimit: seriesLimit,
+            isWindowLimited: !coversRequestedWindow
+        )
+    }
+
+    private func analyticsPlanPrecedes(
+        _ lhs: CloudflareAnalyticsQueryPlan,
+        _ rhs: CloudflareAnalyticsQueryPlan
+    ) -> Bool {
+        if lhs.isWindowLimited != rhs.isWindowLimited {
+            return !lhs.isWindowLimited
+        }
+        if !lhs.isWindowLimited, lhs.granularity != rhs.granularity {
+            return lhs.granularity == .hourly
+        }
+
+        let lhsDuration = lhs.to.timeIntervalSince(lhs.from)
+        let rhsDuration = rhs.to.timeIntervalSince(rhs.from)
+        if abs(lhsDuration - rhsDuration) > 1 {
+            return lhsDuration > rhsDuration
+        }
+        return lhs.granularity == .hourly && rhs.granularity == .daily
+    }
+
+    private func normalizeDailyAnalyticsPlan(
+        _ plan: CloudflareAnalyticsQueryPlan
+    ) -> CloudflareAnalyticsQueryPlan? {
+        guard plan.granularity == .daily else { return plan }
+
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: "en_US_POSIX")
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+
+        let startDay = calendar.startOfDay(for: plan.from)
+        let firstIncludedDay: Date
+        if plan.from.timeIntervalSince(startDay) > 0.5 {
+            firstIncludedDay = calendar.date(byAdding: .day, value: 1, to: startDay) ?? startDay
+        } else {
+            firstIncludedDay = startDay
+        }
+        let lastIncludedDay = calendar.startOfDay(for: plan.to)
+        guard firstIncludedDay <= lastIncludedDay else { return nil }
+        let normalizedFrom = firstIncludedDay
+        let dayCount = max(
+            1,
+            (calendar.dateComponents([.day], from: normalizedFrom, to: lastIncludedDay).day ?? 0) + 1
+        )
+
+        return CloudflareAnalyticsQueryPlan(
+            granularity: plan.granularity,
+            from: normalizedFrom,
+            to: plan.to,
+            seriesLimit: min(plan.seriesLimit, dayCount),
+            isWindowLimited: plan.isWindowLimited
+        )
+    }
+
+    private func analyticsBucketDuration(for granularity: CloudflareAnalyticsGranularity) -> TimeInterval {
+        switch granularity {
+        case .hourly: 3_600
+        case .daily: 86_400
+        }
+    }
+
+    private func analyticsQuery(
+        granularity: CloudflareAnalyticsGranularity,
+        seriesLimit: Int
+    ) -> String {
+        let daily = granularity == .daily
         let dataset = daily ? "httpRequests1dGroups" : "httpRequests1hGroups"
         let dimension = daily ? "date" : "datetime"
         let scalar = daily ? "Date" : "Time"
@@ -732,7 +928,7 @@ actor CloudflareAPI {
                 sum { requests pageViews bytes cachedRequests cachedBytes threats encryptedRequests }
                 uniq { uniques }
               }
-              series: \(dataset)(limit: 1000, orderBy: [\(dimension)_ASC], filter: { \(lowerBound): $start, \(upperBound): $end }) {
+              series: \(dataset)(limit: \(seriesLimit), orderBy: [\(dimension)_ASC], filter: { \(lowerBound): $start, \(upperBound): $end }) {
                 dimensions { \(dimension) }
                 sum { requests pageViews bytes cachedRequests cachedBytes threats encryptedRequests }
                 uniq { uniques }
@@ -743,8 +939,13 @@ actor CloudflareAPI {
         """
     }
 
-    private func analyticsVariables(zoneID: String, from: Date, to: Date, daily: Bool) -> [String: String] {
-        if daily {
+    private func analyticsVariables(
+        zoneID: String,
+        from: Date,
+        to: Date,
+        granularity: CloudflareAnalyticsGranularity
+    ) -> [String: String] {
+        if granularity == .daily {
             let formatter = DateFormatter()
             formatter.calendar = Calendar(identifier: .gregorian)
             formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -838,7 +1039,7 @@ private nonisolated struct CloudflareCachePurgeResult: Decodable, Sendable {
 
 private nonisolated struct GraphQLAnalyticsResponse: Decodable, Sendable {
     let data: DataNode?
-    let errors: [GraphQLError]?
+    let errors: [GraphQLResponseError]?
 
     struct DataNode: Decodable, Sendable {
         let viewer: Viewer
@@ -852,10 +1053,47 @@ private nonisolated struct GraphQLAnalyticsResponse: Decodable, Sendable {
         let totals: [GraphQLAnalyticsGroup]
         let series: [GraphQLAnalyticsGroup]
     }
+}
 
-    struct GraphQLError: Decodable, Sendable {
-        let message: String
+private nonisolated struct GraphQLAnalyticsSettingsResponse: Decodable, Sendable {
+    let data: DataNode?
+    let errors: [GraphQLResponseError]?
+
+    struct DataNode: Decodable, Sendable {
+        let viewer: Viewer
     }
+
+    struct Viewer: Decodable, Sendable {
+        let zones: [Zone]
+    }
+
+    struct Zone: Decodable, Sendable {
+        let settings: Settings
+    }
+
+    struct Settings: Decodable, Sendable {
+        let hourly: GraphQLAnalyticsDatasetSettings?
+        let daily: GraphQLAnalyticsDatasetSettings?
+    }
+}
+
+private nonisolated struct GraphQLAnalyticsDatasetSettings: Decodable, Sendable {
+    let enabled: Bool?
+    let maxDuration: Int?
+    let maxPageSize: Int?
+    let notOlderThan: Int?
+}
+
+private nonisolated struct GraphQLResponseError: Decodable, Sendable {
+    let message: String
+}
+
+private nonisolated struct CloudflareAnalyticsQueryPlan: Sendable {
+    let granularity: CloudflareAnalyticsGranularity
+    let from: Date
+    let to: Date
+    let seriesLimit: Int
+    let isWindowLimited: Bool
 }
 
 private nonisolated struct GraphQLAnalyticsGroup: Decodable, Sendable {

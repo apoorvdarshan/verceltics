@@ -1,10 +1,6 @@
 import Charts
 import SwiftUI
 
-private enum CloudflareZoneAnalyticsWindow {
-    static let chartTitle = "REQUESTS · LAST \(CloudflareAnalyticsLimits.hourlyWindowDays) DAYS"
-}
-
 @Observable
 @MainActor
 final class CloudflareZoneDetailViewModel {
@@ -19,6 +15,7 @@ final class CloudflareZoneDetailViewModel {
     var workingResourceID: String?
     var actionMessage: String?
     var actionFailed = false
+    private var loadGeneration = 0
 
     init(api: CloudflareAPI, zone: CloudflareZone) {
         self.api = api
@@ -26,12 +23,17 @@ final class CloudflareZoneDetailViewModel {
     }
 
     func load() async {
+        loadGeneration += 1
+        let generation = loadGeneration
         isLoading = true
+        analytics = nil
+        dnsRecords = []
         analyticsError = nil
         dnsError = nil
 
+        // Seven days is the preferred UI range; the API discovers and applies this zone's actual limits.
         let to = Date()
-        let from = to.addingTimeInterval(-CloudflareAnalyticsLimits.hourlyMaximumDuration)
+        let from = to.addingTimeInterval(TimeRange.week.interval)
 
         async let analyticsResult = capture {
             try await api.fetchZoneAnalytics(zoneID: zone.id, from: from, to: to)
@@ -40,12 +42,15 @@ final class CloudflareZoneDetailViewModel {
             try await api.fetchDNSRecords(zoneID: zone.id)
         }
 
-        switch await analyticsResult {
+        let (analyticsResponse, dnsResponse) = await (analyticsResult, dnsResult)
+        guard generation == loadGeneration else { return }
+
+        switch analyticsResponse {
         case .success(let analytics): self.analytics = analytics
         case .failure(let error): analyticsError = error.localizedDescription
         }
 
-        switch await dnsResult {
+        switch dnsResponse {
         case .success(let records):
             dnsRecords = records.sorted {
                 if $0.name == $1.name { return $0.type < $1.type }
@@ -288,6 +293,33 @@ struct CloudflareZoneDetailView: View {
 
     private func analyticsSection(_ analytics: CloudflareZoneAnalyticsSummary) -> some View {
         VStack(spacing: 12) {
+            HStack(spacing: 8) {
+                Text(analytics.chartTitle)
+                    .font(.system(size: 10, weight: .heavy))
+                    .tracking(1.0)
+                    .foregroundStyle(.white.opacity(0.46))
+                Spacer()
+                Text(analytics.granularity.displayName)
+                    .font(.system(size: 9, weight: .heavy))
+                    .tracking(0.7)
+                    .foregroundStyle(CloudflareStyle.orange.opacity(0.82))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(CloudflareStyle.orange.opacity(0.1), in: Capsule())
+            }
+            .padding(.horizontal, 4)
+
+            if analytics.isWindowLimited {
+                Label(
+                    "Cloudflare shortened this range to fit the zone's analytics limit",
+                    systemImage: "clock.badge.checkmark"
+                )
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(CloudflareStyle.amber.opacity(0.72))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 4)
+            }
+
             LazyVGrid(
                 columns: [GridItem(.flexible()), GridItem(.flexible())],
                 spacing: 10
@@ -319,7 +351,7 @@ struct CloudflareZoneDetailView: View {
             if !analytics.series.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
-                        Text(CloudflareZoneAnalyticsWindow.chartTitle)
+                        Text("TRAFFIC TREND")
                             .font(.system(size: 10, weight: .heavy))
                             .tracking(1.0)
                             .foregroundStyle(.white.opacity(0.4))

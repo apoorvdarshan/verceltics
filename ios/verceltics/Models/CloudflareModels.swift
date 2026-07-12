@@ -903,12 +903,54 @@ nonisolated struct CloudflareMutationConfirmation: Equatable, Sendable {
 
 // MARK: - Analytics
 
+nonisolated enum CloudflareAnalyticsGranularity: String, Equatable, Sendable {
+    case hourly
+    case daily
+
+    var displayName: String { rawValue.uppercased() }
+}
+
 nonisolated struct CloudflareZoneAnalyticsSummary: Equatable, Sendable {
     let zoneID: String
+    let requestedFrom: Date
+    let requestedTo: Date
     let from: Date
     let to: Date
+    let granularity: CloudflareAnalyticsGranularity
+    let isWindowLimited: Bool
     let totals: CloudflareAnalyticsMetrics
     let series: [CloudflareZoneAnalyticsPoint]
+
+    var windowLabel: String {
+        if granularity == .daily {
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? calendar.timeZone
+            let fromDay = calendar.startOfDay(for: from)
+            let toDay = calendar.startOfDay(for: to)
+            let days = max(
+                1,
+                (calendar.dateComponents([.day], from: fromDay, to: toDay).day ?? 0) + 1
+            )
+            return "LAST \(days) \(days == 1 ? "DAY" : "DAYS")"
+        }
+
+        let duration = max(1, to.timeIntervalSince(from))
+
+        if duration >= 86_400 {
+            let days = max(1, Int(ceil(duration / 86_400)))
+            return "LAST \(days) \(days == 1 ? "DAY" : "DAYS")"
+        }
+
+        if duration >= 3_600 {
+            let hours = max(1, Int(ceil(duration / 3_600)))
+            return "LAST \(hours) \(hours == 1 ? "HOUR" : "HOURS")"
+        }
+
+        let minutes = max(1, Int(ceil(duration / 60)))
+        return "LAST \(minutes) \(minutes == 1 ? "MINUTE" : "MINUTES")"
+    }
+
+    var chartTitle: String { "REQUESTS · \(windowLabel)" }
 }
 
 nonisolated struct CloudflareAnalyticsMetrics: Equatable, Sendable {
