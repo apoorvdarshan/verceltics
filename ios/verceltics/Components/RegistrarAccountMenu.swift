@@ -42,6 +42,7 @@ struct RegistrarAccountMenu: View {
                     .foregroundStyle(.white.opacity(0.45))
             }
             .frame(height: 30)
+            .accessibilityLabel("Switch connected registrar")
         }
         .tint(.white)
         .sheet(isPresented: $showingAddAccount) { RegistrarConnectionView() }

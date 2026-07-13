@@ -30,7 +30,6 @@ final class RegistrarDashboardViewModel {
 
 struct RegistrarsView: View {
     @Environment(RegistrarStore.self) private var store
-    @State private var showingAddAccount = false
 
     var body: some View {
         Group {
@@ -48,29 +47,25 @@ struct RegistrarsView: View {
                             VStack(spacing: 7) {
                                 Text("Your domains, together")
                                     .font(.system(size: 22, weight: .heavy))
-                                Text("Connect a registrar to track expiry, renewal, privacy, locks, nameservers and every API route.")
+                                Text("Use the account menu at the top left to connect a registrar and track expiry, renewal, privacy, locks and nameservers.")
                                     .font(.system(size: 12, weight: .semibold))
                                     .foregroundStyle(.white.opacity(0.42))
                                     .multilineTextAlignment(.center)
                             }
-                            Button { showingAddAccount = true } label: {
-                                Label("Connect Registrar", systemImage: "plus")
-                                    .font(.system(size: 14, weight: .heavy))
-                                    .frame(width: 210, height: 50)
-                                    .background(Color(red: 0.30, green: 0.67, blue: 1.0))
-                                    .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
-                            }
-                            .buttonStyle(PressScaleButtonStyle())
                         }
                         .padding(34)
                     }
                     .navigationTitle("Registrars")
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbarColorScheme(.dark, for: .navigationBar)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarLeading) {
+                            RegistrarAccountMenu()
+                        }
+                    }
                 }
             }
         }
-        .sheet(isPresented: $showingAddAccount) { RegistrarConnectionView() }
     }
 }
 
