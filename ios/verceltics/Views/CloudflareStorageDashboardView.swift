@@ -5,6 +5,7 @@ import SwiftUI
 final class CloudflareStorageDashboardViewModel {
     let api: CloudflareAPI
     let accountID: String
+    let allowsR2: Bool
 
     var databases: [CloudflareD1Database] = []
     var namespaces: [CloudflareKVNamespace] = []
@@ -18,9 +19,10 @@ final class CloudflareStorageDashboardViewModel {
     private var hasLoaded = false
     private var generation = 0
 
-    init(api: CloudflareAPI, accountID: String) {
+    init(api: CloudflareAPI, accountID: String, allowsR2: Bool) {
         self.api = api
         self.accountID = accountID
+        self.allowsR2 = allowsR2
     }
 
     func load(force: Bool = false) async {
@@ -34,11 +36,17 @@ final class CloudflareStorageDashboardViewModel {
         async let d1Result = capture { try await api.fetchD1Databases(accountID: accountID) }
         async let kvResult = capture { try await api.fetchKVNamespaces(accountID: accountID) }
         let (d1, kv) = await (d1Result, kvResult)
+        let r2: Result<[CloudflareR2Bucket], Error>
+        if allowsR2 {
+            r2 = await capture { try await api.fetchR2Buckets(accountID: accountID) }
+        } else {
+            r2 = .success([])
+        }
 
         guard generation == currentGeneration else { return }
         apply(d1, to: &databases, section: "D1")
         apply(kv, to: &namespaces, section: "KV")
-        buckets = []
+        apply(r2, to: &buckets, section: "R2")
         sortResources()
         hasLoaded = true
         isLoading = false
@@ -126,6 +134,7 @@ struct CloudflareStorageDashboardView: View {
     let api: CloudflareAPI
     let accountID: String
     let accountName: String
+    let allowsR2: Bool
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var viewModel: CloudflareStorageDashboardViewModel
@@ -133,11 +142,18 @@ struct CloudflareStorageDashboardView: View {
     @State private var creationSheet: CloudflareStorageCreationSheet?
     @State private var refreshSpin = 0.0
 
-    init(api: CloudflareAPI, accountID: String, accountName: String) {
+    init(api: CloudflareAPI, accountID: String, accountName: String, allowsR2: Bool) {
         self.api = api
         self.accountID = accountID
         self.accountName = accountName
-        _viewModel = State(wrappedValue: CloudflareStorageDashboardViewModel(api: api, accountID: accountID))
+        self.allowsR2 = allowsR2
+        _viewModel = State(
+            wrappedValue: CloudflareStorageDashboardViewModel(
+                api: api,
+                accountID: accountID,
+                allowsR2: allowsR2
+            )
+        )
     }
 
     private var filteredDatabases: [CloudflareD1Database] {
@@ -282,7 +298,11 @@ struct CloudflareStorageDashboardView: View {
             HStack(spacing: 9) {
                 storageNode(title: "D1", value: viewModel.databases.count, icon: "cylinder.split.1x2.fill")
                 storageNode(title: "KV", value: viewModel.namespaces.count, icon: "key.fill")
-                storageAvailabilityNode(title: "R2", value: "TOKEN", icon: "shippingbox.fill")
+                if allowsR2 {
+                    storageNode(title: "R2", value: viewModel.buckets.count, icon: "shippingbox.fill")
+                } else {
+                    storageAvailabilityNode(title: "R2", value: "TOKEN", icon: "shippingbox.fill")
+                }
             }
         }
         .padding(18)
@@ -405,16 +425,44 @@ struct CloudflareStorageDashboardView: View {
     }
 
     private var r2Section: some View {
-        VStack(spacing: 0) {
-            CloudflareSectionHeader(title: "R2 Buckets", icon: "shippingbox.fill")
-            Divider().overlay(Color.white.opacity(0.06))
-            CloudflareEmptySection(
-                icon: "key.horizontal.fill",
-                title: "Scoped API token required",
-                message: "Cloudflare does not authorize R2 bucket APIs with a Global API Key. R2 controls are ready for the separate API-token account flow."
-            )
+        Group {
+            if allowsR2 {
+                resourceSection(
+                    title: "R2 Buckets",
+                    icon: "shippingbox.fill",
+                    count: filteredBuckets.count,
+                    action: { creationSheet = .r2 },
+                    emptyTitle: "No R2 buckets",
+                    emptyMessage: "Create an object-storage bucket for this account."
+                ) {
+                    ForEach(Array(filteredBuckets.enumerated()), id: \.element.id) { index, bucket in
+                        NavigationLink {
+                            CloudflareR2BucketView(api: api, accountID: accountID, bucket: bucket)
+                        } label: {
+                            CloudflareResourceRow(
+                                icon: "shippingbox.fill",
+                                title: bucket.name,
+                                subtitle: r2Subtitle(bucket),
+                                tint: CloudflareStyle.green
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        if index < filteredBuckets.count - 1 { sectionDivider }
+                    }
+                }
+            } else {
+                VStack(spacing: 0) {
+                    CloudflareSectionHeader(title: "R2 Buckets", icon: "shippingbox.fill")
+                    Divider().overlay(Color.white.opacity(0.06))
+                    CloudflareEmptySection(
+                        icon: "key.horizontal.fill",
+                        title: "Scoped API token required",
+                        message: "Add a Cloudflare account using an API token with Workers R2 Storage permission to manage buckets and objects."
+                    )
+                }
+                .cloudflarePanel()
+            }
         }
-        .cloudflarePanel()
     }
 
     private func resourceSection<Content: View>(

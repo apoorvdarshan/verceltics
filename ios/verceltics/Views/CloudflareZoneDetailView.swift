@@ -16,6 +16,9 @@ final class CloudflareZoneDetailViewModel {
     var workingResourceID: String?
     var actionMessage: String?
     var actionFailed = false
+    var selectedAnalyticsRange: CloudflareAnalyticsRange = .days7
+    var customAnalyticsFrom = Calendar.current.date(byAdding: .day, value: -30, to: Date()) ?? Date()
+    var customAnalyticsTo = Date()
     private var loadGeneration = 0
 
     init(api: CloudflareAPI, zone: CloudflareZone) {
@@ -33,9 +36,9 @@ final class CloudflareZoneDetailViewModel {
         analyticsError = nil
         dnsError = nil
 
-        // Seven days is the preferred UI range; the API discovers and applies this zone's actual limits.
-        let to = Date()
-        let from = to.addingTimeInterval(TimeRange.week.interval)
+        let dates = selectedAnalyticsRange.dates() ?? (customAnalyticsFrom, customAnalyticsTo)
+        let from = dates.from
+        let to = dates.to
 
         async let analyticsResult = capture {
             try await api.fetchZoneAnalytics(zoneID: zone.id, from: from, to: to)
@@ -75,6 +78,18 @@ final class CloudflareZoneDetailViewModel {
         }
 
         isLoading = false
+    }
+
+    func selectAnalyticsRange(_ range: CloudflareAnalyticsRange) async {
+        selectedAnalyticsRange = range
+        await load()
+    }
+
+    func selectCustomAnalyticsRange(from: Date, to: Date) async {
+        customAnalyticsFrom = from
+        customAnalyticsTo = to
+        selectedAnalyticsRange = .custom
+        await load()
     }
 
     func saveDNSRecord(existing: CloudflareDNSRecord?, input: CloudflareDNSRecordInput) async throws {
@@ -153,6 +168,7 @@ struct CloudflareZoneDetailView: View {
     @State private var editingRecord: DNSRecordSheetItem?
     @State private var deletingRecord: CloudflareDNSRecord?
     @State private var showingPurgeCache = false
+    @State private var showingCustomAnalyticsRange = false
 
     init(api: CloudflareAPI, zone: CloudflareZone) {
         self.api = api
@@ -179,6 +195,7 @@ struct CloudflareZoneDetailView: View {
                 VStack(spacing: 16) {
                     zoneHeader
                     controlCenterLinks
+                    analyticsRangeRail
 
                     if let analytics = viewModel.analytics {
                         analyticsSection(analytics)
@@ -225,6 +242,17 @@ struct CloudflareZoneDetailView: View {
             NavigationStack {
                 CloudflareCachePurgeView(zone: zone) { purge in
                     try await viewModel.purgeCache(purge)
+                }
+            }
+            .preferredColorScheme(.dark)
+        }
+        .sheet(isPresented: $showingCustomAnalyticsRange) {
+            NavigationStack {
+                CloudflareCustomAnalyticsRangeView(
+                    initialFrom: viewModel.customAnalyticsFrom,
+                    initialTo: viewModel.customAnalyticsTo
+                ) { from, to in
+                    await viewModel.selectCustomAnalyticsRange(from: from, to: to)
                 }
             }
             .preferredColorScheme(.dark)
@@ -282,6 +310,56 @@ struct CloudflareZoneDetailView: View {
             .buttonStyle(.plain)
         }
         .cloudflarePanel(accentOpacity: 0.07)
+    }
+
+    private var analyticsRangeRail: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Label("Traffic interval", systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90")
+                    .font(.system(size: 11, weight: .heavy))
+                    .foregroundStyle(.white.opacity(0.58))
+                Spacer()
+                if viewModel.isLoading {
+                    ProgressView().controlSize(.small).tint(CloudflareStyle.orange)
+                }
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(CloudflareAnalyticsRange.allCases) { range in
+                        Button {
+                            if range == .custom {
+                                showingCustomAnalyticsRange = true
+                            } else {
+                                Task { await viewModel.selectAnalyticsRange(range) }
+                            }
+                        } label: {
+                            Text(range.displayName)
+                                .font(.system(size: 10, weight: .heavy).monospacedDigit())
+                                .foregroundStyle(
+                                    viewModel.selectedAnalyticsRange == range ? .black : .white.opacity(0.55)
+                                )
+                                .padding(.horizontal, 13)
+                                .frame(height: 34)
+                                .background(
+                                    viewModel.selectedAnalyticsRange == range
+                                        ? CloudflareStyle.orange
+                                        : Color.white.opacity(0.055),
+                                    in: Capsule()
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(viewModel.isLoading)
+                    }
+                }
+            }
+
+            Text("Cloudflare automatically applies this zone’s retention and query-width limits.")
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(.white.opacity(0.28))
+        }
+        .padding(14)
+        .cloudflarePanel(accentOpacity: 0.045)
     }
 
     private var zoneHeader: some View {
@@ -712,4 +790,96 @@ struct CloudflareZoneDetailView: View {
 private struct DNSRecordSheetItem: Identifiable {
     let id = UUID()
     let record: CloudflareDNSRecord?
+}
+
+private struct CloudflareCustomAnalyticsRangeView: View {
+    let onApply: (Date, Date) async -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var from: Date
+    @State private var to: Date
+    @State private var isApplying = false
+    @State private var errorMessage: String?
+
+    init(initialFrom: Date, initialTo: Date, onApply: @escaping (Date, Date) async -> Void) {
+        self.onApply = onApply
+        _from = State(initialValue: initialFrom)
+        _to = State(initialValue: initialTo)
+    }
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            ScrollView {
+                VStack(spacing: 16) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("CUSTOM TRAFFIC WINDOW")
+                            .font(.system(size: 10, weight: .heavy))
+                            .tracking(1)
+                            .foregroundStyle(CloudflareStyle.orange)
+                        Text("Choose any range. Cloudflare will shorten it only when your zone’s plan or dataset retention requires it.")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.42))
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(16)
+                    .cloudflarePanel(accentOpacity: 0.07)
+
+                    VStack(spacing: 0) {
+                        DatePicker("From", selection: $from, in: ...Date(), displayedComponents: [.date, .hourAndMinute])
+                            .padding(16)
+                        Divider().overlay(Color.white.opacity(0.06))
+                        DatePicker("To", selection: $to, in: ...Date(), displayedComponents: [.date, .hourAndMinute])
+                            .padding(16)
+                    }
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.78))
+                    .cloudflarePanel()
+
+                    if let errorMessage {
+                        CloudflareActionResultBanner(message: errorMessage, isError: true)
+                    }
+
+                    Button {
+                        apply()
+                    } label: {
+                        HStack(spacing: 8) {
+                            if isApplying { ProgressView().controlSize(.small).tint(.black) }
+                            Text(isApplying ? "Loading range…" : "Apply range")
+                                .font(.system(size: 14, weight: .heavy))
+                        }
+                        .foregroundStyle(.black)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(CloudflareStyle.orange, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isApplying)
+                }
+                .padding()
+            }
+        }
+        .navigationTitle("Custom interval")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarColorScheme(.dark, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") { dismiss() }
+            }
+        }
+    }
+
+    private func apply() {
+        errorMessage = nil
+        guard from < to else {
+            errorMessage = "The start must be earlier than the end."
+            return
+        }
+        isApplying = true
+        Task {
+            await onApply(from, to)
+            isApplying = false
+            dismiss()
+        }
+    }
 }

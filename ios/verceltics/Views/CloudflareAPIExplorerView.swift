@@ -18,8 +18,15 @@ final class CloudflareAPIExplorerViewModel {
     var isExecuting = false
     var error: String?
 
-    init(api: CloudflareAPI) {
+    init(api: CloudflareAPI, preset: CloudflareAPIOperationPreset? = nil) {
         self.api = api
+        if let preset {
+            method = preset.method
+            path = preset.path
+            queryText = preset.query
+            requestBody = preset.body
+            contentType = preset.contentType
+        }
     }
 
     func execute(confirmed: Bool) async {
@@ -101,6 +108,7 @@ final class CloudflareAPIExplorerViewModel {
 struct CloudflareAPIExplorerView: View {
     let api: CloudflareAPI
     let accountID: String?
+    let preset: CloudflareAPIOperationPreset?
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var viewModel: CloudflareAPIExplorerViewModel
@@ -109,10 +117,15 @@ struct CloudflareAPIExplorerView: View {
     @State private var showingBodyFileImporter = false
     @State private var copied = false
 
-    init(api: CloudflareAPI, accountID: String? = nil) {
+    init(
+        api: CloudflareAPI,
+        accountID: String? = nil,
+        preset: CloudflareAPIOperationPreset? = nil
+    ) {
         self.api = api
         self.accountID = accountID
-        _viewModel = State(wrappedValue: CloudflareAPIExplorerViewModel(api: api))
+        self.preset = preset
+        _viewModel = State(wrappedValue: CloudflareAPIExplorerViewModel(api: api, preset: preset))
     }
 
     var body: some View {
@@ -144,7 +157,7 @@ struct CloudflareAPIExplorerView: View {
                 .frame(maxWidth: .infinity)
             }
         }
-        .navigationTitle("API Explorer")
+        .navigationTitle(preset?.title ?? "API Explorer")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbar {
@@ -182,10 +195,13 @@ struct CloudflareAPIExplorerView: View {
                 .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(CloudflareStyle.orange)
             VStack(alignment: .leading, spacing: 4) {
-                Text("Direct access to Cloudflare’s v4 API")
+                Text(preset?.title ?? "Direct access to Cloudflare’s v4 API")
                     .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(.white.opacity(0.82))
-                Text("Use a relative path. Authentication headers are added securely. Request bodies can be UTF-8 or Base64, including prebuilt multipart payloads; credentials are never shown in the editor.")
+                Text(
+                    preset?.summary
+                        ?? "Use a relative path. Authentication headers are added securely. Request bodies can be UTF-8 or Base64, including prebuilt multipart payloads; credentials are never shown in the editor."
+                )
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.white.opacity(0.36))
                     .fixedSize(horizontal: false, vertical: true)

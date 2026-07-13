@@ -199,6 +199,20 @@ nonisolated struct CloudflareUser: Identifiable, Decodable, Equatable, Sendable 
     }
 }
 
+nonisolated struct CloudflareAPITokenVerification: Decodable, Equatable, Sendable {
+    let id: String?
+    let status: String?
+    let notBefore: String?
+    let expiresOn: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case status
+        case notBefore = "not_before"
+        case expiresOn = "expires_on"
+    }
+}
+
 nonisolated struct CloudflareAccountSummary: Identifiable, Decodable, Equatable, Sendable {
     let id: String
     let name: String
@@ -949,6 +963,44 @@ nonisolated enum CloudflareAnalyticsGranularity: String, Equatable, Sendable {
     case daily
 
     var displayName: String { rawValue.uppercased() }
+}
+
+nonisolated enum CloudflareAnalyticsRange: String, CaseIterable, Identifiable, Equatable, Sendable {
+    case hours24
+    case days7
+    case days30
+    case days90
+    case year1
+    case custom
+
+    var id: Self { self }
+
+    var displayName: String {
+        switch self {
+        case .hours24: "24H"
+        case .days7: "7D"
+        case .days30: "30D"
+        case .days90: "90D"
+        case .year1: "1Y"
+        case .custom: "CUSTOM"
+        }
+    }
+
+    func dates(endingAt end: Date = Date()) -> (from: Date, to: Date)? {
+        let component: Calendar.Component
+        let value: Int
+        switch self {
+        case .hours24: component = .hour; value = -24
+        case .days7: component = .day; value = -7
+        case .days30: component = .day; value = -30
+        case .days90: component = .day; value = -90
+        case .year1: component = .year; value = -1
+        case .custom: return nil
+        }
+        let start = Calendar.current.date(byAdding: component, value: value, to: end)
+            ?? end.addingTimeInterval(-86_400)
+        return (start, end)
+    }
 }
 
 nonisolated struct CloudflareZoneAnalyticsSummary: Equatable, Sendable {

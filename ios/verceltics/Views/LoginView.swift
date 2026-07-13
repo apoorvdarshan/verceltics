@@ -8,6 +8,8 @@ struct LoginView: View {
     @State private var selectedProvider: AccountProvider?
     @State private var cloudflareEmail = ""
     @State private var cloudflareGlobalAPIKey = ""
+    @State private var cloudflareAPIToken = ""
+    @State private var cloudflareAuthenticationMode: CloudflareAuthenticationMode = .globalAPIKey
     @FocusState private var isTokenFocused: Bool
     @FocusState private var focusedCloudflareField: CloudflareField?
 
@@ -301,20 +303,41 @@ struct LoginView: View {
                     }
 
                     VStack(spacing: 14) {
+                        Picker("Authentication", selection: $cloudflareAuthenticationMode) {
+                            ForEach(CloudflareAuthenticationMode.allCases) { mode in
+                                Text(mode.displayName).tag(mode)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+
                         VStack(alignment: .leading, spacing: 14) {
-                            Text("Connect with Global API Key")
+                            Text(
+                                cloudflareAuthenticationMode == .globalAPIKey
+                                    ? "Connect with Global API Key"
+                                    : "Connect with scoped API token"
+                            )
                                 .font(.system(size: 13, weight: .heavy))
                                 .foregroundStyle(.white)
 
                             StepRow(number: 1, text: "Open Cloudflare My Profile → API Tokens")
-                            StepRow(number: 2, text: "In API Keys, tap View beside Global API Key")
-                            StepRow(number: 3, text: "Complete identity verification")
-                            StepRow(number: 4, text: "Paste your login email and key below")
+                            if cloudflareAuthenticationMode == .globalAPIKey {
+                                StepRow(number: 2, text: "In API Keys, tap View beside Global API Key")
+                                StepRow(number: 3, text: "Complete identity verification")
+                                StepRow(number: 4, text: "Paste your login email and key below")
+                            } else {
+                                StepRow(number: 2, text: "Create a custom token with the product permissions you need")
+                                StepRow(number: 3, text: "Include Account Read so the app can discover your accounts")
+                                StepRow(number: 4, text: "Paste the token below")
+                            }
 
                             HStack(alignment: .top, spacing: 9) {
                                 Image(systemName: "lock.shield.fill")
                                     .foregroundStyle(Color(red: 0.96, green: 0.45, blue: 0.10))
-                                Text("Stored only in this iPhone’s Keychain. The Global API Key has the same Cloudflare access as your user, including write access.")
+                                Text(
+                                    cloudflareAuthenticationMode == .globalAPIKey
+                                        ? "Stored only in this iPhone’s Keychain. The Global API Key has the same Cloudflare access as your user, including write access."
+                                        : "Stored only in this iPhone’s Keychain. The app can only use permissions and resources included in this token."
+                                )
                                     .font(.system(size: 10, weight: .semibold))
                                     .foregroundStyle(.white.opacity(0.48))
                                     .fixedSize(horizontal: false, vertical: true)
@@ -337,7 +360,7 @@ struct LoginView: View {
                         Button {
                             UIApplication.shared.open(URL(string: "https://dash.cloudflare.com/profile/api-tokens")!)
                         } label: {
-                            Label("Open Cloudflare API Keys", systemImage: "arrow.up.right")
+                            Label("Open Cloudflare API Tokens", systemImage: "arrow.up.right")
                                 .font(.system(size: 13, weight: .bold))
                                 .frame(maxWidth: .infinity)
                                 .frame(height: 46)
@@ -347,27 +370,42 @@ struct LoginView: View {
                         }
                         .buttonStyle(PressScaleButtonStyle())
 
-                        cloudflareTextField(
-                            "Cloudflare login email",
-                            text: $cloudflareEmail,
-                            field: .email,
-                            secure: false
-                        )
-                        .keyboardType(.emailAddress)
+                        if cloudflareAuthenticationMode == .globalAPIKey {
+                            cloudflareTextField(
+                                "Cloudflare login email",
+                                text: $cloudflareEmail,
+                                field: .email,
+                                secure: false
+                            )
+                            .keyboardType(.emailAddress)
 
-                        cloudflareTextField(
-                            "Paste Global API Key",
-                            text: $cloudflareGlobalAPIKey,
-                            field: .key,
-                            secure: true
-                        )
+                            cloudflareTextField(
+                                "Paste Global API Key",
+                                text: $cloudflareGlobalAPIKey,
+                                field: .key,
+                                secure: true
+                            )
+                        } else {
+                            cloudflareTextField(
+                                "Paste scoped API token",
+                                text: $cloudflareAPIToken,
+                                field: .key,
+                                secure: true
+                            )
+                        }
 
                         Button {
                             Task {
-                                await authManager.loginCloudflare(
-                                    email: cloudflareEmail.trimmingCharacters(in: .whitespacesAndNewlines),
-                                    globalAPIKey: cloudflareGlobalAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
-                                )
+                                if cloudflareAuthenticationMode == .globalAPIKey {
+                                    await authManager.loginCloudflare(
+                                        email: cloudflareEmail.trimmingCharacters(in: .whitespacesAndNewlines),
+                                        globalAPIKey: cloudflareGlobalAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+                                    )
+                                } else {
+                                    await authManager.loginCloudflare(
+                                        apiToken: cloudflareAPIToken.trimmingCharacters(in: .whitespacesAndNewlines)
+                                    )
+                                }
                                 if authManager.error == nil { dismiss() }
                             }
                         } label: {
@@ -418,7 +456,12 @@ struct LoginView: View {
     }
 
     private var canConnectCloudflare: Bool {
-        cloudflareEmail.contains("@") && !cloudflareGlobalAPIKey.isEmpty
+        switch cloudflareAuthenticationMode {
+        case .globalAPIKey:
+            cloudflareEmail.contains("@") && !cloudflareGlobalAPIKey.isEmpty
+        case .apiToken:
+            !cloudflareAPIToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
     }
 
     @ViewBuilder

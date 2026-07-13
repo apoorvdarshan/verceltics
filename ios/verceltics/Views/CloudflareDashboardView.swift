@@ -5,7 +5,8 @@ import SwiftUI
 final class CloudflareDashboardViewModel {
     private(set) var api: CloudflareAPI?
     private var loadedEmail: String?
-    private var loadedKey: String?
+    private var loadedCredential: String?
+    private var loadedAuthenticationMode: CloudflareAuthenticationMode?
     private var resourceLoadGeneration = 0
 
     var accounts: [CloudflareAccountSummary] = []
@@ -22,15 +23,22 @@ final class CloudflareDashboardViewModel {
         accounts.first { $0.id == selectedAccountID }
     }
 
-    func load(email: String, globalAPIKey: String, forceRefresh: Bool = false) async {
+    func load(
+        authenticationMode: CloudflareAuthenticationMode,
+        email: String?,
+        credential: String,
+        forceRefresh: Bool = false
+    ) async {
         if !forceRefresh,
            email == loadedEmail,
-           globalAPIKey == loadedKey,
+           credential == loadedCredential,
+           authenticationMode == loadedAuthenticationMode,
            !accounts.isEmpty {
             return
         }
 
-        let isInitialLoad = accounts.isEmpty || email != loadedEmail || globalAPIKey != loadedKey
+        let isInitialLoad = accounts.isEmpty || email != loadedEmail || credential != loadedCredential
+            || authenticationMode != loadedAuthenticationMode
         if isInitialLoad {
             isLoading = true
         } else {
@@ -39,10 +47,15 @@ final class CloudflareDashboardViewModel {
         error = nil
         sectionWarnings = []
 
-        let client = CloudflareAPI(email: email, globalAPIKey: globalAPIKey)
+        let client = CloudflareAPI(
+            authenticationMode: authenticationMode,
+            email: email,
+            credential: credential
+        )
         api = client
         loadedEmail = email
-        loadedKey = globalAPIKey
+        loadedCredential = credential
+        loadedAuthenticationMode = authenticationMode
 
         do {
             let fetchedAccounts = try await client.fetchAccounts()
@@ -86,8 +99,13 @@ final class CloudflareDashboardViewModel {
     }
 
     func refresh() async {
-        guard let loadedEmail, let loadedKey else { return }
-        await load(email: loadedEmail, globalAPIKey: loadedKey, forceRefresh: true)
+        guard let loadedCredential, let loadedAuthenticationMode else { return }
+        await load(
+            authenticationMode: loadedAuthenticationMode,
+            email: loadedEmail,
+            credential: loadedCredential,
+            forceRefresh: true
+        )
     }
 
     private func loadSelectedAccount() async {
@@ -133,8 +151,9 @@ final class CloudflareDashboardViewModel {
 }
 
 struct CloudflareDashboardView: View {
-    let email: String
-    let globalAPIKey: String
+    let authenticationMode: CloudflareAuthenticationMode
+    let email: String?
+    let credential: String
     var startWithSearch = false
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -171,6 +190,10 @@ struct CloudflareDashboardView: View {
 
     private var hasSearchResults: Bool {
         !filteredZones.isEmpty || !filteredPagesProjects.isEmpty || !filteredWorkers.isEmpty
+    }
+
+    private var credentialLabel: String {
+        email ?? "Scoped API token"
     }
 
     var body: some View {
@@ -210,8 +233,12 @@ struct CloudflareDashboardView: View {
                     .sensoryFeedback(.impact(weight: .light), trigger: refreshSpin)
                 }
             }
-            .task(id: "\(email)|\(globalAPIKey.hashValue)") {
-                await viewModel.load(email: email, globalAPIKey: globalAPIKey)
+            .task(id: "\(authenticationMode.rawValue)|\(email ?? "")|\(credential.hashValue)") {
+                await viewModel.load(
+                    authenticationMode: authenticationMode,
+                    email: email,
+                    credential: credential
+                )
             }
             .onAppear {
                 if startWithSearch { isSearching = true }
@@ -264,7 +291,7 @@ struct CloudflareDashboardView: View {
                     CloudflareAccountDetailView(
                         api: api,
                         account: account,
-                        email: email,
+                        email: credentialLabel,
                         zoneCount: viewModel.zones.count,
                         pagesCount: viewModel.pagesProjects.count,
                         workerCount: viewModel.workers.count
@@ -272,7 +299,7 @@ struct CloudflareDashboardView: View {
                 } label: {
                     CloudflareEdgeHeader(
                         accountName: account.name,
-                        email: email,
+                        email: credentialLabel,
                         zones: viewModel.zones.count,
                         pages: viewModel.pagesProjects.count,
                         workers: viewModel.workers.count
@@ -470,16 +497,39 @@ struct CloudflareDashboardView: View {
                 if let accountID = viewModel.selectedAccountID,
                    let account = viewModel.selectedAccount {
                     NavigationLink {
+                        CloudflareProductCenterView(
+                            api: api,
+                            accountID: accountID,
+                            accountName: account.name,
+                            zones: viewModel.zones,
+                            authenticationMode: authenticationMode
+                        )
+                    } label: {
+                        CloudflareResourceRow(
+                            icon: "cloud.bolt.rain.fill",
+                            title: "Product operations",
+                            subtitle: "Guided read/write controls across the Cloudflare platform",
+                            tint: CloudflareStyle.orange
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    Divider().overlay(Color.white.opacity(0.055)).padding(.leading, 64)
+
+                    NavigationLink {
                         CloudflareStorageDashboardView(
                             api: api,
                             accountID: accountID,
-                            accountName: account.name
+                            accountName: account.name,
+                            allowsR2: authenticationMode == .apiToken
                         )
                     } label: {
                         CloudflareResourceRow(
                             icon: "externaldrive.fill",
                             title: "Storage & databases",
-                            subtitle: "D1 SQL and Workers KV · R2 requires a scoped token",
+                            subtitle: authenticationMode == .apiToken
+                                ? "D1 SQL, Workers KV and R2 object storage"
+                                : "D1 SQL and Workers KV · R2 requires a scoped token",
                             tint: CloudflareStyle.amber
                         )
                     }

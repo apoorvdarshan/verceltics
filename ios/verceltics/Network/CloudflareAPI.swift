@@ -30,7 +30,7 @@ nonisolated enum CloudflareAPIError: LocalizedError, Equatable, Sendable {
     var errorDescription: String? {
         switch self {
         case .invalidCredentials:
-            "Cloudflare rejected the email or Global API Key."
+            "Cloudflare rejected these credentials."
         case .forbidden(let message):
             message.isEmpty ? "This Cloudflare user cannot access that resource." : message
         case .invalidRequest(let message):
@@ -101,15 +101,36 @@ nonisolated struct CloudflareRawResponse: Sendable {
 actor CloudflareAPI {
     private static let baseURL = "https://api.cloudflare.com/client/v4"
 
-    private let email: String
-    private let globalAPIKey: String
+    private let email: String?
+    private let credential: String
+    private let authenticationMode: CloudflareAuthenticationMode
     private let session: URLSession
     private let decoder = JSONDecoder()
     private let encoder = JSONEncoder()
 
     init(email: String, globalAPIKey: String, session: URLSession? = nil) {
         self.email = email.trimmingCharacters(in: .whitespacesAndNewlines)
-        self.globalAPIKey = globalAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.credential = globalAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.authenticationMode = .globalAPIKey
+        self.session = session ?? Self.makeSecureSession()
+    }
+
+    init(apiToken: String, session: URLSession? = nil) {
+        self.email = nil
+        self.credential = apiToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.authenticationMode = .apiToken
+        self.session = session ?? Self.makeSecureSession()
+    }
+
+    init(
+        authenticationMode: CloudflareAuthenticationMode,
+        email: String?,
+        credential: String,
+        session: URLSession? = nil
+    ) {
+        self.email = email?.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.credential = credential.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.authenticationMode = authenticationMode
         self.session = session ?? Self.makeSecureSession()
     }
 
@@ -119,6 +140,13 @@ actor CloudflareAPI {
     func validateCredentials() async throws -> CloudflareUser {
         try validateConfiguredCredentials()
         return try await requestResult(path: "/user")
+    }
+
+    func validateAPIToken() async throws -> CloudflareAPITokenVerification {
+        guard authenticationMode == .apiToken else {
+            throw CloudflareAPIError.invalidRequest("This credential is not an API token.")
+        }
+        return try await requestResult(path: "/user/tokens/verify")
     }
 
     // MARK: - Accounts and zones
@@ -642,8 +670,13 @@ actor CloudflareAPI {
         var request = URLRequest(url: url)
         request.httpMethod = method.rawValue
         request.httpBody = body
-        request.setValue(email, forHTTPHeaderField: "X-Auth-Email")
-        request.setValue(globalAPIKey, forHTTPHeaderField: "X-Auth-Key")
+        switch authenticationMode {
+        case .globalAPIKey:
+            request.setValue(email, forHTTPHeaderField: "X-Auth-Email")
+            request.setValue(credential, forHTTPHeaderField: "X-Auth-Key")
+        case .apiToken:
+            request.setValue("Bearer \(credential)", forHTTPHeaderField: "Authorization")
+        }
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         if body != nil, let contentType, !contentType.isEmpty {
             request.setValue(contentType, forHTTPHeaderField: "Content-Type")
@@ -683,11 +716,15 @@ actor CloudflareAPI {
     }
 
     private func validateConfiguredCredentials() throws {
-        guard !email.isEmpty, email.contains("@") else {
-            throw CloudflareAPIError.invalidRequest("Enter the email address used for your Cloudflare account.")
+        if authenticationMode == .globalAPIKey {
+            guard let email, !email.isEmpty, email.contains("@") else {
+                throw CloudflareAPIError.invalidRequest("Enter the email address used for your Cloudflare account.")
+            }
         }
-        guard !globalAPIKey.isEmpty else {
-            throw CloudflareAPIError.invalidRequest("Enter your Cloudflare Global API Key.")
+        guard !credential.isEmpty else {
+            throw CloudflareAPIError.invalidRequest(
+                authenticationMode == .apiToken ? "Enter your Cloudflare API token." : "Enter your Cloudflare Global API Key."
+            )
         }
     }
 

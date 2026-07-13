@@ -85,7 +85,7 @@ struct CloudflareR2BucketView: View {
                         CloudflareActionResultBanner(message: message, isError: viewModel.actionFailed)
                     }
 
-                    objectScopeNotice
+                    objectOperations
                     dangerZone
                 }
                 .padding()
@@ -189,17 +189,57 @@ struct CloudflareR2BucketView: View {
         .cloudflarePanel()
     }
 
-    private var objectScopeNotice: some View {
+    private var objectOperations: some View {
         VStack(spacing: 0) {
-            CloudflareSectionHeader(title: "Object Data", icon: "doc.on.doc.fill")
+            CloudflareSectionHeader(title: "Objects & Configuration", icon: "doc.on.doc.fill")
             Divider().overlay(Color.white.opacity(0.06))
-            CloudflareEmptySection(
-                icon: "externaldrive.badge.icloud",
-                title: "Bucket management only",
-                message: "This account-key screen manages the bucket resource and its returned metadata. Use Cloudflare’s object tooling for transfers and object data."
-            )
+            ForEach(Array(r2Operations.enumerated()), id: \.element.id) { index, operation in
+                NavigationLink {
+                    CloudflareAPIExplorerView(api: api, accountID: accountID, preset: operation)
+                } label: {
+                    HStack(spacing: 12) {
+                        Text(operation.method.rawValue)
+                            .font(.system(size: 8, weight: .heavy, design: .monospaced))
+                            .foregroundStyle(CloudflareStyle.orange)
+                            .frame(width: 38, height: 27)
+                            .background(CloudflareStyle.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 7))
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(operation.title)
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(.white.opacity(0.78))
+                            Text(operation.summary)
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.3))
+                                .lineLimit(2)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 9, weight: .heavy))
+                            .foregroundStyle(.white.opacity(0.24))
+                    }
+                    .padding(14)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                if index < r2Operations.count - 1 {
+                    Divider().overlay(Color.white.opacity(0.05)).padding(.leading, 64)
+                }
+            }
         }
         .cloudflarePanel()
+    }
+
+    private var r2Operations: [CloudflareAPIOperationPreset] {
+        let bucketPath = "/accounts/\(accountID)/r2/buckets/\(viewModel.bucket.name)"
+        return [
+            .init(id: "objects", title: "List objects", summary: "Browse object names, sizes, checksums and metadata.", method: .get, path: "\(bucketPath)/objects", query: "per_page=100", requiresAPIToken: true),
+            .init(id: "object-get", title: "Download object", summary: "Replace OBJECT_KEY, then receive the raw object response.", method: .get, path: "\(bucketPath)/objects/OBJECT_KEY", requiresAPIToken: true),
+            .init(id: "object-put", title: "Upload object", summary: "Replace OBJECT_KEY and import a raw body file as Base64.", method: .put, path: "\(bucketPath)/objects/OBJECT_KEY", contentType: "application/octet-stream", requiresAPIToken: true),
+            .init(id: "object-delete", title: "Delete object", summary: "Replace OBJECT_KEY and confirm permanent deletion.", method: .delete, path: "\(bucketPath)/objects/OBJECT_KEY", requiresAPIToken: true),
+            .init(id: "cors", title: "CORS rules", summary: "Read or switch to PUT to replace browser-access rules.", method: .get, path: "\(bucketPath)/cors", requiresAPIToken: true),
+            .init(id: "domains", title: "Custom domains", summary: "Read domains attached to this bucket.", method: .get, path: "\(bucketPath)/domains/custom", requiresAPIToken: true),
+            .init(id: "lifecycle", title: "Lifecycle rules", summary: "Read or switch to PUT to replace expiration and transition rules.", method: .get, path: "\(bucketPath)/lifecycle", requiresAPIToken: true)
+        ]
     }
 
     private var dangerZone: some View {

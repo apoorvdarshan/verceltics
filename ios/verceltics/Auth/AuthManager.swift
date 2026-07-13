@@ -27,11 +27,18 @@ final class AuthManager {
         activeAccount?.provider
     }
 
-    var cloudflareCredentials: (email: String, globalAPIKey: String)? {
+    var cloudflareCredentials: (
+        mode: CloudflareAuthenticationMode,
+        email: String?,
+        credential: String
+    )? {
         guard let account = activeAccount,
-              account.provider == .cloudflare,
-              let email = account.email else { return nil }
-        return (email, account.token)
+              account.provider == .cloudflare else { return nil }
+        return (
+            account.cloudflareAuthenticationMode ?? .globalAPIKey,
+            account.email,
+            account.token
+        )
     }
 
     init() {
@@ -121,6 +128,7 @@ final class AuthManager {
                 accounts[existingIndex].email = normalizedEmail
                 accounts[existingIndex].token = globalAPIKey
                 accounts[existingIndex].providerUserId = profile.id
+                accounts[existingIndex].cloudflareAuthenticationMode = .globalAPIKey
                 activeAccountId = accounts[existingIndex].id
             } else {
                 let account = VercelAccount(
@@ -128,7 +136,8 @@ final class AuthManager {
                     token: globalAPIKey,
                     provider: .cloudflare,
                     email: normalizedEmail,
-                    providerUserId: profile.id
+                    providerUserId: profile.id,
+                    cloudflareAuthenticationMode: .globalAPIKey
                 )
                 accounts.append(account)
                 activeAccountId = account.id
@@ -139,6 +148,58 @@ final class AuthManager {
             self.error = error.errorDescription ?? "Cloudflare rejected these credentials."
         } catch {
             self.error = "Could not connect to Cloudflare. Check your connection."
+        }
+
+        isLoading = false
+    }
+
+    func loginCloudflare(apiToken: String) async {
+        isLoading = true
+        error = nil
+        let normalizedToken = apiToken.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        do {
+            let client = CloudflareAPI(apiToken: normalizedToken)
+            let verification = try await client.validateAPIToken()
+            guard verification.status?.lowercased() == "active" else {
+                self.error = "This Cloudflare API token is not active."
+                isLoading = false
+                return
+            }
+            let accessibleAccounts = try await client.fetchAccounts()
+            let displayName = accessibleAccounts.first?.name ?? "Cloudflare API Token"
+
+            if let existingIndex = accounts.firstIndex(where: {
+                guard $0.provider == .cloudflare,
+                      $0.cloudflareAuthenticationMode == .apiToken else { return false }
+                if let verificationID = verification.id,
+                   $0.providerUserId == verificationID {
+                    return true
+                }
+                return $0.token == normalizedToken
+            }) {
+                accounts[existingIndex].name = displayName
+                accounts[existingIndex].token = normalizedToken
+                accounts[existingIndex].providerUserId = verification.id
+                accounts[existingIndex].cloudflareAuthenticationMode = .apiToken
+                activeAccountId = accounts[existingIndex].id
+            } else {
+                let account = VercelAccount(
+                    name: displayName,
+                    token: normalizedToken,
+                    provider: .cloudflare,
+                    providerUserId: verification.id,
+                    cloudflareAuthenticationMode: .apiToken
+                )
+                accounts.append(account)
+                activeAccountId = account.id
+            }
+            KeychainHelper.saveAccounts(accounts)
+            KeychainHelper.saveActiveAccountId(activeAccountId)
+        } catch let error as LocalizedError {
+            self.error = error.errorDescription ?? "Cloudflare rejected this API token."
+        } catch {
+            self.error = "Could not connect to Cloudflare. Check the token permissions and connection."
         }
 
         isLoading = false
@@ -168,16 +229,29 @@ final class AuthManager {
                     didUpdate = true
                 }
             case .cloudflare:
-                guard let email = account.email,
-                      let profile = try? await CloudflareAPI(email: email, globalAPIKey: account.token).validateCredentials(),
-                      let index = accounts.firstIndex(where: { $0.id == account.id }) else { continue }
-                if accounts[index].name != profile.displayName {
-                    accounts[index].name = profile.displayName
-                    didUpdate = true
-                }
-                if accounts[index].providerUserId != profile.id {
-                    accounts[index].providerUserId = profile.id
-                    didUpdate = true
+                let mode = account.cloudflareAuthenticationMode ?? .globalAPIKey
+                switch mode {
+                case .globalAPIKey:
+                    guard let email = account.email,
+                          let profile = try? await CloudflareAPI(email: email, globalAPIKey: account.token).validateCredentials(),
+                          let index = accounts.firstIndex(where: { $0.id == account.id }) else { continue }
+                    if accounts[index].name != profile.displayName {
+                        accounts[index].name = profile.displayName
+                        didUpdate = true
+                    }
+                    if accounts[index].providerUserId != profile.id {
+                        accounts[index].providerUserId = profile.id
+                        didUpdate = true
+                    }
+                case .apiToken:
+                    let client = CloudflareAPI(apiToken: account.token)
+                    guard let verification = try? await client.validateAPIToken(),
+                          verification.status?.lowercased() == "active",
+                          let index = accounts.firstIndex(where: { $0.id == account.id }) else { continue }
+                    if accounts[index].providerUserId != verification.id {
+                        accounts[index].providerUserId = verification.id
+                        didUpdate = true
+                    }
                 }
             }
         }

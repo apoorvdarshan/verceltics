@@ -36,8 +36,9 @@ struct MainTabView: View {
     private func providerHome(startWithSearch: Bool = false) -> some View {
         if let credentials = authManager.cloudflareCredentials {
             CloudflareDashboardView(
+                authenticationMode: credentials.mode,
                 email: credentials.email,
-                globalAPIKey: credentials.globalAPIKey,
+                credential: credentials.credential,
                 startWithSearch: startWithSearch
             )
         } else {

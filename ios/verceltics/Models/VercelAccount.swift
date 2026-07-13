@@ -1,6 +1,6 @@
 import Foundation
 
-enum AccountProvider: String, Codable, CaseIterable, Identifiable {
+enum AccountProvider: String, Codable, CaseIterable, Identifiable, Sendable {
     case vercel
     case cloudflare
 
@@ -14,6 +14,20 @@ enum AccountProvider: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+enum CloudflareAuthenticationMode: String, Codable, CaseIterable, Identifiable, Sendable {
+    case globalAPIKey
+    case apiToken
+
+    var id: Self { self }
+
+    var displayName: String {
+        switch self {
+        case .globalAPIKey: "Global key"
+        case .apiToken: "API token"
+        }
+    }
+}
+
 struct VercelAccount: Codable, Identifiable, Equatable {
     let id: UUID
     var name: String
@@ -22,6 +36,7 @@ struct VercelAccount: Codable, Identifiable, Equatable {
     var provider: AccountProvider
     var email: String?
     var providerUserId: String?
+    var cloudflareAuthenticationMode: CloudflareAuthenticationMode?
     
     init(
         id: UUID = UUID(),
@@ -30,7 +45,8 @@ struct VercelAccount: Codable, Identifiable, Equatable {
         avatarURL: String? = nil,
         provider: AccountProvider = .vercel,
         email: String? = nil,
-        providerUserId: String? = nil
+        providerUserId: String? = nil,
+        cloudflareAuthenticationMode: CloudflareAuthenticationMode? = nil
     ) {
         self.id = id
         self.name = name
@@ -39,10 +55,11 @@ struct VercelAccount: Codable, Identifiable, Equatable {
         self.provider = provider
         self.email = email
         self.providerUserId = providerUserId
+        self.cloudflareAuthenticationMode = cloudflareAuthenticationMode
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, token, avatarURL, provider, email, providerUserId
+        case id, name, token, avatarURL, provider, email, providerUserId, cloudflareAuthenticationMode
     }
 
     init(from decoder: Decoder) throws {
@@ -54,5 +71,12 @@ struct VercelAccount: Codable, Identifiable, Equatable {
         provider = try container.decodeIfPresent(AccountProvider.self, forKey: .provider) ?? .vercel
         email = try container.decodeIfPresent(String.self, forKey: .email)
         providerUserId = try container.decodeIfPresent(String.self, forKey: .providerUserId)
+        cloudflareAuthenticationMode = try container.decodeIfPresent(
+            CloudflareAuthenticationMode.self,
+            forKey: .cloudflareAuthenticationMode
+        )
+        if provider == .cloudflare, cloudflareAuthenticationMode == nil {
+            cloudflareAuthenticationMode = .globalAPIKey
+        }
     }
 }
