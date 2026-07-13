@@ -71,12 +71,14 @@ struct ProviderAccountMenu: View {
     @ViewBuilder
     private func providerBadge(for account: VercelAccount?) -> some View {
         if let account, account.provider == .cloudflare {
-            Text("CF")
-                .font(.system(size: 9, weight: .black, design: .rounded))
-                .foregroundStyle(Color(red: 1.0, green: 0.48, blue: 0.10))
+            Image("CloudflareMark")
+                .resizable()
+                .scaledToFit()
+                .padding(3)
                 .frame(width: 23, height: 23)
                 .background(Color(red: 1.0, green: 0.48, blue: 0.10).opacity(0.14))
                 .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .accessibilityHidden(true)
         } else if let avatarURL = account?.avatarURL, let url = URL(string: avatarURL) {
             AsyncImage(url: url) { phase in
                 if let image = phase.image {

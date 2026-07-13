@@ -72,9 +72,10 @@ struct LoginView: View {
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .fill(isCloudflare ? accent.opacity(0.16) : Color.black.opacity(0.08))
                     if isCloudflare {
-                        Text("CF")
-                            .font(.system(size: 11, weight: .black, design: .rounded))
-                            .foregroundStyle(accent)
+                        Image("CloudflareMark")
+                            .resizable()
+                            .scaledToFit()
+                            .padding(7)
                     } else {
                         Image(systemName: "triangle.fill")
                             .font(.system(size: 13, weight: .heavy))
@@ -522,11 +523,12 @@ struct LoginView: View {
                         provider == .cloudflare
                             ? Color(red: 0.96, green: 0.45, blue: 0.10).opacity(0.14)
                             : Color.white.opacity(0.08)
-                    )
+                )
                 if provider == .cloudflare {
-                    Text("CF")
-                        .font(.system(size: 28, weight: .black, design: .rounded))
-                        .foregroundStyle(Color(red: 0.96, green: 0.45, blue: 0.10))
+                    Image("CloudflareMark")
+                        .resizable()
+                        .scaledToFit()
+                        .padding(20)
                 } else {
                     Image(systemName: "triangle.fill")
                         .font(.system(size: 33, weight: .black))
