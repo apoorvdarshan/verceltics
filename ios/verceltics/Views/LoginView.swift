@@ -25,6 +25,11 @@ struct LoginView: View {
                     tokenFieldView
                 case .cloudflare:
                     cloudflareCredentialsView
+                case .some(let provider):
+                    HostingProviderCredentialView(provider: provider) {
+                        authManager.error = nil
+                        withAnimation(.spring(duration: 0.35)) { selectedProvider = nil }
+                    }
                 case nil:
                     welcomeView
                 }
@@ -37,32 +42,39 @@ struct LoginView: View {
     // MARK: - Welcome (centered)
 
     private var welcomeView: some View {
-        VStack(spacing: 0) {
-            Spacer()
+        ScrollView {
+            VStack(spacing: 0) {
+                brandingHeader
+                    .padding(.top, 26)
 
-            brandingHeader
+                DemoChart()
+                    .frame(height: 76)
+                    .padding(.horizontal, 40)
+                    .padding(.top, 28)
 
-            Spacer().frame(height: 40)
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("CONNECT A PLATFORM")
+                        .font(.system(size: 10, weight: .heavy))
+                        .tracking(1.5)
+                        .foregroundStyle(.white.opacity(0.35))
+                        .padding(.horizontal, 4)
 
-            DemoChart()
-                .frame(height: 100)
-                .padding(.horizontal, 40)
+                    ForEach(AccountProvider.allCases) { provider in
+                        providerButton(provider)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 30)
 
-            Spacer()
-
-            VStack(spacing: 12) {
-                providerButton(.vercel)
-                providerButton(.cloudflare)
+                Spacer().frame(height: 40)
             }
-            .padding(.horizontal, 20)
-
-            Spacer().frame(height: 50)
         }
+        .scrollIndicators(.hidden)
     }
 
     private func providerButton(_ provider: AccountProvider) -> some View {
-        let isCloudflare = provider == .cloudflare
-        let accent = Color(red: 0.96, green: 0.45, blue: 0.10)
+        let isVercel = provider == .vercel
+        let accent = provider.accentColor
         return Button {
             authManager.error = nil
             withAnimation(.spring(duration: 0.4)) { selectedProvider = provider }
@@ -70,25 +82,17 @@ struct LoginView: View {
             HStack(spacing: 13) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(isCloudflare ? accent.opacity(0.16) : Color.black.opacity(0.08))
-                    if isCloudflare {
-                        Image("CloudflareMark")
-                            .resizable()
-                            .scaledToFit()
-                            .padding(7)
-                    } else {
-                        Image(systemName: "triangle.fill")
-                            .font(.system(size: 13, weight: .heavy))
-                    }
+                        .fill(isVercel ? Color.black.opacity(0.08) : accent.opacity(0.14))
+                    ProviderMark(provider: provider, size: 18)
                 }
                 .frame(width: 34, height: 34)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Connect \(provider.displayName)")
                         .font(.system(size: 15, weight: .heavy))
-                    Text(isCloudflare ? "Zones, Pages, Workers, DNS and analytics" : "Projects, deployments and Web Analytics")
+                    Text(provider.connectionSubtitle)
                         .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(isCloudflare ? Color.white.opacity(0.45) : Color.black.opacity(0.5))
+                        .foregroundStyle(isVercel ? Color.black.opacity(0.5) : Color.white.opacity(0.45))
                         .lineLimit(1)
                 }
 
@@ -101,17 +105,17 @@ struct LoginView: View {
             .frame(height: 62)
             .background(
                 LinearGradient(
-                    colors: isCloudflare
-                        ? [Color.white.opacity(0.08), Color.white.opacity(0.035)]
-                        : [.white, Color.white.opacity(0.92)],
+                    colors: isVercel
+                        ? [.white, Color.white.opacity(0.92)]
+                        : [Color.white.opacity(0.08), Color.white.opacity(0.035)],
                     startPoint: .top, endPoint: .bottom
                 )
             )
-            .foregroundStyle(isCloudflare ? .white : .black)
+            .foregroundStyle(isVercel ? .black : .white)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .strokeBorder(isCloudflare ? accent.opacity(0.28) : Color.white.opacity(0.1), lineWidth: 0.7)
+                    .strokeBorder(isVercel ? Color.white.opacity(0.1) : accent.opacity(0.28), lineWidth: 0.7)
             )
         }
         .buttonStyle(PressScaleButtonStyle())
@@ -568,7 +572,7 @@ struct LoginView: View {
                         )
                     )
 
-                Text("Vercel analytics and Cloudflare control")
+                Text("Your hosting platforms, in one place")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.45))
             }

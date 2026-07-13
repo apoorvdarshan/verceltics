@@ -6,8 +6,9 @@ struct ProviderAccountMenu: View {
 
     var body: some View {
         Menu {
-            accountSection(provider: .vercel)
-            accountSection(provider: .cloudflare)
+            ForEach(AccountProvider.allCases) { provider in
+                accountSection(provider: provider)
+            }
 
             Section {
                 Button { showingAddAccount = true } label: {
@@ -61,7 +62,7 @@ struct ProviderAccountMenu: View {
                             account.name,
                             systemImage: authManager.activeAccountId == account.id
                                 ? "checkmark.circle.fill"
-                                : provider == .cloudflare ? "cloud.fill" : "triangle.fill"
+                                : provider.systemImage
                         )
                     }
                 }
@@ -71,15 +72,8 @@ struct ProviderAccountMenu: View {
 
     @ViewBuilder
     private func providerBadge(for account: VercelAccount?) -> some View {
-        if let account, account.provider == .cloudflare {
-            Image("CloudflareMark")
-                .resizable()
-                .renderingMode(.template)
-                .scaledToFit()
-                .frame(width: 23, height: 23)
-                .foregroundStyle(.white)
-                .accessibilityHidden(true)
-        } else if let avatarURL = account?.avatarURL, let url = URL(string: avatarURL) {
+        if let account, account.provider == .vercel,
+           let avatarURL = account.avatarURL, let url = URL(string: avatarURL) {
             AsyncImage(url: url) { phase in
                 if let image = phase.image {
                     image.resizable().scaledToFill()
@@ -90,6 +84,8 @@ struct ProviderAccountMenu: View {
             }
             .frame(width: 22, height: 22)
             .clipShape(Circle())
+        } else if let provider = account?.provider {
+            ProviderMark(provider: provider, size: 23, monochrome: true)
         } else {
             Image(systemName: "triangle.fill")
                 .font(.system(size: 13, weight: .heavy))

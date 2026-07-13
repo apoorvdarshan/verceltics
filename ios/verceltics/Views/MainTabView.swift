@@ -10,12 +10,11 @@ struct MainTabView: View {
                 providerHome()
                     .id(authManager.activeAccountId)
             } label: {
-                if authManager.activeAccount?.provider == .cloudflare {
+                if let provider = authManager.activeProvider {
                     Label {
-                        Text("Cloudflare")
+                        Text(provider.displayName)
                     } icon: {
-                        Image("CloudflareMark")
-                            .renderingMode(.template)
+                        ProviderMark(provider: provider, size: 22, monochrome: true)
                     }
                 } else {
                     Label("Vercel", systemImage: "triangle.fill")
@@ -52,6 +51,8 @@ struct MainTabView: View {
                 credential: credentials.credential,
                 startWithSearch: startWithSearch
             )
+        } else if let account = authManager.activeHostingAccount {
+            HostingDashboardView(account: account, startWithSearch: startWithSearch)
         } else {
             ProjectsView(startWithSearch: startWithSearch)
         }

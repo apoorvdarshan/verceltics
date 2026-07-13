@@ -3,6 +3,14 @@ import Foundation
 enum AccountProvider: String, Codable, CaseIterable, Identifiable, Sendable {
     case vercel
     case cloudflare
+    case netlify
+    case railway
+    case render
+    case digitalOcean
+    case heroku
+    case fly
+    case firebase
+    case awsAmplify
 
     var id: Self { self }
 
@@ -10,7 +18,19 @@ enum AccountProvider: String, Codable, CaseIterable, Identifiable, Sendable {
         switch self {
         case .vercel: "Vercel"
         case .cloudflare: "Cloudflare"
+        case .netlify: "Netlify"
+        case .railway: "Railway"
+        case .render: "Render"
+        case .digitalOcean: "DigitalOcean"
+        case .heroku: "Heroku"
+        case .fly: "Fly.io"
+        case .firebase: "Firebase"
+        case .awsAmplify: "AWS Amplify"
         }
+    }
+
+    var isGenericHostingProvider: Bool {
+        self != .vercel && self != .cloudflare
     }
 }
 
@@ -37,6 +57,7 @@ struct VercelAccount: Codable, Identifiable, Equatable {
     var email: String?
     var providerUserId: String?
     var cloudflareAuthenticationMode: CloudflareAuthenticationMode?
+    var providerMetadata: [String: String]
     
     init(
         id: UUID = UUID(),
@@ -46,7 +67,8 @@ struct VercelAccount: Codable, Identifiable, Equatable {
         provider: AccountProvider = .vercel,
         email: String? = nil,
         providerUserId: String? = nil,
-        cloudflareAuthenticationMode: CloudflareAuthenticationMode? = nil
+        cloudflareAuthenticationMode: CloudflareAuthenticationMode? = nil,
+        providerMetadata: [String: String] = [:]
     ) {
         self.id = id
         self.name = name
@@ -56,10 +78,11 @@ struct VercelAccount: Codable, Identifiable, Equatable {
         self.email = email
         self.providerUserId = providerUserId
         self.cloudflareAuthenticationMode = cloudflareAuthenticationMode
+        self.providerMetadata = providerMetadata
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, token, avatarURL, provider, email, providerUserId, cloudflareAuthenticationMode
+        case id, name, token, avatarURL, provider, email, providerUserId, cloudflareAuthenticationMode, providerMetadata
     }
 
     init(from decoder: Decoder) throws {
@@ -75,6 +98,7 @@ struct VercelAccount: Codable, Identifiable, Equatable {
             CloudflareAuthenticationMode.self,
             forKey: .cloudflareAuthenticationMode
         )
+        providerMetadata = try container.decodeIfPresent([String: String].self, forKey: .providerMetadata) ?? [:]
         if provider == .cloudflare, cloudflareAuthenticationMode == nil {
             cloudflareAuthenticationMode = .globalAPIKey
         }

@@ -41,6 +41,11 @@ final class AuthManager {
         )
     }
 
+    var activeHostingAccount: VercelAccount? {
+        guard let account = activeAccount, account.provider.isGenericHostingProvider else { return nil }
+        return account
+    }
+
     init() {
         self.accounts = KeychainHelper.getAccounts()
         self.activeAccountId = KeychainHelper.getActiveAccountId()
@@ -205,6 +210,65 @@ final class AuthManager {
         isLoading = false
     }
 
+    func loginHostingProvider(
+        _ provider: AccountProvider,
+        credential: String,
+        metadata: [String: String] = [:]
+    ) async {
+        guard provider.isGenericHostingProvider else {
+            error = "Use the dedicated \(provider.displayName) connection flow."
+            return
+        }
+
+        isLoading = true
+        error = nil
+        let normalizedCredential = credential.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedMetadata = metadata.reduce(into: [String: String]()) { result, pair in
+            result[pair.key] = pair.value.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        do {
+            let profile = try await HostingProviderAPI(
+                provider: provider,
+                credential: normalizedCredential,
+                metadata: normalizedMetadata
+            ).validateProfile()
+
+            if let existingIndex = accounts.firstIndex(where: {
+                $0.provider == provider && ($0.providerUserId == profile.id || $0.token == normalizedCredential)
+            }) {
+                accounts[existingIndex].name = profile.name
+                accounts[existingIndex].token = normalizedCredential
+                accounts[existingIndex].email = profile.email
+                accounts[existingIndex].avatarURL = profile.avatarURL
+                accounts[existingIndex].providerUserId = profile.id
+                accounts[existingIndex].providerMetadata = normalizedMetadata
+                activeAccountId = accounts[existingIndex].id
+            } else {
+                let account = VercelAccount(
+                    name: profile.name,
+                    token: normalizedCredential,
+                    avatarURL: profile.avatarURL,
+                    provider: provider,
+                    email: profile.email,
+                    providerUserId: profile.id,
+                    providerMetadata: normalizedMetadata
+                )
+                accounts.append(account)
+                activeAccountId = account.id
+            }
+
+            KeychainHelper.saveAccounts(accounts)
+            KeychainHelper.saveActiveAccountId(activeAccountId)
+        } catch let localized as LocalizedError {
+            error = localized.errorDescription ?? "\(provider.displayName) rejected these credentials."
+        } catch {
+            self.error = "Could not connect to \(provider.displayName). Check the credentials and connection."
+        }
+
+        isLoading = false
+    }
+
     func refreshAccountProfiles() async {
         let savedAccounts = accounts
         guard !savedAccounts.isEmpty else { return }
@@ -252,6 +316,25 @@ final class AuthManager {
                         accounts[index].providerUserId = verification.id
                         didUpdate = true
                     }
+                }
+            case .netlify, .railway, .render, .digitalOcean, .heroku, .fly, .firebase, .awsAmplify:
+                guard let profile = try? await HostingProviderAPI(account: account).validateProfile(),
+                      let index = accounts.firstIndex(where: { $0.id == account.id }) else { continue }
+                if accounts[index].name != profile.name {
+                    accounts[index].name = profile.name
+                    didUpdate = true
+                }
+                if accounts[index].email != profile.email {
+                    accounts[index].email = profile.email
+                    didUpdate = true
+                }
+                if accounts[index].avatarURL != profile.avatarURL {
+                    accounts[index].avatarURL = profile.avatarURL
+                    didUpdate = true
+                }
+                if accounts[index].providerUserId != profile.id {
+                    accounts[index].providerUserId = profile.id
+                    didUpdate = true
                 }
             }
         }
