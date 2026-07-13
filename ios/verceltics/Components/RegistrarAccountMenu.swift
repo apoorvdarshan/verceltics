@@ -38,7 +38,7 @@ struct RegistrarAccountMenu: View {
                 if let provider = store.activeAccount?.provider { RegistrarMark(provider: provider, size: 25, monochrome: true) }
                 else { Image(systemName: "globe").font(.system(size: 16, weight: .bold)) }
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 8, weight: .heavy))
+                    .font(.system(size: 8, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.45))
             }
             .frame(height: 30)

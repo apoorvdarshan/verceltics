@@ -37,7 +37,7 @@ struct ProviderAccountMenu: View {
             HStack(spacing: 6) {
                 providerBadge(for: authManager.activeAccount)
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 8, weight: .heavy))
+                    .font(.system(size: 8, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.45))
             }
             .frame(height: 30)
@@ -79,7 +79,7 @@ struct ProviderAccountMenu: View {
                     image.resizable().scaledToFill()
                 } else {
                     Image(systemName: "triangle.fill")
-                        .font(.system(size: 11, weight: .heavy))
+                        .font(.system(size: 11, weight: .semibold))
                 }
             }
             .frame(width: 22, height: 22)
@@ -88,7 +88,7 @@ struct ProviderAccountMenu: View {
             ProviderMark(provider: provider, size: 23, monochrome: true)
         } else {
             Image(systemName: "server.rack")
-                .font(.system(size: 13, weight: .heavy))
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.white)
         }
     }

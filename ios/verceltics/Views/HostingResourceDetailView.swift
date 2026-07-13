@@ -70,7 +70,7 @@ struct HostingResourceDetailView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
             ScrollView {
                 LazyVStack(spacing: 16) {
                     header
@@ -134,13 +134,13 @@ struct HostingResourceDetailView: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 14) {
                 Image(systemName: provider.systemImage)
-                    .font(.system(size: 24, weight: .heavy))
+                    .font(.system(size: 24, weight: .semibold))
                     .foregroundStyle(provider.accentColor)
                     .frame(width: 58, height: 58)
                     .background(provider.accentColor.opacity(0.14))
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(resource.name).font(.system(size: 20, weight: .heavy)).lineLimit(2)
+                    Text(resource.name).font(.system(size: 20, weight: .semibold)).lineLimit(2)
                     Text([resource.kind, resource.region].compactMap { $0 }.joined(separator: " · "))
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.42))
@@ -148,7 +148,7 @@ struct HostingResourceDetailView: View {
                 Spacer()
                 if let status = resource.status {
                     Text(status.uppercased())
-                        .font(.system(size: 8, weight: .heavy))
+                        .font(.system(size: 8, weight: .semibold))
                         .foregroundStyle(statusColor(status))
                 }
             }
@@ -194,9 +194,9 @@ struct HostingResourceDetailView: View {
     private var sectionHeader: some View {
         HStack {
             Text(historyTitle.uppercased())
-                .font(.system(size: 10, weight: .heavy)).tracking(1.4).foregroundStyle(.white.opacity(0.38))
+                .font(.system(size: 10, weight: .semibold)).tracking(1.4).foregroundStyle(.white.opacity(0.38))
             Spacer()
-            Text(viewModel.deployments.count.formatted()).font(.system(size: 10, weight: .heavy)).foregroundStyle(provider.accentColor)
+            Text(viewModel.deployments.count.formatted()).font(.system(size: 10, weight: .semibold)).foregroundStyle(provider.accentColor)
         }
     }
 
@@ -206,7 +206,7 @@ struct HostingResourceDetailView: View {
                 Text(deployment.title).font(.system(size: 13, weight: .bold)).lineLimit(2)
                 Spacer()
                 Text(deployment.status.uppercased())
-                    .font(.system(size: 8, weight: .heavy))
+                    .font(.system(size: 8, weight: .semibold))
                     .foregroundStyle(statusColor(deployment.status))
             }
             if let message = deployment.commitMessage, !message.isEmpty {

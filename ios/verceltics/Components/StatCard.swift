@@ -8,8 +8,6 @@ struct StatCard: View {
     let icon: String
     var appearDelay: Double = 0
 
-    @State private var hasAppeared = false
-
     private var isPositive: Bool {
         guard let change else { return true }
         return invertChange ? change <= 0 : change >= 0
@@ -30,16 +28,16 @@ struct StatCard: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 6) {
                 Image(systemName: icon)
-                    .font(.system(size: 9, weight: .heavy))
+                    .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.35))
                 Text(title.uppercased())
-                    .font(.system(size: 10, weight: .heavy))
+                    .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.45))
                     .tracking(0.8)
             }
 
             Text(value)
-                .font(.system(size: 28, weight: .heavy, design: .rounded).monospacedDigit())
+                .font(.system(size: 28, weight: .semibold, design: .default).monospacedDigit())
                 .foregroundStyle(.white)
                 .contentTransition(.numericText())
                 .minimumScaleFactor(0.7)
@@ -48,9 +46,9 @@ struct StatCard: View {
             if let changeText {
                 HStack(spacing: 3) {
                     Image(systemName: isPositive ? "arrow.up.right" : "arrow.down.right")
-                        .font(.system(size: 8, weight: .heavy))
+                        .font(.system(size: 8, weight: .semibold))
                     Text(changeText)
-                        .font(.system(size: 11, weight: .heavy).monospacedDigit())
+                        .font(.system(size: 11, weight: .semibold).monospacedDigit())
                 }
                 .foregroundStyle(changeColor)
                 .padding(.horizontal, 7)
@@ -66,37 +64,6 @@ struct StatCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
-        .background(
-            ZStack {
-                LinearGradient(
-                    colors: [Color.white.opacity(0.07), Color.white.opacity(0.02)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                LinearGradient(
-                    colors: [Color.white.opacity(0.04), .clear],
-                    startPoint: .top,
-                    endPoint: .center
-                )
-            }
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.12), Color.white.opacity(0.04)],
-                        startPoint: .top, endPoint: .bottom
-                    ),
-                    lineWidth: 0.5
-                )
-        )
-        .opacity(hasAppeared ? 1 : 0)
-        .offset(y: hasAppeared ? 0 : 8)
-        .onAppear {
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.85).delay(appearDelay)) {
-                hasAppeared = true
-            }
-        }
+        .appSurface()
     }
 }

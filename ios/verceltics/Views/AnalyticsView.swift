@@ -180,7 +180,7 @@ struct AnalyticsView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
 
             if vm.isLoading {
                 AnalyticsSkeletonView()
@@ -204,7 +204,7 @@ struct AnalyticsView: View {
                     Task { await loadData(forceRefresh: true) }
                 } label: {
                     Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 14, weight: .heavy))
+                        .font(.system(size: 14, weight: .semibold))
                         .rotationEffect(.degrees(refreshSpin))
                         .foregroundStyle(.white.opacity(0.7))
                 }
@@ -261,7 +261,7 @@ struct AnalyticsView: View {
     private func analyticsUnavailableCard(_ message: String) -> some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "chart.bar.xaxis")
-                .font(.system(size: 17, weight: .heavy))
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(.blue)
                 .frame(width: 34, height: 34)
                 .background(Color.blue.opacity(0.12))
@@ -375,7 +375,7 @@ struct AnalyticsView: View {
                                 .truncationMode(.middle)
 
                             Image(systemName: "arrow.up.right")
-                                .font(.system(size: 8, weight: .heavy))
+                                .font(.system(size: 8, weight: .semibold))
                                 .foregroundStyle(Color.blue.opacity(0.75))
                                 .frame(width: 17, height: 17)
                                 .background(Color.blue.opacity(0.12))
@@ -425,7 +425,7 @@ struct AnalyticsView: View {
                             .font(.system(size: 13, weight: .bold))
                             .lineLimit(1)
                         Image(systemName: "chevron.down")
-                            .font(.system(size: 9, weight: .heavy))
+                            .font(.system(size: 9, weight: .semibold))
                             .foregroundStyle(.white.opacity(0.4))
                     }
                     .padding(.horizontal, 11)
@@ -464,7 +464,7 @@ struct AnalyticsView: View {
                             .font(.system(size: 13, weight: .bold))
                             .lineLimit(1)
                         Image(systemName: "chevron.down")
-                            .font(.system(size: 9, weight: .heavy))
+                            .font(.system(size: 9, weight: .semibold))
                             .foregroundStyle(.white.opacity(0.4))
                     }
                     .padding(.horizontal, 11)
@@ -624,7 +624,7 @@ struct AnalyticsView: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
                 Image(systemName: icon)
-                    .font(.system(size: 11, weight: .heavy))
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.blue)
                     .frame(width: 22, height: 22)
                     .background(Color.blue.opacity(0.12))
@@ -674,13 +674,13 @@ struct AnalyticsView: View {
     private func detailRow(icon: String, title: String, value: String, url: URL? = nil) -> some View {
         let content = HStack(spacing: 10) {
             Image(systemName: icon)
-                .font(.system(size: 10, weight: .heavy))
+                .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.35))
                 .frame(width: 18)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.system(size: 10, weight: .heavy))
+                    .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.35))
                     .textCase(.uppercase)
                     .tracking(0.7)
@@ -696,7 +696,7 @@ struct AnalyticsView: View {
 
             if url != nil {
                 Image(systemName: "arrow.up.right")
-                    .font(.system(size: 9, weight: .heavy))
+                    .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(.blue.opacity(0.75))
             }
         }
@@ -746,7 +746,7 @@ struct AnalyticsView: View {
                         .lineLimit(1)
 
                     Text(deployment.displayState.capitalized)
-                        .font(.system(size: 9, weight: .heavy))
+                        .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(deploymentStatusColor(deployment.displayState))
                         .padding(.horizontal, 7)
                         .padding(.vertical, 3)
@@ -778,7 +778,7 @@ struct AnalyticsView: View {
             Spacer(minLength: 8)
 
             Image(systemName: "chevron.right")
-                .font(.system(size: 10, weight: .heavy))
+                .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.22))
                 .frame(width: 24, height: 24)
         }
@@ -823,7 +823,7 @@ struct AnalyticsView: View {
             HStack {
                 HStack(spacing: 8) {
                     Image(systemName: icon)
-                        .font(.system(size: 11, weight: .heavy))
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(.blue)
                         .frame(width: 22, height: 22)
                         .background(Color.blue.opacity(0.12))
@@ -839,7 +839,7 @@ struct AnalyticsView: View {
                     Text("VISITORS")
                         .frame(width: 64, alignment: .trailing)
                 }
-                .font(.system(size: 8, weight: .heavy))
+                .font(.system(size: 8, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.35))
                 .tracking(0.7)
             }

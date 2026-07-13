@@ -52,7 +52,7 @@ struct CloudflareProductCenterView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
             ScrollView {
                 LazyVStack(spacing: 16) {
                     commandHeader
@@ -87,7 +87,7 @@ struct CloudflareProductCenterView: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 13) {
                 Image(systemName: "cloud.bolt.rain.fill")
-                    .font(.system(size: 20, weight: .heavy))
+                    .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(.black.opacity(0.82))
                     .frame(width: 48, height: 48)
                     .background(
@@ -101,7 +101,7 @@ struct CloudflareProductCenterView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Cloudflare control plane")
-                        .font(.system(size: 21, weight: .heavy))
+                        .font(.system(size: 21, weight: .semibold))
                         .foregroundStyle(.white)
                     Text(accountName)
                         .font(.system(size: 11, weight: .semibold))
@@ -131,11 +131,11 @@ struct CloudflareProductCenterView: View {
     private func commandMetric(_ label: String, _ value: Int) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label)
-                .font(.system(size: 8, weight: .heavy))
+                .font(.system(size: 8, weight: .semibold))
                 .tracking(0.7)
                 .foregroundStyle(.white.opacity(0.3))
             Text(value.formatted())
-                .font(.system(size: 19, weight: .heavy, design: .rounded).monospacedDigit())
+                .font(.system(size: 19, weight: .semibold, design: .default).monospacedDigit())
                 .foregroundStyle(.white)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -146,7 +146,7 @@ struct CloudflareProductCenterView: View {
     private var contextPanel: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("REQUEST CONTEXT")
-                .font(.system(size: 9, weight: .heavy))
+                .font(.system(size: 9, weight: .semibold))
                 .tracking(0.9)
                 .foregroundStyle(.white.opacity(0.34))
 
@@ -167,7 +167,7 @@ struct CloudflareProductCenterView: View {
                             .foregroundStyle(CloudflareStyle.orange)
                         VStack(alignment: .leading, spacing: 2) {
                             Text("ZONE")
-                                .font(.system(size: 8, weight: .heavy))
+                                .font(.system(size: 8, weight: .semibold))
                                 .tracking(0.7)
                                 .foregroundStyle(.white.opacity(0.3))
                             Text(selectedZone?.name ?? "Choose zone")
@@ -176,7 +176,7 @@ struct CloudflareProductCenterView: View {
                         }
                         Spacer()
                         Image(systemName: "chevron.up.chevron.down")
-                            .font(.system(size: 9, weight: .heavy))
+                            .font(.system(size: 9, weight: .semibold))
                             .foregroundStyle(.white.opacity(0.3))
                     }
                     .padding(12)
@@ -198,7 +198,7 @@ struct CloudflareProductCenterView: View {
                 .foregroundStyle(CloudflareStyle.orange)
             VStack(alignment: .leading, spacing: 2) {
                 Text(label.uppercased())
-                    .font(.system(size: 8, weight: .heavy))
+                    .font(.system(size: 8, weight: .semibold))
                     .tracking(0.7)
                     .foregroundStyle(.white.opacity(0.3))
                 Text(value)
@@ -218,13 +218,13 @@ struct CloudflareProductCenterView: View {
         VStack(spacing: 0) {
             HStack(spacing: 11) {
                 Image(systemName: product.icon)
-                    .font(.system(size: 13, weight: .heavy))
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(CloudflareStyle.orange)
                     .frame(width: 36, height: 36)
                     .background(CloudflareStyle.orange.opacity(0.11), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 VStack(alignment: .leading, spacing: 3) {
                     Text(product.title)
-                        .font(.system(size: 14, weight: .heavy))
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.86))
                     Text(product.summary)
                         .font(.system(size: 10, weight: .medium))
@@ -233,7 +233,7 @@ struct CloudflareProductCenterView: View {
                 }
                 Spacer()
                 Text(product.operations.count.formatted())
-                    .font(.system(size: 10, weight: .heavy, design: .monospaced))
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
                     .foregroundStyle(.white.opacity(0.36))
                     .padding(.horizontal, 9)
                     .padding(.vertical, 5)
@@ -274,7 +274,7 @@ struct CloudflareProductCenterView: View {
     private func operationLabel(_ operation: CloudflareAPIOperationPreset, locked: Bool) -> some View {
         HStack(spacing: 11) {
             Text(operation.method.rawValue)
-                .font(.system(size: 8, weight: .heavy, design: .monospaced))
+                .font(.system(size: 8, weight: .semibold, design: .monospaced))
                 .foregroundStyle(methodColor(operation.method))
                 .frame(width: 36, height: 26)
                 .background(methodColor(operation.method).opacity(0.1), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
@@ -290,7 +290,7 @@ struct CloudflareProductCenterView: View {
             }
             Spacer(minLength: 6)
             Image(systemName: locked ? "lock.fill" : "chevron.right")
-                .font(.system(size: 9, weight: .heavy))
+                .font(.system(size: 9, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.25))
         }
         .padding(.horizontal, 14)

@@ -228,7 +228,7 @@ struct CloudflarePagesOperationsView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
 
             if viewModel.isLoading {
                 CloudflareLoadingView()
@@ -334,14 +334,14 @@ struct CloudflarePagesOperationsView: View {
                             )
                         )
                     Image(systemName: "point.3.filled.connected.trianglepath.dotted")
-                        .font(.system(size: 20, weight: .heavy))
+                        .font(.system(size: 20, weight: .semibold))
                         .foregroundStyle(.black.opacity(0.82))
                 }
                 .frame(width: 48, height: 48)
 
                 VStack(alignment: .leading, spacing: 5) {
                     Text(fullProject.name)
-                        .font(.system(size: 22, weight: .heavy))
+                        .font(.system(size: 22, weight: .semibold))
                         .foregroundStyle(.white)
                         .lineLimit(1)
                     Text(fullProject.subdomain ?? "Cloudflare Pages")
@@ -514,7 +514,7 @@ struct CloudflarePagesOperationsView: View {
                 if let variable = config.environmentVariables[key] {
                     HStack(spacing: 11) {
                         Image(systemName: variable.isSecret ? "lock.fill" : "textformat")
-                            .font(.system(size: 10, weight: .heavy))
+                            .font(.system(size: 10, weight: .semibold))
                             .foregroundStyle(variable.isSecret ? CloudflareStyle.amber : CloudflareStyle.orange)
                             .frame(width: 30, height: 30)
                             .background((variable.isSecret ? CloudflareStyle.amber : CloudflareStyle.orange).opacity(0.1))
@@ -552,7 +552,7 @@ struct CloudflarePagesOperationsView: View {
             ForEach(config.bindingGroups, id: \.name) { group in
                 VStack(alignment: .leading, spacing: 7) {
                     Text(group.name.uppercased())
-                        .font(.system(size: 9, weight: .heavy))
+                        .font(.system(size: 9, weight: .semibold))
                         .tracking(0.7)
                         .foregroundStyle(CloudflareStyle.orange.opacity(0.8))
                     ForEach(group.values.keys.sorted(), id: \.self) { key in
@@ -610,7 +610,7 @@ struct CloudflarePagesOperationsView: View {
             } label: {
                 HStack(spacing: 12) {
                     Image(systemName: domain.isActive ? "checkmark.seal.fill" : "clock.badge.exclamationmark.fill")
-                        .font(.system(size: 13, weight: .heavy))
+                        .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(domainTint(domain))
                         .frame(width: 36, height: 36)
                         .background(domainTint(domain).opacity(0.11))
@@ -683,7 +683,7 @@ struct CloudflarePagesOperationsView: View {
 
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "arrow.up.doc.fill")
-                    .font(.system(size: 15, weight: .heavy))
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(CloudflareStyle.orange)
                     .frame(width: 40, height: 40)
                     .background(CloudflareStyle.orange.opacity(0.11))
@@ -764,7 +764,7 @@ struct CloudflarePagesOperationsView: View {
 
             VStack(alignment: .leading, spacing: 12) {
                 Label("Danger zone", systemImage: "exclamationmark.triangle.fill")
-                    .font(.system(size: 12, weight: .heavy))
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(CloudflareStyle.red)
 
                 destructiveButton("Delete Pages project", icon: "trash.fill") {
@@ -787,7 +787,7 @@ struct CloudflarePagesOperationsView: View {
         Button(action: action) {
             HStack(spacing: 11) {
                 Image(systemName: icon)
-                    .font(.system(size: 12, weight: .heavy))
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(CloudflareStyle.orange)
                     .frame(width: 36, height: 36)
                     .background(CloudflareStyle.orange.opacity(0.1))
@@ -803,7 +803,7 @@ struct CloudflarePagesOperationsView: View {
                 }
                 Spacer(minLength: 8)
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 10, weight: .heavy))
+                    .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.2))
             }
             .padding(11)
@@ -1020,7 +1020,7 @@ private struct CloudflarePagesProjectEditorSheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.black.ignoresSafeArea()
+                AppTheme.canvas.ignoresSafeArea()
                 ScrollView {
                     VStack(spacing: 16) {
                         editorSection("Build pipeline", icon: "hammer.fill") {
@@ -1113,7 +1113,7 @@ private struct CloudflarePagesProjectEditorSheet: View {
     private func editorField(_ title: String, text: Binding<String>, icon: String) -> some View {
         HStack(spacing: 10) {
             Image(systemName: icon)
-                .font(.system(size: 10, weight: .heavy))
+                .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.32))
                 .frame(width: 18)
             TextField(title, text: text, axis: .vertical)
@@ -1148,10 +1148,10 @@ private struct CloudflarePagesAddDomainSheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.black.ignoresSafeArea()
+                AppTheme.canvas.ignoresSafeArea()
                 VStack(alignment: .leading, spacing: 16) {
                     Label("Connect a hostname", systemImage: "globe.badge.chevron.backward")
-                        .font(.system(size: 18, weight: .heavy))
+                        .font(.system(size: 18, weight: .semibold))
                         .foregroundStyle(.white)
                     Text("Cloudflare will check DNS ownership, validate the hostname and provision its certificate.")
                         .font(.system(size: 11, weight: .medium))
@@ -1183,7 +1183,7 @@ private struct CloudflarePagesAddDomainSheet: View {
                             if isAdding { ProgressView().tint(.black) }
                             Text(isAdding ? "Adding domain…" : "Add domain")
                         }
-                        .font(.system(size: 13, weight: .heavy))
+                        .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(.black)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 13)
@@ -1222,7 +1222,7 @@ private struct CloudflarePagesDomainDetailSheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.black.ignoresSafeArea()
+                AppTheme.canvas.ignoresSafeArea()
                 ScrollView {
                     let current = detail ?? domain
                     VStack(spacing: 16) {
@@ -1261,14 +1261,14 @@ private struct CloudflarePagesDomainDetailSheet: View {
     private func domainHero(_ current: CloudflarePagesCustomDomain) -> some View {
         HStack(spacing: 13) {
             Image(systemName: current.isActive ? "checkmark.seal.fill" : "globe.badge.chevron.backward")
-                .font(.system(size: 18, weight: .heavy))
+                .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(current.isActive ? CloudflareStyle.green : CloudflareStyle.amber)
                 .frame(width: 46, height: 46)
                 .background((current.isActive ? CloudflareStyle.green : CloudflareStyle.amber).opacity(0.11))
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             VStack(alignment: .leading, spacing: 4) {
                 Text(current.name)
-                    .font(.system(size: 18, weight: .heavy))
+                    .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(.white)
                 Text((current.status ?? "unknown").capitalized)
                     .font(.system(size: 10, weight: .bold))

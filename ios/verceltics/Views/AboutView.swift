@@ -12,27 +12,27 @@ struct AboutView: View {
                     Spacer().frame(height: 8)
 
                     VStack(spacing: 24) {
-                        SectionCard(title: "APP") {
+                        SectionCard(title: "App") {
                             updateCheckRow
                         }
 
-                        SectionCard(title: "LINKS") {
+                        SectionCard(title: "Links") {
                             AboutRow(icon: "globe", title: "Website", subtitle: "verceltics.com", url: "https://verceltics.com")
                             AboutRow(icon: "chevron.left.forwardslash.chevron.right", title: "Source Code", subtitle: "github.com/apoorvdarshan/verceltics", url: "https://github.com/apoorvdarshan/verceltics")
                             AboutRow(icon: "building.2.fill", title: "Follow on LinkedIn", subtitle: "linkedin.com/company/verceltics", url: "https://www.linkedin.com/company/verceltics")
                             AboutRow(icon: "at", title: "Follow on X", subtitle: "@apoorvdarshan", url: "https://x.com/apoorvdarshan")
                         }
 
-                        SectionCard(title: "HELP") {
+                        SectionCard(title: "Help") {
                             AboutRow(icon: "envelope.fill", title: "Contact", subtitle: "ad13dtu@gmail.com", url: "mailto:ad13dtu@gmail.com")
                             AboutRow(icon: "ant", title: "Report an Issue", subtitle: "Open a GitHub issue", url: "https://github.com/apoorvdarshan/verceltics/issues")
                         }
 
-                        SectionCard(title: "ACCOUNT") {
+                        SectionCard(title: "Account") {
                             AboutRow(icon: "creditcard.fill", title: "Manage Subscription", subtitle: "Change plan or cancel", url: "https://apps.apple.com/account/subscriptions")
                         }
 
-                        SectionCard(title: "LEGAL") {
+                        SectionCard(title: "Legal") {
                             AboutRow(icon: "hand.raised.fill", title: "Privacy Policy", subtitle: "verceltics.com/privacy", url: "https://verceltics.com/privacy")
                             AboutRow(icon: "doc.text.fill", title: "Terms of Service", subtitle: "verceltics.com/terms", url: "https://verceltics.com/terms")
                             AboutRow(icon: "checkmark.seal.fill", title: "License", subtitle: "MIT License", url: "https://github.com/apoorvdarshan/verceltics/blob/main/LICENSE")
@@ -44,7 +44,7 @@ struct AboutView: View {
                 .frame(maxWidth: hSize == .regular ? 640 : .infinity)
                 .frame(maxWidth: .infinity)
             }
-            .background(Color.black)
+            .background(AppTheme.canvas)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .task {
@@ -55,16 +55,9 @@ struct AboutView: View {
 
     private var footer: some View {
         VStack(spacing: 10) {
-            HStack(spacing: 5) {
-                Text("Built with")
-                    .font(.system(size: 11, weight: .bold))
-                Image(systemName: "heart.fill")
-                    .font(.system(size: 10, weight: .heavy))
-                    .foregroundStyle(Color(red: 1.0, green: 0.42, blue: 0.42))
-                Text("by Apoorv Darshan")
-                    .font(.system(size: 11, weight: .bold))
-            }
-            .foregroundStyle(.white.opacity(0.4))
+            Text("Made by Apoorv Darshan")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(AppTheme.textSecondary)
 
             Text("Verceltics is an independent app and is not affiliated with, endorsed by, or sponsored by any supported hosting platform or domain registrar. All provider names and marks belong to their respective owners.")
                 .font(.system(size: 10, weight: .medium))
@@ -184,28 +177,19 @@ struct AboutRowContent: View {
     var body: some View {
         HStack(spacing: 14) {
             Image(systemName: icon)
-                .font(.system(size: 13, weight: .heavy))
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(iconColor)
                 .frame(width: 34, height: 34)
-                .background(
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.10), Color.white.opacity(0.04)],
-                        startPoint: .top, endPoint: .bottom
-                    )
-                )
+                .background(AppTheme.surfaceRaised)
                 .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.06), lineWidth: 0.5)
-                )
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(AppTheme.textPrimary)
                 Text(subtitle)
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.4))
+                    .foregroundStyle(AppTheme.textSecondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
@@ -214,8 +198,8 @@ struct AboutRowContent: View {
 
             if showsChevron {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .heavy))
-                    .foregroundStyle(.white.opacity(0.18))
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(AppTheme.textTertiary)
             }
         }
         .padding(.horizontal, 14)

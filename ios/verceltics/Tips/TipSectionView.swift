@@ -1,7 +1,7 @@
 import SwiftUI
 import RevenueCat
 
-private let tipLime = Color(red: 0.84, green: 1.0, blue: 0.36)
+private let tipAccent = AppTheme.signal
 
 private struct TipMeta {
     let emoji: String
@@ -27,33 +27,16 @@ struct TipSectionView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("SUPPORT THE DEVELOPER")
-                .font(.system(size: 10, weight: .heavy))
-                .foregroundStyle(.white.opacity(0.4))
-                .tracking(1.4)
-                .padding(.horizontal, 22)
-                .padding(.bottom, 10)
+            Text("Support the developer")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AppTheme.textSecondary)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 8)
 
             VStack(spacing: 0) {
                 content
             }
-            .background(
-                ZStack {
-                    LinearGradient(colors: [Color.white.opacity(0.07), Color.white.opacity(0.02)],
-                                   startPoint: .topLeading, endPoint: .bottomTrailing)
-                    LinearGradient(colors: [Color.white.opacity(0.04), .clear],
-                                   startPoint: .top, endPoint: .center)
-                }
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(
-                        LinearGradient(colors: [Color.white.opacity(0.12), Color.white.opacity(0.04)],
-                                       startPoint: .top, endPoint: .bottom),
-                        lineWidth: 0.5
-                    )
-            )
+            .appSurface()
             .padding(.horizontal, 16)
         }
     }
@@ -112,10 +95,7 @@ struct TipSectionView: View {
                 Text(meta.emoji)
                     .font(.system(size: 17))
                     .frame(width: 34, height: 34)
-                    .background(
-                        LinearGradient(colors: [Color.white.opacity(0.10), Color.white.opacity(0.04)],
-                                       startPoint: .top, endPoint: .bottom)
-                    )
+                    .background(AppTheme.surfaceRaised)
                     .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 9, style: .continuous)
@@ -129,11 +109,11 @@ struct TipSectionView: View {
                             .foregroundStyle(.white)
                         if meta.popular {
                             Text("POPULAR")
-                                .font(.system(size: 7.5, weight: .heavy))
+                                .font(.system(size: 7.5, weight: .semibold))
                                 .tracking(0.6)
-                                .foregroundStyle(.black)
+                                .foregroundStyle(.white)
                                 .padding(.horizontal, 5).padding(.vertical, 2)
-                                .background(tipLime, in: Capsule())
+                                .background(tipAccent, in: Capsule())
                         }
                     }
                     Text(meta.blurb)
@@ -145,16 +125,16 @@ struct TipSectionView: View {
 
                 ZStack {
                     if busy {
-                        ProgressView().tint(.black).scaleEffect(0.8)
+                        ProgressView().tint(.white).scaleEffect(0.8)
                     } else {
                         Text(product.localizedPriceString)
-                            .font(.system(size: 13, weight: .heavy))
-                            .foregroundStyle(.black)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.white)
                     }
                 }
                 .frame(minWidth: 66)
                 .padding(.vertical, 8)
-                .background(tipLime, in: Capsule())
+                .background(tipAccent, in: Capsule())
                 .opacity(busy ? 0.85 : 1)
             }
             .padding(.horizontal, 14)
@@ -184,9 +164,9 @@ struct TipSectionView: View {
             Button { Task { await store.loadProducts() } } label: {
                 Text("Try Again")
                     .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(.black)
+                    .foregroundStyle(.white)
                     .padding(.horizontal, 20).padding(.vertical, 9)
-                    .background(tipLime, in: Capsule())
+                    .background(tipAccent, in: Capsule())
             }
             .buttonStyle(PressScaleButtonStyle())
         }
@@ -197,12 +177,12 @@ struct TipSectionView: View {
     private var thankYou: some View {
         VStack(spacing: 12) {
             Image(systemName: "checkmark.seal.fill")
-                .font(.system(size: 34, weight: .heavy))
-                .foregroundStyle(tipLime)
-            Text("Thank you! 💜")
-                .font(.system(size: 17, weight: .heavy))
+                .font(.system(size: 34, weight: .semibold))
+                .foregroundStyle(tipAccent)
+            Text("Thank you")
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(.white)
-            Text("Your support genuinely means a lot and keeps Verceltics going.")
+            Text("Your tip supports continued development of Verceltics.")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.white.opacity(0.55))
                 .multilineTextAlignment(.center)
@@ -210,9 +190,9 @@ struct TipSectionView: View {
             Button { store.didTip = false } label: {
                 Text("Done")
                     .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(.black)
+                    .foregroundStyle(.white)
                     .padding(.horizontal, 28).padding(.vertical, 10)
-                    .background(tipLime, in: Capsule())
+                    .background(tipAccent, in: Capsule())
             }
             .buttonStyle(PressScaleButtonStyle())
             .padding(.top, 2)

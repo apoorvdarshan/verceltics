@@ -95,7 +95,7 @@ struct CloudflareWorkerDetailView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
 
             ScrollView {
                 VStack(spacing: 16) {
@@ -151,7 +151,7 @@ struct CloudflareWorkerDetailView: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 13) {
                 Image(systemName: "shippingbox.fill")
-                    .font(.system(size: 20, weight: .heavy))
+                    .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(.black.opacity(0.82))
                     .frame(width: 46, height: 46)
                     .background(
@@ -165,7 +165,7 @@ struct CloudflareWorkerDetailView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(worker.id)
-                        .font(.system(size: 21, weight: .heavy))
+                        .font(.system(size: 21, weight: .semibold))
                         .foregroundStyle(.white)
                         .lineLimit(1)
                     Text(worker.hasModules == true ? "Modules Worker" : "Service Worker")
@@ -275,7 +275,7 @@ struct CloudflareWorkerDetailView: View {
                                 UIApplication.shared.open(url)
                             } label: {
                                 Image(systemName: "arrow.up.right")
-                                    .font(.system(size: 11, weight: .heavy))
+                                    .font(.system(size: 11, weight: .semibold))
                                     .foregroundStyle(CloudflareStyle.orange)
                             }
                             .buttonStyle(.plain)
@@ -331,7 +331,7 @@ struct CloudflareWorkerDetailView: View {
     private func workerDeploymentRow(_ deployment: CloudflareWorkerDeployment) -> some View {
         HStack(spacing: 12) {
             Image(systemName: "square.stack.3d.up.fill")
-                .font(.system(size: 12, weight: .heavy))
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(CloudflareStyle.green)
                 .frame(width: 36, height: 36)
                 .background(CloudflareStyle.green.opacity(0.11))
@@ -419,7 +419,7 @@ struct CloudflareWorkerDetailView: View {
             UIApplication.shared.open(url)
         } label: {
             HStack(spacing: 7) {
-                Image(systemName: icon).font(.system(size: 9, weight: .heavy))
+                Image(systemName: icon).font(.system(size: 9, weight: .semibold))
                 Text(title).font(.system(size: 12, weight: .bold))
             }
             .foregroundStyle(.white.opacity(0.78))

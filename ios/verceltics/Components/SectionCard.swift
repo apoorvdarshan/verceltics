@@ -8,40 +8,16 @@ struct SectionCard<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(title)
-                .font(.system(size: 10, weight: .heavy))
-                .foregroundStyle(.white.opacity(0.4))
-                .tracking(1.4)
-                .padding(.horizontal, 22)
-                .padding(.bottom, 10)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AppTheme.textSecondary)
+                .textCase(nil)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 8)
 
             VStack(spacing: 0) {
                 content()
             }
-            .background(
-                ZStack {
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.07), Color.white.opacity(0.02)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.04), .clear],
-                        startPoint: .top,
-                        endPoint: .center
-                    )
-                }
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(
-                        LinearGradient(
-                            colors: [Color.white.opacity(0.12), Color.white.opacity(0.04)],
-                            startPoint: .top, endPoint: .bottom
-                        ),
-                        lineWidth: 0.5
-                    )
-            )
+            .appSurface()
             .padding(.horizontal, 16)
         }
     }

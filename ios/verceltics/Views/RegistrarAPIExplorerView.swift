@@ -36,7 +36,7 @@ struct RegistrarAPIExplorerView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
             ScrollView {
                 VStack(spacing: 16) {
                     safetyCard
@@ -56,7 +56,7 @@ struct RegistrarAPIExplorerView: View {
 
                     VStack(alignment: .leading, spacing: 8) {
                         Text(bodyIsBase64 ? "BASE64-ENCODED BINARY BODY" : "REQUEST BODY")
-                            .font(.system(size: 9, weight: .heavy)).tracking(1.2).foregroundStyle(.white.opacity(0.35))
+                            .font(.system(size: 9, weight: .semibold)).tracking(1.2).foregroundStyle(.white.opacity(0.35))
                         TextEditor(text: $requestBody)
                             .font(.system(size: 11, design: .monospaced))
                             .scrollContentBackground(.hidden)
@@ -97,11 +97,11 @@ struct RegistrarAPIExplorerView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("CONTENT TYPE").font(.system(size: 9, weight: .heavy)).tracking(1.2).foregroundStyle(.white.opacity(0.35))
+                        Text("CONTENT TYPE").font(.system(size: 9, weight: .semibold)).tracking(1.2).foregroundStyle(.white.opacity(0.35))
                         TextField("application/json", text: $contentType)
                             .font(.system(size: 11, design: .monospaced)).textInputAutocapitalization(.never).autocorrectionDisabled()
                         Text("CUSTOM HEADERS · JSON OBJECT")
-                            .font(.system(size: 9, weight: .heavy)).tracking(1.2).foregroundStyle(.white.opacity(0.35))
+                            .font(.system(size: 9, weight: .semibold)).tracking(1.2).foregroundStyle(.white.opacity(0.35))
                         TextEditor(text: $customHeaders)
                             .font(.system(size: 10, design: .monospaced)).scrollContentBackground(.hidden).frame(minHeight: 72)
                     }
@@ -114,7 +114,7 @@ struct RegistrarAPIExplorerView: View {
                             if isSending { ProgressView().tint(.white) }
                             else { Image(systemName: requiresConfirmation ? "exclamationmark.shield.fill" : "paperplane.fill") }
                             Text(requiresConfirmation ? "Review & Send Request" : "Send Request")
-                                .font(.system(size: 14, weight: .heavy))
+                                .font(.system(size: 14, weight: .semibold))
                         }
                         .frame(maxWidth: .infinity).frame(height: 52)
                         .background(provider.accentColor.opacity(path.isEmpty ? 0.22 : 0.82))
@@ -130,9 +130,9 @@ struct RegistrarAPIExplorerView: View {
                     if let response {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
-                                Text("RESPONSE").font(.system(size: 9, weight: .heavy)).tracking(1.2)
+                                Text("RESPONSE").font(.system(size: 9, weight: .semibold)).tracking(1.2)
                                 Spacer()
-                                Text("HTTP \(response.statusCode)").font(.system(size: 9, weight: .heavy))
+                                Text("HTTP \(response.statusCode)").font(.system(size: 9, weight: .semibold))
                                     .foregroundStyle((200...299).contains(response.statusCode) ? .green : .red)
                             }
                             if !response.headers.isEmpty {

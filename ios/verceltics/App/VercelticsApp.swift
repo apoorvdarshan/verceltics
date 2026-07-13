@@ -15,7 +15,7 @@ struct VercelticsApp: App {
                 } else if !paywallManager.hasCheckedEntitlements {
                     // Brief flash-prevention while RevenueCat checks entitlements
                     // needed to know whether to gate the analytics drilldown.
-                    Color.black.ignoresSafeArea()
+                    AppTheme.canvas.ignoresSafeArea()
                 } else {
                     // Soft paywall: everyone sees the projects list. Analytics
                     // taps gate via PaywallView sheet inside ProjectsView.

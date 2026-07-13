@@ -73,7 +73,7 @@ struct HostingDashboardView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.black.ignoresSafeArea()
+                AppTheme.canvas.ignoresSafeArea()
                 if viewModel.isLoading {
                     ProgressView("Loading \(provider.displayName)")
                         .tint(provider.accentColor)
@@ -96,7 +96,7 @@ struct HostingDashboardView: View {
                         Task { await viewModel.load(refresh: true) }
                     } label: {
                         Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 14, weight: .heavy))
+                            .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(.white.opacity(0.72))
                             .rotationEffect(.degrees(refreshSpin))
                     }
@@ -130,12 +130,12 @@ struct HostingDashboardView: View {
 
                 HStack {
                     Text(resourceTitle.uppercased())
-                        .font(.system(size: 10, weight: .heavy))
+                        .font(.system(size: 10, weight: .semibold))
                         .tracking(1.4)
                         .foregroundStyle(.white.opacity(0.38))
                     Spacer()
                     Text(filteredResources.count.formatted())
-                        .font(.system(size: 10, weight: .heavy).monospacedDigit())
+                        .font(.system(size: 10, weight: .semibold).monospacedDigit())
                         .foregroundStyle(provider.accentColor)
                 }
 
@@ -187,7 +187,7 @@ struct HostingDashboardView: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(account.name)
-                    .font(.system(size: 18, weight: .heavy))
+                    .font(.system(size: 18, weight: .semibold))
                     .lineLimit(1)
                 Text(account.email ?? provider.connectionSubtitle)
                     .font(.system(size: 11, weight: .semibold))
@@ -196,7 +196,7 @@ struct HostingDashboardView: View {
             }
             Spacer()
             Text("CONNECTED")
-                .font(.system(size: 8, weight: .heavy))
+                .font(.system(size: 8, weight: .semibold))
                 .foregroundStyle(.green)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 5)
@@ -237,7 +237,7 @@ struct HostingDashboardView: View {
     private func resourceRow(_ resource: HostingResource) -> some View {
         HStack(spacing: 13) {
             Image(systemName: resourceIcon(resource))
-                .font(.system(size: 15, weight: .heavy))
+                .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(provider.accentColor)
                 .frame(width: 40, height: 40)
                 .background(provider.accentColor.opacity(0.12))
@@ -255,12 +255,12 @@ struct HostingDashboardView: View {
             Spacer()
             if let status = resource.status {
                 Text(status.uppercased())
-                    .font(.system(size: 8, weight: .heavy))
+                    .font(.system(size: 8, weight: .semibold))
                     .foregroundStyle(statusColor(status))
                     .lineLimit(1)
             }
             Image(systemName: "chevron.right")
-                .font(.system(size: 10, weight: .heavy))
+                .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.2))
         }
         .padding(15)
@@ -273,7 +273,7 @@ struct HostingDashboardView: View {
                 .font(.system(size: 28))
                 .foregroundStyle(provider.accentColor)
             Text("Could not load \(provider.displayName)")
-                .font(.system(size: 17, weight: .heavy))
+                .font(.system(size: 17, weight: .semibold))
             Text(message)
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.white.opacity(0.45))
@@ -311,15 +311,7 @@ struct ProviderPanelModifier: ViewModifier {
     let accent: Color
 
     func body(content: Content) -> some View {
-        content
-            .background(
-                ZStack {
-                    LinearGradient(colors: [Color.white.opacity(0.07), Color.white.opacity(0.022)], startPoint: .topLeading, endPoint: .bottomTrailing)
-                    LinearGradient(colors: [accent.opacity(0.05), .clear], startPoint: .topLeading, endPoint: .bottomTrailing)
-                }
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Color.white.opacity(0.09), lineWidth: 0.6))
+        content.providerSurface(accent: accent)
     }
 }
 
@@ -329,8 +321,8 @@ extension View {
 
 func statusColor(_ status: String) -> Color {
     let value = status.lowercased()
-    if value.contains("active") || value.contains("ready") || value.contains("success") || value.contains("live") || value.contains("running") || value.contains("published") || value.contains("succeed") { return .green }
-    if value.contains("fail") || value.contains("error") || value.contains("cancel") || value.contains("suspend") { return .red }
-    if value.contains("build") || value.contains("progress") || value.contains("pending") || value.contains("starting") { return .orange }
-    return .white.opacity(0.5)
+    if value.contains("active") || value.contains("ready") || value.contains("success") || value.contains("live") || value.contains("running") || value.contains("published") || value.contains("succeed") { return AppTheme.success }
+    if value.contains("fail") || value.contains("error") || value.contains("cancel") || value.contains("suspend") { return AppTheme.danger }
+    if value.contains("build") || value.contains("progress") || value.contains("pending") || value.contains("starting") { return AppTheme.warning }
+    return AppTheme.textSecondary
 }

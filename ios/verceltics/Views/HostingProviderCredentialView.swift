@@ -65,7 +65,7 @@ struct HostingProviderCredentialView: View {
             HStack {
                 Button(action: onBack) {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 15, weight: .heavy))
+                        .font(.system(size: 15, weight: .semibold))
                         .frame(width: 42, height: 42)
                         .background(Color.white.opacity(0.07))
                         .clipShape(Circle())
@@ -83,7 +83,7 @@ struct HostingProviderCredentialView: View {
 
             VStack(spacing: 6) {
                 Text("Connect \(provider.displayName)")
-                    .font(.system(size: 26, weight: .heavy))
+                    .font(.system(size: 26, weight: .semibold))
                 Text(provider.connectionSubtitle)
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.42))
@@ -97,7 +97,7 @@ struct HostingProviderCredentialView: View {
     private var instructions: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Connect securely")
-                .font(.system(size: 13, weight: .heavy))
+                .font(.system(size: 13, weight: .semibold))
             StepRow(number: 1, text: instructionOne)
             StepRow(number: 2, text: instructionTwo)
             StepRow(number: 3, text: "Paste the credentials below and connect")
@@ -113,18 +113,7 @@ struct HostingProviderCredentialView: View {
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            LinearGradient(
-                colors: [Color.white.opacity(0.07), Color.white.opacity(0.02)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(provider.accentColor.opacity(0.25), lineWidth: 0.7)
-        )
+        .providerSurface(accent: provider.accentColor)
     }
 
     private var credentialLink: some View {
@@ -223,21 +212,15 @@ struct HostingProviderCredentialView: View {
                     ProgressView().tint(.white)
                 } else {
                     Text("Connect \(provider.displayName)")
-                        .font(.system(size: 16, weight: .heavy))
+                        .font(.system(size: 16, weight: .semibold))
                     Image(systemName: "arrow.right")
-                        .font(.system(size: 14, weight: .heavy))
+                        .font(.system(size: 14, weight: .semibold))
                 }
             }
             .frame(maxWidth: .infinity)
             .frame(height: 54)
-            .background(
-                LinearGradient(
-                    colors: canConnect ? [provider.accentColor, provider.accentColor.opacity(0.72)] : [Color.white.opacity(0.16), Color.white.opacity(0.09)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
-            .foregroundStyle(.white)
+            .background(canConnect ? provider.accentColor : AppTheme.surfaceRaised)
+            .foregroundStyle(canConnect ? .white : AppTheme.textTertiary)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(PressScaleButtonStyle())

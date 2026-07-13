@@ -73,7 +73,7 @@ struct CloudflareDNSRecordEditor: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
 
             ScrollView {
                 VStack(spacing: 16) {
@@ -171,7 +171,7 @@ struct CloudflareDNSRecordEditor: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("CONTENT")
-                    .font(.system(size: 9, weight: .heavy))
+                    .font(.system(size: 9, weight: .semibold))
                     .tracking(0.8)
                     .foregroundStyle(.white.opacity(0.32))
                 TextEditor(text: $content)
@@ -299,7 +299,7 @@ struct CloudflareDNSRecordEditor: View {
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "curlybraces.square.fill")
-                        .font(.system(size: 10, weight: .heavy))
+                        .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(CloudflareStyle.orange)
                         .frame(width: 22, height: 22)
                         .background(CloudflareStyle.orange.opacity(0.12))
@@ -309,7 +309,7 @@ struct CloudflareDNSRecordEditor: View {
                         .foregroundStyle(.white)
                     Spacer()
                     Image(systemName: "chevron.down")
-                        .font(.system(size: 9, weight: .heavy))
+                        .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.3))
                         .rotationEffect(.degrees(showingAdvanced ? 180 : 0))
                 }
@@ -355,7 +355,7 @@ struct CloudflareDNSRecordEditor: View {
     ) -> some View {
         HStack(spacing: 12) {
             Text(label.uppercased())
-                .font(.system(size: 9, weight: .heavy))
+                .font(.system(size: 9, weight: .semibold))
                 .tracking(0.8)
                 .foregroundStyle(.white.opacity(0.32))
             Spacer(minLength: 8)
@@ -375,7 +375,7 @@ struct CloudflareDNSRecordEditor: View {
                 .font(.system(size: 12, weight: .bold))
                 .foregroundStyle(.white.opacity(0.76))
             Image(systemName: "chevron.up.chevron.down")
-                .font(.system(size: 8, weight: .heavy))
+                .font(.system(size: 8, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.3))
         }
     }
@@ -383,7 +383,7 @@ struct CloudflareDNSRecordEditor: View {
     private func jsonEditor(label: String, text: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(label)
-                .font(.system(size: 9, weight: .heavy))
+                .font(.system(size: 9, weight: .semibold))
                 .tracking(0.8)
                 .foregroundStyle(.white.opacity(0.32))
             TextEditor(text: text)
@@ -506,7 +506,7 @@ struct CloudflareCachePurgeView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
 
             ScrollView {
                 VStack(spacing: 16) {
@@ -588,7 +588,7 @@ struct CloudflareCachePurgeView: View {
                 } label: {
                     HStack(spacing: 11) {
                         Image(systemName: option.icon)
-                            .font(.system(size: 12, weight: .heavy))
+                            .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(kind == option ? CloudflareStyle.orange : .white.opacity(0.3))
                             .frame(width: 28, height: 28)
                             .background((kind == option ? CloudflareStyle.orange : .white).opacity(0.08))
@@ -620,7 +620,7 @@ struct CloudflareCachePurgeView: View {
     private var valuesPanel: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(kind.inputLabel)
-                .font(.system(size: 10, weight: .heavy))
+                .font(.system(size: 10, weight: .semibold))
                 .tracking(0.8)
                 .foregroundStyle(.white.opacity(0.36))
             TextEditor(text: $values)
@@ -646,7 +646,7 @@ struct CloudflareCachePurgeView: View {
     private var fullPurgeConfirmation: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("TYPE THE ZONE NAME TO CONTINUE")
-                .font(.system(size: 10, weight: .heavy))
+                .font(.system(size: 10, weight: .semibold))
                 .tracking(0.8)
                 .foregroundStyle(CloudflareStyle.red.opacity(0.85))
             Text(zone.name)

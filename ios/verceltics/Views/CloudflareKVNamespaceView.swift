@@ -140,7 +140,7 @@ struct CloudflareKVNamespaceView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
 
             ScrollView {
                 VStack(spacing: 16) {
@@ -225,7 +225,7 @@ struct CloudflareKVNamespaceView: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 13) {
                 Image(systemName: "key.fill")
-                    .font(.system(size: 20, weight: .heavy))
+                    .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(.black.opacity(0.82))
                     .frame(width: 46, height: 46)
                     .background(
@@ -239,7 +239,7 @@ struct CloudflareKVNamespaceView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(viewModel.namespace.title)
-                        .font(.system(size: 21, weight: .heavy))
+                        .font(.system(size: 21, weight: .semibold))
                         .foregroundStyle(.white)
                         .lineLimit(1)
                     Text("Workers KV namespace")
@@ -391,7 +391,7 @@ private struct CloudflareKVValueEditor: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
             ScrollView {
                 VStack(spacing: 16) {
                     CloudflareStorageFormPanel(title: "Value", icon: "key.horizontal.fill") {
@@ -411,7 +411,7 @@ private struct CloudflareKVValueEditor: View {
                         CloudflareStorageFormDivider()
                         VStack(alignment: .leading, spacing: 8) {
                             Text(encoding == .text ? "TEXT VALUE" : "BASE64 VALUE")
-                                .font(.system(size: 9, weight: .heavy))
+                                .font(.system(size: 9, weight: .semibold))
                                 .tracking(0.8)
                                 .foregroundStyle(.white.opacity(0.32))
                             TextEditor(text: $value)
@@ -600,7 +600,7 @@ private struct CloudflareKVKeyRow: View {
             Button(action: open) {
                 HStack(spacing: 12) {
                     Image(systemName: "key.horizontal.fill")
-                        .font(.system(size: 13, weight: .heavy))
+                        .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(key.expiration == nil ? CloudflareStyle.amber : CloudflareStyle.orange)
                         .frame(width: 36, height: 36)
                         .background((key.expiration == nil ? CloudflareStyle.amber : CloudflareStyle.orange).opacity(0.12))

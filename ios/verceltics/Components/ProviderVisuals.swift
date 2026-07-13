@@ -1,5 +1,96 @@
 import SwiftUI
 
+/// The app's visual language: quiet infrastructure surfaces with provider color
+/// reserved for identity and state, rather than decorative gradients.
+enum AppTheme {
+    static let canvas = Color(red: 0.018, green: 0.022, blue: 0.030)
+    static let surface = Color(red: 0.060, green: 0.070, blue: 0.090)
+    static let surfaceRaised = Color(red: 0.082, green: 0.092, blue: 0.115)
+    static let textPrimary = Color(red: 0.94, green: 0.95, blue: 0.97)
+    static let textSecondary = Color(red: 0.57, green: 0.60, blue: 0.66)
+    static let textTertiary = Color(red: 0.36, green: 0.39, blue: 0.45)
+    static let stroke = Color.white.opacity(0.085)
+    static let strokeStrong = Color.white.opacity(0.14)
+    static let signal = Color(red: 0.31, green: 0.63, blue: 1.0)
+    static let success = Color(red: 0.30, green: 0.79, blue: 0.52)
+    static let warning = Color(red: 0.96, green: 0.65, blue: 0.24)
+    static let danger = Color(red: 0.96, green: 0.35, blue: 0.38)
+}
+
+struct AppSurfaceModifier: ViewModifier {
+    var cornerRadius: CGFloat = 16
+    var raised = false
+
+    func body(content: Content) -> some View {
+        content
+            .background(raised ? AppTheme.surfaceRaised : AppTheme.surface)
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(AppTheme.stroke, lineWidth: 0.5)
+            }
+    }
+}
+
+struct ProviderSurfaceModifier: ViewModifier {
+    let accent: Color
+    var cornerRadius: CGFloat = 16
+
+    func body(content: Content) -> some View {
+        content
+            .background(AppTheme.surface)
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(AppTheme.stroke, lineWidth: 0.5)
+            }
+            .overlay(alignment: .leading) {
+                Capsule()
+                    .fill(accent.opacity(0.72))
+                    .frame(width: 2, height: 30)
+                    .padding(.leading, 1)
+            }
+    }
+}
+
+struct NativeGlassSurfaceModifier: ViewModifier {
+    let cornerRadius: CGFloat
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content
+                .glassEffect(
+                    .regular.tint(Color.black.opacity(0.58)).interactive(),
+                    in: .rect(cornerRadius: cornerRadius)
+                )
+        } else {
+            content
+                .background(.ultraThinMaterial)
+                .background(AppTheme.surface.opacity(0.82))
+                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .strokeBorder(AppTheme.strokeStrong, lineWidth: 0.5)
+                }
+        }
+    }
+}
+
+extension View {
+    func appSurface(cornerRadius: CGFloat = 16, raised: Bool = false) -> some View {
+        modifier(AppSurfaceModifier(cornerRadius: cornerRadius, raised: raised))
+    }
+
+    func providerSurface(accent: Color, cornerRadius: CGFloat = 16) -> some View {
+        modifier(ProviderSurfaceModifier(accent: accent, cornerRadius: cornerRadius))
+    }
+
+    func nativeGlassSurface(cornerRadius: CGFloat) -> some View {
+        modifier(NativeGlassSurfaceModifier(cornerRadius: cornerRadius))
+    }
+}
+
 extension AccountProvider {
     var logoAssetName: String {
         switch self {

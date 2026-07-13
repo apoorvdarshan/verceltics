@@ -1,5 +1,4 @@
 import SwiftUI
-import Combine
 import RevenueCat
 
 struct PaywallView: View {
@@ -10,23 +9,6 @@ struct PaywallView: View {
     @State private var selectedPackage: Package?
     @State private var isPurchasing = false
     @State private var isEligibleForTrial = true
-    @State private var currentMemeIndex = 0
-
-    private let memes: [(gif: String, caption: String)] = [
-        ("https://media.giphy.com/media/JIX9t2j0ZTN9S/giphy.gif", "Me checking analytics at 3am"),
-        ("https://media.giphy.com/media/du3J3cXyzhj75IOgvA/giphy.gif", "When bounce rate finally drops"),
-        ("https://media.giphy.com/media/13HgwGsXF0aiGY/giphy.gif", "Deploying to prod on Friday"),
-        ("https://media.giphy.com/media/VbnUQpnihPSIgIXuZv/giphy.gif", "When visitors spike overnight"),
-        ("https://media.giphy.com/media/26tn33aiTi1jkl6H6/giphy.gif", "git push origin main"),
-        ("https://media.giphy.com/media/ule4vhcY1xEKQ/giphy.gif", "Watching real-time analytics"),
-        ("https://media.giphy.com/media/LmNwrBhejkK9EFP504/giphy.gif", "When the site goes viral"),
-        ("https://media.giphy.com/media/l3q2K5jinAlChoCLS/giphy.gif", "100% bounce rate vibes"),
-        ("https://media.giphy.com/media/l41lFw057lAJQMwg0/giphy.gif", "\"Just one more feature\""),
-        ("https://media.giphy.com/media/3o7aD2saalBwwftBIY/giphy.gif", "Reading server logs at midnight"),
-    ]
-
-    @State private var memeTimer = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
-
     private var subscribeButtonLabel: String {
         guard let package = selectedPackage else { return "Subscribe" }
         if package.storeProduct.productIdentifier == PaywallManager.lifetimeProductID { return "Buy Lifetime" }
@@ -54,71 +36,30 @@ struct PaywallView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
 
             ScrollView {
                 VStack(spacing: 0) {
                     Spacer().frame(height: 40)
 
                     Text("Verceltics Pro")
-                        .font(.system(size: 32, weight: .heavy))
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [.white, Color.white.opacity(0.75)],
-                                startPoint: .top, endPoint: .bottom
-                            )
-                        )
+                        .font(.system(size: 32, weight: .semibold))
+                        .foregroundStyle(AppTheme.textPrimary)
 
-                    Text("Your deployments and edge, everywhere")
+                    Text("Detailed analytics on every project")
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.45))
+                        .foregroundStyle(AppTheme.textSecondary)
                         .padding(.top, 4)
 
-                    // Rotating meme GIF
-                    VStack(spacing: 10) {
-                        GIFView(url: memes[currentMemeIndex].gif)
-                            .frame(width: 180, height: 140)
-                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                    .strokeBorder(
-                                        LinearGradient(
-                                            colors: [Color.white.opacity(0.16), Color.white.opacity(0.04)],
-                                            startPoint: .top, endPoint: .bottom
-                                        ),
-                                        lineWidth: 0.5
-                                    )
-                            )
-                            .id(currentMemeIndex)
-
-                        Text("\u{201C}\(memes[currentMemeIndex].caption)\u{201D}")
-                            .font(.system(size: 12, weight: .semibold))
-                            .italic()
-                            .foregroundStyle(.white.opacity(0.5))
-                            .multilineTextAlignment(.center)
+                    VStack(alignment: .leading, spacing: 16) {
+                        FeatureRow(icon: "chart.xyaxis.line", title: "Project analytics", subtitle: "Traffic, pages, referrers, devices, and locations")
+                        FeatureRow(icon: "calendar", title: "Longer history", subtitle: "Use every time range available to your provider account")
+                        FeatureRow(icon: "lock.shield", title: "Device-only credentials", subtitle: "Provider credentials remain in this iPhone's Keychain")
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .onReceive(memeTimer) { _ in
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            currentMemeIndex = (currentMemeIndex + 1) % memes.count
-                        }
-                    }
-
-                    // Features grid
-                    VStack(spacing: 0) {
-                        HStack(spacing: 0) {
-                            FeatureCell(icon: "chart.line.uptrend.xyaxis", title: "Analytics")
-                            FeatureCell(icon: "cloud.fill", title: "Cloudflare")
-                            FeatureCell(icon: "clock.arrow.circlepath", title: "Real-Time")
-                        }
-                        HStack(spacing: 0) {
-                            FeatureCell(icon: "lock.shield", title: "Secure")
-                            FeatureCell(icon: "map", title: "Countries")
-                            FeatureCell(icon: "desktopcomputer", title: "Devices")
-                        }
-                    }
+                    .padding(18)
+                    .appSurface()
                     .padding(.horizontal, 20)
+                    .padding(.top, 24)
 
                     Spacer().frame(height: 20)
 
@@ -126,25 +67,16 @@ struct PaywallView: View {
                     if isEligibleForTrial {
                         HStack(spacing: 6) {
                             Image(systemName: "gift.fill")
-                                .font(.system(size: 11, weight: .heavy))
+                                .font(.system(size: 11, weight: .semibold))
                             Text(trialBadgeText)
-                                .font(.system(size: 12, weight: .heavy))
+                                .font(.system(size: 12, weight: .semibold))
                                 .tracking(0.2)
                         }
-                        .foregroundStyle(Color(red: 0.30, green: 0.85, blue: 0.55))
+                        .foregroundStyle(AppTheme.success)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 7)
-                        .background(
-                            LinearGradient(
-                                colors: [
-                                    Color(red: 0.30, green: 0.85, blue: 0.55).opacity(0.16),
-                                    Color(red: 0.30, green: 0.85, blue: 0.55).opacity(0.06)
-                                ],
-                                startPoint: .top, endPoint: .bottom
-                            )
-                        )
+                        .background(AppTheme.success.opacity(0.12))
                         .clipShape(Capsule())
-                        .overlay(Capsule().strokeBorder(Color(red: 0.30, green: 0.85, blue: 0.55).opacity(0.28), lineWidth: 0.5))
                     }
 
                     Spacer().frame(height: 20)
@@ -162,7 +94,7 @@ struct PaywallView: View {
                                     price: yearly.localizedPriceString,
                                     detail: "per year",
                                     isSelected: selectedPackage?.identifier == yearly.identifier,
-                                    badge: "Best Value",
+                                    badge: "Annual",
                                     showTrial: isEligibleForTrial
                                 ) { selectedPackage = yearly }
                             }
@@ -173,7 +105,7 @@ struct PaywallView: View {
                                     price: lifetime.localizedPriceString,
                                     detail: "one-time, yours forever",
                                     isSelected: selectedPackage?.identifier == lifetime.identifier,
-                                    badge: "Forever",
+                                    badge: "One-time",
                                     showTrial: false
                                 ) { selectedPackage = lifetime }
                             }
@@ -208,22 +140,15 @@ struct PaywallView: View {
                                 ProgressView().tint(.black)
                             } else {
                                 Text(subscribeButtonLabel)
-                                    .font(.system(size: 17, weight: .heavy))
+                                    .font(.system(size: 17, weight: .semibold))
                                 Image(systemName: "arrow.right")
-                                    .font(.system(size: 14, weight: .heavy))
+                                    .font(.system(size: 14, weight: .semibold))
                             }
                         }
                         .frame(maxWidth: .infinity)
                         .frame(height: 56)
-                        .background(
-                            LinearGradient(
-                                colors: selectedPackage != nil
-                                    ? [.white, Color.white.opacity(0.92)]
-                                    : [Color.white.opacity(0.2), Color.white.opacity(0.12)],
-                                startPoint: .top, endPoint: .bottom
-                            )
-                        )
-                        .foregroundStyle(.black)
+                        .background(selectedPackage != nil ? AppTheme.signal : AppTheme.surfaceRaised)
+                        .foregroundStyle(selectedPackage != nil ? .white : AppTheme.textTertiary)
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         .overlay(
                             RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -248,7 +173,7 @@ struct PaywallView: View {
                         } label: {
                             HStack(spacing: 6) {
                                 Image(systemName: "arrow.clockwise")
-                                    .font(.system(size: 10, weight: .heavy))
+                                    .font(.system(size: 10, weight: .semibold))
                                 Text("Restore Purchases")
                                     .font(.system(size: 13, weight: .bold))
                             }
@@ -301,57 +226,7 @@ struct PaywallView: View {
     }
 }
 
-// MARK: - Feature Cell (compact grid)
-
-struct FeatureCell: View {
-    let icon: String
-    let title: String
-
-    var body: some View {
-        VStack(spacing: 9) {
-            Image(systemName: icon)
-                .font(.system(size: 18, weight: .heavy))
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [Color.blue, Color(red: 0.45, green: 0.65, blue: 1.0)],
-                        startPoint: .top, endPoint: .bottom
-                    )
-                )
-
-            Text(title)
-                .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(.white.opacity(0.6))
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: 76)
-        .background(
-            ZStack {
-                LinearGradient(
-                    colors: [Color.white.opacity(0.06), Color.white.opacity(0.02)],
-                    startPoint: .topLeading, endPoint: .bottomTrailing
-                )
-                LinearGradient(
-                    colors: [Color.blue.opacity(0.06), .clear],
-                    startPoint: .topLeading, endPoint: .center
-                )
-            }
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.10), Color.white.opacity(0.03)],
-                        startPoint: .top, endPoint: .bottom
-                    ),
-                    lineWidth: 0.5
-                )
-        )
-        .padding(3)
-    }
-}
-
-// MARK: - Feature Row (kept for compatibility)
+// MARK: - Feature Row
 
 struct FeatureRow: View {
     let icon: String
@@ -362,9 +237,9 @@ struct FeatureRow: View {
         HStack(spacing: 14) {
             Image(systemName: icon)
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(.blue)
+                .foregroundStyle(AppTheme.signal)
                 .frame(width: 36, height: 36)
-                .background(Color.blue.opacity(0.12))
+                .background(AppTheme.signal.opacity(0.12))
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
             VStack(alignment: .leading, spacing: 2) {
@@ -390,30 +265,27 @@ struct PlanCard: View {
     var showTrial: Bool = true
     let onTap: () -> Void
 
-    private var isPremium: Bool { badge != nil }
-
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 8) {
                         Text(label)
-                            .font(.system(size: 17, weight: .heavy))
+                            .font(.system(size: 17, weight: .semibold))
                             .foregroundStyle(.white)
                         if let badge {
                             HStack(spacing: 3) {
                                 Image(systemName: "sparkles")
-                                    .font(.system(size: 8, weight: .heavy))
+                                    .font(.system(size: 8, weight: .semibold))
                                 Text(badge)
-                                    .font(.system(size: 10, weight: .heavy))
+                                    .font(.system(size: 10, weight: .semibold))
                                     .tracking(0.3)
                             }
-                            .foregroundStyle(Color(red: 0.30, green: 0.85, blue: 0.55))
+                            .foregroundStyle(AppTheme.success)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 3)
-                            .background(Color(red: 0.30, green: 0.85, blue: 0.55).opacity(0.14))
+                            .background(AppTheme.success.opacity(0.12))
                             .clipShape(Capsule())
-                            .overlay(Capsule().strokeBorder(Color(red: 0.30, green: 0.85, blue: 0.55).opacity(0.22), lineWidth: 0.5))
                         }
                     }
                     Text(showTrial ? "\(price) \(detail) after trial" : "\(price) \(detail)")
@@ -425,84 +297,20 @@ struct PlanCard: View {
 
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 26, weight: .regular))
-                    .foregroundStyle(isSelected ? Color.blue : Color.white.opacity(0.18))
+                    .foregroundStyle(isSelected ? AppTheme.signal : AppTheme.textTertiary)
                     .contentTransition(.symbolEffect(.replace))
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 18)
-            .background(
-                ZStack {
-                    LinearGradient(
-                        colors: isSelected
-                            ? [Color.blue.opacity(0.14), Color.blue.opacity(0.04)]
-                            : [Color.white.opacity(0.07), Color.white.opacity(0.02)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.04), .clear],
-                        startPoint: .top, endPoint: .center
-                    )
-                }
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .background(isSelected ? AppTheme.signal.opacity(0.09) : AppTheme.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(
-                        isSelected
-                            ? AnyShapeStyle(LinearGradient(
-                                colors: [Color.blue.opacity(0.55), Color.blue.opacity(0.25)],
-                                startPoint: .top, endPoint: .bottom
-                            ))
-                            : AnyShapeStyle(LinearGradient(
-                                colors: [Color.white.opacity(0.12), Color.white.opacity(0.04)],
-                                startPoint: .top, endPoint: .bottom
-                            )),
-                        lineWidth: isSelected ? 1.2 : 0.5
-                    )
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(isSelected ? AppTheme.signal.opacity(0.65) : AppTheme.stroke, lineWidth: isSelected ? 1 : 0.5)
             )
-            .shadow(
-                color: isSelected ? Color.blue.opacity(0.25) : .clear,
-                radius: isSelected ? 18 : 0,
-                x: 0, y: isSelected ? 6 : 0
-            )
-            .scaleEffect(isPremium && isSelected ? 1.0 : 1.0)
-            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: isSelected)
+            .animation(.easeOut(duration: 0.18), value: isSelected)
         }
         .buttonStyle(PressScaleButtonStyle())
         .sensoryFeedback(.selection, trigger: isSelected)
-    }
-}
-
-// MARK: - GIF View (animated via WKWebView)
-
-import WebKit
-
-struct GIFView: UIViewRepresentable {
-    let url: String
-
-    func makeUIView(context: Context) -> WKWebView {
-        let webView = WKWebView()
-        webView.isOpaque = false
-        webView.backgroundColor = .clear
-        webView.scrollView.backgroundColor = .clear
-        webView.scrollView.isScrollEnabled = false
-        webView.isUserInteractionEnabled = false
-        return webView
-    }
-
-    func updateUIView(_ webView: WKWebView, context: Context) {
-        let html = """
-        <html>
-        <head><meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
-        * { margin: 0; padding: 0; }
-        body { background: transparent; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
-        img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
-        </style></head>
-        <body><img src="\(url)" /></body>
-        </html>
-        """
-        webView.loadHTMLString(html, baseURL: nil)
     }
 }

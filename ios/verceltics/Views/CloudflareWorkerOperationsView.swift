@@ -224,7 +224,7 @@ struct CloudflareWorkerOperationsView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
 
             ScrollView {
                 VStack(spacing: 16) {
@@ -333,11 +333,11 @@ struct CloudflareWorkerOperationsView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(worker.id)
-                        .font(.system(size: 20, weight: .heavy))
+                        .font(.system(size: 20, weight: .semibold))
                         .foregroundStyle(.white)
                         .lineLimit(1)
                     Text("CONTROL PLANE")
-                        .font(.system(size: 9, weight: .heavy, design: .monospaced))
+                        .font(.system(size: 9, weight: .semibold, design: .monospaced))
                         .tracking(1.2)
                         .foregroundStyle(CloudflareStyle.orange)
                 }
@@ -363,10 +363,10 @@ struct CloudflareWorkerOperationsView: View {
     private func railValue(_ label: String, _ value: Int) -> some View {
         VStack(spacing: 5) {
             Text(value.formatted())
-                .font(.system(size: 18, weight: .heavy, design: .rounded).monospacedDigit())
+                .font(.system(size: 18, weight: .semibold, design: .default).monospacedDigit())
                 .foregroundStyle(.white)
             Text(label)
-                .font(.system(size: 7, weight: .heavy, design: .monospaced))
+                .font(.system(size: 7, weight: .semibold, design: .monospaced))
                 .tracking(0.8)
                 .foregroundStyle(.white.opacity(0.32))
                 .lineLimit(1)
@@ -398,7 +398,7 @@ struct CloudflareWorkerOperationsView: View {
     private func actionTile(_ title: String, icon: String) -> some View {
         HStack(spacing: 9) {
             Image(systemName: icon)
-                .font(.system(size: 12, weight: .heavy))
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(CloudflareStyle.orange)
             Text(title)
                 .font(.system(size: 13, weight: .bold))
@@ -458,7 +458,7 @@ struct CloudflareWorkerOperationsView: View {
         if let value, !value.isEmpty {
             HStack(alignment: .top, spacing: 12) {
                 Text(title.uppercased())
-                    .font(.system(size: 8, weight: .heavy, design: .monospaced))
+                    .font(.system(size: 8, weight: .semibold, design: .monospaced))
                     .tracking(0.7)
                     .foregroundStyle(.white.opacity(0.3))
                     .frame(width: 105, alignment: .leading)
@@ -606,7 +606,7 @@ private extension CloudflareWorkerOperationsView {
                 ForEach(viewModel.versions) { version in
                     HStack(spacing: 12) {
                         Image(systemName: "shippingbox.and.arrow.backward.fill")
-                            .font(.system(size: 12, weight: .heavy))
+                            .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(CloudflareStyle.green)
                             .frame(width: 36, height: 36)
                             .background(CloudflareStyle.green.opacity(0.11))
@@ -645,7 +645,7 @@ private extension CloudflareWorkerOperationsView {
                                 pendingDeployment = version
                             } label: {
                                 Image(systemName: "paperplane.fill")
-                                    .font(.system(size: 12, weight: .heavy))
+                                    .font(.system(size: 12, weight: .semibold))
                                     .foregroundStyle(CloudflareStyle.orange)
                                     .frame(width: 34, height: 34)
                                     .background(CloudflareStyle.orange.opacity(0.11))
@@ -1000,12 +1000,12 @@ private func workerEditorShell<Content: View>(
 ) -> some View {
     NavigationStack {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(title)
-                            .font(.system(size: 22, weight: .heavy))
+                            .font(.system(size: 22, weight: .semibold))
                             .foregroundStyle(.white)
                         Text(subtitle)
                             .font(.system(size: 11, weight: .medium))
@@ -1108,7 +1108,7 @@ private struct CloudflareWorkerVersionDetailView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
             if viewModel.isLoading {
                 ProgressView().tint(CloudflareStyle.orange)
             } else if let error = viewModel.error {
@@ -1118,7 +1118,7 @@ private struct CloudflareWorkerVersionDetailView: View {
                     VStack(spacing: 16) {
                         VStack(alignment: .leading, spacing: 8) {
                             Text(detail.number.map { "VERSION \($0)" } ?? "WORKER VERSION")
-                                .font(.system(size: 9, weight: .heavy, design: .monospaced))
+                                .font(.system(size: 9, weight: .semibold, design: .monospaced))
                                 .tracking(1.1)
                                 .foregroundStyle(CloudflareStyle.orange)
                             Text(detail.id)
@@ -1239,7 +1239,7 @@ private struct CloudflareWorkerContentView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
             if viewModel.isLoading {
                 ProgressView().tint(CloudflareStyle.orange)
             } else if let error = viewModel.error {
@@ -1378,7 +1378,7 @@ private struct CloudflareWorkerLiveTailView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
             VStack(spacing: 0) {
                 HStack(spacing: 9) {
                     Circle()
@@ -1389,7 +1389,7 @@ private struct CloudflareWorkerLiveTailView: View {
                         .foregroundStyle(.white.opacity(0.58))
                     Spacer()
                     Text("\(viewModel.lines.count) EVENTS")
-                        .font(.system(size: 8, weight: .heavy, design: .monospaced))
+                        .font(.system(size: 8, weight: .semibold, design: .monospaced))
                         .tracking(0.7)
                         .foregroundStyle(.white.opacity(0.3))
                 }
@@ -1418,7 +1418,7 @@ private struct CloudflareWorkerLiveTailView: View {
                                 ForEach(viewModel.lines) { line in
                                     VStack(alignment: .leading, spacing: 5) {
                                         Text(line.timestamp.formatted(date: .omitted, time: .standard))
-                                            .font(.system(size: 8, weight: .heavy, design: .monospaced))
+                                            .font(.system(size: 8, weight: .semibold, design: .monospaced))
                                             .foregroundStyle(CloudflareStyle.orange.opacity(0.7))
                                         Text(line.text)
                                             .font(.system(size: 9, weight: .medium, design: .monospaced))

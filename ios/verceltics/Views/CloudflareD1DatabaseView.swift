@@ -96,7 +96,7 @@ struct CloudflareD1DatabaseView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
 
             ScrollView {
                 VStack(spacing: 16) {
@@ -141,7 +141,7 @@ struct CloudflareD1DatabaseView: View {
     private var header: some View {
         HStack(alignment: .top, spacing: 13) {
             Image(systemName: "cylinder.split.1x2.fill")
-                .font(.system(size: 20, weight: .heavy))
+                .font(.system(size: 20, weight: .semibold))
                 .foregroundStyle(.black.opacity(0.82))
                 .frame(width: 46, height: 46)
                 .background(
@@ -155,7 +155,7 @@ struct CloudflareD1DatabaseView: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(viewModel.database.name)
-                    .font(.system(size: 21, weight: .heavy))
+                    .font(.system(size: 21, weight: .semibold))
                     .foregroundStyle(.white)
                     .lineLimit(1)
                 Text("Cloudflare D1 · SQLite")
@@ -314,7 +314,7 @@ private struct CloudflareD1ResultTable: View {
                 GridRow {
                     ForEach(columns, id: \.self) { column in
                         Text(column.uppercased())
-                            .font(.system(size: 9, weight: .heavy, design: .monospaced))
+                            .font(.system(size: 9, weight: .semibold, design: .monospaced))
                             .foregroundStyle(CloudflareStyle.orange)
                             .frame(minWidth: 100, alignment: .leading)
                             .padding(.vertical, 11)

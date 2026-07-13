@@ -73,7 +73,7 @@ struct CloudflareR2BucketView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
 
             ScrollView {
                 VStack(spacing: 16) {
@@ -112,7 +112,7 @@ struct CloudflareR2BucketView: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 13) {
                 Image(systemName: "shippingbox.fill")
-                    .font(.system(size: 20, weight: .heavy))
+                    .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(.black.opacity(0.82))
                     .frame(width: 46, height: 46)
                     .background(
@@ -126,7 +126,7 @@ struct CloudflareR2BucketView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(viewModel.bucket.name)
-                        .font(.system(size: 21, weight: .heavy))
+                        .font(.system(size: 21, weight: .semibold))
                         .foregroundStyle(.white)
                         .lineLimit(1)
                     Text("Cloudflare R2 bucket")
@@ -199,7 +199,7 @@ struct CloudflareR2BucketView: View {
                 } label: {
                     HStack(spacing: 12) {
                         Text(operation.method.rawValue)
-                            .font(.system(size: 8, weight: .heavy, design: .monospaced))
+                            .font(.system(size: 8, weight: .semibold, design: .monospaced))
                             .foregroundStyle(CloudflareStyle.orange)
                             .frame(width: 38, height: 27)
                             .background(CloudflareStyle.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 7))
@@ -214,7 +214,7 @@ struct CloudflareR2BucketView: View {
                         }
                         Spacer()
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 9, weight: .heavy))
+                            .font(.system(size: 9, weight: .semibold))
                             .foregroundStyle(.white.opacity(0.24))
                     }
                     .padding(14)

@@ -132,7 +132,7 @@ struct CloudflareSecurityCenterView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
             ScrollView {
                 VStack(spacing: 16) {
                     postureRail
@@ -279,10 +279,10 @@ struct CloudflareSecurityCenterView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(zone.name)
-                        .font(.system(size: 20, weight: .heavy))
+                        .font(.system(size: 20, weight: .semibold))
                         .foregroundStyle(.white)
                     Text("SECURITY CONTROL PLANE")
-                        .font(.system(size: 8, weight: .heavy, design: .monospaced))
+                        .font(.system(size: 8, weight: .semibold, design: .monospaced))
                         .tracking(1.1)
                         .foregroundStyle(CloudflareStyle.orange)
                 }
@@ -307,10 +307,10 @@ struct CloudflareSecurityCenterView: View {
     private func postureValue(_ title: String, _ value: Int) -> some View {
         VStack(spacing: 4) {
             Text(value.formatted())
-                .font(.system(size: 18, weight: .heavy, design: .rounded).monospacedDigit())
+                .font(.system(size: 18, weight: .semibold, design: .default).monospacedDigit())
                 .foregroundStyle(.white)
             Text(title)
-                .font(.system(size: 7, weight: .heavy, design: .monospaced))
+                .font(.system(size: 7, weight: .semibold, design: .monospaced))
                 .tracking(0.7)
                 .foregroundStyle(.white.opacity(0.3))
         }
@@ -323,7 +323,7 @@ struct CloudflareSecurityCenterView: View {
     private var securityLevelPanel: some View {
         HStack(spacing: 12) {
             Image(systemName: "shield.lefthalf.filled")
-                .font(.system(size: 15, weight: .heavy))
+                .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(CloudflareStyle.orange)
                 .frame(width: 40, height: 40)
                 .background(CloudflareStyle.orange.opacity(0.11))
@@ -502,7 +502,7 @@ private struct CloudflareRulesetDetailView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
             ScrollView {
                 VStack(spacing: 16) {
                     CloudflareSecurityItemDetailCard(item: viewModel.ruleset)
@@ -562,13 +562,13 @@ private struct CloudflareSecurityItemDetailView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
             ScrollView {
                 VStack(spacing: 16) {
                     CloudflareSecurityItemDetailCard(item: item)
                     VStack(alignment: .leading, spacing: 10) {
                         Text("RAW RETURNED CONFIGURATION")
-                            .font(.system(size: 9, weight: .heavy, design: .monospaced))
+                            .font(.system(size: 9, weight: .semibold, design: .monospaced))
                             .tracking(0.9)
                             .foregroundStyle(CloudflareStyle.orange)
                         Text(prettySecurityJSON(item.raw))
@@ -596,14 +596,14 @@ private struct CloudflareSecurityItemDetailCard: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top) {
                 Image(systemName: "shield.checkered")
-                    .font(.system(size: 17, weight: .heavy))
+                    .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(CloudflareStyle.orange)
                     .frame(width: 42, height: 42)
                     .background(CloudflareStyle.orange.opacity(0.11))
                     .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
                 VStack(alignment: .leading, spacing: 4) {
                     Text(item.title)
-                        .font(.system(size: 18, weight: .heavy))
+                        .font(.system(size: 18, weight: .semibold))
                         .foregroundStyle(.white)
                     if let subtitle = item.subtitle {
                         Text(subtitle)
@@ -643,12 +643,12 @@ private struct CloudflareAccessRuleEditor: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.black.ignoresSafeArea()
+                AppTheme.canvas.ignoresSafeArea()
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
                         VStack(alignment: .leading, spacing: 5) {
                             Text("Add IP access rule")
-                                .font(.system(size: 22, weight: .heavy))
+                                .font(.system(size: 22, weight: .semibold))
                                 .foregroundStyle(.white)
                             Text("The action applies immediately to matching requests for this zone.")
                                 .font(.system(size: 11, weight: .medium))
@@ -713,7 +713,7 @@ private struct CloudflareAccessRuleEditor: View {
     private func pickerPanel(_ title: String, values: [String], selection: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(.system(size: 8, weight: .heavy, design: .monospaced))
+                .font(.system(size: 8, weight: .semibold, design: .monospaced))
                 .tracking(0.8)
                 .foregroundStyle(.white.opacity(0.35))
             Picker(title, selection: selection) {

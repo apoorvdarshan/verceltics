@@ -214,7 +214,7 @@ struct CloudflareZoneOperationsView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
 
             ScrollView {
                 VStack(spacing: 16) {
@@ -300,7 +300,7 @@ struct CloudflareZoneOperationsView: View {
         VStack(alignment: .leading, spacing: 15) {
             HStack(alignment: .top, spacing: 13) {
                 Image(systemName: "globe.americas.fill")
-                    .font(.system(size: 21, weight: .heavy))
+                    .font(.system(size: 21, weight: .semibold))
                     .foregroundStyle(.black.opacity(0.82))
                     .frame(width: 48, height: 48)
                     .background(
@@ -314,14 +314,14 @@ struct CloudflareZoneOperationsView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(viewModel.zone.name)
-                        .font(.system(size: 21, weight: .heavy))
+                        .font(.system(size: 21, weight: .semibold))
                         .foregroundStyle(.white)
                         .lineLimit(2)
                     Text(viewModel.zone.account?.name ?? "Cloudflare zone")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.38))
                     Text("DNS & EDGE CONTROL")
-                        .font(.system(size: 9, weight: .heavy))
+                        .font(.system(size: 9, weight: .semibold))
                         .tracking(1.0)
                         .foregroundStyle(CloudflareStyle.orange.opacity(0.82))
                 }
@@ -355,13 +355,13 @@ struct CloudflareZoneOperationsView: View {
         VStack(spacing: 12) {
             HStack {
                 Text("DNS · LAST 24 HOURS")
-                    .font(.system(size: 10, weight: .heavy))
+                    .font(.system(size: 10, weight: .semibold))
                     .tracking(1.0)
                     .foregroundStyle(.white.opacity(0.44))
                 Spacer()
                 if let analytics = viewModel.dnsAnalytics {
                     Text("lag \(Int(analytics.dataLag))s")
-                        .font(.system(size: 9, weight: .heavy).monospacedDigit())
+                        .font(.system(size: 9, weight: .semibold).monospacedDigit())
                         .foregroundStyle(.white.opacity(0.28))
                 }
             }
@@ -522,7 +522,7 @@ struct CloudflareZoneOperationsView: View {
                     } label: {
                         HStack(spacing: 11) {
                             Image(systemName: settingIcon(setting.id))
-                                .font(.system(size: 11, weight: .heavy))
+                                .font(.system(size: 11, weight: .semibold))
                                 .foregroundStyle(setting.editable ? CloudflareStyle.orange : .white.opacity(0.28))
                                 .frame(width: 34, height: 34)
                                 .background(Color.white.opacity(0.045))
@@ -743,12 +743,12 @@ private struct CloudflareZoneSettingEditor: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
             ScrollView {
                 VStack(spacing: 16) {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(displayName.uppercased())
-                            .font(.system(size: 10, weight: .heavy))
+                            .font(.system(size: 10, weight: .semibold))
                             .tracking(1.0)
                             .foregroundStyle(CloudflareStyle.orange)
                         Text("Current value: \(setting.value.operationsDisplayText)")
@@ -770,7 +770,7 @@ private struct CloudflareZoneSettingEditor: View {
                         HStack(spacing: 8) {
                             if isSaving { ProgressView().controlSize(.small).tint(.black) }
                             Text(isSaving ? "Saving" : "Save setting")
-                                .font(.system(size: 13, weight: .heavy))
+                                .font(.system(size: 13, weight: .semibold))
                         }
                         .foregroundStyle(.black)
                         .frame(maxWidth: .infinity)
@@ -926,7 +926,7 @@ private struct CloudflareZoneDNSSettingsEditor: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
             ScrollView {
                 VStack(spacing: 16) {
                     CloudflareWriteNotice()
@@ -945,7 +945,7 @@ private struct CloudflareZoneDNSSettingsEditor: View {
                         Divider().overlay(Color.white.opacity(0.06))
                         VStack(alignment: .leading, spacing: 9) {
                             Text("ZONE MODE")
-                                .font(.system(size: 9, weight: .heavy))
+                                .font(.system(size: 9, weight: .semibold))
                                 .tracking(0.8)
                                 .foregroundStyle(.white.opacity(0.34))
                             Picker("Zone mode", selection: $zoneMode) {
@@ -959,7 +959,7 @@ private struct CloudflareZoneDNSSettingsEditor: View {
                         Divider().overlay(Color.white.opacity(0.055)).padding(.horizontal, 16)
                         VStack(alignment: .leading, spacing: 8) {
                             Text("NAMESERVER TTL · 30–86,400 SECONDS")
-                                .font(.system(size: 9, weight: .heavy))
+                                .font(.system(size: 9, weight: .semibold))
                                 .tracking(0.8)
                                 .foregroundStyle(.white.opacity(0.34))
                             TextField("86400", text: $nameServerTTL)
@@ -989,7 +989,7 @@ private struct CloudflareZoneDNSSettingsEditor: View {
                         HStack(spacing: 8) {
                             if isSaving { ProgressView().controlSize(.small).tint(.black) }
                             Text(isSaving ? "Saving" : "Save DNS settings")
-                                .font(.system(size: 13, weight: .heavy))
+                                .font(.system(size: 13, weight: .semibold))
                         }
                         .foregroundStyle(.black)
                         .frame(maxWidth: .infinity)

@@ -8,7 +8,7 @@ struct RegistrarDomainDetailView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
             ScrollView {
                 VStack(spacing: 16) {
                     hero
@@ -47,17 +47,17 @@ struct RegistrarDomainDetailView: View {
             HStack(spacing: 13) {
                 RegistrarMark(provider: provider, size: 54)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(domain.name).font(.system(size: 20, weight: .heavy)).lineLimit(2)
+                    Text(domain.name).font(.system(size: 20, weight: .semibold)).lineLimit(2)
                     Text(domain.status?.uppercased() ?? provider.displayName.uppercased())
-                        .font(.system(size: 8, weight: .heavy)).tracking(0.9).foregroundStyle(provider.accentColor)
+                        .font(.system(size: 8, weight: .semibold)).tracking(0.9).foregroundStyle(provider.accentColor)
                 }
                 Spacer()
             }
 
             HStack(alignment: .lastTextBaseline) {
                 Text(domain.daysUntilExpiry.map { max(0, $0).formatted() } ?? "—")
-                    .font(.system(size: 42, weight: .black).monospacedDigit())
-                Text("days left").font(.system(size: 11, weight: .heavy)).foregroundStyle(.white.opacity(0.38))
+                    .font(.system(size: 42, weight: .bold).monospacedDigit())
+                Text("days left").font(.system(size: 11, weight: .semibold)).foregroundStyle(.white.opacity(0.38))
                 Spacer()
                 if let date = domain.expiresAt {
                     Text(date.formatted(date: .abbreviated, time: .omitted))
@@ -97,7 +97,7 @@ struct RegistrarDomainDetailView: View {
     private var nameservers: some View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Nameservers", systemImage: "server.rack")
-                .font(.system(size: 12, weight: .heavy)).foregroundStyle(provider.accentColor)
+                .font(.system(size: 12, weight: .semibold)).foregroundStyle(provider.accentColor)
             if domain.nameservers.isEmpty {
                 Text("The list endpoint did not include nameservers. Open the API explorer for the domain detail or DNS route.")
                     .font(.system(size: 10, weight: .semibold)).foregroundStyle(.white.opacity(0.38))
@@ -114,10 +114,10 @@ struct RegistrarDomainDetailView: View {
 
     private func property(_ title: String, value: String, icon: String) -> some View {
         HStack(spacing: 12) {
-            Image(systemName: icon).font(.system(size: 11, weight: .heavy)).foregroundStyle(provider.accentColor).frame(width: 22)
+            Image(systemName: icon).font(.system(size: 11, weight: .semibold)).foregroundStyle(provider.accentColor).frame(width: 22)
             Text(title).font(.system(size: 12, weight: .semibold)).foregroundStyle(.white.opacity(0.58))
             Spacer()
-            Text(value).font(.system(size: 11, weight: .heavy)).foregroundStyle(.white.opacity(0.82))
+            Text(value).font(.system(size: 11, weight: .semibold)).foregroundStyle(.white.opacity(0.82))
         }
         .padding(.horizontal, 15).padding(.vertical, 13)
     }

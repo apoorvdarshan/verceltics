@@ -136,7 +136,7 @@ struct CloudflareAPIExplorerView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
 
             ScrollView {
                 VStack(spacing: 16) {
@@ -241,7 +241,7 @@ struct CloudflareAPIExplorerView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("RELATIVE PATH")
-                    .font(.system(size: 9, weight: .heavy))
+                    .font(.system(size: 9, weight: .semibold))
                     .tracking(0.8)
                     .foregroundStyle(.white.opacity(0.34))
                 HStack(spacing: 0) {
@@ -306,10 +306,10 @@ struct CloudflareAPIExplorerView: View {
                         ProgressView().controlSize(.small).tint(.black)
                     } else {
                         Image(systemName: "paperplane.fill")
-                            .font(.system(size: 10, weight: .heavy))
+                            .font(.system(size: 10, weight: .semibold))
                     }
                     Text(viewModel.isExecuting ? "Sending" : "Execute \(viewModel.method.rawValue)")
-                        .font(.system(size: 13, weight: .heavy))
+                        .font(.system(size: 13, weight: .semibold))
                 }
                 .foregroundStyle(.black.opacity(0.84))
                 .frame(maxWidth: .infinity)
@@ -328,7 +328,7 @@ struct CloudflareAPIExplorerView: View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 7) {
                 Text("CONTENT TYPE")
-                    .font(.system(size: 9, weight: .heavy))
+                    .font(.system(size: 9, weight: .semibold))
                     .tracking(0.8)
                     .foregroundStyle(.white.opacity(0.34))
                 TextField("application/json", text: $viewModel.contentType)
@@ -389,7 +389,7 @@ struct CloudflareAPIExplorerView: View {
                     }
                 } label: {
                     Text(method.rawValue)
-                        .font(.system(size: 9, weight: .heavy, design: .monospaced))
+                        .font(.system(size: 9, weight: .semibold, design: .monospaced))
                         .foregroundStyle(viewModel.method == method ? .black.opacity(0.82) : .white.opacity(0.42))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 9)
@@ -451,7 +451,7 @@ struct CloudflareAPIExplorerView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text(label)
-                    .font(.system(size: 9, weight: .heavy))
+                    .font(.system(size: 9, weight: .semibold))
                     .tracking(0.8)
                     .foregroundStyle(.white.opacity(0.34))
                 Spacer()
@@ -494,7 +494,7 @@ struct CloudflareAPIExplorerView: View {
                 Image(systemName: responseIsSuccess(response) ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
                     .foregroundStyle(responseColor(response))
                 Text("HTTP \(response.statusCode)")
-                    .font(.system(size: 13, weight: .heavy, design: .monospaced))
+                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
                     .foregroundStyle(.white.opacity(0.82))
                 if let elapsedMilliseconds = viewModel.elapsedMilliseconds {
                     Text("\(elapsedMilliseconds) ms")
@@ -537,12 +537,12 @@ struct CloudflareAPIExplorerView: View {
             } label: {
                 HStack {
                     Text("RESPONSE HEADERS · \(response.headers.count)")
-                        .font(.system(size: 9, weight: .heavy))
+                        .font(.system(size: 9, weight: .semibold))
                         .tracking(0.7)
                         .foregroundStyle(.white.opacity(0.34))
                     Spacer()
                     Image(systemName: "chevron.down")
-                        .font(.system(size: 9, weight: .heavy))
+                        .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.3))
                         .rotationEffect(.degrees(showingHeaders ? 180 : 0))
                 }

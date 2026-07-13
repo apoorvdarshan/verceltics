@@ -85,7 +85,7 @@ struct CloudflareFullAPICatalogView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
             if viewModel.isLoading {
                 CloudflareLoadingView()
             } else if let error = viewModel.error {
@@ -119,7 +119,7 @@ struct CloudflareFullAPICatalogView: View {
         VStack(alignment: .leading, spacing: 15) {
             HStack(alignment: .top, spacing: 13) {
                 Image(systemName: "point.3.filled.connected.trianglepath.dotted")
-                    .font(.system(size: 20, weight: .heavy))
+                    .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(.black.opacity(0.82))
                     .frame(width: 48, height: 48)
                     .background(
@@ -132,7 +132,7 @@ struct CloudflareFullAPICatalogView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Official API directory")
-                        .font(.system(size: 21, weight: .heavy))
+                        .font(.system(size: 21, weight: .semibold))
                         .foregroundStyle(.white)
                     Text("Generated from Cloudflare’s OpenAPI schema")
                         .font(.system(size: 11, weight: .semibold))
@@ -160,10 +160,10 @@ struct CloudflareFullAPICatalogView: View {
     private func catalogMetric(_ label: String, _ value: Int) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(value.formatted())
-                .font(.system(size: 18, weight: .heavy, design: .rounded).monospacedDigit())
+                .font(.system(size: 18, weight: .semibold, design: .default).monospacedDigit())
                 .foregroundStyle(.white)
             Text(label)
-                .font(.system(size: 7, weight: .heavy))
+                .font(.system(size: 7, weight: .semibold))
                 .tracking(0.5)
                 .foregroundStyle(.white.opacity(0.28))
                 .lineLimit(1)
@@ -180,7 +180,7 @@ struct CloudflareFullAPICatalogView: View {
                     filter = item
                 } label: {
                     Text(item.rawValue.uppercased())
-                        .font(.system(size: 9, weight: .heavy))
+                        .font(.system(size: 9, weight: .semibold))
                         .tracking(0.6)
                         .foregroundStyle(filter == item ? .black : .white.opacity(0.45))
                         .frame(maxWidth: .infinity)
@@ -214,7 +214,7 @@ struct CloudflareFullAPICatalogView: View {
                 } label: {
                     HStack(spacing: 12) {
                         Text(String(tag.name.prefix(2)).uppercased())
-                            .font(.system(size: 9, weight: .heavy, design: .monospaced))
+                            .font(.system(size: 9, weight: .semibold, design: .monospaced))
                             .foregroundStyle(CloudflareStyle.orange)
                             .frame(width: 37, height: 37)
                             .background(CloudflareStyle.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 10))
@@ -228,7 +228,7 @@ struct CloudflareFullAPICatalogView: View {
                         }
                         Spacer()
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 9, weight: .heavy))
+                            .font(.system(size: 9, weight: .semibold))
                             .foregroundStyle(.white.opacity(0.23))
                     }
                     .padding(13)
@@ -300,7 +300,7 @@ private struct CloudflareAPITagView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
             ScrollView {
                 LazyVStack(spacing: 0) {
                     ForEach(Array(visibleOperations.enumerated()), id: \.element.id) { index, operation in
@@ -349,7 +349,7 @@ private struct CloudflareOpenAPIOperationRow: View {
     var body: some View {
         HStack(spacing: 11) {
             Text(operation.method.rawValue)
-                .font(.system(size: 8, weight: .heavy, design: .monospaced))
+                .font(.system(size: 8, weight: .semibold, design: .monospaced))
                 .foregroundStyle(methodColor)
                 .frame(width: 39, height: 28)
                 .background(methodColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 7))
@@ -366,11 +366,11 @@ private struct CloudflareOpenAPIOperationRow: View {
             Spacer(minLength: 6)
             if operation.deprecated {
                 Text("OLD")
-                    .font(.system(size: 7, weight: .heavy))
+                    .font(.system(size: 7, weight: .semibold))
                     .foregroundStyle(CloudflareStyle.amber)
             }
             Image(systemName: "chevron.right")
-                .font(.system(size: 9, weight: .heavy))
+                .font(.system(size: 9, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.22))
         }
         .padding(13)
@@ -458,7 +458,7 @@ private struct CloudflareGeneratedOperationView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
             ScrollView {
                 VStack(spacing: 16) {
                     operationHeader
@@ -470,7 +470,7 @@ private struct CloudflareGeneratedOperationView: View {
                         CloudflareAPIExplorerView(api: api, accountID: accountID, preset: requestPreset)
                     } label: {
                         Label("Review and execute request", systemImage: "arrow.right.circle.fill")
-                            .font(.system(size: 13, weight: .heavy))
+                            .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(.black.opacity(0.84))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
@@ -495,13 +495,13 @@ private struct CloudflareGeneratedOperationView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text(operation.method.rawValue)
-                    .font(.system(size: 11, weight: .heavy, design: .monospaced))
+                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
                     .foregroundStyle(.black.opacity(0.82))
                     .padding(.horizontal, 11)
                     .padding(.vertical, 7)
                     .background(CloudflareStyle.orange, in: RoundedRectangle(cornerRadius: 8))
                 Text(operation.primaryTag.uppercased())
-                    .font(.system(size: 9, weight: .heavy))
+                    .font(.system(size: 9, weight: .semibold))
                     .tracking(0.6)
                     .foregroundStyle(.white.opacity(0.34))
                 Spacer()
@@ -510,7 +510,7 @@ private struct CloudflareGeneratedOperationView: View {
                 }
             }
             Text(operation.summary)
-                .font(.system(size: 20, weight: .heavy))
+                .font(.system(size: 20, weight: .semibold))
                 .foregroundStyle(.white)
             Text(operation.path)
                 .font(.system(size: 10, weight: .semibold, design: .monospaced))
@@ -530,7 +530,7 @@ private struct CloudflareGeneratedOperationView: View {
     private var permissionPanel: some View {
         VStack(alignment: .leading, spacing: 9) {
             Text("REQUIRED TOKEN PERMISSIONS")
-                .font(.system(size: 9, weight: .heavy))
+                .font(.system(size: 9, weight: .semibold))
                 .tracking(0.8)
                 .foregroundStyle(.white.opacity(0.34))
             ForEach(operation.permissions, id: \.self) { permission in
@@ -581,14 +581,14 @@ private struct CloudflareGeneratedOperationView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 7) {
                 Text(parameter.location.rawValue.uppercased())
-                    .font(.system(size: 7, weight: .heavy, design: .monospaced))
+                    .font(.system(size: 7, weight: .semibold, design: .monospaced))
                     .foregroundStyle(CloudflareStyle.orange)
                 Text(parameter.name)
                     .font(.system(size: 11, weight: .bold, design: .monospaced))
                     .foregroundStyle(.white.opacity(0.72))
                 if parameter.required {
                     Text("REQUIRED")
-                        .font(.system(size: 7, weight: .heavy))
+                        .font(.system(size: 7, weight: .semibold))
                         .foregroundStyle(CloudflareStyle.red.opacity(0.8))
                 }
                 Spacer()
@@ -651,7 +651,7 @@ private struct CloudflareGeneratedOperationView: View {
                                 .foregroundStyle(.white.opacity(0.62))
                             Spacer()
                             Text(field.required ? "REQUIRED" : (field.format ?? field.type ?? "FIELD").uppercased())
-                                .font(.system(size: 7, weight: .heavy))
+                                .font(.system(size: 7, weight: .semibold))
                                 .foregroundStyle(.white.opacity(0.25))
                         }
                     }

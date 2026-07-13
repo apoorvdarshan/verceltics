@@ -70,7 +70,7 @@ struct ProjectsView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.black.ignoresSafeArea()
+                AppTheme.canvas.ignoresSafeArea()
 
                 if vm.isLoading {
                     ProjectsSkeletonView()
@@ -225,7 +225,6 @@ struct ProjectCard: View {
     let project: Project
     var appearDelay: Double = 0
     @State private var pulse = false
-    @State private var hasAppeared = false
 
     private var isFreshDeploy: Bool {
         guard let date = project.lastDeployment?.date else { return false }
@@ -273,7 +272,6 @@ struct ProjectCard: View {
                             Circle()
                                 .fill(Color(red: 0.30, green: 0.85, blue: 0.55))
                                 .frame(width: 6, height: 6)
-                                .shadow(color: Color(red: 0.30, green: 0.85, blue: 0.55).opacity(0.5), radius: 3)
                                 .opacity(pulse ? 0.45 : 1.0)
                                 .animation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true), value: pulse)
                                 .onAppear { pulse = true }
@@ -292,7 +290,7 @@ struct ProjectCard: View {
                 Spacer()
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .heavy))
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.18))
             }
 
@@ -301,7 +299,7 @@ struct ProjectCard: View {
                 if let link = project.link, let org = link.org, let repo = link.repo {
                     HStack(spacing: 5) {
                         Image(systemName: "chevron.left.forwardslash.chevron.right")
-                            .font(.system(size: 8, weight: .heavy))
+                            .font(.system(size: 8, weight: .semibold))
                         Text("\(org)/\(repo)")
                             .font(.system(size: 11, weight: .semibold))
                             .lineLimit(1)
@@ -318,7 +316,7 @@ struct ProjectCard: View {
                 if let scope = project.sourceScope, scope.isTeam {
                     HStack(spacing: 5) {
                         Image(systemName: "person.3.fill")
-                            .font(.system(size: 8, weight: .heavy))
+                            .font(.system(size: 8, weight: .semibold))
                         Text(scope.name)
                             .font(.system(size: 11, weight: .semibold))
                             .lineLimit(1)
@@ -336,7 +334,6 @@ struct ProjectCard: View {
                         Circle()
                             .fill(frameworkColor(framework))
                             .frame(width: 5, height: 5)
-                            .shadow(color: frameworkColor(framework).opacity(0.5), radius: 2)
                         Text(framework.capitalized)
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(.white.opacity(0.4))
@@ -357,11 +354,11 @@ struct ProjectCard: View {
                     if let date = deployment.date {
                         HStack(spacing: 5) {
                             Image(systemName: "clock")
-                                .font(.system(size: 8, weight: .heavy))
+                                .font(.system(size: 8, weight: .semibold))
                             Text(date.formatted(.relative(presentation: .named)))
                             Text("·")
                             Image(systemName: "arrow.triangle.branch")
-                                .font(.system(size: 8, weight: .heavy))
+                                .font(.system(size: 8, weight: .semibold))
                             Text("main")
                         }
                         .font(.system(size: 11, weight: .semibold))
@@ -371,38 +368,7 @@ struct ProjectCard: View {
             }
         }
         .padding(16)
-        .background(
-            ZStack {
-                LinearGradient(
-                    colors: [Color.white.opacity(0.07), Color.white.opacity(0.02)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                LinearGradient(
-                    colors: [Color.white.opacity(0.04), .clear],
-                    startPoint: .top,
-                    endPoint: .center
-                )
-            }
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.12), Color.white.opacity(0.04)],
-                        startPoint: .top, endPoint: .bottom
-                    ),
-                    lineWidth: 0.5
-                )
-        )
-        .opacity(hasAppeared ? 1 : 0)
-        .offset(y: hasAppeared ? 0 : 10)
-        .onAppear {
-            withAnimation(.spring(response: 0.55, dampingFraction: 0.85).delay(appearDelay)) {
-                hasAppeared = true
-            }
-        }
+        .providerSurface(accent: AppTheme.textSecondary)
     }
 }
 
@@ -582,7 +548,7 @@ struct ProjectIcon: View {
                 .frame(width: 40, height: 40)
 
             Text(String(name.prefix(1)).uppercased())
-                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .font(.system(size: 18, weight: .bold, design: .default))
                 .foregroundStyle(.white)
         }
     }

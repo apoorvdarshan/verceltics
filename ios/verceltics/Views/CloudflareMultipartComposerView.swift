@@ -61,7 +61,7 @@ struct CloudflareMultipartComposerView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
             ScrollView {
                 VStack(spacing: 16) {
                     composerHeader
@@ -98,13 +98,13 @@ struct CloudflareMultipartComposerView: View {
     private var composerHeader: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "shippingbox.and.arrow.backward.fill")
-                .font(.system(size: 17, weight: .heavy))
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(.black.opacity(0.82))
                 .frame(width: 43, height: 43)
                 .background(CloudflareStyle.orange, in: RoundedRectangle(cornerRadius: 12))
             VStack(alignment: .leading, spacing: 4) {
                 Text("Build the upload on-device")
-                    .font(.system(size: 16, weight: .heavy))
+                    .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(.white)
                 Text("Files are read locally, encoded into the request, and never stored by the app.")
                     .font(.system(size: 10, weight: .medium))
@@ -141,7 +141,7 @@ struct CloudflareMultipartComposerView: View {
                     .autocorrectionDisabled()
                 if part.isRequired {
                     Text("REQUIRED")
-                        .font(.system(size: 7, weight: .heavy))
+                        .font(.system(size: 7, weight: .semibold))
                         .foregroundStyle(CloudflareStyle.red.opacity(0.8))
                 }
                 if !part.isRequired {
@@ -207,7 +207,7 @@ struct CloudflareMultipartComposerView: View {
             compose()
         } label: {
             Label("Use multipart body", systemImage: "checkmark.circle.fill")
-                .font(.system(size: 13, weight: .heavy))
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.black.opacity(0.84))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)

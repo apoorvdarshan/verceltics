@@ -110,14 +110,14 @@ struct AnalyticsChart: View {
             .pickerStyle(.segmented)
 
             Text(selectedMetric.rawValue.uppercased())
-                .font(.system(size: 10, weight: .heavy))
+                .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.45))
                 .tracking(1.4)
 
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 if let selectedPoint {
                     Text(formatted(selectedPoint.value))
-                        .font(.system(size: 28, weight: .heavy, design: .rounded).monospacedDigit())
+                        .font(.system(size: 28, weight: .semibold, design: .default).monospacedDigit())
                         .foregroundStyle(.white)
                         .contentTransition(.numericText())
 
@@ -131,14 +131,14 @@ struct AnalyticsChart: View {
                         .transition(.opacity)
                 } else {
                     Text(formatted(headlineValue))
-                        .font(.system(size: 28, weight: .heavy, design: .rounded).monospacedDigit())
+                        .font(.system(size: 28, weight: .semibold, design: .default).monospacedDigit())
                         .foregroundStyle(.white)
                         .contentTransition(.numericText())
 
                     if let peakPoint, headlineValue > 0 {
                         HStack(spacing: 4) {
                             Image(systemName: "arrow.up.forward")
-                                .font(.system(size: 8, weight: .heavy))
+                                .font(.system(size: 8, weight: .semibold))
                             Text("Peak \(formatted(peakPoint.value))")
                                 .font(.system(size: 10, weight: .bold).monospacedDigit())
                         }

@@ -118,7 +118,7 @@ struct CloudflarePagesProjectDetailView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
 
             ScrollView {
                 VStack(spacing: 16) {
@@ -184,7 +184,7 @@ struct CloudflarePagesProjectDetailView: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 13) {
                 Image(systemName: "doc.badge.gearshape.fill")
-                    .font(.system(size: 20, weight: .heavy))
+                    .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(.black.opacity(0.82))
                     .frame(width: 46, height: 46)
                     .background(
@@ -198,7 +198,7 @@ struct CloudflarePagesProjectDetailView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(project.name)
-                        .font(.system(size: 21, weight: .heavy))
+                        .font(.system(size: 21, weight: .semibold))
                         .foregroundStyle(.white)
                         .lineLimit(1)
                     Text(project.domains.first ?? project.subdomain ?? "Cloudflare Pages")
@@ -316,7 +316,7 @@ struct CloudflarePagesProjectDetailView: View {
             } label: {
                 HStack(spacing: 12) {
                     Image(systemName: deployment.isSkipped == true ? "forward.fill" : "square.stack.3d.up.fill")
-                        .font(.system(size: 12, weight: .heavy))
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(deploymentColor(deployment))
                         .frame(width: 36, height: 36)
                         .background(deploymentColor(deployment).opacity(0.11))
@@ -386,7 +386,7 @@ struct CloudflarePagesProjectDetailView: View {
             UIApplication.shared.open(url)
         } label: {
             HStack(spacing: 7) {
-                Image(systemName: icon).font(.system(size: 9, weight: .heavy))
+                Image(systemName: icon).font(.system(size: 9, weight: .semibold))
                 Text(title).font(.system(size: 12, weight: .bold))
             }
             .foregroundStyle(.white.opacity(0.78))

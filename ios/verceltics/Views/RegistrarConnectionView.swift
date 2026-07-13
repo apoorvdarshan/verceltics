@@ -28,7 +28,7 @@ struct RegistrarConnectionView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
             if let provider = selectedProvider {
                 credentialView(provider)
             } else {
@@ -43,10 +43,10 @@ struct RegistrarConnectionView: View {
                 LazyVStack(spacing: 12) {
                     VStack(spacing: 8) {
                         Image(systemName: "globe.americas.fill")
-                            .font(.system(size: 38, weight: .black))
+                            .font(.system(size: 38, weight: .bold))
                             .foregroundStyle(Color(red: 0.30, green: 0.67, blue: 1.0))
                         Text("Connect a registrar")
-                            .font(.system(size: 25, weight: .heavy))
+                            .font(.system(size: 25, weight: .semibold))
                         Text("Domains stay separate from hosting accounts")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(.white.opacity(0.42))
@@ -62,7 +62,7 @@ struct RegistrarConnectionView: View {
                                 RegistrarMark(provider: provider, size: 42)
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(provider.displayName)
-                                        .font(.system(size: 15, weight: .heavy))
+                                        .font(.system(size: 15, weight: .semibold))
                                     Text(provider.apiDescription)
                                         .font(.system(size: 10, weight: .semibold))
                                         .foregroundStyle(.white.opacity(0.40))
@@ -70,7 +70,7 @@ struct RegistrarConnectionView: View {
                                 }
                                 Spacer()
                                 Image(systemName: "arrow.right")
-                                    .font(.system(size: 11, weight: .heavy))
+                                    .font(.system(size: 11, weight: .semibold))
                                     .foregroundStyle(.white.opacity(0.30))
                             }
                             .foregroundStyle(.white)
@@ -109,7 +109,7 @@ struct RegistrarConnectionView: View {
                                 }
                             } label: {
                                 Image(systemName: "chevron.left")
-                                    .font(.system(size: 15, weight: .heavy))
+                                    .font(.system(size: 15, weight: .semibold))
                                     .frame(width: 42, height: 42)
                                     .background(Color.white.opacity(0.07))
                                     .clipShape(Circle())
@@ -119,7 +119,7 @@ struct RegistrarConnectionView: View {
                         RegistrarMark(provider: provider, size: 82)
                         VStack(spacing: 6) {
                             Text("Connect \(provider.displayName)")
-                                .font(.system(size: 25, weight: .heavy))
+                                .font(.system(size: 25, weight: .semibold))
                             Text(provider.apiDescription)
                                 .font(.system(size: 12, weight: .semibold))
                                 .foregroundStyle(.white.opacity(0.42))
@@ -161,8 +161,8 @@ struct RegistrarConnectionView: View {
                             HStack(spacing: 9) {
                                 if store.isConnecting { ProgressView().tint(.white) }
                                 else {
-                                    Text("Connect \(provider.displayName)").font(.system(size: 15, weight: .heavy))
-                                    Image(systemName: "arrow.right").font(.system(size: 13, weight: .heavy))
+                                    Text("Connect \(provider.displayName)").font(.system(size: 15, weight: .semibold))
+                                    Image(systemName: "arrow.right").font(.system(size: 13, weight: .semibold))
                                 }
                             }
                             .frame(maxWidth: .infinity)
@@ -193,7 +193,7 @@ struct RegistrarConnectionView: View {
     private func securityCard(_ provider: RegistrarProvider) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Device-only credentials", systemImage: "lock.shield.fill")
-                .font(.system(size: 13, weight: .heavy))
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(provider.accentColor)
             Text(connectionNote(provider))
                 .font(.system(size: 11, weight: .semibold))

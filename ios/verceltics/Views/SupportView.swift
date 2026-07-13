@@ -15,10 +15,10 @@ struct SupportView: View {
 
                     VStack(spacing: 24) {
                         // Free ways to help
-                        SectionCard(title: "WAYS TO HELP") {
+                        SectionCard(title: "Ways to help") {
                             AboutRow(icon: "star.bubble.fill", title: "Rate Verceltics", subtitle: "Tap a star, no App Store needed", action: { requestReview() })
                             ShareAppRow()
-                            AboutRow(icon: "star.fill", title: "Star on GitHub", subtitle: "Help us reach more developers", url: "https://github.com/apoorvdarshan/verceltics")
+                            AboutRow(icon: "star.fill", title: "Star on GitHub", subtitle: "Open the GitHub repository", url: "https://github.com/apoorvdarshan/verceltics")
                             AboutRow(icon: "arrow.up.circle.fill", title: "Upvote on Product Hunt", subtitle: "producthunt.com/products/verceltics", url: "https://www.producthunt.com/products/verceltics")
                         }
 
@@ -30,7 +30,7 @@ struct SupportView: View {
                 .frame(maxWidth: hSize == .regular ? 640 : .infinity)
                 .frame(maxWidth: .infinity)
             }
-            .background(Color.black)
+            .background(AppTheme.canvas)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarColorScheme(.dark, for: .navigationBar)
         }

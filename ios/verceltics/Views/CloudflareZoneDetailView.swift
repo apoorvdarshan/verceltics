@@ -189,7 +189,7 @@ struct CloudflareZoneDetailView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
 
             ScrollView {
                 VStack(spacing: 16) {
@@ -316,7 +316,7 @@ struct CloudflareZoneDetailView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Label("Traffic interval", systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90")
-                    .font(.system(size: 11, weight: .heavy))
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.58))
                 Spacer()
                 if viewModel.isLoading {
@@ -335,7 +335,7 @@ struct CloudflareZoneDetailView: View {
                             }
                         } label: {
                             Text(range.displayName)
-                                .font(.system(size: 10, weight: .heavy).monospacedDigit())
+                                .font(.system(size: 10, weight: .semibold).monospacedDigit())
                                 .foregroundStyle(
                                     viewModel.selectedAnalyticsRange == range ? .black : .white.opacity(0.55)
                                 )
@@ -366,7 +366,7 @@ struct CloudflareZoneDetailView: View {
         VStack(alignment: .leading, spacing: 17) {
             HStack(alignment: .top, spacing: 13) {
                 Image(systemName: "globe.americas.fill")
-                    .font(.system(size: 20, weight: .heavy))
+                    .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(.black.opacity(0.82))
                     .frame(width: 46, height: 46)
                     .background(
@@ -380,7 +380,7 @@ struct CloudflareZoneDetailView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(zone.name)
-                        .font(.system(size: 21, weight: .heavy))
+                        .font(.system(size: 21, weight: .semibold))
                         .foregroundStyle(.white)
                         .lineLimit(1)
                     Text(zone.plan?.name ?? zone.type?.capitalized ?? "Cloudflare zone")
@@ -421,12 +421,12 @@ struct CloudflareZoneDetailView: View {
         VStack(spacing: 12) {
             HStack(spacing: 8) {
                 Text(analytics.chartTitle)
-                    .font(.system(size: 10, weight: .heavy))
+                    .font(.system(size: 10, weight: .semibold))
                     .tracking(1.0)
                     .foregroundStyle(.white.opacity(0.46))
                 Spacer()
                 Text(analytics.granularity.displayName)
-                    .font(.system(size: 9, weight: .heavy))
+                    .font(.system(size: 9, weight: .semibold))
                     .tracking(0.7)
                     .foregroundStyle(CloudflareStyle.orange.opacity(0.82))
                     .padding(.horizontal, 8)
@@ -502,7 +502,7 @@ struct CloudflareZoneDetailView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
                         Text("TRAFFIC TREND")
-                            .font(.system(size: 10, weight: .heavy))
+                            .font(.system(size: 10, weight: .semibold))
                             .tracking(1.0)
                             .foregroundStyle(.white.opacity(0.4))
                         Spacer()
@@ -568,7 +568,7 @@ struct CloudflareZoneDetailView: View {
             VStack(spacing: 12) {
                 HStack {
                     Text("TRAFFIC BREAKDOWNS")
-                        .font(.system(size: 10, weight: .heavy))
+                        .font(.system(size: 10, weight: .semibold))
                         .tracking(1)
                         .foregroundStyle(.white.opacity(0.46))
                     Spacer()
@@ -603,7 +603,7 @@ struct CloudflareZoneDetailView: View {
                     tint: item.threats > 0 ? CloudflareStyle.red : CloudflareStyle.orange
                 ) {
                     Text(analyticsBreakdownValue(item))
-                        .font(.system(size: 12, weight: .heavy, design: .rounded).monospacedDigit())
+                        .font(.system(size: 12, weight: .semibold, design: .default).monospacedDigit())
                         .foregroundStyle(.white.opacity(0.68))
                 }
                 if item.id != items.prefix(12).last?.id {
@@ -700,7 +700,7 @@ struct CloudflareZoneDetailView: View {
     private func dnsRecordRow(_ record: CloudflareDNSRecord) -> some View {
         HStack(spacing: 12) {
             Text(record.type)
-                .font(.system(size: 9, weight: .heavy, design: .monospaced))
+                .font(.system(size: 9, weight: .semibold, design: .monospaced))
                 .foregroundStyle(record.proxied == true ? CloudflareStyle.orange : .white.opacity(0.52))
                 .frame(width: 42, height: 34)
                 .background((record.proxied == true ? CloudflareStyle.orange : .white).opacity(0.09))
@@ -715,7 +715,7 @@ struct CloudflareZoneDetailView: View {
                         .truncationMode(.middle)
                     if record.locked == true {
                         Image(systemName: "lock.fill")
-                            .font(.system(size: 8, weight: .heavy))
+                            .font(.system(size: 8, weight: .semibold))
                             .foregroundStyle(.white.opacity(0.3))
                     }
                 }
@@ -773,7 +773,7 @@ struct CloudflareZoneDetailView: View {
             UIApplication.shared.open(url)
         } label: {
             HStack(spacing: 7) {
-                Image(systemName: icon).font(.system(size: 9, weight: .heavy))
+                Image(systemName: icon).font(.system(size: 9, weight: .semibold))
                 Text(title).font(.system(size: 12, weight: .bold))
             }
             .foregroundStyle(.white.opacity(0.78))
@@ -809,12 +809,12 @@ private struct CloudflareCustomAnalyticsRangeView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
             ScrollView {
                 VStack(spacing: 16) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("CUSTOM TRAFFIC WINDOW")
-                            .font(.system(size: 10, weight: .heavy))
+                            .font(.system(size: 10, weight: .semibold))
                             .tracking(1)
                             .foregroundStyle(CloudflareStyle.orange)
                         Text("Choose any range. Cloudflare will shorten it only when your zone’s plan or dataset retention requires it.")
@@ -846,7 +846,7 @@ private struct CloudflareCustomAnalyticsRangeView: View {
                         HStack(spacing: 8) {
                             if isApplying { ProgressView().controlSize(.small).tint(.black) }
                             Text(isApplying ? "Loading range…" : "Apply range")
-                                .font(.system(size: 14, weight: .heavy))
+                                .font(.system(size: 14, weight: .semibold))
                         }
                         .foregroundStyle(.black)
                         .frame(maxWidth: .infinity)

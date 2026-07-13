@@ -69,17 +69,17 @@ private struct HostingEmptyStateView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.black.ignoresSafeArea()
+                AppTheme.canvas.ignoresSafeArea()
 
                 VStack(spacing: 18) {
                     Image(systemName: "server.rack")
-                        .font(.system(size: 44, weight: .black))
-                        .foregroundStyle(Color(red: 0.30, green: 0.67, blue: 1.0))
+                        .font(.system(size: 44, weight: .bold))
+                        .foregroundStyle(AppTheme.signal)
 
                     VStack(spacing: 7) {
-                        Text("Your hosting, together")
-                            .font(.system(size: 22, weight: .heavy))
-                        Text("Use the account menu at the top left to connect a hosting platform and manage projects, deployments, logs, domains and analytics.")
+                        Text("No hosting account")
+                            .font(.system(size: 22, weight: .semibold))
+                        Text("Use the account menu to connect a hosting platform. Its projects, deployments, logs, domains, and analytics will appear here.")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(.white.opacity(0.42))
                             .multilineTextAlignment(.center)

@@ -38,7 +38,7 @@ struct DeploymentDetailView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
 
             ScrollView {
                 VStack(spacing: 16) {
@@ -69,7 +69,7 @@ struct DeploymentDetailView: View {
 
                 VStack(alignment: .leading, spacing: 5) {
                     Text(project.name)
-                        .font(.system(size: 23, weight: .heavy))
+                        .font(.system(size: 23, weight: .semibold))
                         .foregroundStyle(.white)
                         .lineLimit(1)
 
@@ -193,7 +193,7 @@ struct DeploymentDetailView: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
                 Image(systemName: icon)
-                    .font(.system(size: 11, weight: .heavy))
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.blue)
                     .frame(width: 22, height: 22)
                     .background(Color.blue.opacity(0.12))
@@ -218,13 +218,13 @@ struct DeploymentDetailView: View {
     private func detailRow(icon: String, title: String, value: String) -> some View {
         HStack(spacing: 10) {
             Image(systemName: icon)
-                .font(.system(size: 10, weight: .heavy))
+                .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.35))
                 .frame(width: 18)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.system(size: 10, weight: .heavy))
+                    .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.35))
                     .textCase(.uppercase)
                     .tracking(0.7)
@@ -253,7 +253,7 @@ struct DeploymentDetailView: View {
             VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 7) {
                     Text(event.type)
-                        .font(.system(size: 10, weight: .heavy))
+                        .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(eventColor(event))
                         .textCase(.uppercase)
                         .lineLimit(1)
@@ -282,7 +282,7 @@ struct DeploymentDetailView: View {
         } label: {
             HStack(spacing: 7) {
                 Image(systemName: icon)
-                    .font(.system(size: 10, weight: .heavy))
+                    .font(.system(size: 10, weight: .semibold))
                 Text(title)
                     .font(.system(size: 13, weight: .bold))
             }
@@ -298,7 +298,7 @@ struct DeploymentDetailView: View {
 
     private func statusPill(_ state: String) -> some View {
         Text(state.capitalized)
-            .font(.system(size: 10, weight: .heavy))
+            .font(.system(size: 10, weight: .semibold))
             .foregroundStyle(statusColor(state))
             .padding(.horizontal, 9)
             .padding(.vertical, 5)

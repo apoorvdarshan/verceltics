@@ -3,46 +3,15 @@ import SwiftUI
 enum CloudflareStyle {
     static let orange = Color(red: 0.96, green: 0.42, blue: 0.12)
     static let amber = Color(red: 1.00, green: 0.65, blue: 0.20)
-    static let green = Color(red: 0.30, green: 0.85, blue: 0.55)
-    static let red = Color(red: 1.00, green: 0.35, blue: 0.35)
+    static let green = AppTheme.success
+    static let red = AppTheme.danger
 }
 
 struct CloudflarePanelModifier: ViewModifier {
     var accentOpacity: Double = 0.035
 
     func body(content: Content) -> some View {
-        content
-            .background(
-                ZStack {
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.07), Color.white.opacity(0.02)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                    LinearGradient(
-                        colors: [CloudflareStyle.orange.opacity(accentOpacity), .clear],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.035), .clear],
-                        startPoint: .top,
-                        endPoint: .center
-                    )
-                }
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(
-                        LinearGradient(
-                            colors: [Color.white.opacity(0.13), Color.white.opacity(0.04)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        ),
-                        lineWidth: 0.5
-                    )
-            )
+        content.appSurface()
     }
 }
 
@@ -62,7 +31,7 @@ struct CloudflareSectionHeader: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: icon)
-                .font(.system(size: 10, weight: .heavy))
+                .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(CloudflareStyle.orange)
                 .frame(width: 22, height: 22)
                 .background(CloudflareStyle.orange.opacity(0.12))
@@ -74,7 +43,7 @@ struct CloudflareSectionHeader: View {
 
             if let count {
                 Text(count.formatted())
-                    .font(.system(size: 10, weight: .heavy).monospacedDigit())
+                    .font(.system(size: 10, weight: .semibold).monospacedDigit())
                     .foregroundStyle(.white.opacity(0.4))
                     .padding(.horizontal, 7)
                     .padding(.vertical, 3)
@@ -106,7 +75,7 @@ struct CloudflareResourceRow<Trailing: View>: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 13, weight: .heavy))
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(tint)
                 .frame(width: 36, height: 36)
                 .background(tint.opacity(0.12))
@@ -139,7 +108,7 @@ struct CloudflareResourceRow<Trailing: View>: View {
 struct CloudflareChevron: View {
     var body: some View {
         Image(systemName: "chevron.right")
-            .font(.system(size: 10, weight: .heavy))
+            .font(.system(size: 10, weight: .semibold))
             .foregroundStyle(.white.opacity(0.2))
     }
 }
@@ -158,7 +127,7 @@ struct CloudflareStatusPill: View {
 
     var body: some View {
         Text(text)
-            .font(.system(size: 9, weight: .heavy))
+            .font(.system(size: 9, weight: .semibold))
             .foregroundStyle(color)
             .lineLimit(1)
             .padding(.horizontal, 8)
@@ -179,15 +148,15 @@ struct CloudflareMetricCard: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 6) {
                 Image(systemName: icon)
-                    .font(.system(size: 9, weight: .heavy))
+                    .font(.system(size: 9, weight: .semibold))
                 Text(title.uppercased())
-                    .font(.system(size: 9, weight: .heavy))
+                    .font(.system(size: 9, weight: .semibold))
                     .tracking(0.8)
             }
             .foregroundStyle(.white.opacity(0.42))
 
             Text(value)
-                .font(.system(size: 24, weight: .heavy, design: .rounded).monospacedDigit())
+                .font(.system(size: 24, weight: .semibold, design: .default).monospacedDigit())
                 .foregroundStyle(.white)
                 .lineLimit(1)
                 .minimumScaleFactor(0.65)
@@ -308,7 +277,7 @@ struct CloudflareEdgeHeader: View {
                             )
                         )
                     Image(systemName: "cloud.fill")
-                        .font(.system(size: 21, weight: .black))
+                        .font(.system(size: 21, weight: .bold))
                         .foregroundStyle(.black.opacity(0.82))
                 }
                 .frame(width: 46, height: 46)
@@ -316,7 +285,7 @@ struct CloudflareEdgeHeader: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(accountName)
-                        .font(.system(size: 20, weight: .heavy))
+                        .font(.system(size: 20, weight: .semibold))
                         .foregroundStyle(.white)
                         .lineLimit(1)
                     Text(email)
@@ -340,20 +309,20 @@ struct CloudflareEdgeHeader: View {
             }
         }
         .padding(18)
-        .cloudflarePanel(accentOpacity: 0.09)
+        .providerSurface(accent: CloudflareStyle.orange)
     }
 
     private func edgeNode(value: Int, title: String, icon: String) -> some View {
         VStack(spacing: 5) {
             HStack(spacing: 5) {
                 Image(systemName: icon)
-                    .font(.system(size: 8, weight: .heavy))
+                    .font(.system(size: 8, weight: .semibold))
                 Text(value.formatted())
-                    .font(.system(size: 16, weight: .heavy, design: .rounded).monospacedDigit())
+                    .font(.system(size: 16, weight: .semibold, design: .default).monospacedDigit())
             }
             .foregroundStyle(.white.opacity(0.88))
             Text(title)
-                .font(.system(size: 8, weight: .heavy))
+                .font(.system(size: 8, weight: .semibold))
                 .tracking(0.7)
                 .foregroundStyle(.white.opacity(0.3))
         }
@@ -417,7 +386,7 @@ struct CloudflareActionButton: View {
                         .tint(tint)
                 } else {
                     Image(systemName: icon)
-                        .font(.system(size: 10, weight: .heavy))
+                        .font(.system(size: 10, weight: .semibold))
                 }
                 Text(title)
                     .font(.system(size: 12, weight: .bold))
@@ -471,13 +440,13 @@ struct CloudflareDetailRow: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: icon)
-                .font(.system(size: 10, weight: .heavy))
+                .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.32))
                 .frame(width: 18)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title.uppercased())
-                    .font(.system(size: 9, weight: .heavy))
+                    .font(.system(size: 9, weight: .semibold))
                     .tracking(0.7)
                     .foregroundStyle(.white.opacity(0.32))
                 Text(value)

@@ -85,7 +85,7 @@ struct CloudflarePagesDeploymentDetailView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
             ScrollView {
                 VStack(spacing: 16) {
                     header
@@ -113,7 +113,7 @@ struct CloudflarePagesDeploymentDetailView: View {
         return VStack(alignment: .leading, spacing: 15) {
             HStack(spacing: 13) {
                 Image(systemName: item.isSkipped == true ? "forward.fill" : "square.stack.3d.up.fill")
-                    .font(.system(size: 19, weight: .heavy))
+                    .font(.system(size: 19, weight: .semibold))
                     .foregroundStyle(.black.opacity(0.82))
                     .frame(width: 46, height: 46)
                     .background(
@@ -127,7 +127,7 @@ struct CloudflarePagesDeploymentDetailView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(item.shortID ?? String(item.id.prefix(12)))
-                        .font(.system(size: 18, weight: .heavy, design: .monospaced))
+                        .font(.system(size: 18, weight: .semibold, design: .monospaced))
                         .foregroundStyle(.white)
                     Text(item.branch ?? item.url ?? projectName)
                         .font(.system(size: 11, weight: .semibold))

@@ -203,7 +203,7 @@ struct CloudflareGraphQLDatasetCatalogView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
             ScrollView {
                 LazyVStack(spacing: 15) {
                     scopePanel
@@ -233,7 +233,7 @@ struct CloudflareGraphQLDatasetCatalogView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("LIVE DATASET DISCOVERY")
-                        .font(.system(size: 9, weight: .heavy))
+                        .font(.system(size: 9, weight: .semibold))
                         .tracking(0.8)
                         .foregroundStyle(CloudflareStyle.orange)
                     Text("Availability and limits come from your current Cloudflare plan.")
@@ -250,7 +250,7 @@ struct CloudflareGraphQLDatasetCatalogView: View {
                         Task { await viewModel.selectScope(scope) }
                     } label: {
                         Text(scope.rawValue.uppercased())
-                            .font(.system(size: 9, weight: .heavy))
+                            .font(.system(size: 9, weight: .semibold))
                             .foregroundStyle(viewModel.scope == scope ? .black : .white.opacity(0.44))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 10)
@@ -301,7 +301,7 @@ struct CloudflareGraphQLDatasetCatalogView: View {
                 } label: {
                     HStack(spacing: 11) {
                         Image(systemName: dataset.enabled == false ? "lock.fill" : "waveform.path.ecg")
-                            .font(.system(size: 12, weight: .heavy))
+                            .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(dataset.enabled == false ? .white.opacity(0.25) : CloudflareStyle.orange)
                             .frame(width: 36, height: 36)
                             .background(Color.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 9))
@@ -315,7 +315,7 @@ struct CloudflareGraphQLDatasetCatalogView: View {
                         }
                         Spacer()
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 9, weight: .heavy))
+                            .font(.system(size: 9, weight: .semibold))
                             .foregroundStyle(.white.opacity(0.22))
                     }
                     .padding(13)
@@ -358,7 +358,7 @@ private struct CloudflareGraphQLDatasetDetailView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
             ScrollView {
                 VStack(spacing: 15) {
                     VStack(alignment: .leading, spacing: 10) {
@@ -366,7 +366,7 @@ private struct CloudflareGraphQLDatasetDetailView: View {
                             Image(systemName: "chart.xyaxis.line")
                                 .foregroundStyle(CloudflareStyle.orange)
                             Text(dataset.name)
-                                .font(.system(size: 16, weight: .heavy, design: .monospaced))
+                                .font(.system(size: 16, weight: .semibold, design: .monospaced))
                                 .foregroundStyle(.white)
                             Spacer()
                             CloudflareStatusPill(
@@ -409,7 +409,7 @@ private struct CloudflareGraphQLDatasetDetailView: View {
                         CloudflareAPIExplorerView(api: api, accountID: accountID, preset: preset)
                     } label: {
                         Label("Open generated query", systemImage: "terminal.fill")
-                            .font(.system(size: 13, weight: .heavy))
+                            .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(.black.opacity(0.84))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)

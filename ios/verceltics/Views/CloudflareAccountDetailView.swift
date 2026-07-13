@@ -12,7 +12,7 @@ struct CloudflareAccountDetailView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
 
             ScrollView {
                 VStack(spacing: 16) {
@@ -136,7 +136,7 @@ struct CloudflareAccountDetailView: View {
 
     private func countPill(_ value: Int) -> some View {
         Text(value.formatted())
-            .font(.system(size: 11, weight: .heavy).monospacedDigit())
+            .font(.system(size: 11, weight: .semibold).monospacedDigit())
             .foregroundStyle(.white.opacity(0.65))
             .padding(.horizontal, 9)
             .padding(.vertical, 5)

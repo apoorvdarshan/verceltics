@@ -246,7 +246,7 @@ struct CloudflareDashboardView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.black.ignoresSafeArea()
+                AppTheme.canvas.ignoresSafeArea()
 
                 if viewModel.isLoading {
                     CloudflareLoadingView()
@@ -272,7 +272,7 @@ struct CloudflareDashboardView: View {
                         Task { await viewModel.refresh() }
                     } label: {
                         Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 14, weight: .heavy))
+                            .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(.white.opacity(0.7))
                             .rotationEffect(.degrees(refreshSpin))
                     }
@@ -372,7 +372,7 @@ struct CloudflareDashboardView: View {
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "building.2.fill")
-                            .font(.system(size: 10, weight: .heavy))
+                            .font(.system(size: 10, weight: .semibold))
                             .foregroundStyle(CloudflareStyle.orange)
                         Text("Cloudflare account")
                             .font(.system(size: 11, weight: .semibold))
@@ -383,7 +383,7 @@ struct CloudflareDashboardView: View {
                             .foregroundStyle(.white.opacity(0.76))
                             .lineLimit(1)
                         Image(systemName: "chevron.up.chevron.down")
-                            .font(.system(size: 8, weight: .heavy))
+                            .font(.system(size: 8, weight: .semibold))
                             .foregroundStyle(.white.opacity(0.3))
                     }
                     .padding(.horizontal, 14)
@@ -426,7 +426,7 @@ struct CloudflareDashboardView: View {
                                 CloudflareStatusPill(text: status.uppercased(), color: statusColor(status))
                             }
                             Image(systemName: "chevron.right")
-                                .font(.system(size: 10, weight: .heavy))
+                                .font(.system(size: 10, weight: .semibold))
                                 .foregroundStyle(.white.opacity(0.2))
                         }
                     }

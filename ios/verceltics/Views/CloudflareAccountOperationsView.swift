@@ -86,7 +86,7 @@ struct CloudflareAccountOperationsView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
 
             ScrollView {
                 VStack(spacing: 16) {
@@ -136,7 +136,7 @@ struct CloudflareAccountOperationsView: View {
     private var accountHeader: some View {
         HStack(alignment: .top, spacing: 13) {
             Image(systemName: "building.2.crop.circle.fill")
-                .font(.system(size: 23, weight: .heavy))
+                .font(.system(size: 23, weight: .semibold))
                 .foregroundStyle(.black.opacity(0.82))
                 .frame(width: 50, height: 50)
                 .background(
@@ -150,7 +150,7 @@ struct CloudflareAccountOperationsView: View {
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(viewModel.account.name)
-                    .font(.system(size: 21, weight: .heavy))
+                    .font(.system(size: 21, weight: .semibold))
                     .foregroundStyle(.white)
                     .lineLimit(2)
                 Text(email)
@@ -159,7 +159,7 @@ struct CloudflareAccountOperationsView: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
                 Text("ACCESS & AUDIT")
-                    .font(.system(size: 9, weight: .heavy))
+                    .font(.system(size: 9, weight: .semibold))
                     .tracking(1.0)
                     .foregroundStyle(CloudflareStyle.orange.opacity(0.8))
             }
@@ -303,7 +303,7 @@ struct CloudflareAccountOperationsView: View {
                                     .foregroundStyle(.white.opacity(0.86))
                                 Spacer()
                                 Text("\(role.permissions.count) grants")
-                                    .font(.system(size: 9, weight: .heavy).monospacedDigit())
+                                    .font(.system(size: 9, weight: .semibold).monospacedDigit())
                                     .foregroundStyle(CloudflareStyle.orange.opacity(0.76))
                                 CloudflareChevron()
                             }
@@ -447,7 +447,7 @@ private struct CloudflareAccountMemberDetailView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
             ScrollView {
                 VStack(spacing: 16) {
                     VStack(spacing: 0) {
@@ -488,7 +488,7 @@ private struct CloudflareAccountMemberDetailView: View {
                                 VStack(alignment: .leading, spacing: 7) {
                                     HStack {
                                         Text(policy.access?.uppercased() ?? "POLICY")
-                                            .font(.system(size: 10, weight: .heavy))
+                                            .font(.system(size: 10, weight: .semibold))
                                             .foregroundStyle(policy.access == "deny" ? CloudflareStyle.red : CloudflareStyle.green)
                                         Spacer()
                                         Text(policy.id)
@@ -549,7 +549,7 @@ private struct CloudflareAccountMemberDetailView: View {
     private func policyValue(_ title: String, value: CloudflareJSONValue) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(title.uppercased())
-                .font(.system(size: 8, weight: .heavy))
+                .font(.system(size: 8, weight: .semibold))
                 .tracking(0.7)
                 .foregroundStyle(.white.opacity(0.3))
             Text(value.operationsDisplayText)
@@ -568,7 +568,7 @@ private struct CloudflareAccountRoleDetailView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
             ScrollView {
                 VStack(spacing: 16) {
                     VStack(spacing: 0) {
@@ -635,7 +635,7 @@ private struct CloudflareAuditEventDetailView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
             ScrollView {
                 VStack(spacing: 16) {
                     detailPanel(title: "Action", icon: "bolt.fill", rows: [

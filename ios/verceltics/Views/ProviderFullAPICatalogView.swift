@@ -51,7 +51,7 @@ struct ProviderFullAPICatalogView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
             if let catalog {
                 catalogBody(catalog)
             } else if let error {
@@ -109,7 +109,7 @@ struct ProviderFullAPICatalogView: View {
                     Spacer()
                     Text("RAW RESPONSE PRESERVED")
                 }
-                .font(.system(size: 9, weight: .heavy)).tracking(1)
+                .font(.system(size: 9, weight: .semibold)).tracking(1)
                 .foregroundStyle(.white.opacity(0.34))
 
                 ForEach(operations) { operation in
@@ -130,12 +130,12 @@ struct ProviderFullAPICatalogView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(catalog.title).font(.system(size: 19, weight: .heavy))
+                    Text(catalog.title).font(.system(size: 19, weight: .semibold))
                     Text(catalog.apiVersion).font(.system(size: 10, weight: .bold)).foregroundStyle(accent)
                 }
                 Spacer()
                 Text(catalog.operations.count.formatted())
-                    .font(.system(size: 26, weight: .black).monospacedDigit())
+                    .font(.system(size: 26, weight: .bold).monospacedDigit())
             }
             Text(catalog.sourceDescription)
                 .font(.system(size: 10, weight: .semibold)).foregroundStyle(.white.opacity(0.45))
@@ -177,7 +177,7 @@ struct ProviderFullAPICatalogView: View {
     private func operationRow(_ operation: ProviderAPIOperation) -> some View {
         HStack(spacing: 12) {
             Text(operation.method)
-                .font(.system(size: 8, weight: .black, design: .monospaced))
+                .font(.system(size: 8, weight: .bold, design: .monospaced))
                 .foregroundStyle(operation.isMutation ? .orange : .green)
                 .frame(width: 48, height: 29)
                 .background((operation.isMutation ? Color.orange : Color.green).opacity(0.12))
@@ -185,10 +185,10 @@ struct ProviderFullAPICatalogView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(operation.summary).font(.system(size: 12, weight: .bold)).lineLimit(2)
                 Text(operation.path).font(.system(size: 9, design: .monospaced)).foregroundStyle(.white.opacity(0.38)).lineLimit(1)
-                Text(operation.primaryTag.uppercased()).font(.system(size: 7, weight: .heavy)).tracking(0.8).foregroundStyle(accent)
+                Text(operation.primaryTag.uppercased()).font(.system(size: 7, weight: .semibold)).tracking(0.8).foregroundStyle(accent)
             }
             Spacer()
-            Image(systemName: "chevron.right").font(.system(size: 10, weight: .heavy)).foregroundStyle(.white.opacity(0.22))
+            Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold)).foregroundStyle(.white.opacity(0.22))
         }
         .foregroundStyle(.white)
         .padding(14)
@@ -291,7 +291,7 @@ private struct ProviderAPIOperationView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
             ScrollView {
                 VStack(alignment: .leading, spacing: 15) {
                     VStack(alignment: .leading, spacing: 8) {
@@ -300,7 +300,7 @@ private struct ProviderAPIOperationView: View {
                             Spacer()
                             Text(operation.primaryTag.uppercased()).foregroundStyle(accent)
                         }
-                        .font(.system(size: 9, weight: .heavy)).tracking(0.8)
+                        .font(.system(size: 9, weight: .semibold)).tracking(0.8)
                         Text(operation.path).font(.system(size: 11, design: .monospaced)).textSelection(.enabled)
                         if !operation.description.isEmpty {
                             Text(operation.description).font(.system(size: 10, weight: .medium)).foregroundStyle(.white.opacity(0.48))
@@ -322,7 +322,7 @@ private struct ProviderAPIOperationView: View {
                     if !operation.bodyTemplate.isEmpty || operation.requestBodyRequired {
                         VStack(alignment: .leading, spacing: 8) {
                             Text(operation.requestBodyRequired ? "REQUEST BODY · REQUIRED" : "REQUEST BODY")
-                                .font(.system(size: 9, weight: .heavy)).tracking(1).foregroundStyle(.white.opacity(0.36))
+                                .font(.system(size: 9, weight: .semibold)).tracking(1).foregroundStyle(.white.opacity(0.36))
                             TextEditor(text: $bodyText)
                                 .font(.system(size: 10, design: .monospaced))
                                 .scrollContentBackground(.hidden).frame(minHeight: 170)
@@ -342,7 +342,7 @@ private struct ProviderAPIOperationView: View {
                                 : (operation.isMutation ? "Review write request" : "Review request"),
                             systemImage: operation.isMutation ? "exclamationmark.shield.fill" : "arrow.right"
                         )
-                            .font(.system(size: 14, weight: .heavy)).frame(maxWidth: .infinity).frame(height: 54)
+                            .font(.system(size: 14, weight: .semibold)).frame(maxWidth: .infinity).frame(height: 54)
                             .background(accent.opacity(0.82)).clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     }
                     .buttonStyle(PressScaleButtonStyle()).foregroundStyle(.white)
@@ -362,8 +362,8 @@ private struct ProviderAPIOperationView: View {
         VStack(alignment: .leading, spacing: 7) {
             HStack {
                 Text(parameter.name).font(.system(size: 10, weight: .bold, design: .monospaced))
-                Text(parameter.location.rawValue.uppercased()).font(.system(size: 7, weight: .heavy)).foregroundStyle(accent)
-                if parameter.required { Text("REQUIRED").font(.system(size: 7, weight: .heavy)).foregroundStyle(.orange) }
+                Text(parameter.location.rawValue.uppercased()).font(.system(size: 7, weight: .semibold)).foregroundStyle(accent)
+                if parameter.required { Text("REQUIRED").font(.system(size: 7, weight: .semibold)).foregroundStyle(.orange) }
             }
             if parameter.enumValues.isEmpty {
                 TextField(parameter.type, text: Binding(

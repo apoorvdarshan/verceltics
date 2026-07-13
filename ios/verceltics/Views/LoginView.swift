@@ -44,7 +44,7 @@ struct LoginView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
 
             Group {
                 if let registrar = selectedRegistrarProvider {
@@ -92,7 +92,7 @@ struct LoginView: View {
 
                 VStack(alignment: .leading, spacing: 12) {
                     Text(connectionCategory == .hosting ? "CONNECT A HOSTING PLATFORM" : "CONNECT A REGISTRAR")
-                        .font(.system(size: 10, weight: .heavy))
+                        .font(.system(size: 10, weight: .semibold))
                         .tracking(1.5)
                         .foregroundStyle(.white.opacity(0.35))
                         .padding(.horizontal, 4)
@@ -145,7 +145,7 @@ struct LoginView: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Connect \(provider.displayName)")
-                        .font(.system(size: 15, weight: .heavy))
+                        .font(.system(size: 15, weight: .semibold))
                     Text(provider.connectionSubtitle)
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(Color.white.opacity(0.45))
@@ -154,7 +154,7 @@ struct LoginView: View {
 
                 Spacer()
                 Image(systemName: "arrow.right")
-                    .font(.system(size: 12, weight: .heavy))
+                    .font(.system(size: 12, weight: .semibold))
             }
             .padding(.horizontal, 14)
             .frame(maxWidth: .infinity)
@@ -177,7 +177,7 @@ struct LoginView: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Connect \(provider.displayName)")
-                        .font(.system(size: 15, weight: .heavy))
+                        .font(.system(size: 15, weight: .semibold))
                     Text(provider.apiDescription)
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.45))
@@ -186,7 +186,7 @@ struct LoginView: View {
 
                 Spacer()
                 Image(systemName: "arrow.right")
-                    .font(.system(size: 12, weight: .heavy))
+                    .font(.system(size: 12, weight: .semibold))
             }
             .padding(.horizontal, 14)
             .frame(maxWidth: .infinity)
@@ -221,7 +221,7 @@ struct LoginView: View {
                     // Steps
                     VStack(alignment: .leading, spacing: 14) {
                         Text("How to get your token")
-                            .font(.system(size: 13, weight: .heavy))
+                            .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(.white)
 
                         StepRow(number: 1, text: "Go to vercel.com/account/tokens")
@@ -232,29 +232,7 @@ struct LoginView: View {
                     }
                     .padding(18)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        ZStack {
-                            LinearGradient(
-                                colors: [Color.white.opacity(0.07), Color.white.opacity(0.02)],
-                                startPoint: .topLeading, endPoint: .bottomTrailing
-                            )
-                            LinearGradient(
-                                colors: [Color.white.opacity(0.04), .clear],
-                                startPoint: .top, endPoint: .center
-                            )
-                        }
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .strokeBorder(
-                                LinearGradient(
-                                    colors: [Color.white.opacity(0.12), Color.white.opacity(0.04)],
-                                    startPoint: .top, endPoint: .bottom
-                                ),
-                                lineWidth: 0.5
-                            )
-                    )
+                    .providerSurface(accent: AppTheme.textSecondary)
 
                     // Open Vercel
                     Button {
@@ -264,18 +242,13 @@ struct LoginView: View {
                     } label: {
                         HStack(spacing: 6) {
                             Image(systemName: "arrow.up.right")
-                                .font(.system(size: 11, weight: .heavy))
+                                .font(.system(size: 11, weight: .semibold))
                             Text("Open Vercel Tokens Page")
                                 .font(.system(size: 13, weight: .bold))
                         }
                         .frame(maxWidth: .infinity)
                         .frame(height: 46)
-                        .background(
-                            LinearGradient(
-                                colors: [Color.white.opacity(0.08), Color.white.opacity(0.04)],
-                                startPoint: .top, endPoint: .bottom
-                            )
-                        )
+                        .background(AppTheme.surfaceRaised)
                         .foregroundStyle(.white.opacity(0.75))
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                         .overlay(
@@ -290,16 +263,11 @@ struct LoginView: View {
                         .textFieldStyle(.plain)
                         .font(.system(size: 15, design: .monospaced))
                         .padding(15)
-                        .background(
-                            LinearGradient(
-                                colors: [Color.white.opacity(0.07), Color.white.opacity(0.03)],
-                                startPoint: .top, endPoint: .bottom
-                            )
-                        )
+                        .background(AppTheme.surfaceRaised)
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                         .overlay(
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .strokeBorder(isTokenFocused ? Color.blue.opacity(0.4) : Color.white.opacity(0.08), lineWidth: isTokenFocused ? 1.0 : 0.5)
+                                .strokeBorder(isTokenFocused ? AppTheme.signal.opacity(0.7) : AppTheme.stroke, lineWidth: isTokenFocused ? 1.0 : 0.5)
                         )
                         .foregroundStyle(.white)
                         .focused($isTokenFocused)
@@ -321,22 +289,15 @@ struct LoginView: View {
                                 ProgressView().tint(.black)
                             } else {
                                 Text("Connect")
-                                    .font(.system(size: 16, weight: .heavy))
+                                    .font(.system(size: 16, weight: .semibold))
                                 Image(systemName: "arrow.right")
-                                    .font(.system(size: 14, weight: .heavy))
+                                    .font(.system(size: 14, weight: .semibold))
                             }
                         }
                         .frame(maxWidth: .infinity)
                         .frame(height: 54)
-                        .background(
-                            LinearGradient(
-                                colors: tokenInput.isEmpty
-                                    ? [Color.white.opacity(0.2), Color.white.opacity(0.12)]
-                                    : [.white, Color.white.opacity(0.92)],
-                                startPoint: .top, endPoint: .bottom
-                            )
-                        )
-                        .foregroundStyle(.black)
+                        .background(tokenInput.isEmpty ? AppTheme.surfaceRaised : AppTheme.signal)
+                        .foregroundStyle(tokenInput.isEmpty ? AppTheme.textTertiary : .white)
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         .overlay(
                             RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -398,7 +359,7 @@ struct LoginView: View {
                                     ? "Connect with Global API Key"
                                     : "Connect with scoped API token"
                             )
-                                .font(.system(size: 13, weight: .heavy))
+                                .font(.system(size: 13, weight: .semibold))
                                 .foregroundStyle(.white)
 
                             StepRow(number: 1, text: "Open Cloudflare My Profile → API Tokens")
@@ -427,17 +388,7 @@ struct LoginView: View {
                         }
                         .padding(18)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(
-                            LinearGradient(
-                                colors: [Color.white.opacity(0.07), Color.white.opacity(0.02)],
-                                startPoint: .topLeading, endPoint: .bottomTrailing
-                            )
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                .strokeBorder(Color(red: 0.96, green: 0.45, blue: 0.10).opacity(0.24), lineWidth: 0.7)
-                        )
+                        .providerSurface(accent: CloudflareStyle.orange)
 
                         Button {
                             if let tokenURL = URL(string: "https://dash.cloudflare.com/profile/api-tokens") {
@@ -498,22 +449,15 @@ struct LoginView: View {
                                     ProgressView().tint(.white)
                                 } else {
                                     Text("Connect Cloudflare")
-                                        .font(.system(size: 16, weight: .heavy))
+                                        .font(.system(size: 16, weight: .semibold))
                                     Image(systemName: "arrow.right")
-                                        .font(.system(size: 14, weight: .heavy))
+                                        .font(.system(size: 14, weight: .semibold))
                                 }
                             }
                             .frame(maxWidth: .infinity)
                             .frame(height: 54)
-                            .background(
-                                LinearGradient(
-                                    colors: canConnectCloudflare
-                                        ? [Color(red: 1.0, green: 0.48, blue: 0.10), Color(red: 0.91, green: 0.31, blue: 0.06)]
-                                        : [Color.white.opacity(0.16), Color.white.opacity(0.09)],
-                                    startPoint: .topLeading, endPoint: .bottomTrailing
-                                )
-                            )
-                            .foregroundStyle(.white)
+                            .background(canConnectCloudflare ? CloudflareStyle.orange : AppTheme.surfaceRaised)
+                            .foregroundStyle(canConnectCloudflare ? .white : AppTheme.textTertiary)
                             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         }
                         .buttonStyle(PressScaleButtonStyle())
@@ -591,7 +535,7 @@ struct LoginView: View {
                     withAnimation(.spring(duration: 0.35)) { selectedProvider = nil }
                 } label: {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 15, weight: .heavy))
+                        .font(.system(size: 15, weight: .semibold))
                         .frame(width: 42, height: 42)
                         .background(Color.white.opacity(0.07))
                         .clipShape(Circle())
@@ -614,14 +558,14 @@ struct LoginView: View {
                         .padding(20)
                 } else {
                     Image(systemName: "triangle.fill")
-                        .font(.system(size: 33, weight: .black))
+                        .font(.system(size: 33, weight: .bold))
                 }
             }
             .frame(width: 92, height: 92)
 
             VStack(spacing: 6) {
                 Text("Connect \(provider.displayName)")
-                    .font(.system(size: 26, weight: .heavy))
+                    .font(.system(size: 26, weight: .semibold))
                 Text(provider == .cloudflare ? "Manage your Cloudflare edge" : "Analytics for your Vercel projects")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.42))
@@ -636,36 +580,8 @@ struct LoginView: View {
 private struct LiquidGlassSurfaceModifier: ViewModifier {
     let cornerRadius: CGFloat
 
-    @ViewBuilder
     func body(content: Content) -> some View {
-        if #available(iOS 26.0, *) {
-            content
-                .glassEffect(
-                    .regular.tint(Color.black.opacity(0.22)).interactive(),
-                    in: .rect(cornerRadius: cornerRadius)
-                )
-        } else {
-            content
-                .background {
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .fill(.ultraThinMaterial)
-                        .overlay {
-                            Color.black.opacity(0.22)
-                        }
-                }
-                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .strokeBorder(
-                            LinearGradient(
-                                colors: [Color.white.opacity(0.12), Color.white.opacity(0.055), Color.clear],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 0.6
-                        )
-                }
-        }
+        content.nativeGlassSurface(cornerRadius: cornerRadius)
     }
 }
 
@@ -688,15 +604,10 @@ struct StepRow: View {
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             Text("\(number)")
-                .font(.system(size: 11, weight: .heavy).monospacedDigit())
+                .font(.system(size: 11, weight: .semibold).monospacedDigit())
                 .foregroundStyle(.white)
                 .frame(width: 22, height: 22)
-                .background(
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.16), Color.white.opacity(0.06)],
-                        startPoint: .top, endPoint: .bottom
-                    )
-                )
+                .background(AppTheme.surfaceRaised)
                 .clipShape(Circle())
                 .overlay(Circle().strokeBorder(Color.white.opacity(0.06), lineWidth: 0.5))
 

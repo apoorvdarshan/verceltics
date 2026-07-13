@@ -52,15 +52,15 @@ struct RegistrarsView: View {
             } else {
                 NavigationStack {
                     ZStack {
-                        Color.black.ignoresSafeArea()
+                        AppTheme.canvas.ignoresSafeArea()
                         VStack(spacing: 18) {
                             Image(systemName: "globe.americas.fill")
-                                .font(.system(size: 44, weight: .black))
-                                .foregroundStyle(Color(red: 0.30, green: 0.67, blue: 1.0))
+                                .font(.system(size: 44, weight: .bold))
+                                .foregroundStyle(AppTheme.signal)
                             VStack(spacing: 7) {
-                                Text("Your domains, together")
-                                    .font(.system(size: 22, weight: .heavy))
-                                Text("Use the account menu at the top left to connect a registrar and track expiry, renewal, privacy, locks and nameservers.")
+                                Text("No registrar account")
+                                    .font(.system(size: 22, weight: .semibold))
+                                Text("Use the account menu to connect a registrar. Domain expiry, renewal, privacy, locks, and nameservers will appear here.")
                                     .font(.system(size: 12, weight: .semibold))
                                     .foregroundStyle(.white.opacity(0.42))
                                     .multilineTextAlignment(.center)
@@ -107,7 +107,7 @@ struct RegistrarDashboardView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.black.ignoresSafeArea()
+                AppTheme.canvas.ignoresSafeArea()
                 if viewModel.isLoading {
                     ProgressView("Loading domains")
                         .tint(provider.accentColor)
@@ -130,7 +130,7 @@ struct RegistrarDashboardView: View {
                         Task { await viewModel.load(refresh: true) }
                     } label: {
                         Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 14, weight: .heavy))
+                            .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(.white.opacity(0.72))
                             .rotationEffect(.degrees(refreshSpin))
                     }
@@ -159,10 +159,10 @@ struct RegistrarDashboardView: View {
 
                 HStack {
                     Text("DOMAIN PORTFOLIO")
-                        .font(.system(size: 10, weight: .heavy)).tracking(1.4).foregroundStyle(.white.opacity(0.38))
+                        .font(.system(size: 10, weight: .semibold)).tracking(1.4).foregroundStyle(.white.opacity(0.38))
                     Spacer()
                     Text(filteredDomains.count.formatted())
-                        .font(.system(size: 10, weight: .heavy).monospacedDigit()).foregroundStyle(provider.accentColor)
+                        .font(.system(size: 10, weight: .semibold).monospacedDigit()).foregroundStyle(provider.accentColor)
                 }
 
                 if filteredDomains.isEmpty {
@@ -193,20 +193,20 @@ struct RegistrarDashboardView: View {
             HStack(spacing: 13) {
                 RegistrarMark(provider: provider, size: 55)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(account.name).font(.system(size: 18, weight: .heavy)).lineLimit(1)
+                    Text(account.name).font(.system(size: 18, weight: .semibold)).lineLimit(1)
                     Text(provider.apiDescription).font(.system(size: 10, weight: .semibold)).foregroundStyle(.white.opacity(0.4)).lineLimit(1)
                 }
                 Spacer()
                 Text("CONNECTED")
-                    .font(.system(size: 8, weight: .heavy)).foregroundStyle(.green)
+                    .font(.system(size: 8, weight: .semibold)).foregroundStyle(.green)
             }
 
             VStack(alignment: .leading, spacing: 7) {
                 HStack {
-                    Text("EXPIRY HEALTH").font(.system(size: 8, weight: .heavy)).tracking(1.1).foregroundStyle(.white.opacity(0.34))
+                    Text("EXPIRY HEALTH").font(.system(size: 8, weight: .semibold)).tracking(1.1).foregroundStyle(.white.opacity(0.34))
                     Spacer()
                     Text(expiringDomains.isEmpty ? "Clear" : "\(expiringDomains.count) due soon")
-                        .font(.system(size: 9, weight: .heavy)).foregroundStyle(expiringDomains.isEmpty ? .green : .orange)
+                        .font(.system(size: 9, weight: .semibold)).foregroundStyle(expiringDomains.isEmpty ? .green : .orange)
                 }
                 GeometryReader { geometry in
                     ZStack(alignment: .leading) {
@@ -233,9 +233,9 @@ struct RegistrarDashboardView: View {
 
     private func statCard(_ title: String, value: String, icon: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Image(systemName: icon).font(.system(size: 11, weight: .heavy)).foregroundStyle(provider.accentColor)
-            Text(value).font(.system(size: 20, weight: .heavy).monospacedDigit())
-            Text(title.uppercased()).font(.system(size: 7, weight: .heavy)).tracking(0.8).foregroundStyle(.white.opacity(0.34)).lineLimit(1)
+            Image(systemName: icon).font(.system(size: 11, weight: .semibold)).foregroundStyle(provider.accentColor)
+            Text(value).font(.system(size: 20, weight: .semibold).monospacedDigit())
+            Text(title.uppercased()).font(.system(size: 7, weight: .semibold)).tracking(0.8).foregroundStyle(.white.opacity(0.34)).lineLimit(1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(13)
@@ -264,8 +264,8 @@ struct RegistrarDashboardView: View {
         HStack(spacing: 13) {
             VStack(spacing: 1) {
                 Text(domain.daysUntilExpiry.map { max($0, 0).formatted() } ?? "—")
-                    .font(.system(size: 14, weight: .heavy).monospacedDigit())
-                Text("DAYS").font(.system(size: 6, weight: .heavy)).tracking(0.7)
+                    .font(.system(size: 14, weight: .semibold).monospacedDigit())
+                Text("DAYS").font(.system(size: 6, weight: .semibold)).tracking(0.7)
             }
             .foregroundStyle(expiryColor(domain))
             .frame(width: 42, height: 42)
@@ -283,7 +283,7 @@ struct RegistrarDashboardView: View {
                 .foregroundStyle(.white.opacity(0.34))
             }
             Spacer()
-            Image(systemName: "chevron.right").font(.system(size: 10, weight: .heavy)).foregroundStyle(.white.opacity(0.2))
+            Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold)).foregroundStyle(.white.opacity(0.2))
         }
         .padding(14)
         .providerPanel(accent: provider.accentColor)
@@ -304,7 +304,7 @@ struct RegistrarDashboardView: View {
     private func errorView(_ message: String) -> some View {
         VStack(spacing: 14) {
             Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 28)).foregroundStyle(provider.accentColor)
-            Text("Could not load domains").font(.system(size: 17, weight: .heavy))
+            Text("Could not load domains").font(.system(size: 17, weight: .semibold))
             Text(message).font(.system(size: 12, weight: .medium)).foregroundStyle(.white.opacity(0.45)).multilineTextAlignment(.center)
             Button("Try Again") { Task { await viewModel.load() } }.font(.system(size: 13, weight: .bold)).foregroundStyle(provider.accentColor)
         }

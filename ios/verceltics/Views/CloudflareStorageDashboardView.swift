@@ -189,7 +189,7 @@ struct CloudflareStorageDashboardView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
 
             if viewModel.isLoading {
                 CloudflareLoadingView()
@@ -208,7 +208,7 @@ struct CloudflareStorageDashboardView: View {
                     Task { await viewModel.load(force: true) }
                 } label: {
                     Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 14, weight: .heavy))
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.7))
                         .rotationEffect(.degrees(refreshSpin))
                 }
@@ -270,7 +270,7 @@ struct CloudflareStorageDashboardView: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 13) {
                 Image(systemName: "externaldrive.connected.to.line.below.fill")
-                    .font(.system(size: 20, weight: .heavy))
+                    .font(.system(size: 20, weight: .semibold))
                     .foregroundStyle(.black.opacity(0.82))
                     .frame(width: 46, height: 46)
                     .background(
@@ -284,7 +284,7 @@ struct CloudflareStorageDashboardView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Developer Storage")
-                        .font(.system(size: 21, weight: .heavy))
+                        .font(.system(size: 21, weight: .semibold))
                         .foregroundStyle(.white)
                     Text(accountName)
                         .font(.system(size: 11, weight: .semibold))
@@ -313,16 +313,16 @@ struct CloudflareStorageDashboardView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Image(systemName: icon)
-                    .font(.system(size: 10, weight: .heavy))
+                    .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(CloudflareStyle.amber)
                 Spacer()
                 Text(title)
-                    .font(.system(size: 9, weight: .heavy))
+                    .font(.system(size: 9, weight: .semibold))
                     .tracking(0.7)
                     .foregroundStyle(.white.opacity(0.35))
             }
             Text(value)
-                .font(.system(size: 12, weight: .heavy, design: .monospaced))
+                .font(.system(size: 12, weight: .semibold, design: .monospaced))
                 .foregroundStyle(CloudflareStyle.amber)
         }
         .frame(maxWidth: .infinity, minHeight: 63, alignment: .leading)
@@ -335,16 +335,16 @@ struct CloudflareStorageDashboardView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Image(systemName: icon)
-                    .font(.system(size: 10, weight: .heavy))
+                    .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(CloudflareStyle.orange)
                 Spacer()
                 Text(title)
-                    .font(.system(size: 9, weight: .heavy))
+                    .font(.system(size: 9, weight: .semibold))
                     .tracking(0.7)
                     .foregroundStyle(.white.opacity(0.35))
             }
             Text(value.formatted())
-                .font(.system(size: 21, weight: .heavy, design: .rounded).monospacedDigit())
+                .font(.system(size: 21, weight: .semibold, design: .default).monospacedDigit())
                 .foregroundStyle(.white)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -724,7 +724,7 @@ struct CloudflareStorageCreateScaffold<Content: View>: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            AppTheme.canvas.ignoresSafeArea()
             ScrollView {
                 VStack(spacing: 16) {
                     content()
@@ -778,7 +778,7 @@ struct CloudflareStorageTextFieldRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Text(label.uppercased())
-                .font(.system(size: 9, weight: .heavy))
+                .font(.system(size: 9, weight: .semibold))
                 .tracking(0.8)
                 .foregroundStyle(.white.opacity(0.32))
             Spacer(minLength: 12)
@@ -801,7 +801,7 @@ struct CloudflareStorageMenuRow<MenuContent: View>: View {
     var body: some View {
         HStack(spacing: 12) {
             Text(label.uppercased())
-                .font(.system(size: 9, weight: .heavy))
+                .font(.system(size: 9, weight: .semibold))
                 .tracking(0.8)
                 .foregroundStyle(.white.opacity(0.32))
             Spacer(minLength: 12)
@@ -811,7 +811,7 @@ struct CloudflareStorageMenuRow<MenuContent: View>: View {
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.75))
                     Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: 8, weight: .heavy))
+                        .font(.system(size: 8, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.3))
                 }
             }
