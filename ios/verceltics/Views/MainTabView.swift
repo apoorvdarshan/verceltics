@@ -6,9 +6,20 @@ struct MainTabView: View {
 
     var body: some View {
         TabView {
-            Tab("Projects", systemImage: "triangle.fill") {
+            Tab {
                 providerHome()
                     .id(authManager.activeAccountId)
+            } label: {
+                if authManager.activeAccount?.provider == .cloudflare {
+                    Label {
+                        Text("Cloudflare")
+                    } icon: {
+                        Image("CloudflareMark")
+                            .renderingMode(.original)
+                    }
+                } else {
+                    Label("Projects", systemImage: "triangle.fill")
+                }
             }
 
             Tab(role: .search) {
