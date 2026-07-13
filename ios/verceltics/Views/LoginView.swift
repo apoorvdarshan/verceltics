@@ -1,11 +1,34 @@
 import SwiftUI
 
+enum ConnectionCategory: String, CaseIterable, Identifiable {
+    case hosting
+    case registrars
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .hosting: "Hosting"
+        case .registrars: "Registrars"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .hosting: "server.rack"
+        case .registrars: "globe.americas.fill"
+        }
+    }
+}
+
 struct LoginView: View {
     @Environment(AuthManager.self) private var authManager
     @Environment(\.horizontalSizeClass) private var hSize
     @Environment(\.dismiss) private var dismiss
+    @State private var connectionCategory: ConnectionCategory
     @State private var tokenInput = ""
     @State private var selectedProvider: AccountProvider?
+    @State private var selectedRegistrarProvider: RegistrarProvider?
     @State private var cloudflareEmail = ""
     @State private var cloudflareGlobalAPIKey = ""
     @State private var cloudflareAPIToken = ""
@@ -15,23 +38,42 @@ struct LoginView: View {
 
     private enum CloudflareField { case email, key }
 
+    init(initialCategory: ConnectionCategory = .hosting) {
+        _connectionCategory = State(initialValue: initialCategory)
+    }
+
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
 
             Group {
-                switch selectedProvider {
-                case .vercel:
-                    tokenFieldView
-                case .cloudflare:
-                    cloudflareCredentialsView
-                case .some(let provider):
-                    HostingProviderCredentialView(provider: provider) {
-                        authManager.error = nil
-                        withAnimation(.spring(duration: 0.35)) { selectedProvider = nil }
+                if let registrar = selectedRegistrarProvider {
+                    RegistrarConnectionView(
+                        initialProvider: registrar,
+                        onBack: {
+                            withAnimation(.spring(duration: 0.35)) {
+                                selectedRegistrarProvider = nil
+                            }
+                        },
+                        onConnected: {
+                            selectedRegistrarProvider = nil
+                            if authManager.isAuthenticated { dismiss() }
+                        }
+                    )
+                } else {
+                    switch selectedProvider {
+                    case .vercel:
+                        tokenFieldView
+                    case .cloudflare:
+                        cloudflareCredentialsView
+                    case .some(let provider):
+                        HostingProviderCredentialView(provider: provider) {
+                            authManager.error = nil
+                            withAnimation(.spring(duration: 0.35)) { selectedProvider = nil }
+                        }
+                    case nil:
+                        welcomeView
                     }
-                case nil:
-                    welcomeView
                 }
             }
             .frame(maxWidth: hSize == .regular ? 480 : .infinity)
@@ -52,24 +94,63 @@ struct LoginView: View {
                     .padding(.horizontal, 40)
                     .padding(.top, 28)
 
+                categorySelector
+                    .padding(.horizontal, 20)
+                    .padding(.top, 24)
+
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("CONNECT A PLATFORM")
+                    Text(connectionCategory == .hosting ? "CONNECT A HOSTING PLATFORM" : "CONNECT A REGISTRAR")
                         .font(.system(size: 10, weight: .heavy))
                         .tracking(1.5)
                         .foregroundStyle(.white.opacity(0.35))
                         .padding(.horizontal, 4)
 
-                    ForEach(AccountProvider.allCases) { provider in
-                        providerButton(provider)
+                    if connectionCategory == .hosting {
+                        ForEach(AccountProvider.allCases) { provider in
+                            providerButton(provider)
+                        }
+                    } else {
+                        ForEach(RegistrarProvider.allCases) { provider in
+                            registrarButton(provider)
+                        }
                     }
                 }
                 .padding(.horizontal, 20)
-                .padding(.top, 30)
+                .padding(.top, 24)
 
                 Spacer().frame(height: 40)
             }
         }
         .scrollIndicators(.hidden)
+    }
+
+    private var categorySelector: some View {
+        HStack(spacing: 4) {
+            ForEach(ConnectionCategory.allCases) { category in
+                Button {
+                    withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
+                        connectionCategory = category
+                    }
+                } label: {
+                    Label(category.title, systemImage: category.systemImage)
+                        .font(.system(size: 12, weight: .heavy))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 42)
+                        .foregroundStyle(connectionCategory == category ? Color.black : Color.white.opacity(0.48))
+                        .background(connectionCategory == category ? Color.white : Color.clear)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+                .buttonStyle(PressScaleButtonStyle())
+                .accessibilityAddTraits(connectionCategory == category ? .isSelected : [])
+            }
+        }
+        .padding(4)
+        .background(Color.white.opacity(0.065))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.09), lineWidth: 0.5)
+        )
     }
 
     private func providerButton(_ provider: AccountProvider) -> some View {
@@ -116,6 +197,48 @@ struct LoginView: View {
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .strokeBorder(isVercel ? Color.white.opacity(0.1) : accent.opacity(0.28), lineWidth: 0.7)
+            )
+        }
+        .buttonStyle(PressScaleButtonStyle())
+    }
+
+    private func registrarButton(_ provider: RegistrarProvider) -> some View {
+        Button {
+            withAnimation(.spring(duration: 0.4)) {
+                selectedRegistrarProvider = provider
+            }
+        } label: {
+            HStack(spacing: 13) {
+                RegistrarMark(provider: provider, size: 34)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Connect \(provider.displayName)")
+                        .font(.system(size: 15, weight: .heavy))
+                    Text(provider.apiDescription)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.45))
+                        .lineLimit(1)
+                }
+
+                Spacer()
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 12, weight: .heavy))
+            }
+            .padding(.horizontal, 14)
+            .frame(maxWidth: .infinity)
+            .frame(height: 62)
+            .background(
+                LinearGradient(
+                    colors: [Color.white.opacity(0.08), Color.white.opacity(0.035)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .foregroundStyle(.white)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(provider.accentColor.opacity(0.28), lineWidth: 0.7)
             )
         }
         .buttonStyle(PressScaleButtonStyle())
@@ -572,7 +695,7 @@ struct LoginView: View {
                         )
                     )
 
-                Text("Your hosting platforms, in one place")
+                Text("Hosting and domains, in one place")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.45))
             }

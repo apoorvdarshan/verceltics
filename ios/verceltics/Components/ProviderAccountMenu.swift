@@ -45,7 +45,7 @@ struct ProviderAccountMenu: View {
         }
         .tint(.white)
         .sheet(isPresented: $showingAddAccount) {
-            LoginView()
+            LoginView(initialCategory: .hosting)
         }
     }
 

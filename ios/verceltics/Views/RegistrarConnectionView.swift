@@ -5,6 +5,8 @@ struct RegistrarConnectionView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var selectedProvider: RegistrarProvider?
+    private let onBack: (() -> Void)?
+    private let onConnected: (() -> Void)?
     @State private var username = ""
     @State private var apiKey = ""
     @State private var apiSecret = ""
@@ -13,6 +15,16 @@ struct RegistrarConnectionView: View {
     @FocusState private var focusedField: Field?
 
     private enum Field: Hashable { case username, apiKey, apiSecret, clientIP, organization }
+
+    init(
+        initialProvider: RegistrarProvider? = nil,
+        onBack: (() -> Void)? = nil,
+        onConnected: (() -> Void)? = nil
+    ) {
+        _selectedProvider = State(initialValue: initialProvider)
+        self.onBack = onBack
+        self.onConnected = onConnected
+    }
 
     var body: some View {
         ZStack {
@@ -90,7 +102,11 @@ struct RegistrarConnectionView: View {
                         HStack {
                             Button {
                                 store.error = nil
-                                withAnimation(.spring(duration: 0.35)) { selectedProvider = nil }
+                                if let onBack {
+                                    onBack()
+                                } else {
+                                    withAnimation(.spring(duration: 0.35)) { selectedProvider = nil }
+                                }
                             } label: {
                                 Image(systemName: "chevron.left")
                                     .font(.system(size: 15, weight: .heavy))
@@ -239,7 +255,10 @@ struct RegistrarConnectionView: View {
                 secondaryCredential: needsSecret(provider) ? apiSecret : nil,
                 metadata: metadata(provider)
             )
-            if store.error == nil { dismiss() }
+            if store.error == nil {
+                if let onConnected { onConnected() }
+                else { dismiss() }
+            }
         }
     }
 
