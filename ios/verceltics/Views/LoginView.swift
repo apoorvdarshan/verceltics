@@ -57,7 +57,7 @@ struct LoginView: View {
                         },
                         onConnected: {
                             selectedRegistrarProvider = nil
-                            if authManager.isAuthenticated { dismiss() }
+                            dismiss()
                         }
                     )
                 } else {

@@ -87,7 +87,7 @@ struct ProviderAccountMenu: View {
         } else if let provider = account?.provider {
             ProviderMark(provider: provider, size: 23, monochrome: true)
         } else {
-            Image(systemName: "triangle.fill")
+            Image(systemName: "server.rack")
                 .font(.system(size: 13, weight: .heavy))
                 .foregroundStyle(.white)
         }

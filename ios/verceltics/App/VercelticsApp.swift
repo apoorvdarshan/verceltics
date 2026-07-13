@@ -10,7 +10,7 @@ struct VercelticsApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if !authManager.isAuthenticated {
+                if !authManager.isAuthenticated && registrarStore.accounts.isEmpty {
                     LoginView()
                 } else if !paywallManager.hasCheckedEntitlements {
                     // Brief flash-prevention while RevenueCat checks entitlements
