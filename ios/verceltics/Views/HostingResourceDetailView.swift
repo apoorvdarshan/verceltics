@@ -3,19 +3,39 @@ import SwiftUI
 @Observable
 @MainActor
 final class HostingResourceDetailViewModel {
+    private static var cachedDeployments: [String: [HostingDeployment]] = [:]
+
     let api: HostingProviderAPI
+    private let accountID: String
     var deployments: [HostingDeployment] = []
     var isLoading = true
     var isActing = false
     var error: String?
     var successMessage: String?
 
-    init(account: VercelAccount) { api = HostingProviderAPI(account: account) }
+    init(account: VercelAccount) {
+        accountID = account.id.uuidString
+        api = HostingProviderAPI(account: account)
+    }
 
-    func load(resource: HostingResource) async {
-        isLoading = true
+    func load(resource: HostingResource, forceRefresh: Bool = false) async {
+        let cacheKey = "\(accountID)|\(resource.id)"
+        if !forceRefresh, let cached = Self.cachedDeployments[cacheKey] {
+            deployments = cached
+            isLoading = false
+            error = nil
+            return
+        }
+
+        isLoading = deployments.isEmpty
         error = nil
-        do { deployments = try await api.fetchDeployments(for: resource) }
+        do {
+            deployments = try await api.fetchDeployments(for: resource)
+            Self.cachedDeployments[cacheKey] = deployments
+        }
+        catch is CancellationError {
+            // Going back can cancel a request; keep cached data intact.
+        }
         catch { self.error = error.localizedDescription }
         isLoading = false
     }
@@ -27,7 +47,7 @@ final class HostingResourceDetailViewModel {
             try await api.performPrimaryAction(for: resource, latestDeployment: deployments.first)
             successMessage = "\(label) request accepted."
             try? await Task.sleep(for: .seconds(1))
-            await load(resource: resource)
+            await load(resource: resource, forceRefresh: true)
         } catch { self.error = error.localizedDescription }
         isActing = false
     }
@@ -95,7 +115,7 @@ struct HostingResourceDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .task { await viewModel.load(resource: resource) }
-        .refreshable { await viewModel.load(resource: resource) }
+        .refreshable { await viewModel.load(resource: resource, forceRefresh: true) }
         .confirmationDialog(
             "\(provider.primaryActionLabel ?? "Run action") \(resource.name)?",
             isPresented: $showActionConfirmation,

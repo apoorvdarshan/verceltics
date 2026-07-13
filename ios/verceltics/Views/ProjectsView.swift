@@ -4,22 +4,33 @@ import StoreKit
 @Observable
 @MainActor
 final class ProjectsViewModel {
+    private static var cachedProjects: [Int: [Project]] = [:]
+
     var projects: [Project] = []
     var isLoading = true
     var error: String?
 
-    private var hasLoaded = false
+    private var loadedCacheKey: Int?
 
     func load(token: String, forceRefresh: Bool = false) async {
-        if hasLoaded && !forceRefresh { return }
+        let cacheKey = token.hashValue
+        if !forceRefresh, loadedCacheKey == cacheKey { return }
+        if !forceRefresh, let cached = Self.cachedProjects[cacheKey] {
+            projects = cached
+            loadedCacheKey = cacheKey
+            isLoading = false
+            error = nil
+            return
+        }
         
-        // Show skeleton when it's the first load OR when we're switching accounts/forcing a refresh
-        isLoading = true
+        // Keep already loaded content visible while an explicit refresh runs.
+        isLoading = projects.isEmpty
         error = nil
         
         do {
             projects = try await VercelAPI(token: token).fetchProjects()
-            hasLoaded = true
+            loadedCacheKey = cacheKey
+            Self.cachedProjects[cacheKey] = projects
         } catch is CancellationError {
             // Tab switch — ignore, don't show error
         } catch {

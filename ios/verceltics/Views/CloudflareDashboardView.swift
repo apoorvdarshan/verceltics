@@ -3,10 +3,22 @@ import SwiftUI
 @Observable
 @MainActor
 final class CloudflareDashboardViewModel {
+    private struct CachedDashboard {
+        let accounts: [CloudflareAccountSummary]
+        let selectedAccountID: String?
+        let zones: [CloudflareZone]
+        let pagesProjects: [CloudflarePagesProject]
+        let workers: [CloudflareWorkerScript]
+        let sectionWarnings: [String]
+    }
+
+    private static var dashboards: [String: CachedDashboard] = [:]
+
     private(set) var api: CloudflareAPI?
     private var loadedEmail: String?
     private var loadedCredential: String?
     private var loadedAuthenticationMode: CloudflareAuthenticationMode?
+    private var loadedCacheKey: String?
     private var resourceLoadGeneration = 0
 
     var accounts: [CloudflareAccountSummary] = []
@@ -29,6 +41,31 @@ final class CloudflareDashboardViewModel {
         credential: String,
         forceRefresh: Bool = false
     ) async {
+        let client = CloudflareAPI(
+            authenticationMode: authenticationMode,
+            email: email,
+            credential: credential
+        )
+        let cacheKey = "\(authenticationMode.rawValue)|\(email ?? "")|\(credential.hashValue)"
+
+        if !forceRefresh, let cached = Self.dashboards[cacheKey] {
+            api = client
+            loadedEmail = email
+            loadedCredential = credential
+            loadedAuthenticationMode = authenticationMode
+            loadedCacheKey = cacheKey
+            accounts = cached.accounts
+            selectedAccountID = cached.selectedAccountID
+            zones = cached.zones
+            pagesProjects = cached.pagesProjects
+            workers = cached.workers
+            sectionWarnings = cached.sectionWarnings
+            error = nil
+            isLoading = false
+            isRefreshing = false
+            return
+        }
+
         if !forceRefresh,
            email == loadedEmail,
            credential == loadedCredential,
@@ -47,15 +84,11 @@ final class CloudflareDashboardViewModel {
         error = nil
         sectionWarnings = []
 
-        let client = CloudflareAPI(
-            authenticationMode: authenticationMode,
-            email: email,
-            credential: credential
-        )
         api = client
         loadedEmail = email
         loadedCredential = credential
         loadedAuthenticationMode = authenticationMode
+        loadedCacheKey = cacheKey
 
         do {
             let fetchedAccounts = try await client.fetchAccounts()
@@ -75,6 +108,7 @@ final class CloudflareDashboardViewModel {
                 selectedAccountID = accounts.first?.id
             }
             await loadSelectedAccount()
+            saveCache()
         } catch is CancellationError {
             // Account switching can cancel an in-flight refresh.
         } catch {
@@ -95,6 +129,7 @@ final class CloudflareDashboardViewModel {
         isRefreshing = true
         error = nil
         await loadSelectedAccount()
+        saveCache()
         isRefreshing = false
     }
 
@@ -129,6 +164,18 @@ final class CloudflareDashboardViewModel {
         zones.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         pagesProjects.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         workers.sort { $0.id.localizedCaseInsensitiveCompare($1.id) == .orderedAscending }
+    }
+
+    private func saveCache() {
+        guard let loadedCacheKey else { return }
+        Self.dashboards[loadedCacheKey] = CachedDashboard(
+            accounts: accounts,
+            selectedAccountID: selectedAccountID,
+            zones: zones,
+            pagesProjects: pagesProjects,
+            workers: workers,
+            sectionWarnings: sectionWarnings
+        )
     }
 
     private func capture<T>(_ operation: () async throws -> T) async -> Result<T, Error> {

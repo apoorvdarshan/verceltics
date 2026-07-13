@@ -3,25 +3,38 @@ import SwiftUI
 @Observable
 @MainActor
 final class RegistrarDashboardViewModel {
+    private static var cachedDomains: [String: [RegistrarDomain]] = [:]
+
     let account: RegistrarAccount
     let api: RegistrarAPI
     var domains: [RegistrarDomain] = []
     var isLoading = true
     var isRefreshing = false
     var error: String?
+    private var hasLoaded = false
 
     init(account: RegistrarAccount) {
         self.account = account
         api = RegistrarAPI(account: account)
+        if let cached = Self.cachedDomains[account.id.uuidString] {
+            domains = cached
+            isLoading = false
+            hasLoaded = true
+        }
     }
 
     func load(refresh: Bool = false) async {
+        if hasLoaded && !refresh { return }
         if refresh { isRefreshing = true } else { isLoading = true }
         error = nil
         do {
             domains = try await api.fetchDomains().sorted {
                 $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
             }
+            hasLoaded = true
+            Self.cachedDomains[account.id.uuidString] = domains
+        } catch is CancellationError {
+            // Switching tabs can cancel a request; keep any cached content.
         } catch { self.error = error.localizedDescription }
         isLoading = false
         isRefreshing = false

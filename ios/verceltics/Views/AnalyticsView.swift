@@ -3,6 +3,17 @@ import SwiftUI
 @Observable
 @MainActor
 final class AnalyticsViewModel {
+    private struct CachedAnalytics {
+        let data: AnalyticsData
+        let projectDetails: Project
+        let domains: [String]
+        let recentDeployments: [RecentDeployment]
+        let hasLongAnalyticsHistory: Bool
+        let analyticsUnavailableMessage: String?
+    }
+
+    private static var cache: [String: CachedAnalytics] = [:]
+
     let project: Project
 
     var data = AnalyticsData()
@@ -23,7 +34,31 @@ final class AnalyticsViewModel {
         self.domains = project.primaryDomain.map { [$0] } ?? []
     }
 
-    func load(token: String, hasLongAnalyticsHistory: Bool) async -> (didUnlock: Bool, applied: Bool) {
+    func load(
+        token: String,
+        hasLongAnalyticsHistory: Bool,
+        forceRefresh: Bool = false
+    ) async -> (didUnlock: Bool, applied: Bool) {
+        let cacheKey = [
+            token.hashValue.description,
+            project.id,
+            project.teamId ?? "",
+            selectedRange.rawValue,
+            selectedEnvironment.rawValue
+        ].joined(separator: "|")
+
+        if !forceRefresh, let cached = Self.cache[cacheKey] {
+            data = cached.data
+            projectDetails = cached.projectDetails
+            domains = cached.domains
+            recentDeployments = cached.recentDeployments
+            self.hasLongAnalyticsHistory = hasLongAnalyticsHistory || cached.hasLongAnalyticsHistory
+            analyticsUnavailableMessage = cached.analyticsUnavailableMessage
+            error = nil
+            isLoading = false
+            return (false, true)
+        }
+
         loadGeneration += 1
         let generation = loadGeneration
         isLoading = true
@@ -115,6 +150,16 @@ final class AnalyticsViewModel {
         recentDeployments = deployments
 
         isLoading = false
+        if loadedError == nil {
+            Self.cache[cacheKey] = CachedAnalytics(
+                data: data,
+                projectDetails: projectDetails,
+                domains: self.domains,
+                recentDeployments: recentDeployments,
+                hasLongAnalyticsHistory: self.hasLongAnalyticsHistory,
+                analyticsUnavailableMessage: analyticsUnavailableMessage
+            )
+        }
         return (didUnlockLongAnalyticsHistory, true)
     }
 }
@@ -141,7 +186,7 @@ struct AnalyticsView: View {
                 AnalyticsSkeletonView()
             } else if let error = vm.error {
                 ErrorStateView(message: error) {
-                    Task { await loadData() }
+                    Task { await loadData(forceRefresh: true) }
                 }
             } else {
                 analyticsContent
@@ -156,7 +201,7 @@ struct AnalyticsView: View {
                     withAnimation(.easeInOut(duration: 0.6)) {
                         refreshSpin += 360
                     }
-                    Task { await loadData() }
+                    Task { await loadData(forceRefresh: true) }
                 } label: {
                     Image(systemName: "arrow.clockwise")
                         .font(.system(size: 14, weight: .heavy))
@@ -210,7 +255,7 @@ struct AnalyticsView: View {
             .frame(maxWidth: hSize == .regular ? 1100 : .infinity)
             .frame(maxWidth: .infinity)
         }
-        .refreshable { await loadData() }
+        .refreshable { await loadData(forceRefresh: true) }
     }
 
     private func analyticsUnavailableCard(_ message: String) -> some View {
@@ -897,12 +942,13 @@ struct AnalyticsView: View {
 
     // MARK: - Helpers
 
-    private func loadData() async {
+    private func loadData(forceRefresh: Bool = false) async {
         guard let token = authManager.token else { return }
         let accountId = authManager.activeAccountId
         let result = await vm.load(
             token: token,
-            hasLongAnalyticsHistory: authManager.hasLongAnalyticsHistory(for: accountId)
+            hasLongAnalyticsHistory: authManager.hasLongAnalyticsHistory(for: accountId),
+            forceRefresh: forceRefresh
         )
         guard result.applied else { return }
         if result.didUnlock {

@@ -3,25 +3,38 @@ import SwiftUI
 @Observable
 @MainActor
 final class HostingDashboardViewModel {
+    private static var cachedResources: [String: [HostingResource]] = [:]
+
     let account: VercelAccount
     let api: HostingProviderAPI
     var resources: [HostingResource] = []
     var isLoading = true
     var isRefreshing = false
     var error: String?
+    private var hasLoaded = false
 
     init(account: VercelAccount) {
         self.account = account
         self.api = HostingProviderAPI(account: account)
+        if let cached = Self.cachedResources[account.id.uuidString] {
+            resources = cached
+            isLoading = false
+            hasLoaded = true
+        }
     }
 
     func load(refresh: Bool = false) async {
+        if hasLoaded && !refresh { return }
         if refresh { isRefreshing = true } else { isLoading = true }
         error = nil
         do {
             resources = try await api.fetchResources().sorted {
                 $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
             }
+            hasLoaded = true
+            Self.cachedResources[account.id.uuidString] = resources
+        } catch is CancellationError {
+            // Switching tabs can cancel a request; keep any cached content.
         } catch {
             self.error = error.localizedDescription
         }
