@@ -19,24 +19,29 @@ const KOFI = "https://ko-fi.com/apoorvdarshan";
 
 const useCases = [
   {
-    title: "Vercel analytics on iPhone",
-    body: "Check Vercel Web Analytics from a native iOS app: visitors, page views, referrers, countries, devices, browsers, operating systems, routes, hostnames, UTM, events, flags, and query parameters.",
+    title: "Hosting platforms together",
+    body: "Switch between Vercel, Cloudflare, Netlify, Railway, Render, DigitalOcean, Heroku, Fly.io, Firebase, and AWS Amplify from one native dashboard.",
   },
   {
-    title: "Vercel projects and deployments",
-    body: "Search projects, see favicons, spot fresh deployments, inspect recent deployment details, copy project URLs, and switch between Vercel accounts without opening the desktop dashboard.",
+    title: "Domains and DNS",
+    body: "Connect eight registrars, review expiry and renewal state, inspect nameservers, and open guarded provider API operations without jumping between dashboards.",
   },
   {
-    title: "Private Vercel mobile dashboard",
-    body: "Your Vercel token stays in iOS Keychain and talks directly to Vercel. Verceltics does not proxy, track, or store your Vercel account data or analytics data.",
+    title: "Private direct connections",
+    body: "Credentials stay in the device-only iOS Keychain and talk directly to the selected provider. Verceltics does not proxy, track, or store provider account data.",
   },
 ] as const;
 
 const faqs = [
   {
-    question: "Is Verceltics an official Vercel app?",
+    question: "Is Verceltics an official provider app?",
     answer:
-      "No. Verceltics is an independent, open-source iOS app for viewing Vercel Web Analytics, projects, deployments, and domains. It is not affiliated with, endorsed by, or sponsored by Vercel Inc.",
+      "No. Verceltics is an independent, open-source iOS dashboard and is not affiliated with, endorsed by, or sponsored by any supported hosting platform or registrar.",
+  },
+  {
+    question: "Which hosting platforms and registrars are supported?",
+    answer:
+      "Hosting support includes Vercel, Cloudflare, Netlify, Railway, Render, DigitalOcean, Heroku, Fly.io, Firebase, and AWS Amplify. Registrar support includes Name.com, Namecheap, Porkbun, Spaceship, Dynadot, NameSilo, Gandi, and GoDaddy.",
   },
   {
     question: "Can I use Verceltics as a Vercel mobile app?",
@@ -71,7 +76,7 @@ const faqs = [
 ] as const;
 
 const ticker = [
-  "v1.2.1 — tip jar & support tab",
+  "v2.0 — hosting & domains",
   "SwiftUI",
   "Swift Charts",
   "Private by design",
@@ -163,9 +168,9 @@ const jsonLd = {
   name: "Verceltics",
   operatingSystem: "iOS",
   applicationCategory: "DeveloperApplication",
-  softwareVersion: "1.2.1",
+  softwareVersion: "2.0",
   description:
-    "Vercel web analytics viewer for iPhone and iPad. Track visitors, page views, referrers, countries, devices, browsers, and operating systems. Built with SwiftUI and Swift Charts. Open source, private by default, no tracking, no data proxy.",
+    "Hosting, deployment, analytics, DNS, and registrar dashboard for iPhone and iPad. Built with SwiftUI and Swift Charts. Open source, private by default, no tracking, and no data proxy.",
   url: SITE_URL,
   downloadUrl: APPSTORE,
   mainEntityOfPage: SITE_URL,
@@ -283,14 +288,14 @@ export default function Home() {
                 className="animate-fade-up text-[11px] font-medium uppercase tracking-[0.35em] text-white/30"
                 style={{ animationDelay: "0.05s" }}
               >
-                Open source &middot; iOS 18+ &middot; v1.2.1
+                Open source &middot; iOS 18+ &middot; v2.0
               </p>
 
               <h1
                 className="animate-fade-up mt-5 font-serif text-[clamp(3rem,7vw,7rem)] italic leading-[0.88] tracking-[-0.04em]"
                 style={{ animationDelay: "0.15s" }}
               >
-                Vercel analytics,
+                Hosting and domains,
                 <br />
                 <span className="bg-gradient-to-r from-white via-[#a4cfff] to-[#5a96ff] bg-clip-text text-transparent">
                   in your pocket.
@@ -301,9 +306,9 @@ export default function Home() {
                 className="animate-fade-up mt-7 max-w-md text-[15px] leading-7 text-white/45 lg:text-base"
                 style={{ animationDelay: "0.28s" }}
               >
-                Vercel Web Analytics on iPhone and iPad — visitors, referrers,
-                devices, page views, and twelve breakdowns. Tokens in your
-                Keychain. Nothing in between.
+                Ten hosting platforms and eight registrars on iPhone and iPad —
+                projects, deployments, analytics, DNS, and domains. Credentials
+                in your Keychain. Nothing in between.
               </p>
 
               <div
@@ -432,9 +437,9 @@ export default function Home() {
 
             <div className="mt-16 grid gap-px overflow-hidden rounded-2xl border border-white/[0.04] md:grid-cols-3">
               {[
-                { n: "01", t: "Create a token", d: "Generate a read-only token in your Vercel dashboard." },
-                { n: "02", t: "Paste it in", d: "Enter it once. Add more accounts later if needed." },
-                { n: "03", t: "Check anytime", d: "Open the app. See your stats. That’s the whole flow." },
+                { n: "01", t: "Choose a provider", d: "Pick Hosting or Registrars, then select the service you use." },
+                { n: "02", t: "Connect securely", d: "Enter its API credential once. It stays in your device-only Keychain." },
+                { n: "03", t: "Manage anytime", d: "Switch accounts and review resources without opening every desktop dashboard." },
               ].map((s, i) => (
                 <ScrollReveal key={s.n} delay={i * 80}>
                   <div className="h-full bg-white/[0.02] p-8 transition-colors hover:bg-white/[0.04]">
@@ -460,7 +465,7 @@ export default function Home() {
                   Three plans. No tricks.
                 </h2>
                 <p className="mt-4 max-w-md mx-auto text-[14px] leading-6 text-white/35">
-                  Yearly comes with a real 7-day free trial. Lifetime is one payment, no recurring charges ever. Or build from source for free with your own Vercel tokens.
+                  Yearly comes with a real 7-day free trial. Lifetime is one payment, no recurring charges ever. Or build from source for free with your own provider credentials.
                 </p>
               </div>
             </ScrollReveal>
@@ -542,18 +547,18 @@ export default function Home() {
         </section>
 
         {/* ══ USE CASES ══ */}
-        <section id="vercel-mobile-app" className="scroll-mt-24 border-y border-white/[0.04] bg-white/[0.015] px-5 py-20 sm:px-8 sm:py-24">
+        <section id="provider-mobile-app" className="scroll-mt-24 border-y border-white/[0.04] bg-white/[0.015] px-5 py-20 sm:px-8 sm:py-24">
           <div className="mx-auto max-w-6xl">
             <ScrollReveal>
               <div className="max-w-3xl">
                 <p className="text-[11px] font-medium uppercase tracking-[0.35em] text-white/30">
-                  Vercel mobile dashboard
+                  Provider mobile dashboard
                 </p>
                 <h2 className="mt-4 font-serif text-[clamp(2rem,4.5vw,3.8rem)] italic leading-[0.95] tracking-[-0.03em]">
                   Built for the checks you do between deploys.
                 </h2>
                 <p className="mt-5 max-w-2xl text-[15px] leading-7 text-white/40">
-                  Verceltics is a Vercel Analytics iOS app for developers, founders, and indie hackers who want a clean way to monitor Vercel projects from iPhone or iPad.
+                  Verceltics is an iOS dashboard for developers, founders, and indie hackers who want hosting, analytics, deployments, DNS, and domains together on iPhone or iPad.
                 </p>
               </div>
             </ScrollReveal>
@@ -606,7 +611,7 @@ export default function Home() {
               <h2 className="font-serif text-[clamp(2.4rem,5vw,4.2rem)] italic leading-[0.92] tracking-[-0.03em]">
                 Try it free for seven days.
               </h2>
-              <p className="mt-5 text-[15px] text-white/35">Your Vercel analytics, always in your pocket.</p>
+              <p className="mt-5 text-[15px] text-white/35">Your hosting and domains, always in your pocket.</p>
               <a
                 href={APPSTORE}
                 target="_blank"
@@ -632,7 +637,7 @@ export default function Home() {
                 <span className="text-[12px] font-semibold tracking-[0.2em]">VERCELTICS</span>
               </div>
               <p className="mt-3 text-[12px] leading-5 text-white/25">
-                An open source companion app for Vercel Web Analytics.
+                An open source companion for hosting platforms and domain registrars.
               </p>
             </div>
 
@@ -655,7 +660,7 @@ export default function Home() {
           </div>
 
           <p className="mt-8 text-center text-[11px] text-white/15 md:text-left">
-            Built with <span className="text-white/30">♥</span> by Apoorv Darshan. Not affiliated with Vercel Inc. &copy; 2026.
+            Built with <span className="text-white/30">♥</span> by Apoorv Darshan. Independent from all supported providers. &copy; 2026.
           </p>
         </div>
       </footer>

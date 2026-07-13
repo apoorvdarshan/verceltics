@@ -384,7 +384,7 @@ final class AuthManager {
         accounts = []
         activeAccountId = nil
         accountsWithLongAnalyticsHistory.removeAll()
-        KeychainHelper.deleteEverything()
+        KeychainHelper.deleteHostingAccounts()
     }
 
     private struct AccountProfile {
@@ -402,7 +402,10 @@ final class AuthManager {
     }
 
     private func fetchAccountProfile(token: String) async throws -> ProfileResult {
-        var request = URLRequest(url: URL(string: "https://api.vercel.com/v2/user")!)
+        guard let profileURL = URL(string: "https://api.vercel.com/v2/user") else {
+            throw URLError(.badURL)
+        }
+        var request = URLRequest(url: profileURL)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
         let (data, response) = try await URLSession.shared.data(for: request)

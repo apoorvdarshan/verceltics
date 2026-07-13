@@ -1,6 +1,6 @@
 # Security Policy
 
-Verceltics handles Vercel personal access tokens and Cloudflare Global API Keys, so we take security reports seriously. Thanks for helping keep the app and its users safe.
+Verceltics handles hosting-platform and domain-registrar credentials, so we take security reports seriously. Thanks for helping keep the app and its users safe.
 
 ## Supported Versions
 
@@ -33,9 +33,9 @@ You can expect:
 ## In Scope
 
 - Token leakage (Keychain bypass, plaintext storage, accidental logging)
-- Credential transmission outside `api.vercel.com`, `vercel.com/api`, or `api.cloudflare.com` (other than the explicitly documented credential-free image services in `ProjectIcon`)
+- Credential transmission outside the selected provider's official API host (other than explicitly documented credential-free image services)
 - StoreKit verification bypass that grants entitlements without a real receipt
-- Memory disclosure or crashes triggered by malformed Vercel or Cloudflare API responses
+- Memory disclosure or crashes triggered by malformed provider API responses
 - ATS / TLS misconfiguration
 - Deep link or URL scheme injection
 - Vulnerabilities in the landing page (`web/`) that could affect users (XSS, CSRF on any form, etc.)
@@ -43,7 +43,7 @@ You can expect:
 ## Out of Scope
 
 - Anything requiring a jailbroken device
-- Vulnerabilities in third-party services Verceltics talks to (Vercel API, Cloudflare API, `images.weserv.nl`, `icon.horse`, `icons.duckduckgo.com`, `www.google.com/s2/favicons`) — please report those upstream
+- Vulnerabilities in third-party provider or image services that Verceltics talks to — please report those upstream
 - Behavior that is documented and intended (for example, a pasted credential being sent directly to its provider API, or an explicitly confirmed Cloudflare write request)
 - Self-inflicted issues (sharing your own token publicly, pasting the wrong token)
 - Theoretical issues without a concrete attack scenario
@@ -52,15 +52,17 @@ You can expect:
 
 ## Token Safety
 
-Verceltics stores Vercel personal access tokens and Cloudflare Global API Keys in the iOS Keychain using device-only, when-unlocked accessibility. Credentials are sent **only** to:
+Verceltics stores all connected credentials in the iOS Keychain using device-only, when-unlocked accessibility. Credentials are sent **only** to the corresponding provider host:
 
 - `api.vercel.com` (user profile, project listing, project detail, domain list)
 - `vercel.com/api` (analytics endpoints)
 - `api.cloudflare.com` (Cloudflare profile, accounts, zones, DNS, Pages, Workers, analytics, and user-initiated API operations)
+- `api.netlify.com`, `backboard.railway.com`, `api.render.com`, `api.digitalocean.com`, `api.heroku.com`, `api.machines.dev`, `firebasehosting.googleapis.com`, or the selected regional `amplify.*.amazonaws.com` host
+- `api.name.com`, `api.namecheap.com`, `api.porkbun.com`, `spaceship.dev`, `api.dynadot.com`, `www.namesilo.com`, `api.gandi.net`, or `api.godaddy.com`
 
 Favicon fetches, SVG rasterisation, and Vercel avatar image loads do **not** include credentials — they are plain image/GET requests.
 
-Cloudflare Global API Keys inherit the Cloudflare user's permissions and can make destructive changes. The app requires an explicit confirmation before destructive typed actions and all non-GET requests in the advanced API explorer. If a credential may be exposed, revoke or rotate it immediately from [Vercel Tokens](https://vercel.com/account/tokens) or [Cloudflare API Tokens](https://dash.cloudflare.com/profile/api-tokens).
+Provider credentials inherit their configured permissions and can make destructive changes or purchases. The app blocks cross-host redirects and requires confirmation before detected write or purchase requests. If a credential may be exposed, revoke or rotate it immediately in that provider's dashboard.
 
 ## Disclosure Policy
 

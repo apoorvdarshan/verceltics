@@ -18,11 +18,11 @@ const instrumentSerif = Instrument_Serif({
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.verceltics.com"),
   title: {
-    default: "Verceltics — Vercel Analytics iOS App for iPhone and iPad",
+    default: "Verceltics — Hosting and Domains for iPhone and iPad",
     template: "%s — Verceltics",
   },
   description:
-    "Open-source iOS app for Vercel Web Analytics: native Swift Charts for visitors, page views, referrers, countries, devices, deployments, domains, and projects on iPhone and iPad.",
+    "Open-source iOS dashboard for hosting platforms and domain registrars: projects, deployments, analytics, DNS, and domains on iPhone and iPad.",
   keywords: [
     "Vercel",
     "analytics",
@@ -36,6 +36,10 @@ export const metadata: Metadata = {
     "Vercel project monitoring",
     "Vercel deployments",
     "Vercel domains",
+    "Cloudflare mobile dashboard",
+    "hosting dashboard",
+    "domain registrar",
+    "DNS management",
     "iOS",
     "iPhone",
     "iPad",
@@ -56,32 +60,32 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_US",
     siteName: "Verceltics",
-    title: "Verceltics — Vercel Analytics iOS App",
+    title: "Verceltics — Hosting and Domains for iOS",
     description:
-      "Track Vercel Web Analytics, projects, deployments, domains, and traffic breakdowns from your iPhone or iPad.",
+      "Manage hosting projects, deployments, analytics, DNS, and registrar domains from your iPhone or iPad.",
     url: "https://www.verceltics.com",
     images: [
       {
         url: "/og.jpg",
         width: 1200,
         height: 630,
-        alt: "Verceltics — Vercel Analytics iOS App",
+        alt: "Verceltics — Hosting and Domains for iOS",
         type: "image/jpeg",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Verceltics — Vercel Analytics iOS App",
+    title: "Verceltics — Hosting and Domains for iOS",
     description:
-      "Track Vercel Web Analytics, projects, deployments, domains, and traffic breakdowns from your iPhone.",
+      "Manage hosting projects, deployments, analytics, DNS, and registrar domains from your iPhone.",
     creator: "@apoorvdarshan",
     images: [
       {
         url: "/og.jpg",
         width: 1200,
         height: 630,
-        alt: "Verceltics — Vercel Analytics iOS App",
+        alt: "Verceltics — Hosting and Domains for iOS",
       },
     ],
   },

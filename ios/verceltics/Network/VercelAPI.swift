@@ -85,20 +85,50 @@ actor VercelAPI {
     }
 
     private func fetchProjectList(teamId: String?) async throws -> [Project] {
-        let response: ProjectsResponse = try await request(
-            base: "https://api.vercel.com",
-            path: "/v9/projects",
-            queryItems: projectQueryItems(teamId: teamId)
-        )
-        return response.projects
+        var projects: [Project] = []
+        var cursor: Int64?
+        var seenCursors = Set<Int64>()
+
+        repeat {
+            var queryItems = projectQueryItems(teamId: teamId)
+            queryItems.append(URLQueryItem(name: "limit", value: "100"))
+            if let cursor {
+                queryItems.append(URLQueryItem(name: "until", value: String(cursor)))
+            }
+            let response: ProjectsResponse = try await request(
+                base: "https://api.vercel.com",
+                path: "/v9/projects",
+                queryItems: queryItems
+            )
+            projects.append(contentsOf: response.projects)
+            cursor = response.pagination?.next
+            if let nextCursor = cursor, !seenCursors.insert(nextCursor).inserted { cursor = nil }
+        } while cursor != nil
+
+        return projects
     }
 
     func fetchTeams() async throws -> [VercelTeam] {
-        let response: VercelTeamsResponse = try await request(
-            base: "https://api.vercel.com",
-            path: "/v2/teams"
-        )
-        return response.teams
+        var teams: [VercelTeam] = []
+        var cursor: Int64?
+        var seenCursors = Set<Int64>()
+
+        repeat {
+            var queryItems = [URLQueryItem(name: "limit", value: "100")]
+            if let cursor {
+                queryItems.append(URLQueryItem(name: "until", value: String(cursor)))
+            }
+            let response: VercelTeamsResponse = try await request(
+                base: "https://api.vercel.com",
+                path: "/v2/teams",
+                queryItems: queryItems
+            )
+            teams.append(contentsOf: response.teams)
+            cursor = response.pagination?.next
+            if let nextCursor = cursor, !seenCursors.insert(nextCursor).inserted { cursor = nil }
+        } while cursor != nil
+
+        return teams
     }
 
     func fetchProject(id: String, teamId: String?) async throws -> Project {
@@ -265,11 +295,15 @@ actor VercelAPI {
     }
 
     private func request<T: Decodable>(base: String, path: String, queryItems: [URLQueryItem] = []) async throws -> T {
-        var components = URLComponents(string: base + path)!
+        guard var components = URLComponents(string: base + path) else {
+            throw APIError.networkError(URLError(.badURL))
+        }
         if !queryItems.isEmpty {
             components.queryItems = queryItems
         }
-        let url = components.url!
+        guard let url = components.url else {
+            throw APIError.networkError(URLError(.badURL))
+        }
         var request = URLRequest(url: url)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 

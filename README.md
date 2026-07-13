@@ -5,14 +5,14 @@
 <h1 align="center">Verceltics</h1>
 
 <p align="center">
-  Vercel Web Analytics on your iPhone.<br>
+  Hosting, analytics, deployments, and domains on your iPhone.<br>
   <a href="https://apps.apple.com/us/app/verceltics/id6761645656">App Store</a> · <a href="https://verceltics.com">Website</a>
 </p>
 
 <p align="center">
   <a href="https://github.com/apoorvdarshan/verceltics/releases/latest"><img src="https://img.shields.io/github/v/release/apoorvdarshan/verceltics?label=release&color=d6ff5c" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" /></a>
-  <a href="https://swift.org"><img src="https://img.shields.io/badge/Swift-6-orange.svg" /></a>
+  <a href="https://swift.org"><img src="https://img.shields.io/badge/Swift-5-orange.svg" /></a>
   <a href="https://developer.apple.com/ios/"><img src="https://img.shields.io/badge/Platform-iOS%2018%2B-black.svg" /></a>
   <a href="https://github.com/apoorvdarshan/verceltics/stargazers"><img src="https://img.shields.io/github/stars/apoorvdarshan/verceltics?style=flat&color=yellow" /></a>
 </p>
@@ -32,8 +32,10 @@
 ## Features
 
 - **Projects Dashboard** — Personal and team Vercel projects with favicons, git repo, last commit, framework
-- **Multi-provider accounts** — Add and switch between Vercel and Cloudflare accounts from one provider-aware menu
+- **Multi-provider accounts** — Connect and switch between 10 hosting platforms and 8 domain registrars
 - **Cloudflare Control** — Accounts, zones, DNS CRUD, analytics, Pages deployments/logs/actions, Workers deployments/actions, cache purge, and a guarded advanced API explorer
+- **Hosting dashboards** — Netlify, Railway, Render, DigitalOcean, Heroku, Fly.io, Firebase, and AWS Amplify resources, deployments, logs, actions, and complete API catalogs
+- **Registrar dashboards** — Name.com, Namecheap, Porkbun, Spaceship, Dynadot, NameSilo, Gandi, and GoDaddy domains with provider API catalogs
 - **Live Deploy Indicator** — Pulsing green dot when a deployment is < 30 minutes old
 - **Project Details** — Scope, framework, connected repository, verified domains, and recent deployments
 - **Deployment Details** — Open deployments to inspect target, branch, commit, creator, live URL, and build events
@@ -50,7 +52,7 @@
 - **About Tab** — Links (GitHub, LinkedIn, X), contact, legal, and subscription management
 - **iPad** — Adaptive grid + sidebar tab style on regular size class
 - **Dark Mode** — Pure black (#000000) Vercel-style design
-- **Secure** — Vercel tokens and Cloudflare Global API Keys use device-only iOS Keychain storage; destructive Cloudflare actions require confirmation
+- **Secure** — Every credential uses device-only iOS Keychain storage; cross-host redirects are blocked and detected writes require confirmation
 
 ## Pricing
 
@@ -60,14 +62,14 @@
 | Yearly | $34.99 | 7-day free trial |
 | Lifetime | $59.99 | — (one-time purchase) |
 
-Build from source for free with your own Vercel token. App Store distribution exists for convenience and to fund development.
+Build from source for free with your own provider credentials. App Store distribution exists for convenience and to fund development.
 
 ## Tech Stack
 
 **iOS**
 - **SwiftUI** — Entire UI, layered gradient cards, scoped animations
 - **Swift Charts** — Interactive line + area chart with peak / average / drag-select
-- **Swift 6** — Strict concurrency (`SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`)
+- **Swift 5 language mode** — Main-actor isolation with strict concurrency checks
 - **RevenueCat + StoreKit** — Entitlements, purchase restore, auto-renewable subscriptions, and lifetime unlock
 - **Keychain** — Secure token storage
 - **async/await** + **actors** — All API calls
@@ -151,7 +153,9 @@ The app communicates directly with these provider API hosts:
 |------|-----------|------|
 | `api.vercel.com` | `/v2/user`, `/v9/projects`, `/v9/projects/{id}`, `/v9/projects/{id}/domains` | Bearer token |
 | `vercel.com/api` | `/web-analytics/v2/*` | Bearer token |
-| `api.cloudflare.com` | `/client/v4/*`, including GraphQL analytics | `X-Auth-Email` + `X-Auth-Key` |
+| `api.cloudflare.com` | `/client/v4/*`, including GraphQL analytics | Global key or scoped API token |
+| Hosting provider APIs | Netlify, Railway, Render, DigitalOcean, Heroku, Fly.io, Firebase, and AWS Amplify | Provider token/key |
+| Registrar provider APIs | Name.com, Namecheap, Porkbun, Spaceship, Dynadot, NameSilo, Gandi, and GoDaddy | Provider key/token |
 
 Analytics endpoints use `groupBy` parameter: `path`, `route`, `hostname`, `referrer`, `utm`, `country`, `device_type`, `client_name`, `os_name`, `event_name`, `flags`, `query_params`
 
@@ -186,7 +190,7 @@ ios/verceltics/
 
 ## Disclaimer
 
-Verceltics is **not** affiliated with, endorsed by, or sponsored by Vercel Inc. or Cloudflare, Inc. Their names and marks are trademarks of their respective owners. This independent, open-source project communicates directly with provider APIs using user-provided credentials.
+Verceltics is **not** affiliated with, endorsed by, or sponsored by any supported hosting platform or registrar. Their names and marks belong to their respective owners. This independent, open-source project communicates directly with provider APIs using user-provided credentials.
 
 ## Contributing
 

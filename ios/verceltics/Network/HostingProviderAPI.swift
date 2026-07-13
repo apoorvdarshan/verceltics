@@ -419,6 +419,7 @@ struct HostingProviderAPI {
         body: String?,
         additionalHeaders: [String: String] = [:],
         contentType: String? = nil,
+        bodyIsBase64: Bool = false,
         returnHTTPErrorResponse: Bool = false
     ) async throws -> HostingRawResponse {
         let normalizedMethod = method.uppercased()
@@ -429,11 +430,29 @@ struct HostingProviderAPI {
             throw HostingProviderAPIError.invalidConfiguration("Enter a provider-relative path beginning with /.")
         }
 
-        let bodyData = body?.data(using: .utf8)
+        let bodyData: Data?
+        if bodyIsBase64, let body {
+            guard let decoded = Data(base64Encoded: body) else {
+                throw ProviderRequestSecurityError.invalidBase64Body
+            }
+            bodyData = decoded
+        } else {
+            bodyData = body?.data(using: .utf8)
+        }
+        let validatedContentType = try ProviderRequestSecurity.validatedContentType(contentType)
+        let validatedHeaders = try ProviderRequestSecurity.validatedHeaders(
+            additionalHeaders,
+            protectedHeaders: Self.protectedHeaders
+        )
         var request: URLRequest
 
         if provider == .awsAmplify {
-            request = try awsSignedRequest(method: normalizedMethod, path: path, body: bodyData)
+            request = try awsSignedRequest(
+                method: normalizedMethod,
+                path: path,
+                body: bodyData,
+                contentType: validatedContentType ?? "application/json"
+            )
         } else {
             guard let baseURL, let url = URL(string: baseURL + path) else {
                 throw HostingProviderAPIError.invalidConfiguration("This provider has no API base URL.")
@@ -441,7 +460,7 @@ struct HostingProviderAPI {
             request = URLRequest(url: url)
             request.httpMethod = provider == .railway ? "POST" : normalizedMethod
             request.httpBody = bodyData
-            request.setValue(contentType ?? "application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue(validatedContentType ?? "application/json", forHTTPHeaderField: "Content-Type")
             request.setValue("application/json", forHTTPHeaderField: "Accept")
             if provider == .railway, metadata["railwayTokenType"] == "project" {
                 request.setValue(credential, forHTTPHeaderField: "Project-Access-Token")
@@ -454,11 +473,11 @@ struct HostingProviderAPI {
             }
         }
 
-        for (name, value) in additionalHeaders where !Self.protectedHeaders.contains(name.lowercased()) {
+        for (name, value) in validatedHeaders {
             request.setValue(value, forHTTPHeaderField: name)
         }
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await ProviderRequestSecurity.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw HostingProviderAPIError.invalidResponse }
         let responseBody = String(data: data, encoding: .utf8) ?? data.base64EncodedString()
         if !(200...299).contains(http.statusCode), !returnHTTPErrorResponse {
@@ -470,7 +489,7 @@ struct HostingProviderAPI {
         return HostingRawResponse(statusCode: http.statusCode, headers: headers, body: responseBody)
     }
 
-    private static let protectedHeaders = Set(["authorization", "project-access-token", "host", "content-length", "x-amz-date", "x-amz-security-token"])
+    private static let protectedHeaders = Set(["authorization", "project-access-token", "host", "content-length", "content-type", "x-amz-date", "x-amz-security-token"])
 
     // MARK: - Railway
 
@@ -557,7 +576,7 @@ struct HostingProviderAPI {
         case .netlify: "https://api.netlify.com/api/v1"
         case .railway: "https://backboard.railway.com"
         case .render: "https://api.render.com/v1"
-        case .digitalOcean: "https://api.digitalocean.com/v2"
+        case .digitalOcean: "https://api.digitalocean.com"
         case .heroku: "https://api.heroku.com"
         case .fly: "https://api.machines.dev/v1"
         case .firebase: "https://firebasehosting.googleapis.com/v1beta1"
@@ -607,7 +626,7 @@ struct HostingProviderAPI {
 
     // MARK: - AWS Signature Version 4
 
-    private func awsSignedRequest(method: String, path: String, body: Data?) throws -> URLRequest {
+    private func awsSignedRequest(method: String, path: String, body: Data?, contentType: String) throws -> URLRequest {
         let accessKeyID = try requiredMetadata("accessKeyID", label: "AWS access key ID")
         let region = try requiredMetadata("region", label: "AWS region")
         let host = "amplify.\(region).amazonaws.com"
@@ -621,7 +640,7 @@ struct HostingProviderAPI {
         let payload = body ?? Data()
         let payloadHash = sha256Hex(payload)
         var headers: [(String, String)] = [
-            ("content-type", "application/json"),
+            ("content-type", contentType),
             ("host", host),
             ("x-amz-date", amzDate)
         ]
@@ -655,7 +674,7 @@ struct HostingProviderAPI {
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.httpBody = body
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(contentType, forHTTPHeaderField: "Content-Type")
         request.setValue(amzDate, forHTTPHeaderField: "X-Amz-Date")
         if let sessionToken = metadata["sessionToken"], !sessionToken.isEmpty {
             request.setValue(sessionToken, forHTTPHeaderField: "X-Amz-Security-Token")

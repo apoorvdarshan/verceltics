@@ -135,7 +135,7 @@ struct CloudflareMultipartComposerView: View {
             HStack(spacing: 7) {
                 Image(systemName: part.isFile ? "doc.fill" : "text.cursor")
                     .foregroundStyle(CloudflareStyle.orange)
-                TextField("Field name", text: binding(part.id, \.name))
+                TextField("Field name", text: stringBinding(part.id, \.name))
                     .font(.system(size: 11, weight: .bold, design: .monospaced))
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
@@ -176,7 +176,7 @@ struct CloudflareMultipartComposerView: View {
                 }
                 .buttonStyle(.plain)
             } else {
-                TextField("Field value", text: binding(part.id, \.value), axis: .vertical)
+                TextField("Field value", text: stringBinding(part.id, \.value), axis: .vertical)
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
@@ -216,12 +216,13 @@ struct CloudflareMultipartComposerView: View {
         .buttonStyle(PressScaleButtonStyle())
     }
 
-    private func binding<Value>(_ id: UUID, _ keyPath: WritableKeyPath<CloudflareMultipartPart, Value>) -> Binding<Value> {
+    private func stringBinding(
+        _ id: UUID,
+        _ keyPath: WritableKeyPath<CloudflareMultipartPart, String>
+    ) -> Binding<String> {
         Binding(
             get: {
-                guard let part = parts.first(where: { $0.id == id }) else {
-                    preconditionFailure("Multipart part disappeared")
-                }
+                guard let part = parts.first(where: { $0.id == id }) else { return "" }
                 return part[keyPath: keyPath]
             },
             set: { value in

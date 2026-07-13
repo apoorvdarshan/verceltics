@@ -96,15 +96,15 @@ enum KeychainHelper {
         return Set(strings.compactMap(UUID.init(uuidString:)))
     }
 
-    static func deleteEverything() {
+    static func deleteHostingAccounts() {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: accountsKey
         ]
         SecItemDelete(query as CFDictionary)
         UserDefaults.standard.removeObject(forKey: activeAccountIdKey)
         UserDefaults.standard.removeObject(forKey: longAnalyticsHistoryAccountIdsKey)
-        UserDefaults.standard.removeObject(forKey: activeRegistrarAccountIdKey)
     }
 
     private static func saveKeychainData(_ data: Data, account: String) {

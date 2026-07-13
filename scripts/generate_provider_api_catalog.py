@@ -20,6 +20,9 @@ JSON_SECRET_VALUE = re.compile(
 )
 BEARER_VALUE = re.compile(r"(?i)\b(bearer\s+)[A-Za-z0-9._~+/=-]{16,}")
 LONG_HEX_VALUE = re.compile(r"(?i)\b[0-9a-f]{40,}\b")
+WEBHOOK_URL = re.compile(
+    r"(?i)https://(?:hooks\.slack\.com/services|discord(?:app)?\.com/api/webhooks|api\.telegram\.org/bot)/[^\s\"']+"
+)
 
 
 def clean(value: Any, limit: int = 700) -> str:
@@ -42,7 +45,8 @@ def sanitize_examples(value: Any) -> Any:
     if isinstance(value, str):
         value = JSON_SECRET_VALUE.sub(r"\1<value>\2", value)
         value = BEARER_VALUE.sub(r"\1<token>", value)
-        return LONG_HEX_VALUE.sub("<value>", value)
+        value = LONG_HEX_VALUE.sub("<value>", value)
+        return WEBHOOK_URL.sub("https://example.invalid/webhook", value)
     return value
 
 
@@ -139,6 +143,11 @@ class OpenAPI:
         for raw_path, path_item in self.spec.get("paths", {}).items():
             if not isinstance(path_item, dict):
                 continue
+            # A few specifications model a returned pre-signed upload URL as
+            # an API path (for example, "/<upload_url>"). It is not callable on
+            # the provider API host and must never receive account credentials.
+            if "<" in raw_path or ">" in raw_path:
+                continue
             path = raw_path
             if path_prefix_to_strip and path.startswith(path_prefix_to_strip):
                 path = path[len(path_prefix_to_strip):] or "/"
@@ -159,6 +168,21 @@ class OpenAPI:
                         for old in parameters
                     ):
                         parameters.append(parameter)
+
+                for placeholder_name in re.findall(r"\{\+?([^}]+)\}", path):
+                    if not any(
+                        old["name"] == placeholder_name and old["location"] == "path"
+                        for old in parameters
+                    ):
+                        parameters.append({
+                            "name": placeholder_name,
+                            "location": "path",
+                            "required": True,
+                            "description": "Required path value",
+                            "type": "string",
+                            "example": "",
+                            "enumValues": [],
+                        })
 
                 content_types: list[str] = []
                 body_required = False
@@ -460,6 +484,38 @@ def gandi_operations(directory: Path) -> list[dict[str, Any]]:
 
 
 def catalog(provider_id: str, title: str, version: str, source: str, description: str, operations: list[dict[str, Any]]) -> dict[str, Any]:
+    normalized: list[dict[str, Any]] = []
+    seen_operations: set[str] = set()
+    used_ids: set[str] = set()
+    for operation in operations:
+        parameters = []
+        parameter_ids: set[tuple[str, str]] = set()
+        for parameter in operation["parameters"]:
+            parameter_id = (parameter["location"], parameter["name"])
+            if parameter_id in parameter_ids:
+                continue
+            parameter_ids.add(parameter_id)
+            parameters.append(parameter)
+        operation["parameters"] = parameters
+
+        operation_key = json.dumps(operation, sort_keys=True, ensure_ascii=False)
+        if operation_key in seen_operations:
+            continue
+        seen_operations.add(operation_key)
+
+        original_id = operation["id"]
+        if original_id in used_ids:
+            suffix = re.sub(r"[^a-zA-Z0-9]+", "-", operation["summary"]).strip("-").lower()[:50]
+            candidate = f"{original_id}:{operation['method']}:{operation['path']}:{suffix}"
+            sequence = 2
+            while candidate in used_ids:
+                candidate = f"{original_id}:{operation['method']}:{operation['path']}:{suffix}:{sequence}"
+                sequence += 1
+            operation["id"] = candidate
+        used_ids.add(operation["id"])
+        normalized.append(operation)
+
+    operations = normalized
     operations.sort(key=lambda value: (value["tags"][0].lower(), value["summary"].lower(), value["method"], value["path"]))
     return {
         "id": provider_id,

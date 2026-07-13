@@ -234,10 +234,12 @@ private struct ProviderAPIOperationView: View {
         self.operation = operation
         self.context = context
         self.accent = accent
-        _values = State(initialValue: Dictionary(uniqueKeysWithValues: operation.parameters.map { parameter in
+        var initialValues: [String: String] = [:]
+        for parameter in operation.parameters {
             let value = parameter.example.isEmpty ? (parameter.enumValues.first ?? "") : parameter.example
-            return (parameter.id, value)
-        }))
+            initialValues[parameter.id] = value
+        }
+        _values = State(initialValue: initialValues)
         _bodyText = State(initialValue: operation.bodyTemplate)
         _contentType = State(initialValue: operation.contentTypes.first ?? "application/json")
     }
@@ -270,6 +272,14 @@ private struct ProviderAPIOperationView: View {
             headers: headers,
             contentType: operation.contentTypes.isEmpty ? nil : contentType
         )
+    }
+
+    private var hasMissingRequiredParameters: Bool {
+        operation.parameters.contains { parameter in
+            parameter.required && values[parameter.id, default: ""]
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .isEmpty
+        }
     }
 
     var body: some View {
@@ -319,11 +329,18 @@ private struct ProviderAPIOperationView: View {
                         case .registrar(let account): RegistrarAPIExplorerView(account: account, preset: preset)
                         }
                     } label: {
-                        Label(operation.isMutation ? "Review write request" : "Review request", systemImage: operation.isMutation ? "exclamationmark.shield.fill" : "arrow.right")
+                        Label(
+                            hasMissingRequiredParameters
+                                ? "Fill required fields"
+                                : (operation.isMutation ? "Review write request" : "Review request"),
+                            systemImage: operation.isMutation ? "exclamationmark.shield.fill" : "arrow.right"
+                        )
                             .font(.system(size: 14, weight: .heavy)).frame(maxWidth: .infinity).frame(height: 54)
                             .background(accent.opacity(0.82)).clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     }
                     .buttonStyle(PressScaleButtonStyle()).foregroundStyle(.white)
+                    .disabled(hasMissingRequiredParameters)
+                    .opacity(hasMissingRequiredParameters ? 0.45 : 1)
                     Spacer().frame(height: 80)
                 }
                 .padding(16)

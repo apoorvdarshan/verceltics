@@ -15,6 +15,7 @@ final class AnalyticsViewModel {
     var isLoading = true
     var error: String?
     var analyticsUnavailableMessage: String?
+    private var loadGeneration = 0
 
     init(project: Project) {
         self.project = project
@@ -22,12 +23,16 @@ final class AnalyticsViewModel {
         self.domains = project.primaryDomain.map { [$0] } ?? []
     }
 
-    func load(token: String, hasLongAnalyticsHistory: Bool) async -> Bool {
+    func load(token: String, hasLongAnalyticsHistory: Bool) async -> (didUnlock: Bool, applied: Bool) {
+        loadGeneration += 1
+        let generation = loadGeneration
         isLoading = true
         error = nil
         analyticsUnavailableMessage = nil
-        self.hasLongAnalyticsHistory = hasLongAnalyticsHistory
         var didUnlockLongAnalyticsHistory = false
+        var loadedData = AnalyticsData()
+        var loadedError: String?
+        var loadedUnavailableMessage: String?
         let api = VercelAPI(token: token)
         let pid = project.id
         let tid = project.teamId
@@ -62,53 +67,55 @@ final class AnalyticsViewModel {
             async let flags = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "flags", environment: env)
             async let queryParams = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "query_params", environment: env)
 
-            data = AnalyticsData()
-            data.overview = try await overview
-            data.previousOverview = try? await previous
-            data.timeseries = try await timeseries
-            data.pages = try await pages
-            data.referrers = try await referrers
-            data.countries = try await countries
-            data.devices = (try? await devices) ?? []
-            data.browsers = (try? await browsers) ?? []
-            data.os = (try? await os) ?? []
-            data.utmSources = (try? await utmSources) ?? []
-            data.routes = (try? await routes) ?? []
-            data.hostnames = (try? await hostnames) ?? []
-            data.events = (try? await events) ?? []
-            data.flags = (try? await flags) ?? []
-            data.queryParams = (try? await queryParams) ?? []
+            loadedData.overview = try await overview
+            loadedData.previousOverview = try? await previous
+            loadedData.timeseries = try await timeseries
+            loadedData.pages = try await pages
+            loadedData.referrers = try await referrers
+            loadedData.countries = try await countries
+            loadedData.devices = (try? await devices) ?? []
+            loadedData.browsers = (try? await browsers) ?? []
+            loadedData.os = (try? await os) ?? []
+            loadedData.utmSources = (try? await utmSources) ?? []
+            loadedData.routes = (try? await routes) ?? []
+            loadedData.hostnames = (try? await hostnames) ?? []
+            loadedData.events = (try? await events) ?? []
+            loadedData.flags = (try? await flags) ?? []
+            loadedData.queryParams = (try? await queryParams) ?? []
             if range.isPro {
-                self.hasLongAnalyticsHistory = true
                 didUnlockLongAnalyticsHistory = true
             }
 
         } catch let apiError as APIError {
             switch apiError {
             case .unauthorized:
-                self.error = apiError.localizedDescription
+                loadedError = apiError.localizedDescription
             case .serverError(let code) where code == 400 || code == 404:
-                data = AnalyticsData()
-                analyticsUnavailableMessage = "Vercel Web Analytics is not available through token access right now. Project details, domains, and deployments are still shown below."
+                loadedUnavailableMessage = "Vercel Web Analytics is not available through token access right now. Project details, domains, and deployments are still shown below."
             case .serverError(let code):
-                data = AnalyticsData()
-                analyticsUnavailableMessage = "Vercel Web Analytics returned HTTP \(code). Project details, domains, and deployments are still shown below."
+                loadedUnavailableMessage = "Vercel Web Analytics returned HTTP \(code). Project details, domains, and deployments are still shown below."
             default:
-                self.error = apiError.localizedDescription
+                loadedError = apiError.localizedDescription
             }
         } catch {
-            self.error = error.localizedDescription
+            loadedError = error.localizedDescription
         }
 
-        if let fetchedProject = await fetchedProject {
-            projectDetails = fetchedProject
-        }
+        let loadedProject = await fetchedProject
         let domains = await fetchedDomains
+        let deployments = await fetchedDeployments
+
+        guard generation == loadGeneration else { return (false, false) }
+        data = loadedData
+        error = loadedError
+        analyticsUnavailableMessage = loadedUnavailableMessage
+        self.hasLongAnalyticsHistory = hasLongAnalyticsHistory || didUnlockLongAnalyticsHistory
+        if let loadedProject { projectDetails = loadedProject }
         self.domains = domains.isEmpty ? project.primaryDomain.map { [$0] } ?? [] : domains
-        recentDeployments = await fetchedDeployments
+        recentDeployments = deployments
 
         isLoading = false
-        return didUnlockLongAnalyticsHistory
+        return (didUnlockLongAnalyticsHistory, true)
     }
 }
 
@@ -893,11 +900,12 @@ struct AnalyticsView: View {
     private func loadData() async {
         guard let token = authManager.token else { return }
         let accountId = authManager.activeAccountId
-        let didUnlockLongAnalyticsHistory = await vm.load(
+        let result = await vm.load(
             token: token,
             hasLongAnalyticsHistory: authManager.hasLongAnalyticsHistory(for: accountId)
         )
-        if didUnlockLongAnalyticsHistory {
+        guard result.applied else { return }
+        if result.didUnlock {
             authManager.markLongAnalyticsHistoryAvailable(for: accountId)
         }
         lastUpdated = Date()

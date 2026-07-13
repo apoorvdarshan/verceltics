@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Privacy Policy",
   description:
-    "Verceltics privacy policy. Vercel and Cloudflare credentials stay in the device-only iOS Keychain. No app tracking, telemetry, or data proxy.",
+    "Verceltics privacy policy. Hosting and registrar credentials stay in the device-only iOS Keychain. No app tracking, telemetry, or data proxy.",
   alternates: { canonical: "https://www.verceltics.com/privacy" },
   openGraph: {
     type: "article",
@@ -35,17 +35,17 @@ export default function Privacy() {
       />
       <Link href="/" className="text-[13px] text-white/30 transition-colors hover:text-white/60">&larr; Back to Verceltics</Link>
       <h1 className="mt-10 font-serif text-4xl italic tracking-[-0.03em]">Privacy Policy</h1>
-      <p className="mt-2 text-[13px] text-white/25">Last updated: July 12, 2026 — applies to v2.0</p>
+      <p className="mt-2 text-[13px] text-white/25">Last updated: July 14, 2026 — applies to v2.0</p>
 
       <div className="mt-12 space-y-10 text-[15px] leading-7 text-white/40">
         <section>
           <h2 className="text-lg font-semibold text-white/80">Overview</h2>
-          <p className="mt-3">Verceltics is a direct-to-provider mobile dashboard for Vercel and Cloudflare. This policy explains how credentials and provider data are handled.</p>
+          <p className="mt-3">Verceltics is a direct-to-provider mobile dashboard for hosting platforms and domain registrars. This policy explains how credentials and provider data are handled.</p>
         </section>
 
         <section>
           <h2 className="text-lg font-semibold text-white/80">Data We Collect</h2>
-          <p className="mt-3"><strong className="text-white/60">The iOS app does not collect your Vercel or Cloudflare account data.</strong> Specifically:</p>
+          <p className="mt-3"><strong className="text-white/60">The iOS app does not collect your hosting or registrar account data.</strong> Specifically:</p>
           <ul className="mt-3 list-disc space-y-1 pl-5">
             <li>We do not track you</li>
             <li>We do not use product analytics, advertising tracking, or provider-data telemetry inside the app</li>
@@ -56,13 +56,13 @@ export default function Privacy() {
 
         <section>
           <h2 className="text-lg font-semibold text-white/80">Provider Credentials</h2>
-          <p className="mt-3">Vercel personal access tokens and Cloudflare Global API Keys are stored locally using device-only, when-unlocked iOS Keychain protection. Vercel tokens are sent only to <code className="text-white/60">api.vercel.com</code> and <code className="text-white/60">vercel.com/api</code>. Cloudflare credentials are sent only to <code className="text-white/60">api.cloudflare.com</code>. Credentials never cross Verceltics infrastructure.</p>
-          <p className="mt-3">A Cloudflare Global API Key has the same Cloudflare permissions as its user. The app can perform both reads and user-initiated writes. Destructive typed actions and every non-GET request in the advanced API explorer require confirmation in the app.</p>
+          <p className="mt-3">Credentials for Vercel, Cloudflare, Netlify, Railway, Render, DigitalOcean, Heroku, Fly.io, Firebase, AWS Amplify, Name.com, Namecheap, Porkbun, Spaceship, Dynadot, NameSilo, Gandi, and GoDaddy are stored locally using device-only, when-unlocked iOS Keychain protection.</p>
+          <p className="mt-3">A credential is attached only to HTTPS requests for its selected provider&apos;s official API host. Redirects to a different host are blocked. Credentials never cross Verceltics infrastructure. Provider keys inherit the permissions configured by the provider; detected writes and purchases require confirmation in the app.</p>
         </section>
 
         <section>
           <h2 className="text-lg font-semibold text-white/80">Analytics Data</h2>
-          <p className="mt-3">All account, project, configuration, deployment, DNS, Worker, and analytics data is fetched directly from Vercel or Cloudflare to your device. API explorer responses are displayed locally. We do not proxy or store this data on our servers.</p>
+          <p className="mt-3">All account, project, domain, configuration, deployment, DNS, Worker, and analytics data is fetched directly from the selected provider to your device. API explorer responses are displayed locally. We do not proxy or store this data on our servers.</p>
         </section>
 
         <section>
@@ -83,7 +83,7 @@ export default function Privacy() {
         <section>
           <h2 className="text-lg font-semibold text-white/80">Subscriptions</h2>
           <p className="mt-3">Subscriptions and the lifetime in-app purchase are processed by Apple through the App Store. Verceltics uses RevenueCat to manage entitlement status and restore purchases. RevenueCat may receive Apple purchase receipt data, an anonymous RevenueCat app user identifier, and subscription status needed to unlock the app.</p>
-          <p className="mt-3">Optional tips are one-time consumable in-app purchases processed directly by Apple. They unlock no content or features, are not managed by RevenueCat, and involve no payment information being shared with Verceltics.</p>
+          <p className="mt-3">Optional tips are one-time consumable in-app purchases processed by Apple and requested through the RevenueCat SDK. They unlock no content or features and involve no payment information being shared with Verceltics.</p>
           <p className="mt-3">RevenueCat does not receive provider credentials, account data, project data, configuration, or analytics from Verceltics. We do not process or store any payment card information. We can&apos;t see your card.</p>
         </section>
 
@@ -96,7 +96,7 @@ export default function Privacy() {
 
         <section>
           <h2 className="text-lg font-semibold text-white/80">External Links and Support</h2>
-          <p className="mt-3">The app and website may link to GitHub, Product Hunt, LinkedIn, TrustMRR, Ko-fi, PayPal, X, Apple, Vercel, and Cloudflare. Opening those links sends you to third-party services with their own privacy practices.</p>
+          <p className="mt-3">The app and website may link to GitHub, Product Hunt, LinkedIn, TrustMRR, Ko-fi, PayPal, X, Apple, and supported hosting or registrar providers. Opening those links sends you to third-party services with their own privacy practices.</p>
           <p className="mt-3">Optional support payments through Ko-fi or PayPal are handled outside Verceltics. They do not unlock app features and do not give those services access to provider credentials or provider data.</p>
         </section>
 

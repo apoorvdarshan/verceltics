@@ -35,7 +35,7 @@ export default function Terms() {
       />
       <Link href="/" className="text-[13px] text-white/30 transition-colors hover:text-white/60">&larr; Back to Verceltics</Link>
       <h1 className="mt-10 font-serif text-4xl italic tracking-[-0.03em]">Terms of Service</h1>
-      <p className="mt-2 text-[13px] text-white/25">Last updated: July 12, 2026 — applies to v2.0</p>
+      <p className="mt-2 text-[13px] text-white/25">Last updated: July 14, 2026 — applies to v2.0</p>
 
       <div className="mt-12 space-y-10 text-[15px] leading-7 text-white/40">
         <section>
@@ -45,13 +45,13 @@ export default function Terms() {
 
         <section>
           <h2 className="text-lg font-semibold text-white/80">The Service</h2>
-          <p className="mt-3">Verceltics is a mobile dashboard for Vercel and Cloudflare. It uses credentials you provide to communicate directly with those providers, display account data, and perform actions you initiate.</p>
-          <p className="mt-3">Cloudflare&apos;s advanced API explorer can send GET, POST, PUT, PATCH, and DELETE requests to relative Cloudflare API paths. You are responsible for reviewing the method, path, and body before confirming a write.</p>
+          <p className="mt-3">Verceltics is a mobile dashboard for supported hosting platforms and domain registrars. It uses credentials you provide to communicate directly with the selected provider, display account data, and perform actions you initiate.</p>
+          <p className="mt-3">Advanced API explorers can send requests to provider-relative official API paths. You are responsible for reviewing the method, path, parameters, and body before confirming a write or purchase.</p>
         </section>
 
         <section>
           <h2 className="text-lg font-semibold text-white/80">Your Account</h2>
-          <p className="mt-3">You are responsible for your Vercel tokens, Cloudflare Global API Keys, and all activity initiated through them. Keep credentials secure and revoke or rotate them if you stop using the app or suspect exposure. A Cloudflare Global API Key inherits your Cloudflare user&apos;s permissions and may allow configuration changes or destructive operations.</p>
+          <p className="mt-3">You are responsible for every hosting and registrar credential you connect and all activity initiated through it. Keep credentials secure and revoke or rotate them if you stop using the app or suspect exposure. Provider credentials inherit their configured permissions and may allow purchases, configuration changes, or destructive operations.</p>
         </section>
 
         <section>
@@ -70,7 +70,7 @@ export default function Terms() {
             <li>Any unused portion of a free trial is forfeited when you purchase a subscription</li>
           </ul>
           <p className="mt-4">Purchases are processed by Apple. Verceltics uses RevenueCat to manage entitlement status, purchase history, refund request handling, and restore purchases for the Verceltics Pro entitlement.</p>
-          <p className="mt-4">Verceltics also offers optional tips — one-time consumable in-app purchases (Coffee, Lunch, Big, and Huge). Tips are voluntary, processed directly by Apple, unlock no content or features, and are non-refundable consumables. They are not subscriptions and are not managed by RevenueCat.</p>
+          <p className="mt-4">Verceltics also offers optional tips — one-time consumable in-app purchases (Coffee, Lunch, Big, and Huge). Tips are voluntary, processed by Apple through the RevenueCat SDK, unlock no content or features, and are not subscriptions.</p>
           <p className="mt-4">Refunds for App Store purchases are requested through Apple and decided by Apple under its App Store refund policy. When Apple requests developer input, Verceltics may use RevenueCat to send purchase and entitlement context and to prefer that Apple declines the refund request. This preference does not guarantee Apple&apos;s final decision.</p>
           <p className="mt-4">By using Verceltics and making in-app purchases, you consent to Verceltics and RevenueCat sharing purchase and entitlement context with Apple for refund request review.</p>
           <p className="mt-4">Verceltics does not issue refunds directly. If you have a purchase issue, contact us before requesting a refund so we can help troubleshoot access, restore purchases, or billing confusion.</p>
@@ -94,7 +94,7 @@ export default function Terms() {
 
         <section>
           <h2 className="text-lg font-semibold text-white/80">Disclaimer</h2>
-          <p className="mt-3">Verceltics is provided &quot;as is&quot; without warranty of any kind. We are not responsible for provider API availability, the accuracy of returned data, or changes resulting from actions you confirm. Verceltics is not affiliated with, endorsed by, or sponsored by Vercel Inc. or Cloudflare, Inc.</p>
+          <p className="mt-3">Verceltics is provided &quot;as is&quot; without warranty of any kind. We are not responsible for provider API availability, the accuracy of returned data, or changes resulting from actions you confirm. Verceltics is independent and is not affiliated with, endorsed by, or sponsored by any supported hosting platform or registrar.</p>
         </section>
 
         <section>

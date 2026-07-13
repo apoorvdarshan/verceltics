@@ -76,6 +76,7 @@ struct RegistrarAPI {
         body: String?,
         additionalHeaders: [String: String] = [:],
         contentType: String? = nil,
+        bodyIsBase64: Bool = false,
         returnHTTPErrorResponse: Bool = false
     ) async throws -> RegistrarRawResponse {
         let normalizedMethod = method.uppercased()
@@ -117,11 +118,26 @@ struct RegistrarAPI {
         components?.queryItems = items
         guard let url = components?.url else { throw RegistrarAPIError.invalidConfiguration("The API path is invalid.") }
 
+        let bodyData: Data?
+        if bodyIsBase64, let body {
+            guard let decoded = Data(base64Encoded: body) else {
+                throw ProviderRequestSecurityError.invalidBase64Body
+            }
+            bodyData = decoded
+        } else {
+            bodyData = body?.data(using: .utf8)
+        }
+        let validatedContentType = try ProviderRequestSecurity.validatedContentType(contentType)
+        let validatedHeaders = try ProviderRequestSecurity.validatedHeaders(
+            additionalHeaders,
+            protectedHeaders: Self.protectedHeaders
+        )
+
         var request = URLRequest(url: url)
         request.httpMethod = normalizedMethod
-        request.httpBody = body?.data(using: .utf8)
+        request.httpBody = bodyData
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        if body != nil { request.setValue(contentType ?? "application/json", forHTTPHeaderField: "Content-Type") }
+        if bodyData != nil { request.setValue(validatedContentType ?? "application/json", forHTTPHeaderField: "Content-Type") }
 
         switch provider {
         case .nameDotCom:
@@ -142,11 +158,11 @@ struct RegistrarAPI {
             break
         }
 
-        for (name, value) in additionalHeaders where !Self.protectedHeaders.contains(name.lowercased()) {
+        for (name, value) in validatedHeaders {
             request.setValue(value, forHTTPHeaderField: name)
         }
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await ProviderRequestSecurity.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw RegistrarAPIError.invalidResponse }
         let text = String(data: data, encoding: .utf8) ?? data.base64EncodedString()
         if !(200...299).contains(http.statusCode), !returnHTTPErrorResponse {
@@ -158,7 +174,7 @@ struct RegistrarAPI {
         return RegistrarRawResponse(statusCode: http.statusCode, headers: headers, body: text)
     }
 
-    private static let protectedHeaders = Set(["authorization", "host", "content-length", "x-api-key", "x-secret-api-key", "x-api-secret"])
+    private static let protectedHeaders = Set(["authorization", "host", "content-length", "content-type", "x-api-key", "x-secret-api-key", "x-api-secret"])
 
     func isLikelyWrite(method: String, path: String) -> Bool {
         if !["GET", "HEAD", "OPTIONS"].contains(method.uppercased()) { return true }

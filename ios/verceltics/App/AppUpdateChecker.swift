@@ -5,7 +5,8 @@ import Observation
 @MainActor
 final class AppUpdateChecker {
     private static let appID = "6761645656"
-    private static let fallbackAppStoreURL = URL(string: "https://apps.apple.com/us/app/verceltics/id6761645656")!
+    private static let fallbackAppStoreURL = URL(string: "https://apps.apple.com/us/app/verceltics/id6761645656")
+        ?? URL(fileURLWithPath: "/")
 
     var latestVersion: String?
     var appStoreURL = fallbackAppStoreURL
@@ -16,7 +17,7 @@ final class AppUpdateChecker {
     private var lastCheckedAt: Date?
 
     var currentVersion: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.1"
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.0"
     }
 
     var isUpdateAvailable: Bool {
@@ -41,13 +42,16 @@ final class AppUpdateChecker {
         }
 
         do {
-            var components = URLComponents(string: "https://itunes.apple.com/lookup")!
+            guard var components = URLComponents(string: "https://itunes.apple.com/lookup") else {
+                throw URLError(.badURL)
+            }
             components.queryItems = [
                 URLQueryItem(name: "id", value: Self.appID),
                 URLQueryItem(name: "country", value: "us")
             ]
 
-            let (data, response) = try await URLSession.shared.data(from: components.url!)
+            guard let lookupURL = components.url else { throw URLError(.badURL) }
+            let (data, response) = try await URLSession.shared.data(from: lookupURL)
             guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
                 throw URLError(.badServerResponse)
             }

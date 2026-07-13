@@ -1,25 +1,25 @@
 # App Store Listing
 
-App Store Connect submission details for Verceltics v1.2.1. Each field is in a code block for easy copy-paste.
+App Store Connect submission details for Verceltics v2.0. Each field is in a code block for easy copy-paste.
 
 ## App Name
 ```
-Vercel Analytics — Verceltics
+Verceltics — Hosting & Domains
 ```
 
 ## Subtitle (30 chars max)
 ```
-Vercel Web Analytics on Mobile
+Hosting and Domains on Mobile
 ```
 
 ## Promotional Text (170 chars max)
 ```
-Vercel Web Analytics on your iPhone and iPad. Switch accounts, copy project URLs, check visitors and referrers — tokens in Keychain.
+Manage hosting, deployments, analytics, DNS, and registrar domains from one private native dashboard.
 ```
 
 ## Keywords (100 chars max)
 ```
-vercel,analytics,web traffic,visitors,referrers,charts,developer,deploy,website,open source
+hosting,domains,dns,registrar,deployments,analytics,cloudflare,vercel,developer,server
 ```
 
 ## Category
@@ -30,13 +30,15 @@ Secondary: Utilities
 
 ## Description
 ```
-Verceltics puts your Vercel web analytics in your pocket. Check visitors, page views, referrers, countries, devices, browsers, and more — all from a fast native iPhone and iPad app.
+Verceltics puts hosting platforms and domain registrars in one native iPhone and iPad dashboard. Monitor projects and analytics, inspect deployments, manage Cloudflare resources, and keep track of registrar domains without sending credentials through a Verceltics server.
 
 WHAT YOU GET
 • Real-time analytics dashboard with interactive Swift Charts
 • Period comparisons: 24h, 7d, 30d, 3 months, 12 months
-• Multiple Vercel accounts with quick switching
-• Vercel profile avatars in the account switcher
+• Multiple hosting and registrar accounts with quick switching
+• Vercel, Cloudflare, Netlify, Railway, Render, DigitalOcean, Heroku, Fly.io, Firebase, and AWS Amplify
+• Name.com, Namecheap, Porkbun, Spaceship, Dynadot, NameSilo, Gandi, and GoDaddy
+• Guarded full provider API catalogs for advanced operations
 • Referrers, UTMs, countries with flags
 • Device, browser, and OS breakdowns
 • Pages, routes, hostnames, events, feature flags, and query params
@@ -48,15 +50,16 @@ WHAT YOU GET
 • About tab — links, contact, legal, and subscription management
 
 PRIVATE BY DESIGN
-• Your Vercel tokens stay in the iOS Keychain — never leave your device
+• Provider credentials stay in the device-only iOS Keychain
 • No tracking, no telemetry, no data proxy in between
+• Credentials go directly to the selected provider's HTTPS API host
 • Fully open source on GitHub
 
 HOW IT WORKS
-1. Create a token at vercel.com/account/tokens
-2. Paste it in the app once
-3. Add more accounts from the account switcher if needed
-4. View your analytics anytime
+1. Choose Hosting or Registrars
+2. Select a supported provider and enter its API credential
+3. Add more accounts from either account switcher
+4. Manage provider resources from the native dashboard
 
 PRICING
 • Monthly: $4.99/month
@@ -73,15 +76,17 @@ Privacy Policy: https://verceltics.com/privacy
 Terms of Service: https://verceltics.com/terms
 Contact: ad13dtu@gmail.com
 
-Not affiliated with Vercel Inc.
+Not affiliated with any supported hosting platform or registrar.
 ```
 
-## What's New (v1.2.1)
+## What's New (v2.0)
 ```
-Verceltics 1.2.1 — small cleanup and polish.
+Verceltics 2.0 expands beyond Vercel.
 
-• Streamlined the About tab.
-• Behind-the-scenes maintenance and minor fixes.
+• Connect 10 hosting platforms and 8 registrars.
+• Manage Cloudflare zones, DNS, Pages, Workers, storage, security, and analytics.
+• Browse guarded provider API catalogs for advanced read and write operations.
+• Separate hosting and registrar account switching with device-only Keychain storage.
 ```
 
 ## Keywords (100 chars max)
@@ -111,13 +116,13 @@ https://verceltics.com
 
 ## Reviewer Notes
 ```
-This app uses Vercel personal access tokens for authentication (not username/password).
+This app uses user-provided provider API credentials and does not collect provider passwords.
 
 To test:
-1. Go to https://vercel.com/account/tokens
-2. Create a token with any name and your account scope
-3. Paste the token in the app's login screen
-4. To test multi-account support, open the account switcher in Projects and tap Add Account
+1. Open Add Account and choose Hosting or Registrars.
+2. Select Vercel and paste a personal access token from https://vercel.com/account/tokens, or choose another provider and follow its on-screen credential instructions.
+3. Use the top-left account menu to add or switch accounts.
+4. Registrar accounts appear only in the Registrars tab and hosting accounts appear in the provider tab.
 
 If you don't have a Vercel account, create a free one at vercel.com and deploy any project to see analytics data.
 
@@ -125,7 +130,7 @@ Note: Some analytics features (UTM parameters, custom events, flags) require a V
 
 The app offers Monthly ($4.99), Yearly ($34.99 with a 7-day free trial), and Lifetime ($59.99 one-time) purchase options. Purchases are processed by Apple and entitlement state is managed through RevenueCat. Subscriptions can be tested with Apple sandbox/TestFlight.
 
-The app also offers four optional consumable "tip" in-app purchases (Coffee $2.99, Lunch $5.99, Big $9.99, Huge $19.99) in the Support tab. Tips are voluntary, processed directly by Apple via StoreKit (not RevenueCat), and unlock no content, features, or functionality.
+The app also offers four optional consumable "tip" in-app purchases (Coffee $2.99, Lunch $5.99, Big $9.99, Huge $19.99) in the Support tab. Tips are voluntary, processed by Apple through the RevenueCat SDK, and unlock no content, features, or functionality.
 
 Refund requests are handled by Apple. Verceltics uses RevenueCat refund request handling and sets its Apple refund handling preference to prefer declining refund requests when Apple asks for developer input. Apple makes the final refund decision.
 

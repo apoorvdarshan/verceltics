@@ -440,7 +440,9 @@ struct LoginView: View {
                         )
 
                         Button {
-                            UIApplication.shared.open(URL(string: "https://dash.cloudflare.com/profile/api-tokens")!)
+                            if let tokenURL = URL(string: "https://dash.cloudflare.com/profile/api-tokens") {
+                                UIApplication.shared.open(tokenURL)
+                            }
                         } label: {
                             Label("Open Cloudflare API Tokens", systemImage: "arrow.up.right")
                                 .font(.system(size: 13, weight: .bold))

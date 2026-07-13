@@ -10,6 +10,7 @@ struct HostingAPIExplorerView: View {
     @State private var requestBody = ""
     @State private var customHeaders = ""
     @State private var contentType = "application/json"
+    @State private var bodyIsBase64 = false
     @State private var response: HostingRawResponse?
     @State private var error: String?
     @State private var isSending = false
@@ -62,6 +63,26 @@ struct HostingAPIExplorerView: View {
                     }
                     .padding(14)
                     .providerPanel(accent: provider.accentColor)
+
+                    if contentType.lowercased().contains("multipart/form-data") {
+                        NavigationLink {
+                            CloudflareMultipartComposerView(schemaFields: []) { body, composedContentType in
+                                requestBody = body
+                                contentType = composedContentType
+                                bodyIsBase64 = true
+                            }
+                        } label: {
+                            Label(
+                                bodyIsBase64 ? "Edit encoded multipart upload" : "Build multipart upload",
+                                systemImage: "doc.badge.plus"
+                            )
+                            .font(.system(size: 12, weight: .bold))
+                            .frame(maxWidth: .infinity)
+                            .padding(14)
+                            .providerPanel(accent: provider.accentColor)
+                        }
+                        .buttonStyle(.plain)
+                    }
 
                     VStack(alignment: .leading, spacing: 8) {
                         Text("CONTENT TYPE").font(.system(size: 9, weight: .heavy)).tracking(1.2).foregroundStyle(.white.opacity(0.35))
@@ -162,6 +183,7 @@ struct HostingAPIExplorerView: View {
                     body: requestBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : requestBody,
                     additionalHeaders: headers,
                     contentType: contentType.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : contentType,
+                    bodyIsBase64: bodyIsBase64,
                     returnHTTPErrorResponse: true
                 )
             } catch { self.error = error.localizedDescription }

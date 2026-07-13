@@ -134,6 +134,7 @@ nonisolated struct Project: Identifiable, Decodable {
 
 nonisolated struct ProjectsResponse: Decodable {
     let projects: [Project]
+    let pagination: VercelPagination?
 }
 
 nonisolated struct ProjectDomainsResponse: Decodable {
@@ -155,6 +156,11 @@ nonisolated struct ProjectSourceScope: Decodable, Equatable {
 
 nonisolated struct VercelTeamsResponse: Decodable {
     let teams: [VercelTeam]
+    let pagination: VercelPagination?
+}
+
+nonisolated struct VercelPagination: Decodable {
+    let next: Int64?
 }
 
 nonisolated struct VercelTeam: Identifiable, Decodable, Equatable {

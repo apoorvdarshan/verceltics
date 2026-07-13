@@ -829,7 +829,9 @@ struct ProjectIcon: View {
     }
 
     private func scrapeFaviconURLs(domain: String) async -> [URL]? {
-        let pageURL = URL(string: "https://\(domain)")!
+        guard let pageURL = URL(string: "https://\(domain)"),
+              pageURL.scheme == "https",
+              pageURL.host != nil else { return nil }
         var request = URLRequest(url: pageURL)
         request.timeoutInterval = 5
         guard let (data, _) = try? await URLSession.shared.data(for: request),
