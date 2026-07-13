@@ -15,7 +15,7 @@ struct MainTabView: View {
                         Text("Cloudflare")
                     } icon: {
                         Image("CloudflareMark")
-                            .renderingMode(.original)
+                            .renderingMode(.template)
                     }
                 } else {
                     Label("Projects", systemImage: "triangle.fill")
