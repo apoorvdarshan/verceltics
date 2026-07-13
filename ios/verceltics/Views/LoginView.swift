@@ -154,7 +154,6 @@ struct LoginView: View {
     }
 
     private func providerButton(_ provider: AccountProvider) -> some View {
-        let isVercel = provider == .vercel
         let accent = provider.accentColor
         return Button {
             authManager.error = nil
@@ -163,7 +162,7 @@ struct LoginView: View {
             HStack(spacing: 13) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(isVercel ? Color.black.opacity(0.08) : accent.opacity(0.14))
+                        .fill(accent.opacity(0.14))
                     ProviderMark(provider: provider, size: 18)
                 }
                 .frame(width: 34, height: 34)
@@ -173,7 +172,7 @@ struct LoginView: View {
                         .font(.system(size: 15, weight: .heavy))
                     Text(provider.connectionSubtitle)
                         .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(isVercel ? Color.black.opacity(0.5) : Color.white.opacity(0.45))
+                        .foregroundStyle(Color.white.opacity(0.45))
                         .lineLimit(1)
                 }
 
@@ -186,17 +185,15 @@ struct LoginView: View {
             .frame(height: 62)
             .background(
                 LinearGradient(
-                    colors: isVercel
-                        ? [.white, Color.white.opacity(0.92)]
-                        : [Color.white.opacity(0.08), Color.white.opacity(0.035)],
+                    colors: [Color.white.opacity(0.08), Color.white.opacity(0.035)],
                     startPoint: .top, endPoint: .bottom
                 )
             )
-            .foregroundStyle(isVercel ? .black : .white)
+            .foregroundStyle(.white)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .strokeBorder(isVercel ? Color.white.opacity(0.1) : accent.opacity(0.28), lineWidth: 0.7)
+                    .strokeBorder(accent.opacity(provider == .vercel ? 0.18 : 0.28), lineWidth: 0.7)
             )
         }
         .buttonStyle(PressScaleButtonStyle())

@@ -1,6 +1,28 @@
 import SwiftUI
 
 extension AccountProvider {
+    var logoAssetName: String {
+        switch self {
+        case .vercel: "VercelMark"
+        case .cloudflare: "CloudflareMark"
+        case .netlify: "NetlifyMark"
+        case .railway: "RailwayMark"
+        case .render: "RenderMark"
+        case .digitalOcean: "DigitalOceanMark"
+        case .heroku: "HerokuMark"
+        case .fly: "FlyMark"
+        case .firebase: "FirebaseMark"
+        case .awsAmplify: "AWSAmplifyMark"
+        }
+    }
+
+    var logoNeedsTint: Bool {
+        switch self {
+        case .vercel, .railway, .render, .heroku, .fly: true
+        case .cloudflare, .netlify, .digitalOcean, .firebase, .awsAmplify: false
+        }
+    }
+
     var systemImage: String {
         switch self {
         case .vercel: "triangle.fill"
@@ -79,19 +101,11 @@ struct ProviderMark: View {
     var monochrome = false
 
     var body: some View {
-        Group {
-            if provider == .cloudflare {
-                Image("CloudflareMark")
-                    .resizable()
-                    .renderingMode(monochrome ? .template : .original)
-                    .scaledToFit()
-            } else {
-                Image(systemName: provider.systemImage)
-                    .resizable()
-                    .scaledToFit()
-            }
-        }
-        .foregroundStyle(monochrome ? Color.white : provider.accentColor)
+        Image(provider.logoAssetName)
+            .resizable()
+            .renderingMode(monochrome || provider.logoNeedsTint ? .template : .original)
+            .scaledToFit()
+            .foregroundStyle(monochrome ? Color.white : provider.accentColor)
         .frame(width: size, height: size)
         .accessibilityHidden(true)
     }

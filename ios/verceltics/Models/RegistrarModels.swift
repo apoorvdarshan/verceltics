@@ -26,16 +26,23 @@ enum RegistrarProvider: String, Codable, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    var shortMark: String {
+    var logoAssetName: String {
         switch self {
-        case .nameDotCom: "N"
-        case .namecheap: "NC"
-        case .porkbun: "PB"
-        case .spaceship: "S"
-        case .dynadot: "D"
-        case .nameSilo: "NS"
-        case .gandi: "G"
-        case .goDaddy: "GD"
+        case .nameDotCom: "NameDotComMark"
+        case .namecheap: "NamecheapMark"
+        case .porkbun: "PorkbunMark"
+        case .spaceship: "SpaceshipMark"
+        case .dynadot: "DynadotMark"
+        case .nameSilo: "NameSiloMark"
+        case .gandi: "GandiMark"
+        case .goDaddy: "GoDaddyMark"
+        }
+    }
+
+    var logoNeedsTint: Bool {
+        switch self {
+        case .dynadot, .nameSilo: true
+        case .nameDotCom, .namecheap, .porkbun, .spaceship, .gandi, .goDaddy: false
         }
     }
 
@@ -168,9 +175,12 @@ struct RegistrarMark: View {
     var monochrome = false
 
     var body: some View {
-        Text(provider.shortMark)
-            .font(.system(size: size * (provider.shortMark.count > 1 ? 0.30 : 0.42), weight: .black, design: .rounded))
+        Image(provider.logoAssetName)
+            .resizable()
+            .renderingMode(monochrome || provider.logoNeedsTint ? .template : .original)
+            .scaledToFit()
             .foregroundStyle(monochrome ? Color.white : provider.accentColor)
+            .frame(width: size * 0.55, height: size * 0.55)
             .frame(width: size, height: size)
             .background((monochrome ? Color.white : provider.accentColor).opacity(monochrome ? 0.10 : 0.13))
             .clipShape(RoundedRectangle(cornerRadius: size * 0.28, style: .continuous))
