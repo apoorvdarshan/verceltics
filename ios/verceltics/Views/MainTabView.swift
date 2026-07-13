@@ -18,7 +18,7 @@ struct MainTabView: View {
                             .renderingMode(.template)
                     }
                 } else {
-                    Label("Projects", systemImage: "triangle.fill")
+                    Label("Vercel", systemImage: "triangle.fill")
                 }
             }
 
