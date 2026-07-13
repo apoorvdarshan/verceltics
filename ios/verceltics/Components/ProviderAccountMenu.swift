@@ -42,6 +42,7 @@ struct ProviderAccountMenu: View {
             .frame(height: 30)
             .accessibilityLabel("Switch connected account")
         }
+        .tint(.white)
         .sheet(isPresented: $showingAddAccount) {
             LoginView()
         }
@@ -73,11 +74,10 @@ struct ProviderAccountMenu: View {
         if let account, account.provider == .cloudflare {
             Image("CloudflareMark")
                 .resizable()
+                .renderingMode(.template)
                 .scaledToFit()
-                .padding(3)
                 .frame(width: 23, height: 23)
-                .background(Color(red: 1.0, green: 0.48, blue: 0.10).opacity(0.14))
-                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .foregroundStyle(.white)
                 .accessibilityHidden(true)
         } else if let avatarURL = account?.avatarURL, let url = URL(string: avatarURL) {
             AsyncImage(url: url) { phase in
