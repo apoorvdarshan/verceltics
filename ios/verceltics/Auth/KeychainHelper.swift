@@ -6,6 +6,8 @@ enum KeychainHelper {
     private static let accountsKey = "vercel_accounts"
     private static let activeAccountIdKey = "active_account_id"
     private static let longAnalyticsHistoryAccountIdsKey = "long_analytics_history_account_ids"
+    private static let registrarAccountsKey = "registrar_accounts"
+    private static let activeRegistrarAccountIdKey = "active_registrar_account_id"
 
     static func saveAccounts(_ accounts: [VercelAccount]) {
         do {
@@ -49,6 +51,29 @@ enum KeychainHelper {
         return (try? JSONDecoder().decode([VercelAccount].self, from: data)) ?? []
     }
 
+    static func saveRegistrarAccounts(_ accounts: [RegistrarAccount]) {
+        guard let data = try? JSONEncoder().encode(accounts) else { return }
+        saveKeychainData(data, account: registrarAccountsKey)
+    }
+
+    static func getRegistrarAccounts() -> [RegistrarAccount] {
+        guard let data = readKeychainData(account: registrarAccountsKey) else { return [] }
+        return (try? JSONDecoder().decode([RegistrarAccount].self, from: data)) ?? []
+    }
+
+    static func saveActiveRegistrarAccountID(_ id: UUID?) {
+        guard let id else {
+            UserDefaults.standard.removeObject(forKey: activeRegistrarAccountIdKey)
+            return
+        }
+        UserDefaults.standard.set(id.uuidString, forKey: activeRegistrarAccountIdKey)
+    }
+
+    static func getActiveRegistrarAccountID() -> UUID? {
+        guard let value = UserDefaults.standard.string(forKey: activeRegistrarAccountIdKey) else { return nil }
+        return UUID(uuidString: value)
+    }
+
     static func saveActiveAccountId(_ id: UUID?) {
         guard let id = id else {
             UserDefaults.standard.removeObject(forKey: activeAccountIdKey)
@@ -79,5 +104,37 @@ enum KeychainHelper {
         SecItemDelete(query as CFDictionary)
         UserDefaults.standard.removeObject(forKey: activeAccountIdKey)
         UserDefaults.standard.removeObject(forKey: longAnalyticsHistoryAccountIdsKey)
+        UserDefaults.standard.removeObject(forKey: activeRegistrarAccountIdKey)
+    }
+
+    private static func saveKeychainData(_ data: Data, account: String) {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account
+        ]
+        let attributes: [String: Any] = [
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+        ]
+        let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        if status == errSecItemNotFound {
+            var addQuery = query
+            attributes.forEach { addQuery[$0.key] = $0.value }
+            SecItemAdd(addQuery as CFDictionary, nil)
+        }
+    }
+
+    private static func readKeychainData(account: String) -> Data? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        var result: AnyObject?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess else { return nil }
+        return result as? Data
     }
 }

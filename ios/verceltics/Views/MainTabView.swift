@@ -26,6 +26,10 @@ struct MainTabView: View {
                     .id(authManager.activeAccountId)
             }
 
+            Tab("Registrars", systemImage: "globe.americas.fill") {
+                RegistrarsView()
+            }
+
             Tab("Support", systemImage: "heart.fill") {
                 SupportView()
             }

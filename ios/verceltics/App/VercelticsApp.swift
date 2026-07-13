@@ -5,6 +5,7 @@ struct VercelticsApp: App {
     @State private var authManager = AuthManager()
     @State private var paywallManager = PaywallManager()
     @State private var appUpdateChecker = AppUpdateChecker()
+    @State private var registrarStore = RegistrarStore()
 
     var body: some Scene {
         WindowGroup {
@@ -24,6 +25,7 @@ struct VercelticsApp: App {
             .environment(authManager)
             .environment(paywallManager)
             .environment(appUpdateChecker)
+            .environment(registrarStore)
             .preferredColorScheme(.dark)
         }
     }
