@@ -117,30 +117,16 @@ struct LoginView: View {
     }
 
     private var categorySelector: some View {
-        HStack(spacing: 8) {
+        Picker("Connection type", selection: $connectionCategory) {
             ForEach(ConnectionCategory.allCases) { category in
-                let isSelected = connectionCategory == category
-                Button {
-                    withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
-                        connectionCategory = category
-                    }
-                } label: {
-                    Label(category.title, systemImage: category.systemImage)
-                        .font(.system(size: 12, weight: .heavy))
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 48)
-                        .foregroundStyle(isSelected ? Color.white : Color.white.opacity(0.48))
-                        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                        .liquidGlassSurface(
-                            accent: .white,
-                            cornerRadius: 18,
-                            tintOpacity: isSelected ? 0.18 : 0.035
-                        )
-                }
-                .buttonStyle(PressScaleButtonStyle())
-                .accessibilityAddTraits(isSelected ? .isSelected : [])
+                Label(category.title, systemImage: category.systemImage)
+                    .tag(category)
             }
         }
+        .pickerStyle(.segmented)
+        .controlSize(.large)
+        .frame(height: 48)
+        .accessibilityLabel("Connection type")
     }
 
     private func providerButton(_ provider: AccountProvider) -> some View {
@@ -175,11 +161,7 @@ struct LoginView: View {
             .frame(height: 66)
             .foregroundStyle(.white)
             .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .liquidGlassSurface(
-                accent: accent,
-                cornerRadius: 20,
-                tintOpacity: provider == .vercel ? 0.055 : 0.10
-            )
+            .liquidGlassSurface(cornerRadius: 20)
         }
         .buttonStyle(PressScaleButtonStyle())
     }
@@ -211,11 +193,7 @@ struct LoginView: View {
             .frame(height: 66)
             .foregroundStyle(.white)
             .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .liquidGlassSurface(
-                accent: provider.accentColor,
-                cornerRadius: 20,
-                tintOpacity: 0.10
-            )
+            .liquidGlassSurface(cornerRadius: 20)
         }
         .buttonStyle(PressScaleButtonStyle())
     }
@@ -654,16 +632,14 @@ struct LoginView: View {
 }
 
 private struct LiquidGlassSurfaceModifier: ViewModifier {
-    let accent: Color
     let cornerRadius: CGFloat
-    let tintOpacity: Double
 
     @ViewBuilder
     func body(content: Content) -> some View {
         if #available(iOS 26.0, *) {
             content
                 .glassEffect(
-                    .regular.tint(accent.opacity(tintOpacity)).interactive(),
+                    .regular.tint(Color.black.opacity(0.22)).interactive(),
                     in: .rect(cornerRadius: cornerRadius)
                 )
         } else {
@@ -672,11 +648,7 @@ private struct LiquidGlassSurfaceModifier: ViewModifier {
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                         .fill(.ultraThinMaterial)
                         .overlay {
-                            LinearGradient(
-                                colors: [accent.opacity(tintOpacity), Color.white.opacity(0.025)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
+                            Color.black.opacity(0.22)
                         }
                 }
                 .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
@@ -684,7 +656,7 @@ private struct LiquidGlassSurfaceModifier: ViewModifier {
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                         .strokeBorder(
                             LinearGradient(
-                                colors: [Color.white.opacity(0.16), accent.opacity(0.16), Color.white.opacity(0.035)],
+                                colors: [Color.white.opacity(0.12), Color.white.opacity(0.055), Color.clear],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             ),
@@ -696,16 +668,10 @@ private struct LiquidGlassSurfaceModifier: ViewModifier {
 }
 
 private extension View {
-    func liquidGlassSurface(
-        accent: Color,
-        cornerRadius: CGFloat,
-        tintOpacity: Double
-    ) -> some View {
+    func liquidGlassSurface(cornerRadius: CGFloat) -> some View {
         modifier(
             LiquidGlassSurfaceModifier(
-                accent: accent,
-                cornerRadius: cornerRadius,
-                tintOpacity: tintOpacity
+                cornerRadius: cornerRadius
             )
         )
     }
