@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct RegistrarAPIExplorerView: View {
     let account: RegistrarAccount
@@ -15,6 +16,7 @@ struct RegistrarAPIExplorerView: View {
     @State private var error: String?
     @State private var isSending = false
     @State private var showConfirmation = false
+    @State private var showBodyFileImporter = false
 
     init(account: RegistrarAccount, domain: RegistrarDomain? = nil, preset: ProviderAPIRequestPreset? = nil) {
         self.account = account
@@ -53,7 +55,7 @@ struct RegistrarAPIExplorerView: View {
                         .autocorrectionDisabled()
 
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("JSON BODY")
+                        Text(bodyIsBase64 ? "BASE64-ENCODED BINARY BODY" : "REQUEST BODY")
                             .font(.system(size: 9, weight: .heavy)).tracking(1.2).foregroundStyle(.white.opacity(0.35))
                         TextEditor(text: $requestBody)
                             .font(.system(size: 11, design: .monospaced))
@@ -65,7 +67,7 @@ struct RegistrarAPIExplorerView: View {
 
                     if contentType.lowercased().contains("multipart/form-data") {
                         NavigationLink {
-                            CloudflareMultipartComposerView(schemaFields: []) { body, composedContentType in
+                            CloudflareMultipartComposerView(schemaFields: preset?.multipartFields ?? []) { body, composedContentType in
                                 requestBody = body
                                 contentType = composedContentType
                                 bodyIsBase64 = true
@@ -79,6 +81,17 @@ struct RegistrarAPIExplorerView: View {
                             .frame(maxWidth: .infinity)
                             .padding(14)
                             .providerPanel(accent: provider.accentColor)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    if contentType.lowercased().contains("application/octet-stream") {
+                        Button { showBodyFileImporter = true } label: {
+                            Label(bodyIsBase64 ? "Replace binary file" : "Choose binary file", systemImage: "doc.fill.badge.plus")
+                                .font(.system(size: 12, weight: .bold))
+                                .frame(maxWidth: .infinity)
+                                .padding(14)
+                                .providerPanel(accent: provider.accentColor)
                         }
                         .buttonStyle(.plain)
                     }
@@ -140,6 +153,26 @@ struct RegistrarAPIExplorerView: View {
         .navigationTitle(preset?.title ?? "\(provider.displayName) API")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
+        .onChange(of: contentType) { _, value in
+            if !value.localizedCaseInsensitiveContains("multipart/form-data") &&
+                !value.localizedCaseInsensitiveContains("application/octet-stream") {
+                bodyIsBase64 = false
+            }
+        }
+        .fileImporter(isPresented: $showBodyFileImporter, allowedContentTypes: [.data]) { result in
+            do {
+                let url = try result.get()
+                let access = url.startAccessingSecurityScopedResource()
+                defer { if access { url.stopAccessingSecurityScopedResource() } }
+                let data = try Data(contentsOf: url, options: [.mappedIfSafe])
+                guard data.count <= 25 * 1_024 * 1_024 else {
+                    throw RegistrarAPIError.invalidConfiguration("Choose a file smaller than 25 MB.")
+                }
+                requestBody = data.base64EncodedString()
+                bodyIsBase64 = true
+                error = nil
+            } catch { self.error = error.localizedDescription }
+        }
         .confirmationDialog("Send this registrar request?", isPresented: $showConfirmation, titleVisibility: .visible) {
             Button("Send \(method)", role: method == "DELETE" || path.lowercased().contains("delete") ? .destructive : nil) { send() }
             Button("Cancel", role: .cancel) {}

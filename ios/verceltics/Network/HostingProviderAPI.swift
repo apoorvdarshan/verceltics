@@ -454,6 +454,7 @@ struct HostingProviderAPI {
                 contentType: validatedContentType ?? "application/json"
             )
         } else {
+            let bearerCredential = try await resolvedBearerCredential()
             guard let baseURL, let url = URL(string: baseURL + path) else {
                 throw HostingProviderAPIError.invalidConfiguration("This provider has no API base URL.")
             }
@@ -465,7 +466,7 @@ struct HostingProviderAPI {
             if provider == .railway, metadata["railwayTokenType"] == "project" {
                 request.setValue(credential, forHTTPHeaderField: "Project-Access-Token")
             } else {
-                request.setValue("Bearer \(credential)", forHTTPHeaderField: "Authorization")
+                request.setValue("Bearer \(bearerCredential)", forHTTPHeaderField: "Authorization")
             }
             if provider == .heroku {
                 request.setValue("application/vnd.heroku+json; version=3", forHTTPHeaderField: "Accept")
@@ -624,6 +625,47 @@ struct HostingProviderAPI {
         return value
     }
 
+    private func resolvedBearerCredential() async throws -> String {
+        guard provider == .firebase, metadata["firebaseAuthMode"] == "refreshToken" else {
+            return credential
+        }
+        let clientID = try requiredMetadata("firebaseClientID", label: "Google OAuth client ID")
+        var items = [
+            URLQueryItem(name: "client_id", value: clientID),
+            URLQueryItem(name: "refresh_token", value: credential),
+            URLQueryItem(name: "grant_type", value: "refresh_token"),
+        ]
+        if let secret = metadata["firebaseClientSecret"], !secret.isEmpty {
+            items.append(URLQueryItem(name: "client_secret", value: secret))
+        }
+        var components = URLComponents()
+        components.queryItems = items
+        guard let encoded = components.percentEncodedQuery?.data(using: .utf8),
+              let url = URL(string: "https://oauth2.googleapis.com/token") else {
+            throw HostingProviderAPIError.invalidConfiguration("Could not encode the Google OAuth refresh request.")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpBody = encoded
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let (data, response) = try await ProviderRequestSecurity.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw HostingProviderAPIError.invalidResponse
+        }
+        guard (200...299).contains(http.statusCode),
+              let value = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let token = value["access_token"] as? String,
+              !token.isEmpty else {
+            let message = errorMessage(from: data)
+            throw HostingProviderAPIError.requestFailed(
+                http.statusCode,
+                message.isEmpty ? "Google could not exchange this Firebase refresh token." : message
+            )
+        }
+        return token
+    }
+
     // MARK: - AWS Signature Version 4
 
     private func awsSignedRequest(method: String, path: String, body: Data?, contentType: String) throws -> URLRequest {
@@ -652,8 +694,14 @@ struct HostingProviderAPI {
         let canonicalHeaders = headers.map { "\($0.0):\($0.1.trimmingCharacters(in: .whitespacesAndNewlines))\n" }.joined()
         let signedHeaders = headers.map(\.0).joined(separator: ";")
         let canonicalQuery = (components.queryItems ?? [])
-            .sorted { ($0.name, $0.value ?? "") < ($1.name, $1.value ?? "") }
-            .map { "\(queryComponent($0.name))=\(queryComponent($0.value ?? ""))" }
+            .map {
+                (
+                    ProviderAPIRequestEncoding.awsQueryComponent($0.name),
+                    ProviderAPIRequestEncoding.awsQueryComponent($0.value ?? "")
+                )
+            }
+            .sorted { $0 < $1 }
+            .map { "\($0.0)=\($0.1)" }
             .joined(separator: "&")
         let canonicalRequest = [
             method,

@@ -57,7 +57,7 @@ export default function Privacy() {
         <section>
           <h2 className="text-lg font-semibold text-white/80">Provider Credentials</h2>
           <p className="mt-3">Credentials for Vercel, Cloudflare, Netlify, Railway, Render, DigitalOcean, Heroku, Fly.io, Firebase, AWS Amplify, Name.com, Namecheap, Porkbun, Spaceship, Dynadot, NameSilo, Gandi, and GoDaddy are stored locally using device-only, when-unlocked iOS Keychain protection.</p>
-          <p className="mt-3">A credential is attached only to HTTPS requests for its selected provider&apos;s official API host. Redirects to a different host are blocked. Credentials never cross Verceltics infrastructure. Provider keys inherit the permissions configured by the provider; detected writes and purchases require confirmation in the app.</p>
+          <p className="mt-3">A credential is attached only to HTTPS requests for its selected provider&apos;s official API host. For Firebase refresh-token connections, the refresh token is first sent directly to Google&apos;s official <code className="text-white/60">oauth2.googleapis.com</code> token endpoint and the returned access token is sent to Firebase Hosting. Redirects to a different host are blocked. Credentials never cross Verceltics infrastructure. Provider keys inherit the permissions configured by the provider; detected writes and purchases require confirmation in the app.</p>
         </section>
 
         <section>
@@ -67,7 +67,7 @@ export default function Privacy() {
 
         <section>
           <h2 className="text-lg font-semibold text-white/80">Images, Favicons, and Avatars</h2>
-          <p className="mt-3">To display project favicons, the app may issue plain GET requests to <code className="text-white/60">images.weserv.nl</code>, <code className="text-white/60">icons.duckduckgo.com</code>, <code className="text-white/60">www.google.com/s2/favicons</code>, and <code className="text-white/60">icon.horse</code>. Vercel profile avatars may be loaded from Vercel. These image requests never include provider credentials or account data.</p>
+          <p className="mt-3">To display project favicons, the app may issue plain GET requests to <code className="text-white/60">images.weserv.nl</code>, <code className="text-white/60">icons.duckduckgo.com</code>, <code className="text-white/60">www.google.com/s2/favicons</code>, and <code className="text-white/60">icon.horse</code>. Vercel profile avatars may be loaded from Vercel. Optional paywall artwork is loaded from <code className="text-white/60">media.giphy.com</code>. These image requests never include provider credentials or account data.</p>
         </section>
 
         <section>

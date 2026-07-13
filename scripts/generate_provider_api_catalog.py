@@ -23,6 +23,11 @@ LONG_HEX_VALUE = re.compile(r"(?i)\b[0-9a-f]{40,}\b")
 WEBHOOK_URL = re.compile(
     r"(?i)https://(?:hooks\.slack\.com/services|discord(?:app)?\.com/api/webhooks|api\.telegram\.org/bot)/[^\s\"']+"
 )
+PRIVATE_KEY = re.compile(
+    r"-----BEGIN (?:RSA )?PRIVATE KEY-----.*?-----END (?:RSA )?PRIVATE KEY-----",
+    re.DOTALL,
+)
+PRIVATE_KEY_BEGIN = re.compile(r"-----BEGIN (?:RSA )?PRIVATE KEY-----")
 
 
 def clean(value: Any, limit: int = 700) -> str:
@@ -43,6 +48,8 @@ def sanitize_examples(value: Any) -> Any:
     if isinstance(value, list):
         return [sanitize_examples(item) for item in value]
     if isinstance(value, str):
+        value = PRIVATE_KEY.sub("<private-key>", value)
+        value = PRIVATE_KEY_BEGIN.sub("<private-key>", value)
         value = JSON_SECRET_VALUE.sub(r"\1<value>\2", value)
         value = BEARER_VALUE.sub(r"\1<token>", value)
         value = LONG_HEX_VALUE.sub("<value>", value)
@@ -138,6 +145,25 @@ class OpenAPI:
             "enumValues": [str(item) for item in enums] if isinstance(enums, list) else [],
         }
 
+    def multipart_fields(self, raw: Any) -> list[dict[str, Any]]:
+        schema = self.resolve(raw)
+        required = set(schema.get("required", []))
+        fields: list[dict[str, Any]] = []
+        for name, raw_field in schema.get("properties", {}).items():
+            field = self.resolve(raw_field)
+            value: dict[str, Any] = {
+                "name": name,
+                "required": name in required,
+                "isFile": field.get("format") == "binary",
+            }
+            for key in ("type", "format", "description", "default", "example"):
+                if field.get(key) is not None:
+                    value[key] = field[key]
+            if isinstance(field.get("enum"), list):
+                value["enumValues"] = field["enum"]
+            fields.append(value)
+        return fields
+
     def operations(self, path_prefix_to_strip: str = "") -> list[dict[str, Any]]:
         result: list[dict[str, Any]] = []
         for raw_path, path_item in self.spec.get("paths", {}).items():
@@ -186,6 +212,7 @@ class OpenAPI:
 
                 content_types: list[str] = []
                 body_required = False
+                multipart_fields: list[dict[str, Any]] = []
                 request_body = self.resolve(item.get("requestBody", {}))
                 content = request_body.get("content", {})
                 if isinstance(content, dict) and content:
@@ -196,6 +223,8 @@ class OpenAPI:
                     )
                     body_schema = content[preferred].get("schema", {})
                     body_required = bool(request_body.get("required", False))
+                    if preferred in ("multipart/form-data", "application/x-www-form-urlencoded"):
+                        multipart_fields = self.multipart_fields(body_schema)
                 elif body_schema is not None:
                     content_types = item.get("consumes", self.spec.get("consumes", ["application/json"]))
                     body_required = True
@@ -216,6 +245,7 @@ class OpenAPI:
                     "contentTypes": content_types,
                     "requestBodyRequired": body_required,
                     "bodyTemplate": body_template,
+                    "multipartFields": multipart_fields,
                 })
         return result
 
@@ -253,6 +283,7 @@ def manual_operation(
         "contentTypes": ["application/json"] if body else [],
         "requestBodyRequired": bool(body),
         "bodyTemplate": body,
+        "multipartFields": [],
     }
 
 
@@ -286,26 +317,6 @@ def namecheap_operations() -> list[dict[str, Any]]:
 
 
 def simple_manual_catalogs() -> dict[str, list[dict[str, Any]]]:
-    porkbun = [
-        ("POST", "/ping", "Test authentication", "Account"),
-        ("POST", "/pricing/get", "Get domain pricing", "Pricing"),
-        ("POST", "/domain/listAll", "List all domains", "Domains"),
-        ("POST", "/domain/checkDomain/{domain}", "Check domain availability", "Domains"),
-        ("POST", "/domain/create/{domain}", "Register a domain", "Domains"),
-        ("POST", "/domain/updateNs/{domain}", "Update nameservers", "Nameservers"),
-        ("POST", "/domain/getNs/{domain}", "Get nameservers", "Nameservers"),
-        ("POST", "/domain/addUrlForward/{domain}", "Add URL forwarding", "Forwarding"),
-        ("POST", "/domain/getUrlForwarding/{domain}", "List URL forwarding", "Forwarding"),
-        ("POST", "/domain/deleteUrlForward/{domain}/{id}", "Delete URL forwarding", "Forwarding"),
-        ("POST", "/domain/updateAutoRenew/{domain}", "Update auto renew", "Domains"),
-        ("POST", "/domain/renew/{domain}", "Renew domain", "Domains"),
-        ("POST", "/dns/create/{domain}", "Create DNS record", "DNS"),
-        ("POST", "/dns/edit/{domain}/{id}", "Edit DNS record", "DNS"),
-        ("POST", "/dns/delete/{domain}/{id}", "Delete DNS record", "DNS"),
-        ("POST", "/dns/retrieve/{domain}", "Retrieve DNS records", "DNS"),
-        ("POST", "/dns/retrieveByNameType/{domain}/{type}/{name}", "Retrieve DNS records by name and type", "DNS"),
-        ("POST", "/ssl/retrieve/{domain}", "Retrieve SSL certificate bundle", "SSL"),
-    ]
     namesilo_names = [
         "registerDomain", "renewDomain", "transferDomain", "transferUpdate", "listDomains", "getDomainInfo", "checkRegisterAvailability", "checkTransferAvailability", "retrieveAuthCode", "changeNameServers", "getContacts", "contactList", "contactAdd", "contactUpdate", "domainUpdateRegistrant", "domainUpdateAdmin", "domainUpdateTech", "domainUpdateBilling", "addPrivacy", "removePrivacy", "addAutoRenewal", "removeAutoRenewal", "addRegistryLock", "removeRegistryLock", "dnsListRecords", "dnsAddRecord", "dnsUpdateRecord", "dnsDeleteRecord", "domainForward", "domainForwardSubDomain", "domainForwardEmail", "listRegisteredNameServers", "addRegisteredNameServer", "modifyRegisteredNameServer", "deleteRegisteredNameServer", "portfolioList", "portfolioAdd", "portfolioDelete", "accountBalance", "viewOrder", "listOrders", "listTransactions"
     ]
@@ -313,7 +324,6 @@ def simple_manual_catalogs() -> dict[str, list[dict[str, Any]]]:
         "list_domain", "domain_info", "search", "register", "delete", "restore", "renew", "transfer", "transfer_status", "get_transfer_auth_code", "set_renew_option", "set_privacy", "set_lock", "set_note", "get_contact", "create_contact", "edit_contact", "set_domain_contacts", "get_dns", "set_dns2", "set_name_server", "set_email_forwarding", "set_domain_forwarding", "set_stealth_forwarding", "set_parking", "set_dyndns", "clear_dns", "get_nameserver", "register_nameserver", "modify_nameserver", "delete_nameserver", "get_account_info", "get_account_balance", "get_order_status", "get_price", "get_tld_price", "get_coupon", "list_expired_domain", "list_auction", "list_backorder", "place_backorder_request", "delete_backorder_request", "get_backorder_status", "list_marketplace", "buy_it_now", "make_offer", "get_sale_status", "push_domain", "folder_list", "folder_create", "folder_delete", "folder_set_domains"
     ]
     return {
-        "registrar.porkbun": [manual_operation("porkbun", *item, parameters=re.findall(r"\{([^}]+)\}", item[1]), body="{}") for item in porkbun],
         "registrar.namecheap": namecheap_operations(),
         "registrar.nameSilo": [manual_operation("namesilo", "GET", f"/api/{name}", name, "NameSilo") for name in namesilo_names],
         "registrar.dynadot": [manual_operation("dynadot", "GET", f"/api3.json?command={name}", name, "Dynadot") for name in dynadot_names],
@@ -351,6 +361,7 @@ def firebase_operations(spec: dict[str, Any]) -> list[dict[str, Any]]:
                 "contentTypes": ["application/json"] if request else [],
                 "requestBodyRequired": bool(request),
                 "bodyTemplate": "{}" if request else "",
+                "multipartFields": [],
             })
         for name, child in resource.get("resources", {}).items():
             visit(child, [*tags, name])
@@ -409,6 +420,7 @@ def heroku_operations(spec: dict[str, Any]) -> list[dict[str, Any]]:
                 "contentTypes": ["application/json"] if body else [],
                 "requestBodyRequired": bool(body),
                 "bodyTemplate": body,
+                "multipartFields": [],
             })
     return operations
 
@@ -450,6 +462,7 @@ def aws_operations(spec: dict[str, Any]) -> list[dict[str, Any]]:
             "contentTypes": ["application/json"] if body else [],
             "requestBodyRequired": bool(body),
             "bodyTemplate": body,
+            "multipartFields": [],
         })
     return result
 
@@ -488,6 +501,7 @@ def catalog(provider_id: str, title: str, version: str, source: str, description
     seen_operations: set[str] = set()
     used_ids: set[str] = set()
     for operation in operations:
+        operation.setdefault("multipartFields", [])
         parameters = []
         parameter_ids: set[tuple[str, str]] = set()
         for parameter in operation["parameters"]:
@@ -546,6 +560,7 @@ def main() -> None:
         catalog("registrar.nameDotCom", "Name.com", "CORE v1", "https://namedotcom-cdn.name.tools/api-info/namecom.api.yaml", "Official Name.com CORE OpenAPI definition", OpenAPI(load("name.json")).operations()),
         catalog("registrar.spaceship", "Spaceship", "1.0.0", "https://docs.spaceship.dev/", "Official embedded Spaceship OpenAPI definition", OpenAPI(load("spaceship.json")).operations()),
         catalog("registrar.goDaddy", "GoDaddy", "1", "https://developer.godaddy.com/swagger/swagger_domains.json", "Official GoDaddy Domains API definition", OpenAPI(load("godaddy.json")).operations()),
+        catalog("registrar.porkbun", "Porkbun", str(load("porkbun.json").get("info", {}).get("version", "3")), "https://porkbun.com/api/json/v3/spec", "Official Porkbun OpenAPI definition", OpenAPI(load("porkbun.json")).operations()),
     ]
 
     manual = simple_manual_catalogs()
@@ -553,7 +568,6 @@ def main() -> None:
         catalog(provider_id, title, "Current", source, "Official published operation directory", operations)
         for provider_id, title, operations, source in [
             ("registrar.namecheap", "Namecheap", manual["registrar.namecheap"], "https://www.namecheap.com/support/api/methods/"),
-            ("registrar.porkbun", "Porkbun", manual["registrar.porkbun"], "https://docs.porkbun.com/api-reference"),
             ("registrar.dynadot", "Dynadot", manual["registrar.dynadot"], "https://www.dynadot.com/domain/api-commands"),
             ("registrar.nameSilo", "NameSilo", manual["registrar.nameSilo"], "https://www.namesilo.com/api-reference"),
         ]

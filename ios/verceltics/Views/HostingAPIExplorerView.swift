@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct HostingAPIExplorerView: View {
     let account: VercelAccount
@@ -15,6 +16,7 @@ struct HostingAPIExplorerView: View {
     @State private var error: String?
     @State private var isSending = false
     @State private var showWriteConfirmation = false
+    @State private var showBodyFileImporter = false
 
     init(account: VercelAccount, suggestedResource: HostingResource? = nil, preset: ProviderAPIRequestPreset? = nil) {
         self.account = account
@@ -52,7 +54,7 @@ struct HostingAPIExplorerView: View {
                         .autocorrectionDisabled()
 
                     VStack(alignment: .leading, spacing: 8) {
-                        Text(provider == .railway ? "GRAPHQL JSON BODY" : "JSON BODY")
+                        Text(provider == .railway ? "GRAPHQL JSON BODY" : (bodyIsBase64 ? "BASE64-ENCODED BINARY BODY" : "REQUEST BODY"))
                             .font(.system(size: 9, weight: .heavy)).tracking(1.2).foregroundStyle(.white.opacity(0.35))
                         TextEditor(text: $requestBody)
                             .font(.system(size: 11, design: .monospaced))
@@ -66,7 +68,7 @@ struct HostingAPIExplorerView: View {
 
                     if contentType.lowercased().contains("multipart/form-data") {
                         NavigationLink {
-                            CloudflareMultipartComposerView(schemaFields: []) { body, composedContentType in
+                            CloudflareMultipartComposerView(schemaFields: preset?.multipartFields ?? []) { body, composedContentType in
                                 requestBody = body
                                 contentType = composedContentType
                                 bodyIsBase64 = true
@@ -80,6 +82,17 @@ struct HostingAPIExplorerView: View {
                             .frame(maxWidth: .infinity)
                             .padding(14)
                             .providerPanel(accent: provider.accentColor)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    if contentType.lowercased().contains("application/octet-stream") {
+                        Button { showBodyFileImporter = true } label: {
+                            Label(bodyIsBase64 ? "Replace binary file" : "Choose binary file", systemImage: "doc.fill.badge.plus")
+                                .font(.system(size: 12, weight: .bold))
+                                .frame(maxWidth: .infinity)
+                                .padding(14)
+                                .providerPanel(accent: provider.accentColor)
                         }
                         .buttonStyle(.plain)
                     }
@@ -148,6 +161,26 @@ struct HostingAPIExplorerView: View {
         .navigationTitle(preset?.title ?? "\(provider.displayName) API")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
+        .onChange(of: contentType) { _, value in
+            if !value.localizedCaseInsensitiveContains("multipart/form-data") &&
+                !value.localizedCaseInsensitiveContains("application/octet-stream") {
+                bodyIsBase64 = false
+            }
+        }
+        .fileImporter(isPresented: $showBodyFileImporter, allowedContentTypes: [.data]) { result in
+            do {
+                let url = try result.get()
+                let access = url.startAccessingSecurityScopedResource()
+                defer { if access { url.stopAccessingSecurityScopedResource() } }
+                let data = try Data(contentsOf: url, options: [.mappedIfSafe])
+                guard data.count <= 25 * 1_024 * 1_024 else {
+                    throw HostingProviderAPIError.invalidConfiguration("Choose a file smaller than 25 MB.")
+                }
+                requestBody = data.base64EncodedString()
+                bodyIsBase64 = true
+                error = nil
+            } catch { self.error = error.localizedDescription }
+        }
         .confirmationDialog("Send \(method) request?", isPresented: $showWriteConfirmation, titleVisibility: .visible) {
             Button("Send \(method)", role: method == "DELETE" ? .destructive : nil) { send() }
             Button("Cancel", role: .cancel) {}

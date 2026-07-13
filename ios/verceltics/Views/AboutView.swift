@@ -66,7 +66,7 @@ struct AboutView: View {
             }
             .foregroundStyle(.white.opacity(0.4))
 
-            Text("Verceltics is an independent app and is not affiliated with, endorsed by, or sponsored by Vercel Inc. or Cloudflare, Inc. Their names and marks belong to their respective owners.")
+            Text("Verceltics is an independent app and is not affiliated with, endorsed by, or sponsored by any supported hosting platform or domain registrar. All provider names and marks belong to their respective owners.")
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(.white.opacity(0.22))
                 .multilineTextAlignment(.center)

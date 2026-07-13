@@ -14,9 +14,12 @@ struct HostingProviderCredentialView: View {
     @State private var region = "us-east-1"
     @State private var sessionToken = ""
     @State private var railwayTokenType = "account"
+    @State private var firebaseAuthMode = "refreshToken"
+    @State private var firebaseClientID = ""
+    @State private var firebaseClientSecret = ""
     @FocusState private var focusedField: Field?
 
-    private enum Field: Hashable { case credential, organization, projectID, accessKeyID, region, sessionToken }
+    private enum Field: Hashable { case credential, organization, projectID, accessKeyID, region, sessionToken, firebaseClientID, firebaseClientSecret }
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -102,7 +105,7 @@ struct HostingProviderCredentialView: View {
             HStack(alignment: .top, spacing: 9) {
                 Image(systemName: "lock.shield.fill")
                     .foregroundStyle(provider.accentColor)
-                Text("Credentials stay in this iPhone’s Keychain. Verceltics sends them only to \(provider.displayName)’s official API.")
+                Text(credentialStorageMessage)
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.48))
                     .fixedSize(horizontal: false, vertical: true)
@@ -139,6 +142,13 @@ struct HostingProviderCredentialView: View {
         .buttonStyle(PressScaleButtonStyle())
     }
 
+    private var credentialStorageMessage: String {
+        if provider == .firebase, firebaseAuthMode == "refreshToken" {
+            return "Credentials stay in this iPhone’s Keychain. The refresh token goes only to Google’s official OAuth endpoint; its access token goes only to Firebase Hosting."
+        }
+        return "Credentials stay in this iPhone’s Keychain. Verceltics sends them only to \(provider.displayName)’s official API."
+    }
+
     @ViewBuilder
     private var fields: some View {
         if provider == .awsAmplify {
@@ -147,6 +157,13 @@ struct HostingProviderCredentialView: View {
             providerField("Region (for example us-east-1)", text: $region, field: .region)
             providerField("Session token (optional)", text: $sessionToken, field: .sessionToken, secure: true)
         } else {
+            if provider == .firebase {
+                Picker("Firebase authorization", selection: $firebaseAuthMode) {
+                    Text("Refresh token").tag("refreshToken")
+                    Text("Access token").tag("accessToken")
+                }
+                .pickerStyle(.segmented)
+            }
             providerField(credentialPlaceholder, text: $credential, field: .credential, secure: true)
             if provider == .railway {
                 Picker("Railway token type", selection: $railwayTokenType) {
@@ -158,6 +175,10 @@ struct HostingProviderCredentialView: View {
                 providerField("Organization slug", text: $organization, field: .organization)
             } else if provider == .firebase {
                 providerField("Firebase / Google Cloud project ID", text: $projectID, field: .projectID)
+                if firebaseAuthMode == "refreshToken" {
+                    providerField("Google OAuth client ID", text: $firebaseClientID, field: .firebaseClientID)
+                    providerField("OAuth client secret (if required)", text: $firebaseClientSecret, field: .firebaseClientSecret, secure: true)
+                }
             }
         }
     }
@@ -227,7 +248,12 @@ struct HostingProviderCredentialView: View {
         switch provider {
         case .railway: ["railwayTokenType": railwayTokenType]
         case .fly: ["organization": organization]
-        case .firebase: ["projectID": projectID]
+        case .firebase: [
+            "projectID": projectID,
+            "firebaseAuthMode": firebaseAuthMode,
+            "firebaseClientID": firebaseClientID,
+            "firebaseClientSecret": firebaseClientSecret,
+        ]
         case .awsAmplify: ["accessKeyID": accessKeyID, "region": region, "sessionToken": sessionToken]
         default: [:]
         }
@@ -237,7 +263,9 @@ struct HostingProviderCredentialView: View {
         guard !credential.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
         switch provider {
         case .fly: return !organization.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        case .firebase: return !projectID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case .firebase:
+            return !projectID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && (firebaseAuthMode == "accessToken" || !firebaseClientID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         case .awsAmplify:
             return !accessKeyID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 && !region.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -247,7 +275,7 @@ struct HostingProviderCredentialView: View {
 
     private var credentialPlaceholder: String {
         switch provider {
-        case .firebase: "Google OAuth access token"
+        case .firebase: firebaseAuthMode == "refreshToken" ? "Google OAuth refresh token" : "Google OAuth access token"
         case .fly: "Fly.io access token"
         default: "\(provider.displayName) API token"
         }
@@ -256,7 +284,7 @@ struct HostingProviderCredentialView: View {
     private var instructionOne: String {
         switch provider {
         case .awsAmplify: "Create an IAM access key with Amplify permissions"
-        case .firebase: "Create a Google OAuth access token for Firebase Hosting"
+        case .firebase: firebaseAuthMode == "refreshToken" ? "Create OAuth credentials with Firebase Hosting access" : "Create a Google OAuth access token for Firebase Hosting"
         default: "Open \(provider.displayName)’s token or API key page"
         }
     }
@@ -265,7 +293,7 @@ struct HostingProviderCredentialView: View {
         switch provider {
         case .railway: railwayTokenType == "project" ? "Copy a project token from Project Settings, or choose Account / Workspace for a broader API token" : "Create an account or workspace token with the access you want Verceltics to use"
         case .fly: "Copy the token and your organization slug"
-        case .firebase: "Copy the token and your Firebase project ID"
+        case .firebase: firebaseAuthMode == "refreshToken" ? "Copy the refresh token, OAuth client ID, and Firebase project ID" : "Copy the short-lived access token and Firebase project ID"
         case .awsAmplify: "Copy the access key ID, secret and AWS region"
         default: "Create a token with the access you want Verceltics to use"
         }

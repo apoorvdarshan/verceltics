@@ -12,12 +12,18 @@
 
 /* Begin PBXFileReference section */
 		BA46B9FD2F7E8DEA000E67FA /* verceltics.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = verceltics.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		BAA100012FC0000000000001 /* vercelticsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = vercelticsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		BA46B9FF2F7E8DEA000E67FA /* verceltics */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = verceltics;
+			sourceTree = "<group>";
+		};
+		BAA100022FC0000000000002 /* vercelticsTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = vercelticsTests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -31,6 +37,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		BAA100032FC0000000000003 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -38,6 +51,7 @@
 			isa = PBXGroup;
 			children = (
 				BA46B9FF2F7E8DEA000E67FA /* verceltics */,
+				BAA100022FC0000000000002 /* vercelticsTests */,
 				BA46B9FE2F7E8DEA000E67FA /* Products */,
 			);
 			sourceTree = "<group>";
@@ -46,6 +60,7 @@
 			isa = PBXGroup;
 			children = (
 				BA46B9FD2F7E8DEA000E67FA /* verceltics.app */,
+				BAA100012FC0000000000001 /* vercelticsTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -76,7 +91,46 @@
 			productReference = BA46B9FD2F7E8DEA000E67FA /* verceltics.app */;
 			productType = "com.apple.product-type.application";
 		};
+		BAA100042FC0000000000004 /* vercelticsTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BAA1000A2FC000000000000A /* Build configuration list for PBXNativeTarget "vercelticsTests" */;
+			buildPhases = (
+				BAA100062FC0000000000006 /* Sources */,
+				BAA100032FC0000000000003 /* Frameworks */,
+				BAA100072FC0000000000007 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				BAA100092FC0000000000009 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				BAA100022FC0000000000002 /* vercelticsTests */,
+			);
+			name = vercelticsTests;
+			productName = vercelticsTests;
+			productReference = BAA100012FC0000000000001 /* vercelticsTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
+
+/* Begin PBXContainerItemProxy section */
+		BAA100082FC0000000000008 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = BA46B9F52F7E8DEA000E67FA /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BA46B9FC2F7E8DEA000E67FA;
+			remoteInfo = verceltics;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXTargetDependency section */
+		BAA100092FC0000000000009 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BA46B9FC2F7E8DEA000E67FA /* verceltics */;
+			targetProxy = BAA100082FC0000000000008 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin PBXProject section */
 		BA46B9F52F7E8DEA000E67FA /* Project object */ = {
@@ -88,6 +142,10 @@
 				TargetAttributes = {
 					BA46B9FC2F7E8DEA000E67FA = {
 						CreatedOnToolsVersion = 26.4;
+					};
+					BAA100042FC0000000000004 = {
+						CreatedOnToolsVersion = 26.4;
+						TestTargetID = BA46B9FC2F7E8DEA000E67FA;
 					};
 				};
 			};
@@ -109,6 +167,7 @@
 			projectRoot = "";
 			targets = (
 				BA46B9FC2F7E8DEA000E67FA /* verceltics */,
+				BAA100042FC0000000000004 /* vercelticsTests */,
 			);
 		};
 /* End PBXProject section */
@@ -121,10 +180,24 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		BAA100072FC0000000000007 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		BA46B9F92F7E8DEA000E67FA /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BAA100062FC0000000000006 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -263,7 +336,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 32;
+				CURRENT_PROJECT_VERSION = 33;
 				DEVELOPMENT_TEAM = 23RV7FYH36;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -302,7 +375,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 32;
+				CURRENT_PROJECT_VERSION = 33;
 				DEVELOPMENT_TEAM = 23RV7FYH36;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -335,6 +408,40 @@
 			};
 			name = Release;
 		};
+		BAA1000B2FC000000000000B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 23RV7FYH36;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.apoorvdarshan.vercelticsTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/verceltics.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/verceltics";
+			};
+			name = Debug;
+		};
+		BAA1000C2FC000000000000C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 23RV7FYH36;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.apoorvdarshan.vercelticsTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/verceltics.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/verceltics";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -352,6 +459,15 @@
 			buildConfigurations = (
 				BA46BA092F7E8DEB000E67FA /* Debug */,
 				BA46BA0A2F7E8DEB000E67FA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		BAA1000A2FC000000000000A /* Build configuration list for PBXNativeTarget "vercelticsTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BAA1000B2FC000000000000B /* Debug */,
+				BAA1000C2FC000000000000C /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

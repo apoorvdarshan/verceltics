@@ -38,7 +38,7 @@ WHAT YOU GET
 • Multiple hosting and registrar accounts with quick switching
 • Vercel, Cloudflare, Netlify, Railway, Render, DigitalOcean, Heroku, Fly.io, Firebase, and AWS Amplify
 • Name.com, Namecheap, Porkbun, Spaceship, Dynadot, NameSilo, Gandi, and GoDaddy
-• Guarded full provider API catalogs for advanced operations
+• Guarded provider API explorers and operation catalogs for advanced operations
 • Referrers, UTMs, countries with flags
 • Device, browser, and OS breakdowns
 • Pages, routes, hostnames, events, feature flags, and query params
@@ -52,7 +52,7 @@ WHAT YOU GET
 PRIVATE BY DESIGN
 • Provider credentials stay in the device-only iOS Keychain
 • No tracking, no telemetry, no data proxy in between
-• Credentials go directly to the selected provider's HTTPS API host
+• Credentials go directly to official provider HTTPS endpoints; Firebase refresh tokens use Google's OAuth endpoint
 • Fully open source on GitHub
 
 HOW IT WORKS

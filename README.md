@@ -34,7 +34,7 @@
 - **Projects Dashboard** — Personal and team Vercel projects with favicons, git repo, last commit, framework
 - **Multi-provider accounts** — Connect and switch between 10 hosting platforms and 8 domain registrars
 - **Cloudflare Control** — Accounts, zones, DNS CRUD, analytics, Pages deployments/logs/actions, Workers deployments/actions, cache purge, and a guarded advanced API explorer
-- **Hosting dashboards** — Netlify, Railway, Render, DigitalOcean, Heroku, Fly.io, Firebase, and AWS Amplify resources, deployments, logs, actions, and complete API catalogs
+- **Hosting dashboards** — Netlify, Railway, Render, DigitalOcean, Heroku, Fly.io, Firebase, and AWS Amplify resources, deployments, logs, actions, and provider API operation catalogs
 - **Registrar dashboards** — Name.com, Namecheap, Porkbun, Spaceship, Dynadot, NameSilo, Gandi, and GoDaddy domains with provider API catalogs
 - **Live Deploy Indicator** — Pulsing green dot when a deployment is < 30 minutes old
 - **Project Details** — Scope, framework, connected repository, verified domains, and recent deployments

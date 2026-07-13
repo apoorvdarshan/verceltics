@@ -827,7 +827,7 @@ struct AnalyticsView: View {
                         .padding(.vertical, 28)
                 }
             } else {
-                let maxVal = items.first?.visitors ?? 1
+                let maxVal = max(items.first?.visitors ?? 0, 1)
                 ForEach(items.prefix(8)) { item in
                     HStack(spacing: 0) {
                         ZStack(alignment: .leading) {

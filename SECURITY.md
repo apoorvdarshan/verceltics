@@ -57,7 +57,7 @@ Verceltics stores all connected credentials in the iOS Keychain using device-onl
 - `api.vercel.com` (user profile, project listing, project detail, domain list)
 - `vercel.com/api` (analytics endpoints)
 - `api.cloudflare.com` (Cloudflare profile, accounts, zones, DNS, Pages, Workers, analytics, and user-initiated API operations)
-- `api.netlify.com`, `backboard.railway.com`, `api.render.com`, `api.digitalocean.com`, `api.heroku.com`, `api.machines.dev`, `firebasehosting.googleapis.com`, or the selected regional `amplify.*.amazonaws.com` host
+- `api.netlify.com`, `backboard.railway.com`, `api.render.com`, `api.digitalocean.com`, `api.heroku.com`, `api.machines.dev`, `firebasehosting.googleapis.com`, `oauth2.googleapis.com` (only when exchanging a saved Firebase refresh token), or the selected regional `amplify.*.amazonaws.com` host
 - `api.name.com`, `api.namecheap.com`, `api.porkbun.com`, `spaceship.dev`, `api.dynadot.com`, `www.namesilo.com`, `api.gandi.net`, or `api.godaddy.com`
 
 Favicon fetches, SVG rasterisation, and Vercel avatar image loads do **not** include credentials — they are plain image/GET requests.

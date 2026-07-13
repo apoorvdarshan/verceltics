@@ -252,8 +252,14 @@ private struct ProviderAPIOperationView: View {
             let value = values[parameter.id, default: ""].trimmingCharacters(in: .whitespacesAndNewlines)
             switch parameter.location {
             case .path:
-                path = path.replacingOccurrences(of: "{\(parameter.name)}", with: value)
-                path = path.replacingOccurrences(of: "{+\(parameter.name)}", with: value)
+                path = path.replacingOccurrences(
+                    of: "{+\(parameter.name)}",
+                    with: ProviderAPIRequestEncoding.pathParameter(value, allowReserved: true)
+                )
+                path = path.replacingOccurrences(
+                    of: "{\(parameter.name)}",
+                    with: ProviderAPIRequestEncoding.pathParameter(value, allowReserved: false)
+                )
             case .query:
                 if !value.isEmpty { queryItems.append(URLQueryItem(name: parameter.name, value: value)) }
             case .header:
@@ -270,7 +276,8 @@ private struct ProviderAPIOperationView: View {
             path: path,
             body: bodyText,
             headers: headers,
-            contentType: operation.contentTypes.isEmpty ? nil : contentType
+            contentType: operation.contentTypes.isEmpty ? nil : contentType,
+            multipartFields: operation.multipartFields
         )
     }
 

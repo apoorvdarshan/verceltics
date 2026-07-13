@@ -11,6 +11,42 @@ from typing import Any
 
 
 HTTP_METHODS = ("get", "post", "put", "patch", "delete")
+SENSITIVE_FIELD = re.compile(r"(?i)(?:authorization|credential|password|secret|token|api[_ -]?key|private[_ -]?key)")
+JSON_SECRET_VALUE = re.compile(
+    r'(?i)("[^"\\]*(?:authorization|credential|password|secret|token|api[_ -]?key|private[_ -]?key)[^"\\]*"\s*:\s*")[^"]*(")'
+)
+BEARER_VALUE = re.compile(r"(?i)\b(bearer\s+)[A-Za-z0-9._~+/=-]{16,}")
+LONG_HEX_VALUE = re.compile(r"(?i)\b[0-9a-f]{40,}\b")
+WEBHOOK_URL = re.compile(
+    r"(?i)https://(?:hooks\.slack\.com/services|discord(?:app)?\.com/api/webhooks|api\.telegram\.org/bot)/[^\s\"']+"
+)
+PRIVATE_KEY = re.compile(
+    r"-----BEGIN (?:RSA )?PRIVATE KEY-----.*?-----END (?:RSA )?PRIVATE KEY-----",
+    re.DOTALL,
+)
+PRIVATE_KEY_BEGIN = re.compile(r"-----BEGIN (?:RSA )?PRIVATE KEY-----")
+
+
+def sanitize_examples(value: Any) -> Any:
+    """Remove credential-shaped examples shipped by the upstream schema."""
+    if isinstance(value, dict):
+        result = {key: sanitize_examples(item) for key, item in value.items()}
+        name = result.get("name")
+        if isinstance(name, str) and SENSITIVE_FIELD.search(name):
+            for key in ("example", "default"):
+                if key in result:
+                    result[key] = ""
+        return result
+    if isinstance(value, list):
+        return [sanitize_examples(item) for item in value]
+    if isinstance(value, str):
+        value = PRIVATE_KEY.sub("<private-key>", value)
+        value = PRIVATE_KEY_BEGIN.sub("<private-key>", value)
+        value = JSON_SECRET_VALUE.sub(r"\1<value>\2", value)
+        value = BEARER_VALUE.sub(r"\1<token>", value)
+        value = LONG_HEX_VALUE.sub("<value>", value)
+        return WEBHOOK_URL.sub("https://example.invalid/webhook", value)
+    return value
 
 
 def clean_text(value: Any, limit: int = 900) -> str:
@@ -246,7 +282,7 @@ def main() -> None:
     parser.add_argument("--source-commit", default="unknown")
     arguments = parser.parse_args()
 
-    specification = json.loads(arguments.specification.read_text())
+    specification = sanitize_examples(json.loads(arguments.specification.read_text()))
     catalog = CatalogGenerator(specification).generate(arguments.source_commit)
     arguments.output.parent.mkdir(parents=True, exist_ok=True)
     arguments.output.write_text(json.dumps(catalog, ensure_ascii=False, separators=(",", ":")) + "\n")

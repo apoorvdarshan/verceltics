@@ -29,6 +29,7 @@ nonisolated struct ProviderAPIOperation: Codable, Identifiable, Sendable, Equata
     let contentTypes: [String]
     let requestBodyRequired: Bool
     let bodyTemplate: String
+    let multipartFields: [CloudflareOpenAPIMultipartField]
 
     var primaryTag: String { tags.first ?? "Other" }
     var isMutation: Bool {
@@ -84,6 +85,33 @@ nonisolated struct ProviderAPIRequestPreset: Sendable, Equatable {
     let body: String
     let headers: [String: String]
     let contentType: String?
+    let multipartFields: [CloudflareOpenAPIMultipartField]
+}
+
+nonisolated enum ProviderAPIRequestEncoding {
+    private static let unreserved = Set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~".utf8)
+    private static let reservedPath = Set(":/@!$&'()*+,;=".utf8)
+
+    /// RFC 3986 path-parameter encoding. Reserved expansion (`{+value}`) keeps
+    /// path separators and other reserved path characters but never `?` or `#`.
+    static func pathParameter(_ value: String, allowReserved: Bool) -> String {
+        percentEncode(value, additionallyAllowed: allowReserved ? reservedPath : [])
+    }
+
+    /// AWS Signature Version 4 requires every byte except RFC 3986 unreserved
+    /// characters to be percent encoded using uppercase hexadecimal digits.
+    static func awsQueryComponent(_ value: String) -> String {
+        percentEncode(value, additionallyAllowed: [])
+    }
+
+    private static func percentEncode(_ value: String, additionallyAllowed: Set<UInt8>) -> String {
+        value.utf8.map { byte in
+            if unreserved.contains(byte) || additionallyAllowed.contains(byte) {
+                return String(UnicodeScalar(byte))
+            }
+            return String(format: "%%%02X", byte)
+        }.joined()
+    }
 }
 
 actor ProviderAPICatalogStore {
@@ -176,7 +204,8 @@ actor ProviderAPICatalogStore {
                     parameters: [],
                     contentTypes: ["application/json"],
                     requestBodyRequired: true,
-                    bodyTemplate: String(data: request, encoding: .utf8) ?? "{}"
+                    bodyTemplate: String(data: request, encoding: .utf8) ?? "{}",
+                    multipartFields: []
                 ))
             }
         }
