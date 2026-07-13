@@ -101,6 +101,7 @@ struct CloudflareWorkerDetailView: View {
                 VStack(spacing: 16) {
                     workerHeader
                     metadataPanel
+                    operationsLink
                     routesPanel
                     CloudflareWriteNotice()
 
@@ -230,6 +231,21 @@ struct CloudflareWorkerDetailView: View {
             }
         }
         .cloudflarePanel()
+    }
+
+    private var operationsLink: some View {
+        NavigationLink {
+            CloudflareWorkerOperationsView(api: api, accountID: accountID, worker: worker)
+        } label: {
+            CloudflareResourceRow(
+                icon: "switch.2",
+                title: "Worker operations",
+                subtitle: "Versions, live logs, secrets, cron, domains and settings",
+                tint: CloudflareStyle.orange
+            )
+        }
+        .buttonStyle(.plain)
+        .cloudflarePanel(accentOpacity: 0.07)
     }
 
     private var routesPanel: some View {

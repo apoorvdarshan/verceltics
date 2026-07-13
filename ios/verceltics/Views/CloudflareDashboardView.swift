@@ -259,24 +259,27 @@ struct CloudflareDashboardView: View {
 
     private func accountHeader(_ account: CloudflareAccountSummary) -> some View {
         VStack(spacing: 12) {
-            NavigationLink {
-                CloudflareAccountDetailView(
-                    account: account,
-                    email: email,
-                    zoneCount: viewModel.zones.count,
-                    pagesCount: viewModel.pagesProjects.count,
-                    workerCount: viewModel.workers.count
-                )
-            } label: {
-                CloudflareEdgeHeader(
-                    accountName: account.name,
-                    email: email,
-                    zones: viewModel.zones.count,
-                    pages: viewModel.pagesProjects.count,
-                    workers: viewModel.workers.count
-                )
+            if let api = viewModel.api {
+                NavigationLink {
+                    CloudflareAccountDetailView(
+                        api: api,
+                        account: account,
+                        email: email,
+                        zoneCount: viewModel.zones.count,
+                        pagesCount: viewModel.pagesProjects.count,
+                        workerCount: viewModel.workers.count
+                    )
+                } label: {
+                    CloudflareEdgeHeader(
+                        accountName: account.name,
+                        email: email,
+                        zones: viewModel.zones.count,
+                        pages: viewModel.pagesProjects.count,
+                        workers: viewModel.workers.count
+                    )
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
 
             if viewModel.accounts.count > 1 {
                 Menu {
@@ -464,6 +467,27 @@ struct CloudflareDashboardView: View {
             Divider().overlay(Color.white.opacity(0.06))
 
             if let api = viewModel.api {
+                if let accountID = viewModel.selectedAccountID,
+                   let account = viewModel.selectedAccount {
+                    NavigationLink {
+                        CloudflareStorageDashboardView(
+                            api: api,
+                            accountID: accountID,
+                            accountName: account.name
+                        )
+                    } label: {
+                        CloudflareResourceRow(
+                            icon: "externaldrive.fill",
+                            title: "Storage & databases",
+                            subtitle: "D1 SQL and Workers KV · R2 requires a scoped token",
+                            tint: CloudflareStyle.amber
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    Divider().overlay(Color.white.opacity(0.055)).padding(.leading, 64)
+                }
+
                 NavigationLink {
                     CloudflareAPIExplorerView(api: api, accountID: viewModel.selectedAccountID)
                 } label: {

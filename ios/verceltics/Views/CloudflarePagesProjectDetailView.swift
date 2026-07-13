@@ -124,6 +124,7 @@ struct CloudflarePagesProjectDetailView: View {
                 VStack(spacing: 16) {
                     projectHeader
                     projectDetails
+                    operationsLink
                     CloudflareWriteNotice()
 
                     if let message = viewModel.actionMessage {
@@ -162,6 +163,21 @@ struct CloudflarePagesProjectDetailView: View {
             Text(pendingAction?.message ?? "")
         }
         .tint(CloudflareStyle.orange)
+    }
+
+    private var operationsLink: some View {
+        NavigationLink {
+            CloudflarePagesOperationsView(api: api, accountID: accountID, project: project)
+        } label: {
+            CloudflareResourceRow(
+                icon: "switch.2",
+                title: "Pages operations",
+                subtitle: "Domains, builds, bindings, deployments and project settings",
+                tint: CloudflareStyle.orange
+            )
+        }
+        .buttonStyle(.plain)
+        .cloudflarePanel(accentOpacity: 0.07)
     }
 
     private var projectHeader: some View {
@@ -234,6 +250,13 @@ struct CloudflarePagesProjectDetailView: View {
                 title: "Functions",
                 value: project.usesFunctions == true ? "Enabled" : "Not detected"
             )
+            if let framework = project.framework, !framework.isEmpty {
+                CloudflareDetailRow(
+                    icon: "shippingbox.fill",
+                    title: "Framework",
+                    value: [framework, project.frameworkVersion].compactMap { $0 }.joined(separator: " ")
+                )
+            }
             CloudflareDetailRow(
                 icon: "globe",
                 title: "Domains",

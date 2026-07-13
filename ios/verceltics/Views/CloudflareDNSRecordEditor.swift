@@ -93,6 +93,7 @@ struct CloudflareDNSRecordEditor: View {
                     basicFields
                     routingFields
                     metadataFields
+                    returnedMetadataFields
                     advancedFields
 
                     if let errorMessage {
@@ -251,6 +252,44 @@ struct CloudflareDNSRecordEditor: View {
                     .foregroundStyle(.white.opacity(0.82))
             }
         }
+    }
+
+    @ViewBuilder
+    private var returnedMetadataFields: some View {
+        if let record {
+            VStack(spacing: 0) {
+                CloudflareSectionHeader(title: "Returned metadata", icon: "list.bullet.rectangle.fill")
+                Divider().overlay(Color.white.opacity(0.06))
+                CloudflareDetailRow(icon: "number", title: "Record ID", value: record.id)
+                CloudflareDetailRow(icon: "icloud.fill", title: "Can be proxied", value: booleanText(record.proxiable))
+                CloudflareDetailRow(icon: "lock.fill", title: "Managed by Cloudflare", value: booleanText(record.locked))
+                if let date = record.createdDate {
+                    CloudflareDetailRow(icon: "calendar.badge.plus", title: "Created", value: date.formatted(date: .abbreviated, time: .shortened))
+                }
+                if let date = record.modifiedDate {
+                    CloudflareDetailRow(icon: "calendar.badge.clock", title: "Modified", value: date.formatted(date: .abbreviated, time: .shortened))
+                }
+                if let date = record.commentModifiedDate {
+                    CloudflareDetailRow(icon: "text.bubble.fill", title: "Comment modified", value: date.formatted(date: .abbreviated, time: .shortened))
+                }
+                if let date = record.tagsModifiedDate {
+                    CloudflareDetailRow(icon: "tag.fill", title: "Tags modified", value: date.formatted(date: .abbreviated, time: .shortened))
+                }
+                if !record.meta.isEmpty {
+                    CloudflareDetailRow(
+                        icon: "curlybraces.square.fill",
+                        title: "Metadata",
+                        value: CloudflareJSONValue.object(record.meta).operationsDisplayText
+                    )
+                }
+            }
+            .cloudflarePanel()
+        }
+    }
+
+    private func booleanText(_ value: Bool?) -> String {
+        guard let value else { return "Not returned" }
+        return value ? "Yes" : "No"
     }
 
     private var advancedFields: some View {

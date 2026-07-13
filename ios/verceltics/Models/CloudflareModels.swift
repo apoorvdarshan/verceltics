@@ -72,11 +72,17 @@ nonisolated struct CloudflareAPIIssue: Decodable, Equatable, Sendable {
     let code: Int?
     let message: String
     let documentationURL: String?
+    let source: Source?
 
     enum CodingKeys: String, CodingKey {
         case code
         case message
         case documentationURL = "documentation_url"
+        case source
+    }
+
+    struct Source: Decodable, Equatable, Sendable {
+        let pointer: String?
     }
 }
 
@@ -86,6 +92,7 @@ nonisolated struct CloudflareResultInfo: Decodable, Equatable, Sendable {
     let count: Int?
     let totalCount: Int?
     let totalPages: Int?
+    let cursors: Cursors?
 
     enum CodingKeys: String, CodingKey {
         case page
@@ -93,6 +100,12 @@ nonisolated struct CloudflareResultInfo: Decodable, Equatable, Sendable {
         case count
         case totalCount = "total_count"
         case totalPages = "total_pages"
+        case cursors
+    }
+
+    struct Cursors: Decodable, Equatable, Sendable {
+        let before: String?
+        let after: String?
     }
 }
 
@@ -324,6 +337,9 @@ nonisolated struct CloudflareZone: Identifiable, Decodable, Equatable, Sendable 
         let price: Double?
         let isSubscribed: Bool?
         let canSubscribe: Bool?
+        let externallyManaged: Bool?
+        let legacyDiscount: Bool?
+        let legacyID: String?
 
         enum CodingKeys: String, CodingKey {
             case id
@@ -333,6 +349,9 @@ nonisolated struct CloudflareZone: Identifiable, Decodable, Equatable, Sendable 
             case price
             case isSubscribed = "is_subscribed"
             case canSubscribe = "can_subscribe"
+            case externallyManaged = "externally_managed"
+            case legacyDiscount = "legacy_discount"
+            case legacyID = "legacy_id"
         }
     }
 }
@@ -361,6 +380,8 @@ nonisolated struct CloudflarePagesProject: Identifiable, Decodable, Equatable, S
     let productionScriptName: String?
     let previewScriptName: String?
     let deploymentConfigs: [String: CloudflareJSONValue]?
+    let framework: String?
+    let frameworkVersion: String?
 
     var createdDate: Date? { CloudflareDateParser.date(from: createdOn) }
     var primaryURL: String? {
@@ -382,6 +403,8 @@ nonisolated struct CloudflarePagesProject: Identifiable, Decodable, Equatable, S
         case productionScriptName = "production_script_name"
         case previewScriptName = "preview_script_name"
         case deploymentConfigs = "deployment_configs"
+        case framework
+        case frameworkVersion = "framework_version"
     }
 
     init(from decoder: Decoder) throws {
@@ -400,6 +423,8 @@ nonisolated struct CloudflarePagesProject: Identifiable, Decodable, Equatable, S
         productionScriptName = try container.decodeIfPresent(String.self, forKey: .productionScriptName)
         previewScriptName = try container.decodeIfPresent(String.self, forKey: .previewScriptName)
         deploymentConfigs = try container.decodeIfPresent([String: CloudflareJSONValue].self, forKey: .deploymentConfigs)
+        framework = try container.decodeIfPresent(String.self, forKey: .framework)
+        frameworkVersion = try container.decodeIfPresent(String.self, forKey: .frameworkVersion)
     }
 }
 
@@ -432,6 +457,7 @@ nonisolated struct CloudflarePagesSource: Decodable, Equatable, Sendable {
         let repositoryName: String?
         let productionBranch: String?
         let productionDeploymentsEnabled: Bool?
+        let deploymentsEnabled: Bool?
         let previewDeploymentSetting: String?
         let previewBranchIncludes: [String]
         let previewBranchExcludes: [String]
@@ -446,6 +472,7 @@ nonisolated struct CloudflarePagesSource: Decodable, Equatable, Sendable {
             case repositoryName = "repo_name"
             case productionBranch = "production_branch"
             case productionDeploymentsEnabled = "production_deployments_enabled"
+            case deploymentsEnabled = "deployments_enabled"
             case previewDeploymentSetting = "preview_deployment_setting"
             case previewBranchIncludes = "preview_branch_includes"
             case previewBranchExcludes = "preview_branch_excludes"
@@ -462,6 +489,7 @@ nonisolated struct CloudflarePagesSource: Decodable, Equatable, Sendable {
             repositoryName = try container.decodeIfPresent(String.self, forKey: .repositoryName)
             productionBranch = try container.decodeIfPresent(String.self, forKey: .productionBranch)
             productionDeploymentsEnabled = try container.decodeIfPresent(Bool.self, forKey: .productionDeploymentsEnabled)
+            deploymentsEnabled = try container.decodeIfPresent(Bool.self, forKey: .deploymentsEnabled)
             previewDeploymentSetting = try container.decodeIfPresent(String.self, forKey: .previewDeploymentSetting)
             previewBranchIncludes = try container.decodeIfPresent([String].self, forKey: .previewBranchIncludes) ?? []
             previewBranchExcludes = try container.decodeIfPresent([String].self, forKey: .previewBranchExcludes) ?? []
@@ -600,6 +628,7 @@ nonisolated struct CloudflareWorkerScript: Identifiable, Decodable, Equatable, S
     let lastDeployedFrom: String?
     let logpush: Bool?
     let migrationTag: String?
+    let tag: String?
     let routes: [Route]
     let tags: [String]
     let usageModel: String?
@@ -608,6 +637,8 @@ nonisolated struct CloudflareWorkerScript: Identifiable, Decodable, Equatable, S
     let namedHandlers: [CloudflareJSONValue]
     let observability: [String: CloudflareJSONValue]?
     let placement: [String: CloudflareJSONValue]?
+    let placementMode: String?
+    let placementStatus: String?
     let tailConsumers: [CloudflareJSONValue]
 
     var createdDate: Date? { CloudflareDateParser.date(from: createdOn) }
@@ -625,6 +656,7 @@ nonisolated struct CloudflareWorkerScript: Identifiable, Decodable, Equatable, S
         case lastDeployedFrom = "last_deployed_from"
         case logpush
         case migrationTag = "migration_tag"
+        case tag
         case routes
         case tags
         case usageModel = "usage_model"
@@ -633,6 +665,8 @@ nonisolated struct CloudflareWorkerScript: Identifiable, Decodable, Equatable, S
         case namedHandlers = "named_handlers"
         case observability
         case placement
+        case placementMode = "placement_mode"
+        case placementStatus = "placement_status"
         case tailConsumers = "tail_consumers"
     }
 
@@ -649,6 +683,7 @@ nonisolated struct CloudflareWorkerScript: Identifiable, Decodable, Equatable, S
         lastDeployedFrom = try container.decodeIfPresent(String.self, forKey: .lastDeployedFrom)
         logpush = try container.decodeIfPresent(Bool.self, forKey: .logpush)
         migrationTag = try container.decodeIfPresent(String.self, forKey: .migrationTag)
+        tag = try container.decodeIfPresent(String.self, forKey: .tag)
         routes = try container.decodeIfPresent([Route].self, forKey: .routes) ?? []
         tags = try container.decodeIfPresent([String].self, forKey: .tags) ?? []
         usageModel = try container.decodeIfPresent(String.self, forKey: .usageModel)
@@ -657,6 +692,8 @@ nonisolated struct CloudflareWorkerScript: Identifiable, Decodable, Equatable, S
         namedHandlers = try container.decodeIfPresent([CloudflareJSONValue].self, forKey: .namedHandlers) ?? []
         observability = try container.decodeIfPresent([String: CloudflareJSONValue].self, forKey: .observability)
         placement = try container.decodeIfPresent([String: CloudflareJSONValue].self, forKey: .placement)
+        placementMode = try container.decodeIfPresent(String.self, forKey: .placementMode)
+        placementStatus = try container.decodeIfPresent(String.self, forKey: .placementStatus)
         tailConsumers = try container.decodeIfPresent([CloudflareJSONValue].self, forKey: .tailConsumers) ?? []
     }
 
@@ -747,6 +784,7 @@ nonisolated struct CloudflareDNSRecord: Identifiable, Decodable, Equatable, Send
     let comment: String?
     let commentModifiedOn: String?
     let tags: [String]
+    let tagsModifiedOn: String?
     let createdOn: String?
     let modifiedOn: String?
     let priority: Int?
@@ -758,6 +796,7 @@ nonisolated struct CloudflareDNSRecord: Identifiable, Decodable, Equatable, Send
     var createdDate: Date? { CloudflareDateParser.date(from: createdOn) }
     var modifiedDate: Date? { CloudflareDateParser.date(from: modifiedOn) }
     var commentModifiedDate: Date? { CloudflareDateParser.date(from: commentModifiedOn) }
+    var tagsModifiedDate: Date? { CloudflareDateParser.date(from: tagsModifiedOn) }
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -771,6 +810,7 @@ nonisolated struct CloudflareDNSRecord: Identifiable, Decodable, Equatable, Send
         case comment
         case commentModifiedOn = "comment_modified_on"
         case tags
+        case tagsModifiedOn = "tags_modified_on"
         case createdOn = "created_on"
         case modifiedOn = "modified_on"
         case priority
@@ -793,6 +833,7 @@ nonisolated struct CloudflareDNSRecord: Identifiable, Decodable, Equatable, Send
         comment = try container.decodeIfPresent(String.self, forKey: .comment)
         commentModifiedOn = try container.decodeIfPresent(String.self, forKey: .commentModifiedOn)
         tags = try container.decodeIfPresent([String].self, forKey: .tags) ?? []
+        tagsModifiedOn = try container.decodeIfPresent(String.self, forKey: .tagsModifiedOn)
         createdOn = try container.decodeIfPresent(String.self, forKey: .createdOn)
         modifiedOn = try container.decodeIfPresent(String.self, forKey: .modifiedOn)
         priority = try container.decodeIfPresent(Int.self, forKey: .priority)
@@ -990,6 +1031,38 @@ nonisolated struct CloudflareZoneAnalyticsPoint: Identifiable, Equatable, Sendab
     let metrics: CloudflareAnalyticsMetrics
 
     var id: Date { timestamp }
+}
+
+nonisolated struct CloudflareZoneAnalyticsBreakdowns: Equatable, Sendable {
+    let countries: [CloudflareAnalyticsBreakdownItem]
+    let statusCodes: [CloudflareAnalyticsBreakdownItem]
+    let contentTypes: [CloudflareAnalyticsBreakdownItem]
+    let tlsProtocols: [CloudflareAnalyticsBreakdownItem]
+    let browsers: [CloudflareAnalyticsBreakdownItem]
+    let ipClasses: [CloudflareAnalyticsBreakdownItem]
+    let threatTypes: [CloudflareAnalyticsBreakdownItem]
+    let encryptedBytes: Int64
+
+    static let empty = CloudflareZoneAnalyticsBreakdowns(
+        countries: [],
+        statusCodes: [],
+        contentTypes: [],
+        tlsProtocols: [],
+        browsers: [],
+        ipClasses: [],
+        threatTypes: [],
+        encryptedBytes: 0
+    )
+}
+
+nonisolated struct CloudflareAnalyticsBreakdownItem: Identifiable, Equatable, Sendable {
+    let label: String
+    let requests: Int64
+    let bytes: Int64
+    let threats: Int64
+    let pageViews: Int64
+
+    var id: String { label }
 }
 
 // MARK: - Helpers

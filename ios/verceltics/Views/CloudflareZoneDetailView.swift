@@ -8,6 +8,7 @@ final class CloudflareZoneDetailViewModel {
     let zone: CloudflareZone
 
     var analytics: CloudflareZoneAnalyticsSummary?
+    var analyticsBreakdowns: CloudflareZoneAnalyticsBreakdowns?
     var dnsRecords: [CloudflareDNSRecord] = []
     var isLoading = true
     var analyticsError: String?
@@ -27,6 +28,7 @@ final class CloudflareZoneDetailViewModel {
         let generation = loadGeneration
         isLoading = true
         analytics = nil
+        analyticsBreakdowns = nil
         dnsRecords = []
         analyticsError = nil
         dnsError = nil
@@ -41,8 +43,15 @@ final class CloudflareZoneDetailViewModel {
         async let dnsResult = capture {
             try await api.fetchDNSRecords(zoneID: zone.id)
         }
+        async let breakdownResult = capture {
+            try await api.fetchZoneAnalyticsBreakdowns(zoneID: zone.id, from: from, to: to)
+        }
 
-        let (analyticsResponse, dnsResponse) = await (analyticsResult, dnsResult)
+        let (analyticsResponse, dnsResponse, breakdownResponse) = await (
+            analyticsResult,
+            dnsResult,
+            breakdownResult
+        )
         guard generation == loadGeneration else { return }
 
         switch analyticsResponse {
@@ -59,6 +68,10 @@ final class CloudflareZoneDetailViewModel {
         case .failure(let error):
             dnsRecords = []
             dnsError = error.localizedDescription
+        }
+
+        if case .success(let breakdowns) = breakdownResponse {
+            analyticsBreakdowns = breakdowns
         }
 
         isLoading = false
@@ -165,9 +178,13 @@ struct CloudflareZoneDetailView: View {
             ScrollView {
                 VStack(spacing: 16) {
                     zoneHeader
+                    controlCenterLinks
 
                     if let analytics = viewModel.analytics {
                         analyticsSection(analytics)
+                        if let breakdowns = viewModel.analyticsBreakdowns {
+                            analyticsBreakdownSection(breakdowns)
+                        }
                     } else if let error = viewModel.analyticsError {
                         unavailableCard(title: "Analytics unavailable", message: error)
                     }
@@ -234,6 +251,37 @@ struct CloudflareZoneDetailView: View {
             }
         }
         .tint(CloudflareStyle.orange)
+    }
+
+    private var controlCenterLinks: some View {
+        VStack(spacing: 0) {
+            NavigationLink {
+                CloudflareZoneOperationsView(api: api, zone: zone)
+            } label: {
+                CloudflareResourceRow(
+                    icon: "switch.2",
+                    title: "Zone & DNS operations",
+                    subtitle: "DNSSEC, settings, activation, quotas and DNS analytics",
+                    tint: CloudflareStyle.orange
+                )
+            }
+            .buttonStyle(.plain)
+
+            Divider().overlay(Color.white.opacity(0.055)).padding(.leading, 64)
+
+            NavigationLink {
+                CloudflareSecurityCenterView(api: api, zone: zone)
+            } label: {
+                CloudflareResourceRow(
+                    icon: "lock.shield.fill",
+                    title: "Security center",
+                    subtitle: "WAF, firewall, rate limits, certificates, bots and API Shield",
+                    tint: CloudflareStyle.amber
+                )
+            }
+            .buttonStyle(.plain)
+        }
+        .cloudflarePanel(accentOpacity: 0.07)
     }
 
     private var zoneHeader: some View {
@@ -346,6 +394,30 @@ struct CloudflareZoneDetailView: View {
                     icon: "bolt.horizontal.fill",
                     accent: CloudflareStyle.green
                 )
+                CloudflareMetricCard(
+                    title: "Page views",
+                    value: analytics.totals.pageViews.formatted(.number.notation(.compactName)),
+                    icon: "eye.fill",
+                    accent: CloudflareStyle.amber
+                )
+                CloudflareMetricCard(
+                    title: "Cached bytes",
+                    value: ByteCountFormatter.string(fromByteCount: analytics.totals.cachedBytes, countStyle: .file),
+                    icon: "externaldrive.fill",
+                    accent: CloudflareStyle.green
+                )
+                CloudflareMetricCard(
+                    title: "Threats",
+                    value: analytics.totals.threats.formatted(.number.notation(.compactName)),
+                    icon: "shield.lefthalf.filled.badge.checkmark",
+                    accent: analytics.totals.threats > 0 ? CloudflareStyle.red : CloudflareStyle.green
+                )
+                CloudflareMetricCard(
+                    title: "HTTPS",
+                    value: analytics.totals.encryptedRequestRate.map { "\($0.formatted(.number.precision(.fractionLength(1))))%" } ?? "—",
+                    icon: "lock.fill",
+                    accent: CloudflareStyle.green
+                )
             }
 
             if !analytics.series.isEmpty {
@@ -400,6 +472,87 @@ struct CloudflareZoneDetailView: View {
                 .cloudflarePanel(accentOpacity: 0.055)
             }
         }
+    }
+
+    @ViewBuilder
+    private func analyticsBreakdownSection(_ breakdowns: CloudflareZoneAnalyticsBreakdowns) -> some View {
+        let sections: [(String, String, [CloudflareAnalyticsBreakdownItem])] = [
+            ("Countries", "globe.americas.fill", breakdowns.countries),
+            ("Status codes", "number.square.fill", breakdowns.statusCodes),
+            ("Content types", "doc.fill", breakdowns.contentTypes),
+            ("TLS protocols", "lock.shield.fill", breakdowns.tlsProtocols),
+            ("Browsers", "safari.fill", breakdowns.browsers),
+            ("IP classes", "network", breakdowns.ipClasses),
+            ("Threat paths", "shield.lefthalf.filled", breakdowns.threatTypes)
+        ].filter { !$0.2.isEmpty }
+
+        if !sections.isEmpty || breakdowns.encryptedBytes > 0 {
+            VStack(spacing: 12) {
+                HStack {
+                    Text("TRAFFIC BREAKDOWNS")
+                        .font(.system(size: 10, weight: .heavy))
+                        .tracking(1)
+                        .foregroundStyle(.white.opacity(0.46))
+                    Spacer()
+                    if breakdowns.encryptedBytes > 0 {
+                        Text(ByteCountFormatter.string(fromByteCount: breakdowns.encryptedBytes, countStyle: .file) + " encrypted")
+                            .font(.system(size: 9, weight: .semibold).monospacedDigit())
+                            .foregroundStyle(CloudflareStyle.green.opacity(0.75))
+                    }
+                }
+                .padding(.horizontal, 4)
+
+                ForEach(sections, id: \.0) { section in
+                    analyticsBreakdownPanel(title: section.0, icon: section.1, items: section.2)
+                }
+            }
+        }
+    }
+
+    private func analyticsBreakdownPanel(
+        title: String,
+        icon: String,
+        items: [CloudflareAnalyticsBreakdownItem]
+    ) -> some View {
+        VStack(spacing: 0) {
+            CloudflareSectionHeader(title: title, icon: icon, count: items.count)
+            Divider().overlay(Color.white.opacity(0.06))
+            ForEach(Array(items.prefix(12))) { item in
+                CloudflareResourceRow(
+                    icon: icon,
+                    title: item.label,
+                    subtitle: analyticsBreakdownSubtitle(item),
+                    tint: item.threats > 0 ? CloudflareStyle.red : CloudflareStyle.orange
+                ) {
+                    Text(analyticsBreakdownValue(item))
+                        .font(.system(size: 12, weight: .heavy, design: .rounded).monospacedDigit())
+                        .foregroundStyle(.white.opacity(0.68))
+                }
+                if item.id != items.prefix(12).last?.id {
+                    Divider().overlay(Color.white.opacity(0.05)).padding(.leading, 64)
+                }
+            }
+        }
+        .cloudflarePanel()
+    }
+
+    private func analyticsBreakdownValue(_ item: CloudflareAnalyticsBreakdownItem) -> String {
+        let value = item.requests > 0 ? item.requests : item.pageViews
+        return value.formatted(.number.notation(.compactName))
+    }
+
+    private func analyticsBreakdownSubtitle(_ item: CloudflareAnalyticsBreakdownItem) -> String? {
+        var values: [String] = []
+        if item.bytes > 0 {
+            values.append(ByteCountFormatter.string(fromByteCount: item.bytes, countStyle: .file))
+        }
+        if item.threats > 0 {
+            values.append("\(item.threats.formatted()) threats")
+        }
+        if item.pageViews > 0 {
+            values.append("\(item.pageViews.formatted()) page views")
+        }
+        return values.isEmpty ? nil : values.joined(separator: " · ")
     }
 
     private var zoneDetails: some View {

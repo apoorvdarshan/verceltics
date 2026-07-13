@@ -40,7 +40,15 @@ nonisolated enum CloudflareAPIError: LocalizedError, Equatable, Sendable {
         case .requestFailed(let statusCode, let message):
             message.isEmpty ? "Cloudflare request failed (\(statusCode))." : "Cloudflare request failed (\(statusCode)): \(message)"
         case .api(let issues):
-            issues.map(\.message).filter { !$0.isEmpty }.joined(separator: "\n")
+            issues.map { issue in
+                var context: [String] = []
+                if let code = issue.code { context.append("code \(code)") }
+                if let pointer = issue.source?.pointer, !pointer.isEmpty { context.append(pointer) }
+                let suffix = context.isEmpty ? "" : " [\(context.joined(separator: " · "))]"
+                return issue.message + suffix
+            }
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
         case .graphQL(let messages):
             messages.joined(separator: "\n")
         case .decoding:
@@ -136,7 +144,7 @@ actor CloudflareAPI {
     func fetchPagesProjects(accountID: String) async throws -> [CloudflarePagesProject] {
         try await fetchAllPages(
             path: "/accounts/\(pathSegment(accountID))/pages/projects",
-            perPage: 50
+            perPage: 20
         )
     }
 
@@ -159,7 +167,7 @@ actor CloudflareAPI {
         return try await fetchAllPages(
             path: "/accounts/\(pathSegment(accountID))/pages/projects/\(pathSegment(projectName))/deployments",
             queryItems: queryItems,
-            perPage: 50
+            perPage: 20
         )
     }
 
@@ -384,6 +392,42 @@ actor CloudflareAPI {
             totals: totals,
             series: points.sorted { $0.timestamp < $1.timestamp }
         )
+    }
+
+    func fetchZoneAnalyticsBreakdowns(
+        zoneID: String,
+        from: Date,
+        to: Date
+    ) async throws -> CloudflareZoneAnalyticsBreakdowns {
+        guard from < to else {
+            throw CloudflareAPIError.invalidRequest("The analytics start date must be before the end date.")
+        }
+
+        let plan = try await analyticsQueryPlan(zoneID: zoneID, requestedFrom: from, requestedTo: to)
+        let query = analyticsBreakdownQuery(granularity: plan.granularity)
+        let variables = analyticsVariables(
+            zoneID: zoneID,
+            from: plan.from,
+            to: plan.to,
+            granularity: plan.granularity
+        )
+        let body = try JSONSerialization.data(withJSONObject: ["query": query, "variables": variables])
+        let (data, response) = try await execute(path: "/graphql", method: .post, body: body)
+        try throwForHTTPFailure(data: data, response: response)
+
+        let graphResponse: GraphQLAnalyticsBreakdownResponse
+        do {
+            graphResponse = try decoder.decode(GraphQLAnalyticsBreakdownResponse.self, from: data)
+        } catch {
+            throw CloudflareAPIError.decoding(error.localizedDescription)
+        }
+        if let errors = graphResponse.errors, !errors.isEmpty {
+            throw CloudflareAPIError.graphQL(errors.map(\.message))
+        }
+        guard let sum = graphResponse.data?.viewer.zones.first?.totals.first?.sum else {
+            return .empty
+        }
+        return analyticsBreakdowns(from: sum)
     }
 
     // MARK: - Advanced API explorer
@@ -939,6 +983,35 @@ actor CloudflareAPI {
         """
     }
 
+    private func analyticsBreakdownQuery(granularity: CloudflareAnalyticsGranularity) -> String {
+        let daily = granularity == .daily
+        let dataset = daily ? "httpRequests1dGroups" : "httpRequests1hGroups"
+        let scalar = daily ? "Date" : "Time"
+        let lowerBound = daily ? "date_geq" : "datetime_geq"
+        let upperBound = daily ? "date_leq" : "datetime_leq"
+
+        return """
+        query ZoneTrafficBreakdowns($zoneTag: string, $start: \(scalar), $end: \(scalar)) {
+          viewer {
+            zones(filter: { zoneTag: $zoneTag }) {
+              totals: \(dataset)(limit: 1, filter: { \(lowerBound): $start, \(upperBound): $end }) {
+                sum {
+                  encryptedBytes
+                  browserMap { pageViews uaBrowserFamily }
+                  contentTypeMap { bytes requests edgeResponseContentTypeName }
+                  clientSSLMap { requests clientSSLProtocol }
+                  countryMap { bytes requests threats clientCountryName }
+                  ipClassMap { requests ipType }
+                  responseStatusMap { requests edgeResponseStatus }
+                  threatPathingMap { requests threatPathingName }
+                }
+              }
+            }
+          }
+        }
+        """
+    }
+
     private func analyticsVariables(
         zoneID: String,
         from: Date,
@@ -982,6 +1055,86 @@ actor CloudflareAPI {
             threats: values.reduce(0) { $0 + $1.threats },
             encryptedRequests: values.reduce(0) { $0 + $1.encryptedRequests },
             uniqueVisitors: values.reduce(0) { $0 + $1.uniqueVisitors }
+        )
+    }
+
+    private func analyticsBreakdowns(
+        from sum: GraphQLAnalyticsGroup.Sum
+    ) -> CloudflareZoneAnalyticsBreakdowns {
+        func sorted(_ values: [CloudflareAnalyticsBreakdownItem]) -> [CloudflareAnalyticsBreakdownItem] {
+            values.sorted {
+                let lhs = $0.requests + $0.pageViews
+                let rhs = $1.requests + $1.pageViews
+                if lhs == rhs { return $0.label.localizedCaseInsensitiveCompare($1.label) == .orderedAscending }
+                return lhs > rhs
+            }
+        }
+
+        return CloudflareZoneAnalyticsBreakdowns(
+            countries: sorted((sum.countryMap ?? []).map {
+                CloudflareAnalyticsBreakdownItem(
+                    label: $0.clientCountryName ?? "Unknown",
+                    requests: $0.requests ?? 0,
+                    bytes: $0.bytes ?? 0,
+                    threats: $0.threats ?? 0,
+                    pageViews: 0
+                )
+            }),
+            statusCodes: sorted((sum.responseStatusMap ?? []).map {
+                CloudflareAnalyticsBreakdownItem(
+                    label: $0.edgeResponseStatus.map(String.init) ?? "Unknown",
+                    requests: $0.requests ?? 0,
+                    bytes: 0,
+                    threats: 0,
+                    pageViews: 0
+                )
+            }),
+            contentTypes: sorted((sum.contentTypeMap ?? []).map {
+                CloudflareAnalyticsBreakdownItem(
+                    label: $0.edgeResponseContentTypeName ?? "Unknown",
+                    requests: $0.requests ?? 0,
+                    bytes: $0.bytes ?? 0,
+                    threats: 0,
+                    pageViews: 0
+                )
+            }),
+            tlsProtocols: sorted((sum.clientSSLMap ?? []).map {
+                CloudflareAnalyticsBreakdownItem(
+                    label: $0.clientSSLProtocol ?? "None",
+                    requests: $0.requests ?? 0,
+                    bytes: 0,
+                    threats: 0,
+                    pageViews: 0
+                )
+            }),
+            browsers: sorted((sum.browserMap ?? []).map {
+                CloudflareAnalyticsBreakdownItem(
+                    label: $0.uaBrowserFamily ?? "Unknown",
+                    requests: 0,
+                    bytes: 0,
+                    threats: 0,
+                    pageViews: $0.pageViews ?? 0
+                )
+            }),
+            ipClasses: sorted((sum.ipClassMap ?? []).map {
+                CloudflareAnalyticsBreakdownItem(
+                    label: $0.ipType ?? "Unknown",
+                    requests: $0.requests ?? 0,
+                    bytes: 0,
+                    threats: 0,
+                    pageViews: 0
+                )
+            }),
+            threatTypes: sorted((sum.threatPathingMap ?? []).map {
+                CloudflareAnalyticsBreakdownItem(
+                    label: $0.threatPathingName ?? "Unknown",
+                    requests: $0.requests ?? 0,
+                    bytes: 0,
+                    threats: $0.requests ?? 0,
+                    pageViews: 0
+                )
+            }),
+            encryptedBytes: sum.encryptedBytes ?? 0
         )
     }
 }
@@ -1055,6 +1208,23 @@ private nonisolated struct GraphQLAnalyticsResponse: Decodable, Sendable {
     }
 }
 
+private nonisolated struct GraphQLAnalyticsBreakdownResponse: Decodable, Sendable {
+    let data: DataNode?
+    let errors: [GraphQLResponseError]?
+
+    struct DataNode: Decodable, Sendable {
+        let viewer: Viewer
+    }
+
+    struct Viewer: Decodable, Sendable {
+        let zones: [Zone]
+    }
+
+    struct Zone: Decodable, Sendable {
+        let totals: [GraphQLAnalyticsGroup]
+    }
+}
+
 private nonisolated struct GraphQLAnalyticsSettingsResponse: Decodable, Sendable {
     let data: DataNode?
     let errors: [GraphQLResponseError]?
@@ -1116,6 +1286,52 @@ private nonisolated struct GraphQLAnalyticsGroup: Decodable, Sendable {
         let cachedBytes: Int64?
         let threats: Int64?
         let encryptedRequests: Int64?
+        let encryptedBytes: Int64?
+        let browserMap: [BrowserMap]?
+        let contentTypeMap: [ContentTypeMap]?
+        let clientSSLMap: [ClientSSLMap]?
+        let countryMap: [CountryMap]?
+        let ipClassMap: [IPClassMap]?
+        let responseStatusMap: [ResponseStatusMap]?
+        let threatPathingMap: [ThreatPathingMap]?
+
+        struct BrowserMap: Decodable, Sendable {
+            let pageViews: Int64?
+            let uaBrowserFamily: String?
+        }
+
+        struct ContentTypeMap: Decodable, Sendable {
+            let bytes: Int64?
+            let requests: Int64?
+            let edgeResponseContentTypeName: String?
+        }
+
+        struct ClientSSLMap: Decodable, Sendable {
+            let requests: Int64?
+            let clientSSLProtocol: String?
+        }
+
+        struct CountryMap: Decodable, Sendable {
+            let bytes: Int64?
+            let requests: Int64?
+            let threats: Int64?
+            let clientCountryName: String?
+        }
+
+        struct IPClassMap: Decodable, Sendable {
+            let requests: Int64?
+            let ipType: String?
+        }
+
+        struct ResponseStatusMap: Decodable, Sendable {
+            let requests: Int64?
+            let edgeResponseStatus: Int?
+        }
+
+        struct ThreatPathingMap: Decodable, Sendable {
+            let requests: Int64?
+            let threatPathingName: String?
+        }
     }
 
     struct Unique: Decodable, Sendable {

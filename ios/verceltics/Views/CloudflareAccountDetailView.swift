@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct CloudflareAccountDetailView: View {
+    let api: CloudflareAPI
     let account: CloudflareAccountSummary
     let email: String
     let zoneCount: Int
@@ -23,6 +24,7 @@ struct CloudflareAccountDetailView: View {
                         workers: workerCount
                     )
 
+                    operationsLink
                     accountPanel
                     securityPanel
                     resourcePanel
@@ -36,6 +38,21 @@ struct CloudflareAccountDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .tint(CloudflareStyle.orange)
+    }
+
+    private var operationsLink: some View {
+        NavigationLink {
+            CloudflareAccountOperationsView(api: api, account: account, email: email)
+        } label: {
+            CloudflareResourceRow(
+                icon: "switch.2",
+                title: "Account operations",
+                subtitle: "Members, roles, permissions, policies and audit logs",
+                tint: CloudflareStyle.orange
+            )
+        }
+        .buttonStyle(.plain)
+        .cloudflarePanel(accentOpacity: 0.07)
     }
 
     private var accountPanel: some View {
