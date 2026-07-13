@@ -70,10 +70,20 @@ struct RegistrarAPI {
         }
     }
 
-    func rawRequest(method: String, path: String, body: String?) async throws -> RegistrarRawResponse {
+    func rawRequest(
+        method: String,
+        path: String,
+        body: String?,
+        additionalHeaders: [String: String] = [:],
+        contentType: String? = nil,
+        returnHTTPErrorResponse: Bool = false
+    ) async throws -> RegistrarRawResponse {
         let normalizedMethod = method.uppercased()
-        guard ["GET", "POST", "PUT", "PATCH", "DELETE"].contains(normalizedMethod) else {
-            throw RegistrarAPIError.invalidConfiguration("Use GET, POST, PUT, PATCH, or DELETE.")
+        guard ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].contains(normalizedMethod) else {
+            throw RegistrarAPIError.invalidConfiguration("Use GET, POST, PUT, PATCH, DELETE, HEAD, or OPTIONS.")
+        }
+        if provider == .nameSilo, normalizedMethod != "GET" {
+            throw RegistrarAPIError.invalidConfiguration("NameSilo requires every API operation to use GET.")
         }
         guard path.hasPrefix("/"), !path.hasPrefix("//") else {
             throw RegistrarAPIError.invalidConfiguration("Enter a registrar-relative path beginning with /.")
@@ -111,7 +121,7 @@ struct RegistrarAPI {
         request.httpMethod = normalizedMethod
         request.httpBody = body?.data(using: .utf8)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        if body != nil { request.setValue("application/json", forHTTPHeaderField: "Content-Type") }
+        if body != nil { request.setValue(contentType ?? "application/json", forHTTPHeaderField: "Content-Type") }
 
         switch provider {
         case .nameDotCom:
@@ -132,10 +142,14 @@ struct RegistrarAPI {
             break
         }
 
+        for (name, value) in additionalHeaders where !Self.protectedHeaders.contains(name.lowercased()) {
+            request.setValue(value, forHTTPHeaderField: name)
+        }
+
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw RegistrarAPIError.invalidResponse }
         let text = String(data: data, encoding: .utf8) ?? data.base64EncodedString()
-        guard (200...299).contains(http.statusCode) else {
+        if !(200...299).contains(http.statusCode), !returnHTTPErrorResponse {
             throw RegistrarAPIError.requestFailed(http.statusCode, errorMessage(data: data))
         }
         let headers = http.allHeaderFields.reduce(into: [String: String]()) { result, item in
@@ -144,16 +158,18 @@ struct RegistrarAPI {
         return RegistrarRawResponse(statusCode: http.statusCode, headers: headers, body: text)
     }
 
+    private static let protectedHeaders = Set(["authorization", "host", "content-length", "x-api-key", "x-secret-api-key", "x-api-secret"])
+
     func isLikelyWrite(method: String, path: String) -> Bool {
-        if method.uppercased() != "GET" { return true }
+        if !["GET", "HEAD", "OPTIONS"].contains(method.uppercased()) { return true }
         let value = path.lowercased()
         switch provider {
         case .namecheap:
-            return [".create", ".set", ".renew", ".reactivate", "transfer.create"].contains { value.contains($0) }
+            return [".create", ".set", ".renew", ".reactivate", ".delete", ".update", ".change", ".enable", ".disable", ".activate", ".reissue", ".resend", ".purchase", ".revoke", ".edit", ".reset"].contains { value.contains($0) }
         case .dynadot:
-            return ["command=register", "command=delete", "command=renew", "command=set_", "command=transfer", "command=push", "command=buy_", "command=place_"].contains { value.contains($0) }
+            return ["command=register", "command=delete", "command=restore", "command=renew", "command=set_", "command=transfer", "command=push", "command=buy_", "command=make_", "command=place_", "command=create_", "command=edit_", "command=clear_", "command=modify_"].contains { value.contains($0) }
         case .nameSilo:
-            return ["registerdomain", "renewdomain", "transferdomain", "changedns", "adddnsrecord", "updatednsrecord", "deletednsrecord", "domainforward"].contains { value.contains($0) }
+            return ["registerdomain", "renewdomain", "transferdomain", "transferupdate", "changedns", "contactadd", "contactupdate", "domainupdate", "addprivacy", "removeprivacy", "addautorenewal", "removeautorenewal", "addregistrylock", "removeregistrylock", "dnsaddrecord", "dnsupdaterecord", "dnsdeleterecord", "domainforward", "addregisterednameserver", "modifyregisterednameserver", "deleteregisterednameserver", "portfolioadd", "portfoliodelete"].contains { value.contains($0) }
         default:
             return false
         }
@@ -476,7 +492,10 @@ struct RegistrarAPI {
             return String(data: data, encoding: .utf8) ?? ""
         }
         let root = object(value)
-        return string(root, "message", "detail", "error") ?? String(data: data, encoding: .utf8) ?? ""
+        let message = string(root, "message", "detail", "details", "error")
+        let details = string(root, "details", "detail")
+        if let message, let details, message != details { return "\(message) — \(details)" }
+        return message ?? String(data: data, encoding: .utf8) ?? ""
     }
 
     private func requiredMetadata(_ key: String, label: String) throws -> String {

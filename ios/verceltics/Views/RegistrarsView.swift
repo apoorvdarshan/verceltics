@@ -234,7 +234,7 @@ struct RegistrarDashboardView: View {
             Button {
                 if let url = provider.dashboardURL { UIApplication.shared.open(url) }
             } label: { actionLabel("Dashboard", icon: "safari.fill") }
-            NavigationLink { RegistrarAPIExplorerView(account: account) } label: { actionLabel("API Explorer", icon: "terminal.fill") }
+            NavigationLink { ProviderFullAPICatalogView(account: account) } label: { actionLabel("Complete API", icon: "list.bullet.rectangle.fill") }
         }
         .buttonStyle(PressScaleButtonStyle())
     }

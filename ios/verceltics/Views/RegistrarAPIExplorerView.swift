@@ -3,22 +3,28 @@ import SwiftUI
 struct RegistrarAPIExplorerView: View {
     let account: RegistrarAccount
     let domain: RegistrarDomain?
+    let preset: ProviderAPIRequestPreset?
 
     @State private var method: String
     @State private var path: String
     @State private var requestBody = ""
+    @State private var customHeaders = ""
+    @State private var contentType = "application/json"
     @State private var response: RegistrarRawResponse?
     @State private var error: String?
     @State private var isSending = false
     @State private var showConfirmation = false
 
-    init(account: RegistrarAccount, domain: RegistrarDomain? = nil) {
+    init(account: RegistrarAccount, domain: RegistrarDomain? = nil, preset: ProviderAPIRequestPreset? = nil) {
         self.account = account
         self.domain = domain
+        self.preset = preset
         let api = RegistrarAPI(account: account)
-        _method = State(initialValue: account.provider == .porkbun ? "POST" : "GET")
-        _path = State(initialValue: api.suggestedPath(for: domain))
-        _requestBody = State(initialValue: account.provider == .porkbun ? "{}" : "")
+        _method = State(initialValue: preset?.method ?? (account.provider == .porkbun ? "POST" : "GET"))
+        _path = State(initialValue: preset?.path ?? api.suggestedPath(for: domain))
+        _requestBody = State(initialValue: preset?.body ?? (account.provider == .porkbun ? "{}" : ""))
+        _contentType = State(initialValue: preset?.contentType ?? "application/json")
+        _customHeaders = State(initialValue: Self.headerJSON(preset?.headers ?? [:]))
     }
 
     private var provider: RegistrarProvider { account.provider }
@@ -32,9 +38,9 @@ struct RegistrarAPIExplorerView: View {
                 VStack(spacing: 16) {
                     safetyCard
                     Picker("Method", selection: $method) {
-                        ForEach(["GET", "POST", "PUT", "PATCH", "DELETE"], id: \.self) { Text($0).tag($0) }
+                        ForEach(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"], id: \.self) { Text($0).tag($0) }
                     }
-                    .pickerStyle(.segmented)
+                    .pickerStyle(.menu).tint(provider.accentColor)
 
                     TextField("/registrar-relative/path", text: $path)
                         .font(.system(size: 12, design: .monospaced))
@@ -55,6 +61,17 @@ struct RegistrarAPIExplorerView: View {
                     }
                     .padding(14)
                     .providerPanel(accent: provider.accentColor)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("CONTENT TYPE").font(.system(size: 9, weight: .heavy)).tracking(1.2).foregroundStyle(.white.opacity(0.35))
+                        TextField("application/json", text: $contentType)
+                            .font(.system(size: 11, design: .monospaced)).textInputAutocapitalization(.never).autocorrectionDisabled()
+                        Text("CUSTOM HEADERS · JSON OBJECT")
+                            .font(.system(size: 9, weight: .heavy)).tracking(1.2).foregroundStyle(.white.opacity(0.35))
+                        TextEditor(text: $customHeaders)
+                            .font(.system(size: 10, design: .monospaced)).scrollContentBackground(.hidden).frame(minHeight: 72)
+                    }
+                    .padding(14).providerPanel(accent: provider.accentColor)
 
                     Button {
                         if requiresConfirmation { showConfirmation = true } else { send() }
@@ -81,9 +98,14 @@ struct RegistrarAPIExplorerView: View {
                             HStack {
                                 Text("RESPONSE").font(.system(size: 9, weight: .heavy)).tracking(1.2)
                                 Spacer()
-                                Text("HTTP \(response.statusCode)").font(.system(size: 9, weight: .heavy)).foregroundStyle(.green)
+                                Text("HTTP \(response.statusCode)").font(.system(size: 9, weight: .heavy))
+                                    .foregroundStyle((200...299).contains(response.statusCode) ? .green : .red)
                             }
-                            Text(response.body.isEmpty ? "(empty response)" : response.body)
+                            if !response.headers.isEmpty {
+                                Text(response.headers.sorted { $0.key.lowercased() < $1.key.lowercased() }.map { "\($0.key): \($0.value)" }.joined(separator: "\n"))
+                                    .font(.system(size: 9, design: .monospaced)).foregroundStyle(.white.opacity(0.42)).textSelection(.enabled)
+                            }
+                            Text(Self.pretty(response.body))
                                 .font(.system(size: 10, design: .monospaced)).textSelection(.enabled)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
@@ -94,7 +116,7 @@ struct RegistrarAPIExplorerView: View {
                 .padding(16)
             }
         }
-        .navigationTitle("\(provider.displayName) API")
+        .navigationTitle(preset?.title ?? "\(provider.displayName) API")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .confirmationDialog("Send this registrar request?", isPresented: $showConfirmation, titleVisibility: .visible) {
@@ -123,13 +145,42 @@ struct RegistrarAPIExplorerView: View {
         response = nil
         Task {
             do {
+                let headers = try Self.parseHeaders(customHeaders)
                 response = try await api.rawRequest(
                     method: method,
                     path: path.trimmingCharacters(in: .whitespacesAndNewlines),
-                    body: requestBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : requestBody
+                    body: requestBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : requestBody,
+                    additionalHeaders: headers,
+                    contentType: contentType.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : contentType,
+                    returnHTTPErrorResponse: true
                 )
             } catch { self.error = error.localizedDescription }
             isSending = false
         }
+    }
+
+    private static func headerJSON(_ headers: [String: String]) -> String {
+        guard !headers.isEmpty,
+              let data = try? JSONSerialization.data(withJSONObject: headers, options: [.prettyPrinted, .sortedKeys]) else { return "" }
+        return String(data: data, encoding: .utf8) ?? ""
+    }
+
+    private static func parseHeaders(_ text: String) throws -> [String: String] {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [:] }
+        guard let data = trimmed.data(using: .utf8),
+              let value = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              value.values.allSatisfy({ $0 is String }) else {
+            throw RegistrarAPIError.invalidConfiguration("Custom headers must be a JSON object whose values are strings.")
+        }
+        return value.compactMapValues { $0 as? String }
+    }
+
+    private static func pretty(_ body: String) -> String {
+        guard !body.isEmpty else { return "(empty response)" }
+        guard let data = body.data(using: .utf8),
+              let value = try? JSONSerialization.jsonObject(with: data),
+              let formatted = try? JSONSerialization.data(withJSONObject: value, options: [.prettyPrinted, .sortedKeys]) else { return body }
+        return String(data: formatted, encoding: .utf8) ?? body
     }
 }

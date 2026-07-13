@@ -153,13 +153,13 @@ struct HostingResourceDetailView: View {
 
     private var metadata: some View {
         NavigationLink {
-            HostingAPIExplorerView(account: account, suggestedResource: resource)
+            ProviderFullAPICatalogView(account: account)
         } label: {
             HStack {
                 Image(systemName: "terminal.fill").foregroundStyle(provider.accentColor)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Full API Explorer").font(.system(size: 13, weight: .bold))
-                    Text("Read or write any provider API route").font(.system(size: 10, weight: .semibold)).foregroundStyle(.white.opacity(0.38))
+                    Text("Complete API").font(.system(size: 13, weight: .bold))
+                    Text("Search official operations or send a manual raw request").font(.system(size: 10, weight: .semibold)).foregroundStyle(.white.opacity(0.38))
                 }
                 Spacer()
                 Image(systemName: "chevron.right").foregroundStyle(.white.opacity(0.2))

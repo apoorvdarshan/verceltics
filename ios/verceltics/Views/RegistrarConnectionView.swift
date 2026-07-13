@@ -287,7 +287,7 @@ struct RegistrarConnectionView: View {
 
     private func connectionNote(_ provider: RegistrarProvider) -> String {
         switch provider {
-        case .nameDotCom: "Use a CORE API username and token. Name.com currently does not support API access on accounts with two-step verification enabled."
+        case .nameDotCom: "Use a CORE API username and production token. If two-step verification is enabled, also turn Name.com API Access ON under Security Settings; that toggle authorizes API calls without a 2FA code."
         case .namecheap: "Enable API access and whitelist the same public IPv4 address you enter here. Namecheap signs every request with that address."
         case .goDaddy: "GoDaddy may require portfolio size or a paid Discount Domain Club plan before production Domains API access is enabled."
         case .gandi: "Create a scoped personal access token for the organization and domains you want available in the app."

@@ -202,9 +202,9 @@ struct HostingDashboardView: View {
                 dashboardAction(icon: "safari.fill", title: "Dashboard")
             }
             NavigationLink {
-                HostingAPIExplorerView(account: account)
+                ProviderFullAPICatalogView(account: account)
             } label: {
-                dashboardAction(icon: "terminal.fill", title: "API Explorer")
+                dashboardAction(icon: "list.bullet.rectangle.fill", title: "Complete API")
             }
         }
         .buttonStyle(PressScaleButtonStyle())

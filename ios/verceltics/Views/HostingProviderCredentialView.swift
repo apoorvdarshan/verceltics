@@ -13,6 +13,7 @@ struct HostingProviderCredentialView: View {
     @State private var accessKeyID = ""
     @State private var region = "us-east-1"
     @State private var sessionToken = ""
+    @State private var railwayTokenType = "account"
     @FocusState private var focusedField: Field?
 
     private enum Field: Hashable { case credential, organization, projectID, accessKeyID, region, sessionToken }
@@ -147,7 +148,13 @@ struct HostingProviderCredentialView: View {
             providerField("Session token (optional)", text: $sessionToken, field: .sessionToken, secure: true)
         } else {
             providerField(credentialPlaceholder, text: $credential, field: .credential, secure: true)
-            if provider == .fly {
+            if provider == .railway {
+                Picker("Railway token type", selection: $railwayTokenType) {
+                    Text("Account / Workspace").tag("account")
+                    Text("Project").tag("project")
+                }
+                .pickerStyle(.segmented)
+            } else if provider == .fly {
                 providerField("Organization slug", text: $organization, field: .organization)
             } else if provider == .firebase {
                 providerField("Firebase / Google Cloud project ID", text: $projectID, field: .projectID)
@@ -218,6 +225,7 @@ struct HostingProviderCredentialView: View {
 
     private var metadata: [String: String] {
         switch provider {
+        case .railway: ["railwayTokenType": railwayTokenType]
         case .fly: ["organization": organization]
         case .firebase: ["projectID": projectID]
         case .awsAmplify: ["accessKeyID": accessKeyID, "region": region, "sessionToken": sessionToken]
@@ -255,6 +263,7 @@ struct HostingProviderCredentialView: View {
 
     private var instructionTwo: String {
         switch provider {
+        case .railway: railwayTokenType == "project" ? "Copy a project token from Project Settings, or choose Account / Workspace for a broader API token" : "Create an account or workspace token with the access you want Verceltics to use"
         case .fly: "Copy the token and your organization slug"
         case .firebase: "Copy the token and your Firebase project ID"
         case .awsAmplify: "Copy the access key ID, secret and AWS region"

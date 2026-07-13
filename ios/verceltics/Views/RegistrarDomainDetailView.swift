@@ -15,13 +15,13 @@ struct RegistrarDomainDetailView: View {
                     properties
                     nameservers
                     NavigationLink {
-                        RegistrarAPIExplorerView(account: account, domain: domain)
+                        ProviderFullAPICatalogView(account: account)
                     } label: {
                         HStack(spacing: 12) {
                             Image(systemName: "terminal.fill").foregroundStyle(provider.accentColor)
                             VStack(alignment: .leading, spacing: 3) {
-                                Text("Full registrar API").font(.system(size: 13, weight: .bold))
-                                Text("DNS, renewal, contacts, privacy, transfers and every available route")
+                                Text("Complete registrar API").font(.system(size: 13, weight: .bold))
+                                Text("Search every indexed read and write operation, then inspect the full raw response")
                                     .font(.system(size: 9, weight: .semibold)).foregroundStyle(.white.opacity(0.38)).lineLimit(2)
                             }
                             Spacer()

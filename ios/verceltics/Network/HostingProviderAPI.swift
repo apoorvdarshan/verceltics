@@ -28,6 +28,17 @@ struct HostingProviderAPI {
             )
 
         case .railway:
+            if metadata["railwayTokenType"] == "project" {
+                let response = try await graphql(query: "query { projectToken { projectId environmentId } }")
+                let token = object(object(response["data"])["projectToken"])
+                let projectID = string(token, "projectId") ?? credentialFingerprint
+                return HostingProviderProfile(
+                    id: projectID,
+                    name: "Railway Project",
+                    email: nil,
+                    avatarURL: nil
+                )
+            }
             let response = try await graphql(query: "query { me { id name email avatar } }")
             let me = object(object(response["data"])["me"])
             return HostingProviderProfile(
@@ -117,6 +128,29 @@ struct HostingProviderAPI {
             }
 
         case .railway:
+            if metadata["railwayTokenType"] == "project" {
+                let tokenResponse = try await graphql(query: "query { projectToken { projectId environmentId } }")
+                let token = object(object(tokenResponse["data"])["projectToken"])
+                guard let projectID = string(token, "projectId") else {
+                    throw HostingProviderAPIError.decoding("Railway did not return the project attached to this token.")
+                }
+                let response = try await graphql(
+                    query: "query project($id: String!) { project(id: $id) { id name description createdAt updatedAt } }",
+                    variables: ["id": projectID]
+                )
+                let project = object(object(response["data"])["project"])
+                return [HostingResource(
+                    id: projectID,
+                    name: string(project, "name") ?? "Railway Project",
+                    subtitle: string(project, "description"),
+                    url: nil,
+                    status: "Project",
+                    region: nil,
+                    kind: "Project",
+                    updatedAt: date(project["updatedAt"]),
+                    metadata: ["environmentID": string(token, "environmentId") ?? ""]
+                )]
+            }
             let response = try await graphql(query: """
                 query {
                   projects {
@@ -379,10 +413,17 @@ struct HostingProviderAPI {
         return URL(string: value)
     }
 
-    func rawRequest(method: String, path: String, body: String?) async throws -> HostingRawResponse {
+    func rawRequest(
+        method: String,
+        path: String,
+        body: String?,
+        additionalHeaders: [String: String] = [:],
+        contentType: String? = nil,
+        returnHTTPErrorResponse: Bool = false
+    ) async throws -> HostingRawResponse {
         let normalizedMethod = method.uppercased()
-        guard ["GET", "POST", "PUT", "PATCH", "DELETE"].contains(normalizedMethod) else {
-            throw HostingProviderAPIError.invalidConfiguration("Use GET, POST, PUT, PATCH, or DELETE.")
+        guard ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].contains(normalizedMethod) else {
+            throw HostingProviderAPIError.invalidConfiguration("Use GET, POST, PUT, PATCH, DELETE, HEAD, or OPTIONS.")
         }
         guard path.hasPrefix("/"), !path.hasPrefix("//") else {
             throw HostingProviderAPIError.invalidConfiguration("Enter a provider-relative path beginning with /.")
@@ -400,19 +441,27 @@ struct HostingProviderAPI {
             request = URLRequest(url: url)
             request.httpMethod = provider == .railway ? "POST" : normalizedMethod
             request.httpBody = bodyData
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue(contentType ?? "application/json", forHTTPHeaderField: "Content-Type")
             request.setValue("application/json", forHTTPHeaderField: "Accept")
-            request.setValue("Bearer \(credential)", forHTTPHeaderField: "Authorization")
+            if provider == .railway, metadata["railwayTokenType"] == "project" {
+                request.setValue(credential, forHTTPHeaderField: "Project-Access-Token")
+            } else {
+                request.setValue("Bearer \(credential)", forHTTPHeaderField: "Authorization")
+            }
             if provider == .heroku {
                 request.setValue("application/vnd.heroku+json; version=3", forHTTPHeaderField: "Accept")
                 request.setValue("Verceltics/2.0", forHTTPHeaderField: "User-Agent")
             }
         }
 
+        for (name, value) in additionalHeaders where !Self.protectedHeaders.contains(name.lowercased()) {
+            request.setValue(value, forHTTPHeaderField: name)
+        }
+
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw HostingProviderAPIError.invalidResponse }
         let responseBody = String(data: data, encoding: .utf8) ?? data.base64EncodedString()
-        guard (200...299).contains(http.statusCode) else {
+        if !(200...299).contains(http.statusCode), !returnHTTPErrorResponse {
             throw HostingProviderAPIError.requestFailed(http.statusCode, errorMessage(from: data))
         }
         let headers = http.allHeaderFields.reduce(into: [String: String]()) { result, pair in
@@ -420,6 +469,8 @@ struct HostingProviderAPI {
         }
         return HostingRawResponse(statusCode: http.statusCode, headers: headers, body: responseBody)
     }
+
+    private static let protectedHeaders = Set(["authorization", "project-access-token", "host", "content-length", "x-amz-date", "x-amz-security-token"])
 
     // MARK: - Railway
 
