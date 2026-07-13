@@ -497,6 +497,43 @@ struct CloudflareDashboardView: View {
                 if let accountID = viewModel.selectedAccountID,
                    let account = viewModel.selectedAccount {
                     NavigationLink {
+                        CloudflareFullAPICatalogView(
+                            api: api,
+                            accountID: accountID,
+                            zones: viewModel.zones,
+                            authenticationMode: authenticationMode
+                        )
+                    } label: {
+                        CloudflareResourceRow(
+                            icon: "point.3.filled.connected.trianglepath.dotted",
+                            title: "Complete Cloudflare API",
+                            subtitle: "Every official REST operation · generated parameters and upload forms",
+                            tint: CloudflareStyle.green
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    Divider().overlay(Color.white.opacity(0.055)).padding(.leading, 64)
+
+                    NavigationLink {
+                        CloudflareGraphQLDatasetCatalogView(
+                            api: api,
+                            accountID: accountID,
+                            zones: viewModel.zones
+                        )
+                    } label: {
+                        CloudflareResourceRow(
+                            icon: "chart.xyaxis.line",
+                            title: "GraphQL dataset directory",
+                            subtitle: "Live plan availability, fields, retention and query limits",
+                            tint: CloudflareStyle.orange
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    Divider().overlay(Color.white.opacity(0.055)).padding(.leading, 64)
+
+                    NavigationLink {
                         CloudflareProductCenterView(
                             api: api,
                             accountID: accountID,
@@ -507,8 +544,8 @@ struct CloudflareDashboardView: View {
                     } label: {
                         CloudflareResourceRow(
                             icon: "cloud.bolt.rain.fill",
-                            title: "Product operations",
-                            subtitle: "Guided read/write controls across the Cloudflare platform",
+                            title: "Guided product operations",
+                            subtitle: "Curated shortcuts for common Cloudflare tasks",
                             tint: CloudflareStyle.orange
                         )
                     }

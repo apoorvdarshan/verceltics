@@ -13,6 +13,7 @@ final class CloudflareAPIExplorerViewModel {
     var requestBody = ""
     var contentType = "application/json"
     var bodyEncoding: CloudflareRequestBodyEncoding = .utf8
+    var readOnlyGraphQL = false
     var response: CloudflareRawResponse?
     var elapsedMilliseconds: Int?
     var isExecuting = false
@@ -24,8 +25,11 @@ final class CloudflareAPIExplorerViewModel {
             method = preset.method
             path = preset.path
             queryText = preset.query
+            headerText = preset.headers
             requestBody = preset.body
             contentType = preset.contentType
+            bodyEncoding = preset.bodyEncoding
+            readOnlyGraphQL = preset.readOnlyGraphQL
         }
     }
 
@@ -48,6 +52,7 @@ final class CloudflareAPIExplorerViewModel {
                 bodyText: method == .get ? nil : requestBody,
                 contentType: method == .get ? nil : contentType,
                 bodyEncoding: bodyEncoding,
+                allowReadOnlyGraphQL: readOnlyGraphQL,
                 confirmation: confirmation
             )
             let duration = ContinuousClock.now - started
@@ -115,6 +120,7 @@ struct CloudflareAPIExplorerView: View {
     @State private var showingMutationConfirmation = false
     @State private var showingHeaders = false
     @State private var showingBodyFileImporter = false
+    @State private var showingMultipartComposer = false
     @State private var copied = false
 
     init(
@@ -185,6 +191,17 @@ struct CloudflareAPIExplorerView: View {
         }
         .fileImporter(isPresented: $showingBodyFileImporter, allowedContentTypes: [.data]) { result in
             importBodyFile(result)
+        }
+        .sheet(isPresented: $showingMultipartComposer) {
+            NavigationStack {
+                CloudflareMultipartComposerView(schemaFields: preset?.multipartFields ?? []) { body, contentType in
+                    viewModel.requestBody = body
+                    viewModel.contentType = contentType
+                    viewModel.bodyEncoding = .base64
+                    viewModel.clearResponse()
+                }
+            }
+            .preferredColorScheme(.dark)
         }
         .tint(CloudflareStyle.orange)
     }
@@ -278,7 +295,7 @@ struct CloudflareAPIExplorerView: View {
             }
 
             Button {
-                if viewModel.method.isMutation {
+                if viewModel.method.isMutation && !viewModel.readOnlyGraphQL {
                     showingMutationConfirmation = true
                 } else {
                     Task { await viewModel.execute(confirmed: false) }
@@ -344,7 +361,16 @@ struct CloudflareAPIExplorerView: View {
             .buttonStyle(.plain)
 
             if viewModel.contentType.lowercased().contains("multipart/form-data") {
-                Text("Include the matching boundary in Content-Type. Base64 mode accepts a complete binary multipart body.")
+                Button {
+                    showingMultipartComposer = true
+                } label: {
+                    Label("Compose fields and files", systemImage: "shippingbox.and.arrow.backward.fill")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(CloudflareStyle.orange)
+                }
+                .buttonStyle(.plain)
+
+                Text("The composer adds the matching boundary and converts the complete binary body to Base64. You can still paste a prebuilt multipart body manually.")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(CloudflareStyle.amber.opacity(0.72))
                     .fixedSize(horizontal: false, vertical: true)

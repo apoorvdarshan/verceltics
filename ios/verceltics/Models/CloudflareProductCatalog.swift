@@ -7,8 +7,12 @@ nonisolated struct CloudflareAPIOperationPreset: Identifiable, Equatable, Sendab
     let method: CloudflareHTTPMethod
     let path: String
     let query: String
+    let headers: String
     let body: String
     let contentType: String
+    let bodyEncoding: CloudflareRequestBodyEncoding
+    let multipartFields: [CloudflareOpenAPIMultipartField]
+    let readOnlyGraphQL: Bool
     let requiresAPIToken: Bool
 
     init(
@@ -18,8 +22,12 @@ nonisolated struct CloudflareAPIOperationPreset: Identifiable, Equatable, Sendab
         method: CloudflareHTTPMethod,
         path: String,
         query: String = "",
+        headers: String = "",
         body: String = "",
         contentType: String = "application/json",
+        bodyEncoding: CloudflareRequestBodyEncoding = .utf8,
+        multipartFields: [CloudflareOpenAPIMultipartField] = [],
+        readOnlyGraphQL: Bool = false,
         requiresAPIToken: Bool = false
     ) {
         self.id = id
@@ -28,8 +36,12 @@ nonisolated struct CloudflareAPIOperationPreset: Identifiable, Equatable, Sendab
         self.method = method
         self.path = path
         self.query = query
+        self.headers = headers
         self.body = body
         self.contentType = contentType
+        self.bodyEncoding = bodyEncoding
+        self.multipartFields = multipartFields
+        self.readOnlyGraphQL = readOnlyGraphQL
         self.requiresAPIToken = requiresAPIToken
     }
 
@@ -63,8 +75,12 @@ nonisolated struct CloudflareAPIOperationPreset: Identifiable, Equatable, Sendab
             method: method,
             path: resolve(path),
             query: resolve(query),
+            headers: resolve(headers),
             body: resolve(body),
             contentType: contentType,
+            bodyEncoding: bodyEncoding,
+            multipartFields: multipartFields,
+            readOnlyGraphQL: readOnlyGraphQL,
             requiresAPIToken: requiresAPIToken
         )
     }
@@ -282,7 +298,17 @@ nonisolated enum CloudflareProductCatalog {
         contentType: String = "application/json",
         token: Bool = false
     ) -> CloudflareAPIOperationPreset {
-        .init(id: id, title: title, summary: summary, method: .post, path: path, body: body, contentType: contentType, requiresAPIToken: token)
+        .init(
+            id: id,
+            title: title,
+            summary: summary,
+            method: .post,
+            path: path,
+            body: body,
+            contentType: contentType,
+            readOnlyGraphQL: path == "/graphql",
+            requiresAPIToken: token
+        )
     }
 
     private static func put(

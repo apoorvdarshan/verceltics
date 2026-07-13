@@ -470,17 +470,10 @@ actor CloudflareAPI {
         bodyText: String? = nil,
         contentType: String? = "application/json",
         bodyEncoding: CloudflareRequestBodyEncoding = .utf8,
+        allowReadOnlyGraphQL: Bool = false,
         confirmation: CloudflareMutationConfirmation? = nil
     ) async throws -> CloudflareRawResponse {
         let normalizedPath = try normalizeExplorerPath(path)
-        if method.isMutation {
-            guard
-                let confirmation,
-                confirmation.resourceID == path || confirmation.resourceID == normalizedPath
-            else {
-                throw CloudflareAPIError.confirmationRequired(path)
-            }
-        }
 
         let requestBody: Data?
         if let bodyText, !bodyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -507,6 +500,17 @@ actor CloudflareAPI {
             }
         } else {
             requestBody = nil
+        }
+
+        let isVerifiedReadOnlyGraphQL = allowReadOnlyGraphQL && method == .post && normalizedPath == "/graphql"
+            && requestBody.map(isReadOnlyGraphQLBody) == true
+        if method.isMutation && !isVerifiedReadOnlyGraphQL {
+            guard
+                let confirmation,
+                confirmation.resourceID == path || confirmation.resourceID == normalizedPath
+            else {
+                throw CloudflareAPIError.confirmationRequired(path)
+            }
         }
 
         if let contentType,
@@ -539,6 +543,22 @@ actor CloudflareAPI {
             result[String(describing: entry.key)] = String(describing: entry.value)
         }
         return CloudflareRawResponse(statusCode: response.statusCode, headers: headers, data: data)
+    }
+
+    func rawGraphQLQuery(
+        query: String,
+        variables: [String: CloudflareJSONValue] = [:]
+    ) async throws -> CloudflareRawResponse {
+        guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw CloudflareAPIError.invalidRequest("Enter a GraphQL query.")
+        }
+        let body = try encoder.encode(CloudflareRawGraphQLRequest(query: query, variables: variables))
+        let (data, response) = try await execute(path: "/graphql", method: .post, body: body)
+        try throwForHTTPFailure(data: data, response: response)
+        let responseHeaders = response.allHeaderFields.reduce(into: [String: String]()) { result, entry in
+            result[String(describing: entry.key)] = String(describing: entry.value)
+        }
+        return CloudflareRawResponse(statusCode: response.statusCode, headers: responseHeaders, data: data)
     }
 
     // MARK: - Request helpers
@@ -726,6 +746,18 @@ actor CloudflareAPI {
                 authenticationMode == .apiToken ? "Enter your Cloudflare API token." : "Enter your Cloudflare Global API Key."
             )
         }
+    }
+
+    private func isReadOnlyGraphQLBody(_ data: Data) -> Bool {
+        guard
+            let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let query = object["query"] as? String
+        else { return false }
+        let mutationRange = query.range(
+            of: #"\bmutation\b"#,
+            options: [.regularExpression, .caseInsensitive]
+        )
+        return mutationRange == nil
     }
 
     private func requireConfirmation(_ confirmation: CloudflareMutationConfirmation, resourceID: String) throws {
@@ -1174,6 +1206,11 @@ actor CloudflareAPI {
             encryptedBytes: sum.encryptedBytes ?? 0
         )
     }
+}
+
+private nonisolated struct CloudflareRawGraphQLRequest: Encodable, Sendable {
+    let query: String
+    let variables: [String: CloudflareJSONValue]
 }
 
 // MARK: - Private response envelopes
