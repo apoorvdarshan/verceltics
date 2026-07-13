@@ -81,22 +81,14 @@ struct LoginView: View {
         }
     }
 
-    // MARK: - Welcome (centered)
+    // MARK: - Platform selection
 
     private var welcomeView: some View {
         ScrollView {
             VStack(spacing: 0) {
-                brandingHeader
-                    .padding(.top, 26)
-
-                DemoChart()
-                    .frame(height: 76)
-                    .padding(.horizontal, 40)
-                    .padding(.top, 28)
-
                 categorySelector
                     .padding(.horizontal, 20)
-                    .padding(.top, 24)
+                    .padding(.top, 18)
 
                 VStack(alignment: .leading, spacing: 12) {
                     Text(connectionCategory == .hosting ? "CONNECT A HOSTING PLATFORM" : "CONNECT A REGISTRAR")
@@ -125,8 +117,9 @@ struct LoginView: View {
     }
 
     private var categorySelector: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 8) {
             ForEach(ConnectionCategory.allCases) { category in
+                let isSelected = connectionCategory == category
                 Button {
                     withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
                         connectionCategory = category
@@ -135,22 +128,19 @@ struct LoginView: View {
                     Label(category.title, systemImage: category.systemImage)
                         .font(.system(size: 12, weight: .heavy))
                         .frame(maxWidth: .infinity)
-                        .frame(height: 42)
-                        .foregroundStyle(connectionCategory == category ? Color.black : Color.white.opacity(0.48))
-                        .background(connectionCategory == category ? Color.white : Color.clear)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .frame(height: 48)
+                        .foregroundStyle(isSelected ? Color.white : Color.white.opacity(0.48))
+                        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .liquidGlassSurface(
+                            accent: .white,
+                            cornerRadius: 18,
+                            tintOpacity: isSelected ? 0.18 : 0.035
+                        )
                 }
                 .buttonStyle(PressScaleButtonStyle())
-                .accessibilityAddTraits(connectionCategory == category ? .isSelected : [])
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
             }
         }
-        .padding(4)
-        .background(Color.white.opacity(0.065))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.09), lineWidth: 0.5)
-        )
     }
 
     private func providerButton(_ provider: AccountProvider) -> some View {
@@ -182,18 +172,13 @@ struct LoginView: View {
             }
             .padding(.horizontal, 14)
             .frame(maxWidth: .infinity)
-            .frame(height: 62)
-            .background(
-                LinearGradient(
-                    colors: [Color.white.opacity(0.08), Color.white.opacity(0.035)],
-                    startPoint: .top, endPoint: .bottom
-                )
-            )
+            .frame(height: 66)
             .foregroundStyle(.white)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .strokeBorder(accent.opacity(provider == .vercel ? 0.18 : 0.28), lineWidth: 0.7)
+            .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .liquidGlassSurface(
+                accent: accent,
+                cornerRadius: 20,
+                tintOpacity: provider == .vercel ? 0.055 : 0.10
             )
         }
         .buttonStyle(PressScaleButtonStyle())
@@ -223,19 +208,13 @@ struct LoginView: View {
             }
             .padding(.horizontal, 14)
             .frame(maxWidth: .infinity)
-            .frame(height: 62)
-            .background(
-                LinearGradient(
-                    colors: [Color.white.opacity(0.08), Color.white.opacity(0.035)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
+            .frame(height: 66)
             .foregroundStyle(.white)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .strokeBorder(provider.accentColor.opacity(0.28), lineWidth: 0.7)
+            .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .liquidGlassSurface(
+                accent: provider.accentColor,
+                cornerRadius: 20,
+                tintOpacity: 0.10
             )
         }
         .buttonStyle(PressScaleButtonStyle())
@@ -672,151 +651,63 @@ struct LoginView: View {
         .padding(.top, 18)
     }
 
-    // MARK: - Shared branding
+}
 
-    private var brandingHeader: some View {
-        VStack(spacing: 22) {
-            Image("AppLogo")
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 120, height: 120)
-                .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+private struct LiquidGlassSurfaceModifier: ViewModifier {
+    let accent: Color
+    let cornerRadius: CGFloat
+    let tintOpacity: Double
 
-            VStack(spacing: 7) {
-                Text("Verceltics")
-                    .font(.system(size: 30, weight: .heavy))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.white, Color.white.opacity(0.75)],
-                            startPoint: .top, endPoint: .bottom
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content
+                .glassEffect(
+                    .regular.tint(accent.opacity(tintOpacity)).interactive(),
+                    in: .rect(cornerRadius: cornerRadius)
+                )
+        } else {
+            content
+                .background {
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .fill(.ultraThinMaterial)
+                        .overlay {
+                            LinearGradient(
+                                colors: [accent.opacity(tintOpacity), Color.white.opacity(0.025)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.16), accent.opacity(0.16), Color.white.opacity(0.035)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 0.6
                         )
-                    )
-
-                Text("Hosting and domains, in one place")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.45))
-            }
+                }
         }
     }
 }
 
-// MARK: - Demo Chart (animated line that draws itself)
-
-struct DemoChart: View {
-    @State private var drawProgress: CGFloat = 0
-    @State private var dotIndex = 0
-
-    private let points: [CGFloat] = [0.3, 0.5, 0.25, 0.7, 0.4, 0.85, 0.6, 0.9, 0.55, 0.95]
-
-    var body: some View {
-        GeometryReader { geo in
-            let w = geo.size.width
-            let h = geo.size.height
-
-            ZStack {
-                // Grid lines
-                ForEach(0..<4, id: \.self) { i in
-                    let y = h * CGFloat(i) / 3
-                    Path { path in
-                        path.move(to: CGPoint(x: 0, y: y))
-                        path.addLine(to: CGPoint(x: w, y: y))
-                    }
-                    .stroke(Color.white.opacity(0.04), lineWidth: 0.5)
-                }
-
-                // Gradient fill under line
-                Path { path in
-                    for (i, point) in points.enumerated() {
-                        let x = w * CGFloat(i) / CGFloat(points.count - 1)
-                        let y = h * (1 - point)
-                        if i == 0 { path.move(to: CGPoint(x: x, y: y)) }
-                        else { path.addLine(to: CGPoint(x: x, y: y)) }
-                    }
-                    path.addLine(to: CGPoint(x: w, y: h))
-                    path.addLine(to: CGPoint(x: 0, y: h))
-                    path.closeSubpath()
-                }
-                .fill(
-                    LinearGradient(
-                        stops: [
-                            .init(color: Color.blue.opacity(0.28), location: 0.0),
-                            .init(color: Color.blue.opacity(0.10), location: 0.5),
-                            .init(color: .clear, location: 1.0),
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .mask(
-                    Rectangle()
-                        .frame(width: w * drawProgress)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                )
-
-                // Line
-                Path { path in
-                    for (i, point) in points.enumerated() {
-                        let x = w * CGFloat(i) / CGFloat(points.count - 1)
-                        let y = h * (1 - point)
-                        if i == 0 { path.move(to: CGPoint(x: x, y: y)) }
-                        else { path.addLine(to: CGPoint(x: x, y: y)) }
-                    }
-                }
-                .trim(from: 0, to: drawProgress)
-                .stroke(
-                    LinearGradient(
-                        colors: [Color.blue, Color(red: 0.45, green: 0.65, blue: 1.0)],
-                        startPoint: .leading, endPoint: .trailing
-                    ),
-                    style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round)
-                )
-
-                // Animated dots
-                ForEach(0..<points.count, id: \.self) { i in
-                    let x = w * CGFloat(i) / CGFloat(points.count - 1)
-                    let y = h * (1 - points[i])
-                    let visible = CGFloat(i) / CGFloat(points.count - 1) <= drawProgress
-
-                    Circle()
-                        .fill(.blue)
-                        .frame(width: 6, height: 6)
-                        .scaleEffect(i == dotIndex && visible ? 1.5 : 1)
-                        .opacity(visible ? 1 : 0)
-                        .position(x: x, y: y)
-                }
-            }
-        }
-        .onAppear {
-            // Animate line drawing
-            withAnimation(.easeInOut(duration: 2.5)) {
-                drawProgress = 1.0
-            }
-            // Pulse dots sequentially
-            for i in 0..<points.count {
-                DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.28) {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
-                        dotIndex = i
-                    }
-                }
-            }
-            // Loop the animation
-            DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
-                drawProgress = 0
-                dotIndex = 0
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    withAnimation(.easeInOut(duration: 2.5)) {
-                        drawProgress = 1.0
-                    }
-                    for i in 0..<points.count {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.28) {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
-                                dotIndex = i
-                            }
-                        }
-                    }
-                }
-            }
-        }
+private extension View {
+    func liquidGlassSurface(
+        accent: Color,
+        cornerRadius: CGFloat,
+        tintOpacity: Double
+    ) -> some View {
+        modifier(
+            LiquidGlassSurfaceModifier(
+                accent: accent,
+                cornerRadius: cornerRadius,
+                tintOpacity: tintOpacity
+            )
+        )
     }
 }
 
