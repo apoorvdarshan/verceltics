@@ -217,12 +217,12 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## Star History
 
-<a href="https://www.star-history.com/#apoorvdarshan/verceltics&Date">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=apoorvdarshan/verceltics&type=Date&theme=dark" />
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=apoorvdarshan/verceltics&type=Date" />
-    <img alt="Verceltics star history chart" src="https://api.star-history.com/svg?repos=apoorvdarshan/verceltics&type=Date" />
-  </picture>
+<a href="https://www.star-history.com/?type=date&repos=apoorvdarshan%2Fverceltics">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=apoorvdarshan/verceltics&type=date&theme=dark&legend=top-left&sealed_token=ivNQKdt-gZMt3AKN-YEFzOo3CExAGhCXGUzNFGp8ohIwZyY5i8sQ2J4QJNvw2V-DZseAHt1sTy-CFm7XQUPKgEl_QGHwudYNy5QZsYl803tkS0SfW5zcDGjah4RMi3XuXie2FBGy1HoQQRIpghKdnLrKAY8gO0iTpkia7Cr5ayUYlw-1jE4_SccK_5Hk" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=apoorvdarshan/verceltics&type=date&legend=top-left&sealed_token=ivNQKdt-gZMt3AKN-YEFzOo3CExAGhCXGUzNFGp8ohIwZyY5i8sQ2J4QJNvw2V-DZseAHt1sTy-CFm7XQUPKgEl_QGHwudYNy5QZsYl803tkS0SfW5zcDGjah4RMi3XuXie2FBGy1HoQQRIpghKdnLrKAY8gO0iTpkia7Cr5ayUYlw-1jE4_SccK_5Hk" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=apoorvdarshan/verceltics&type=date&legend=top-left&sealed_token=ivNQKdt-gZMt3AKN-YEFzOo3CExAGhCXGUzNFGp8ohIwZyY5i8sQ2J4QJNvw2V-DZseAHt1sTy-CFm7XQUPKgEl_QGHwudYNy5QZsYl803tkS0SfW5zcDGjah4RMi3XuXie2FBGy1HoQQRIpghKdnLrKAY8gO0iTpkia7Cr5ayUYlw-1jE4_SccK_5Hk" />
+ </picture>
 </a>
 
 ---
