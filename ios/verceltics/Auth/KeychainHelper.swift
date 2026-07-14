@@ -8,6 +8,9 @@ enum KeychainHelper {
     private static let longAnalyticsHistoryAccountIdsKey = "long_analytics_history_account_ids"
     private static let registrarAccountsKey = "registrar_accounts"
     private static let activeRegistrarAccountIdKey = "active_registrar_account_id"
+    private static let siteIntegrationAccountsKey = "site_integration_accounts"
+    private static let siteIntegrationSnapshotsKey = "site_integration_snapshots"
+    private static let activeSiteIntegrationAccountIdKey = "active_site_integration_account_id"
 
     static func saveAccounts(_ accounts: [VercelAccount]) {
         do {
@@ -71,6 +74,39 @@ enum KeychainHelper {
 
     static func getActiveRegistrarAccountID() -> UUID? {
         guard let value = UserDefaults.standard.string(forKey: activeRegistrarAccountIdKey) else { return nil }
+        return UUID(uuidString: value)
+    }
+
+    static func saveSiteIntegrationAccounts(_ accounts: [SiteIntegrationAccount]) {
+        guard let data = try? JSONEncoder().encode(accounts) else { return }
+        saveKeychainData(data, account: siteIntegrationAccountsKey)
+    }
+
+    static func getSiteIntegrationAccounts() -> [SiteIntegrationAccount] {
+        guard let data = readKeychainData(account: siteIntegrationAccountsKey) else { return [] }
+        return (try? JSONDecoder().decode([SiteIntegrationAccount].self, from: data)) ?? []
+    }
+
+    static func saveSiteIntegrationSnapshots(_ snapshots: [SiteIntegrationSnapshot]) {
+        guard let data = try? JSONEncoder().encode(snapshots) else { return }
+        saveKeychainData(data, account: siteIntegrationSnapshotsKey)
+    }
+
+    static func getSiteIntegrationSnapshots() -> [SiteIntegrationSnapshot] {
+        guard let data = readKeychainData(account: siteIntegrationSnapshotsKey) else { return [] }
+        return (try? JSONDecoder().decode([SiteIntegrationSnapshot].self, from: data)) ?? []
+    }
+
+    static func saveActiveSiteIntegrationAccountID(_ id: UUID?) {
+        guard let id else {
+            UserDefaults.standard.removeObject(forKey: activeSiteIntegrationAccountIdKey)
+            return
+        }
+        UserDefaults.standard.set(id.uuidString, forKey: activeSiteIntegrationAccountIdKey)
+    }
+
+    static func getActiveSiteIntegrationAccountID() -> UUID? {
+        guard let value = UserDefaults.standard.string(forKey: activeSiteIntegrationAccountIdKey) else { return nil }
         return UUID(uuidString: value)
     }
 

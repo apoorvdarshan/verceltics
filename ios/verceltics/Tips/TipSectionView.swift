@@ -20,8 +20,8 @@ private struct TipMeta {
     }
 }
 
-/// Inline tip jar — renders the four tip tiers directly inside the About
-/// screen's Support tab (no popup). Styled to match `aboutSection` cards.
+/// Inline tip jar — renders the four tip tiers directly inside About without
+/// a popup. Styled to match the surrounding section cards.
 struct TipSectionView: View {
     let store: TipStore
 

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Titled, rounded card used across the About and Support tabs.
+/// Titled, rounded card used by About and other settings-style screens.
 struct SectionCard<Content: View>: View {
     let title: String
     @ViewBuilder var content: () -> Content
@@ -24,7 +24,7 @@ struct SectionCard<Content: View>: View {
     }
 }
 
-/// Share-the-app row (used in the Support tab).
+/// Share-the-app row used in About's support section.
 struct ShareAppRow: View {
     var body: some View {
         let message = """

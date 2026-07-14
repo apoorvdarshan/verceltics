@@ -3,6 +3,7 @@ import SwiftUI
 enum ConnectionCategory: String, CaseIterable, Identifiable {
     case hosting
     case registrars
+    case sites
 
     var id: Self { self }
 
@@ -10,6 +11,7 @@ enum ConnectionCategory: String, CaseIterable, Identifiable {
         switch self {
         case .hosting: "Hosting"
         case .registrars: "Registrars"
+        case .sites: "Sites"
         }
     }
 
@@ -17,6 +19,15 @@ enum ConnectionCategory: String, CaseIterable, Identifiable {
         switch self {
         case .hosting: "server.rack"
         case .registrars: "globe.americas.fill"
+        case .sites: "chart.xyaxis.line"
+        }
+    }
+
+    var sectionTitle: String {
+        switch self {
+        case .hosting: "CONNECT A HOSTING PLATFORM"
+        case .registrars: "CONNECT A REGISTRAR"
+        case .sites: "CONNECT A SITE SERVICE"
         }
     }
 }
@@ -31,6 +42,7 @@ struct LoginView: View {
     @State private var tokenInput = ""
     @State private var selectedProvider: AccountProvider?
     @State private var selectedRegistrarProvider: RegistrarProvider?
+    @State private var selectedSiteProvider: SiteIntegrationProvider?
     @State private var cloudflareEmail = ""
     @State private var cloudflareGlobalAPIKey = ""
     @State private var cloudflareAPIToken = ""
@@ -49,7 +61,18 @@ struct LoginView: View {
             AppTheme.canvas.ignoresSafeArea()
 
             Group {
-                if let registrar = selectedRegistrarProvider {
+                if let siteProvider = selectedSiteProvider {
+                    SiteServiceConnectionView(
+                        initialProvider: siteProvider,
+                        onBack: {
+                            updateSelection { selectedSiteProvider = nil }
+                        },
+                        onConnected: {
+                            selectedSiteProvider = nil
+                            dismiss()
+                        }
+                    )
+                } else if let registrar = selectedRegistrarProvider {
                     RegistrarConnectionView(
                         initialProvider: registrar,
                         onBack: {
@@ -81,7 +104,7 @@ struct LoginView: View {
     }
 
     private var contentMaxWidth: CGFloat {
-        if selectedProvider == nil, selectedRegistrarProvider == nil {
+        if selectedProvider == nil, selectedRegistrarProvider == nil, selectedSiteProvider == nil {
             return AppLayout.catalogMaxWidth
         }
         return AppLayout.formMaxWidth
@@ -108,22 +131,29 @@ struct LoginView: View {
                     .frame(maxWidth: .infinity)
 
                 VStack(alignment: .leading, spacing: 12) {
-                    Text(connectionCategory == .hosting ? "CONNECT A HOSTING PLATFORM" : "CONNECT A REGISTRAR")
+                    Text(connectionCategory.sectionTitle)
                         .font(.caption2.weight(.semibold))
                         .tracking(1.5)
                         .foregroundStyle(AppTheme.textSecondary)
                         .padding(.horizontal, 4)
 
-                    if connectionCategory == .hosting {
+                    switch connectionCategory {
+                    case .hosting:
                         LazyVGrid(columns: providerColumns, spacing: 14) {
                             ForEach(AccountProvider.allCases) { provider in
                                 providerButton(provider)
                             }
                         }
-                    } else {
+                    case .registrars:
                         LazyVGrid(columns: providerColumns, spacing: 14) {
                             ForEach(RegistrarProvider.allCases) { provider in
                                 registrarButton(provider)
+                            }
+                        }
+                    case .sites:
+                        LazyVGrid(columns: providerColumns, spacing: 14) {
+                            ForEach(SiteIntegrationProvider.allCases) { provider in
+                                siteProviderButton(provider)
                             }
                         }
                     }
@@ -167,6 +197,39 @@ struct LoginView: View {
                     ProviderMark(provider: provider, size: 18)
                 }
                 .frame(width: 34, height: 34)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Connect \(provider.displayName)")
+                        .font(.headline)
+                    Text(provider.connectionSubtitle)
+                        .font(.footnote)
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                }
+                .layoutPriority(1)
+
+                Spacer()
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 12, weight: .semibold))
+            }
+            .padding(.horizontal, 14)
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: 64)
+            .padding(.vertical, 8)
+            .foregroundStyle(.white)
+            .contentShape(RoundedRectangle(cornerRadius: AppTheme.panelRadius, style: .continuous))
+            .liquidGlassSurface(cornerRadius: AppTheme.panelRadius)
+        }
+        .buttonStyle(PressScaleButtonStyle())
+        .hoverEffect(.highlight)
+    }
+
+    private func siteProviderButton(_ provider: SiteIntegrationProvider) -> some View {
+        Button {
+            updateSelection { selectedSiteProvider = provider }
+        } label: {
+            HStack(spacing: 13) {
+                AppIconTile(icon: provider.systemImage, tint: provider.accentColor, size: 34)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Connect \(provider.displayName)")

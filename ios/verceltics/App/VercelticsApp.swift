@@ -6,11 +6,12 @@ struct VercelticsApp: App {
     @State private var paywallManager = PaywallManager()
     @State private var appUpdateChecker = AppUpdateChecker()
     @State private var registrarStore = RegistrarStore()
+    @State private var siteStore = SiteStore()
 
     var body: some Scene {
         WindowGroup {
             Group {
-                if !authManager.isAuthenticated && registrarStore.accounts.isEmpty {
+                if !authManager.isAuthenticated && registrarStore.accounts.isEmpty && siteStore.accounts.isEmpty {
                     LoginView()
                 } else if !paywallManager.hasCheckedEntitlements {
                     ZStack {
@@ -39,6 +40,7 @@ struct VercelticsApp: App {
             .environment(paywallManager)
             .environment(appUpdateChecker)
             .environment(registrarStore)
+            .environment(siteStore)
             .preferredColorScheme(.dark)
         }
     }

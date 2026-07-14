@@ -5,11 +5,13 @@ private let lastPrimaryWorkspaceKey = "mainTab.lastPrimaryWorkspace"
 private enum PrimaryWorkspace: String {
     case hosting
     case registrars
+    case sites
 
     var destination: MainTabDestination {
         switch self {
         case .hosting: .hosting
         case .registrars: .registrars
+        case .sites: .sites
         }
     }
 }
@@ -18,14 +20,15 @@ private enum MainTabDestination: Hashable {
     case hosting
     case search
     case registrars
-    case support
+    case sites
     case about
 
     var primaryWorkspace: PrimaryWorkspace? {
         switch self {
         case .hosting: .hosting
         case .registrars: .registrars
-        case .search, .support, .about: nil
+        case .sites: .sites
+        case .search, .about: nil
         }
     }
 }
@@ -58,8 +61,7 @@ struct MainTabView: View {
             }
 
             Tab(value: MainTabDestination.search, role: .search) {
-                providerHome(startWithSearch: true)
-                    .id(authManager.activeAccountId)
+                searchHome()
             }
 
             if let provider = registrarStore.activeAccount?.provider {
@@ -72,8 +74,8 @@ struct MainTabView: View {
                 }
             }
 
-            Tab("Support", systemImage: "heart.fill", value: MainTabDestination.support) {
-                SupportView()
+            Tab("Sites", systemImage: "chart.xyaxis.line", value: MainTabDestination.sites) {
+                SitesView()
             }
 
             Tab("About", systemImage: "info.circle", value: MainTabDestination.about) {
@@ -90,6 +92,19 @@ struct MainTabView: View {
         }
         .task {
             await appUpdateChecker.checkForUpdates()
+        }
+    }
+
+    @ViewBuilder
+    private func searchHome() -> some View {
+        switch PrimaryWorkspace(rawValue: lastPrimaryWorkspace) ?? .hosting {
+        case .hosting:
+            providerHome(startWithSearch: true)
+                .id(authManager.activeAccountId)
+        case .registrars:
+            RegistrarsView()
+        case .sites:
+            SitesView(startWithSearch: true)
         }
     }
 

@@ -1,9 +1,13 @@
 import SwiftUI
+import StoreKit
 
 struct AboutView: View {
     @Environment(AppUpdateChecker.self) private var appUpdateChecker
     @Environment(\.horizontalSizeClass) private var hSize
     @Environment(\.openURL) private var openURL
+    @Environment(\.requestReview) private var requestReview
+
+    @State private var tipStore = TipStore()
 
     var body: some View {
         NavigationStack {
@@ -36,17 +40,21 @@ struct AboutView: View {
                 VStack(spacing: 24) {
                     appSection
                     linksSection
+                    waysToHelpSection
                 }
                 VStack(spacing: 24) {
                     helpSection
                     accountSection
                     legalSection
+                    TipSectionView(store: tipStore)
                 }
             }
         } else {
             VStack(spacing: 24) {
                 appSection
                 linksSection
+                waysToHelpSection
+                TipSectionView(store: tipStore)
                 helpSection
                 accountSection
                 legalSection
@@ -78,6 +86,33 @@ struct AboutView: View {
         }
     }
 
+    private var waysToHelpSection: some View {
+        SectionCard(title: "Ways to help") {
+            AboutRow(
+                icon: "star.bubble.fill",
+                title: "Rate Verceltics",
+                subtitle: "Tap a star, no App Store needed",
+                action: { requestReview() }
+            )
+            AppInsetDivider()
+            ShareAppRow()
+            AppInsetDivider()
+            AboutRow(
+                icon: "star.fill",
+                title: "Star on GitHub",
+                subtitle: "Open the GitHub repository",
+                url: "https://github.com/apoorvdarshan/verceltics"
+            )
+            AppInsetDivider()
+            AboutRow(
+                icon: "arrow.up.circle.fill",
+                title: "Upvote on Product Hunt",
+                subtitle: "producthunt.com/products/verceltics",
+                url: "https://www.producthunt.com/products/verceltics"
+            )
+        }
+    }
+
     private var accountSection: some View {
         SectionCard(title: "Account") {
             AboutRow(icon: "creditcard.fill", title: "Manage subscription", subtitle: "Change plan or cancel", url: "https://apps.apple.com/account/subscriptions")
@@ -100,7 +135,7 @@ struct AboutView: View {
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(AppTheme.textSecondary)
 
-            Text("Verceltics is an independent app and is not affiliated with, endorsed by, or sponsored by any supported hosting platform or domain registrar. All provider names and marks belong to their respective owners.")
+            Text("Verceltics is an independent app and is not affiliated with, endorsed by, or sponsored by any supported hosting platform, domain registrar, analytics provider, or webmaster service. All provider names and marks belong to their respective owners.")
                 .font(.caption)
                 .foregroundStyle(AppTheme.textTertiary)
                 .multilineTextAlignment(.center)
