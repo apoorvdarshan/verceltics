@@ -3,6 +3,7 @@ import SwiftUI
 struct MainTabView: View {
     @Environment(AppUpdateChecker.self) private var appUpdateChecker
     @Environment(AuthManager.self) private var authManager
+    @Environment(RegistrarStore.self) private var registrarStore
 
     var body: some View {
         TabView {
@@ -26,8 +27,18 @@ struct MainTabView: View {
                     .id(authManager.activeAccountId)
             }
 
-            Tab("Registrars", systemImage: "globe.americas.fill") {
+            Tab {
                 RegistrarsView()
+            } label: {
+                if let provider = registrarStore.activeAccount?.provider {
+                    Label {
+                        Text(provider.displayName)
+                    } icon: {
+                        RegistrarMark(provider: provider, size: 22, monochrome: true)
+                    }
+                } else {
+                    Label("Registrars", systemImage: "globe.americas.fill")
+                }
             }
 
             Tab("Support", systemImage: "heart.fill") {
