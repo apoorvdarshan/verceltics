@@ -1,13 +1,51 @@
 import SwiftUI
 
+private let lastPrimaryWorkspaceKey = "mainTab.lastPrimaryWorkspace"
+
+private enum PrimaryWorkspace: String {
+    case hosting
+    case registrars
+
+    var destination: MainTabDestination {
+        switch self {
+        case .hosting: .hosting
+        case .registrars: .registrars
+        }
+    }
+}
+
+private enum MainTabDestination: Hashable {
+    case hosting
+    case search
+    case registrars
+    case support
+    case about
+
+    var primaryWorkspace: PrimaryWorkspace? {
+        switch self {
+        case .hosting: .hosting
+        case .registrars: .registrars
+        case .search, .support, .about: nil
+        }
+    }
+}
+
 struct MainTabView: View {
     @Environment(AppUpdateChecker.self) private var appUpdateChecker
     @Environment(AuthManager.self) private var authManager
     @Environment(RegistrarStore.self) private var registrarStore
+    @AppStorage(lastPrimaryWorkspaceKey) private var lastPrimaryWorkspace = PrimaryWorkspace.hosting.rawValue
+    @State private var selectedTab: MainTabDestination
+
+    init() {
+        let storedValue = UserDefaults.standard.string(forKey: lastPrimaryWorkspaceKey)
+        let workspace = storedValue.flatMap(PrimaryWorkspace.init(rawValue:)) ?? .hosting
+        _selectedTab = State(initialValue: workspace.destination)
+    }
 
     var body: some View {
-        TabView {
-            Tab {
+        TabView(selection: $selectedTab) {
+            Tab(value: MainTabDestination.hosting) {
                 providerHome()
                     .id(authManager.activeAccountId)
             } label: {
@@ -22,12 +60,12 @@ struct MainTabView: View {
                 }
             }
 
-            Tab(role: .search) {
+            Tab(value: MainTabDestination.search, role: .search) {
                 providerHome(startWithSearch: true)
                     .id(authManager.activeAccountId)
             }
 
-            Tab {
+            Tab(value: MainTabDestination.registrars) {
                 RegistrarsView()
             } label: {
                 if let provider = registrarStore.activeAccount?.provider {
@@ -41,17 +79,22 @@ struct MainTabView: View {
                 }
             }
 
-            Tab("Support", systemImage: "heart.fill") {
+            Tab("Support", systemImage: "heart.fill", value: MainTabDestination.support) {
                 SupportView()
             }
 
-            Tab("About", systemImage: "info.circle") {
+            Tab("About", systemImage: "info.circle", value: MainTabDestination.about) {
                 AboutView()
             }
             .badge(appUpdateChecker.isUpdateAvailable ? Text("") : nil)
         }
         .tabViewStyle(.sidebarAdaptable)
         .tint(.white)
+        .onChange(of: selectedTab) { _, newValue in
+            if let workspace = newValue.primaryWorkspace {
+                lastPrimaryWorkspace = workspace.rawValue
+            }
+        }
         .task {
             await appUpdateChecker.checkForUpdates()
         }
