@@ -393,7 +393,7 @@ struct CloudflareSecurityCenterView: View {
                                 Image(systemName: "trash")
                                     .font(.system(size: 12, weight: .bold))
                                     .foregroundStyle(CloudflareStyle.red.opacity(0.82))
-                                    .frame(width: 34, height: 34)
+                                    .frame(width: 44, height: 44)
                             }
                             .buttonStyle(.plain)
                         }

@@ -3,6 +3,7 @@ import SwiftUI
 struct RegistrarDomainDetailView: View {
     let account: RegistrarAccount
     let domain: RegistrarDomain
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     private var provider: RegistrarProvider { account.provider }
 
@@ -12,8 +13,10 @@ struct RegistrarDomainDetailView: View {
             ScrollView {
                 VStack(spacing: 16) {
                     hero
-                    properties
-                    nameservers
+                    LazyVGrid(columns: detailColumns, alignment: .leading, spacing: 16) {
+                        properties
+                        nameservers
+                    }
                     NavigationLink {
                         ProviderFullAPICatalogView(account: account)
                     } label: {
@@ -37,13 +40,24 @@ struct RegistrarDomainDetailView: View {
                     }
                     .buttonStyle(PressScaleButtonStyle())
                 }
-                .padding(16)
-                .padding(.bottom, 72)
+                .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
+                .padding(.vertical, 16)
+                .padding(.bottom, 24)
+                .appContentWidth(AppLayout.detailMaxWidth, horizontalSizeClass: horizontalSizeClass)
             }
         }
         .navigationTitle(domain.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
+    }
+
+    private var detailColumns: [GridItem] {
+        AppLayout.adaptiveColumns(
+            for: horizontalSizeClass,
+            regularMinimum: 340,
+            regularMaximum: 450,
+            spacing: 16
+        )
     }
 
     private var hero: some View {

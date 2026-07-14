@@ -37,6 +37,7 @@ struct CloudflareMultipartComposerView: View {
     let onCompose: (String, String) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var parts: [CloudflareMultipartPart]
     @State private var importingPartID: UUID?
     @State private var error: String?
@@ -72,7 +73,9 @@ struct CloudflareMultipartComposerView: View {
                     addFieldButton
                     composeButton
                 }
-                .padding()
+                .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
+                .padding(.vertical, 16)
+                .appContentWidth(AppLayout.formMaxWidth, horizontalSizeClass: horizontalSizeClass)
             }
         }
         .navigationTitle("Multipart Body")
@@ -147,6 +150,8 @@ struct CloudflareMultipartComposerView: View {
                 if !part.isRequired {
                     Button(role: .destructive) { parts.removeAll { $0.id == part.id } } label: {
                         Image(systemName: "trash")
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                 }
@@ -172,6 +177,7 @@ struct CloudflareMultipartComposerView: View {
                     }
                     .foregroundStyle(part.fileData == nil ? CloudflareStyle.orange : CloudflareStyle.green)
                     .padding(12)
+                    .frame(minHeight: 44)
                     .background(Color.black.opacity(0.3), in: RoundedRectangle(cornerRadius: 10))
                 }
                 .buttonStyle(.plain)
@@ -196,7 +202,7 @@ struct CloudflareMultipartComposerView: View {
                 .font(.system(size: 11, weight: .bold))
                 .foregroundStyle(CloudflareStyle.orange)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
+                .frame(minHeight: 48)
                 .background(CloudflareStyle.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 11))
         }
         .buttonStyle(.plain)
@@ -210,7 +216,7 @@ struct CloudflareMultipartComposerView: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.black.opacity(0.84))
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
+                .frame(minHeight: 50)
                 .background(CloudflareStyle.orange, in: RoundedRectangle(cornerRadius: 13))
         }
         .buttonStyle(PressScaleButtonStyle())

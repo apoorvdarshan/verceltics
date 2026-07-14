@@ -6,6 +6,7 @@ struct CloudflareDNSRecordEditor: View {
     let onSave: (CloudflareDNSRecordInput) async throws -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var type: String
     @State private var name: String
     @State private var content: String
@@ -102,8 +103,10 @@ struct CloudflareDNSRecordEditor: View {
 
                     CloudflareWriteNotice()
                 }
-                .padding()
+                .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
+                .padding(.top, 16)
                 .padding(.bottom, 24)
+                .appContentWidth(AppLayout.formMaxWidth, horizontalSizeClass: horizontalSizeClass)
             }
         }
         .navigationTitle(record == nil ? "Add DNS Record" : "Edit DNS Record")
@@ -497,6 +500,7 @@ struct CloudflareCachePurgeView: View {
     let onPurge: (CloudflareCachePurge) async throws -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var kind: PurgeKind = .files
     @State private var values = ""
     @State private var confirmationText = ""
@@ -523,7 +527,9 @@ struct CloudflareCachePurgeView: View {
                         CloudflareActionResultBanner(message: errorMessage, isError: true)
                     }
                 }
-                .padding()
+                .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
+                .padding(.vertical, 16)
+                .appContentWidth(AppLayout.formMaxWidth, horizontalSizeClass: horizontalSizeClass)
             }
         }
         .navigationTitle("Purge Cache")

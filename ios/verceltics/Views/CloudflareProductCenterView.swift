@@ -50,6 +50,15 @@ struct CloudflareProductCenterView: View {
         }
     }
 
+    private var productColumns: [GridItem] {
+        AppLayout.adaptiveColumns(
+            for: horizontalSizeClass,
+            regularMinimum: 400,
+            regularMaximum: 520,
+            spacing: 16
+        )
+    }
+
     var body: some View {
         ZStack {
             AppTheme.canvas.ignoresSafeArea()
@@ -66,14 +75,15 @@ struct CloudflareProductCenterView: View {
                         )
                         .cloudflarePanel()
                     } else {
-                        ForEach(filteredProducts) { product in
-                            productPanel(product)
+                        LazyVGrid(columns: productColumns, alignment: .leading, spacing: 16) {
+                            ForEach(filteredProducts) { product in
+                                productPanel(product)
+                            }
                         }
                     }
                 }
-                .padding()
-                .frame(maxWidth: horizontalSizeClass == .regular ? 980 : .infinity)
-                .frame(maxWidth: .infinity)
+                .padding(AppLayout.pagePadding(for: horizontalSizeClass))
+                .appContentWidth(AppLayout.catalogMaxWidth, horizontalSizeClass: horizontalSizeClass)
             }
         }
         .navigationTitle("Product Operations")

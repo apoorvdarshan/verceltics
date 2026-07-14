@@ -95,7 +95,7 @@ struct RegistrarConnectionView: View {
     }
 
     private func credentialView(_ provider: RegistrarProvider) -> some View {
-        ScrollViewReader { proxy in
+        ScrollViewReader { _ in
             ScrollView {
                 VStack(spacing: 0) {
                     VStack(spacing: 20) {
@@ -110,7 +110,7 @@ struct RegistrarConnectionView: View {
                             } label: {
                                 Image(systemName: "chevron.left")
                                     .font(.system(size: 15, weight: .semibold))
-                                    .frame(width: 42, height: 42)
+                                    .frame(width: 44, height: 44)
                                     .background(Color.white.opacity(0.07))
                                     .clipShape(Circle())
                             }
@@ -183,12 +183,6 @@ struct RegistrarConnectionView: View {
                 }
             }
             .scrollDismissesKeyboard(.interactively)
-            .onChange(of: focusedField) { _, value in
-                guard value != nil else { return }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo("registrar-connect", anchor: .bottom) }
-                }
-            }
         }
     }
 
@@ -201,7 +195,7 @@ struct RegistrarConnectionView: View {
                 .font(.footnote)
                 .foregroundStyle(AppTheme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("Credentials are stored in this iPhone’s Keychain and sent only to the registrar’s official API.")
+            Text("Credentials are stored in this device’s Keychain and sent only to the registrar’s official API.")
                 .font(.caption)
                 .foregroundStyle(AppTheme.textTertiary)
         }

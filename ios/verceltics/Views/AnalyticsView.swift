@@ -248,6 +248,17 @@ struct AnalyticsView: View {
             : [GridItem(.flexible())]
     }
 
+    private var statsColumns: [GridItem] {
+        Array(
+            repeating: GridItem(.flexible(minimum: 0), spacing: 10, alignment: .top),
+            count: 3
+        )
+    }
+
+    private var chartHeight: CGFloat {
+        hSize == .regular ? 340 : 260
+    }
+
     private var analyticsContent: some View {
         ScrollView {
             VStack(spacing: 16) {
@@ -300,7 +311,7 @@ struct AnalyticsView: View {
 
     private var analyticsChartCard: some View {
         AnalyticsChart(data: vm.data.timeseries)
-            .frame(height: 260)
+            .frame(height: chartHeight)
             .padding(18)
             .appSurface()
     }
@@ -461,7 +472,7 @@ struct AnalyticsView: View {
     // MARK: - Stats Cards
 
     private var statsCards: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 106), spacing: 10)], spacing: 10) {
+        LazyVGrid(columns: statsColumns, spacing: 10) {
             StatCard(
                 title: "Visitors",
                 value: formatNumber(vm.data.overview?.devices ?? 0),
@@ -866,6 +877,25 @@ struct AnalyticsView: View {
 // MARK: - Skeleton
 
 struct AnalyticsSkeletonView: View {
+    @Environment(\.horizontalSizeClass) private var hSize
+
+    private var statsColumns: [GridItem] {
+        Array(
+            repeating: GridItem(.flexible(minimum: 0), spacing: 10, alignment: .top),
+            count: 3
+        )
+    }
+
+    private var panelColumns: [GridItem] {
+        hSize == .regular
+            ? [GridItem(.adaptive(minimum: 320, maximum: 480), spacing: 16)]
+            : [GridItem(.flexible())]
+    }
+
+    private var chartHeight: CGFloat {
+        hSize == .regular ? 340 : 260
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 14) {
@@ -879,7 +909,7 @@ struct AnalyticsSkeletonView: View {
                     Spacer()
                 }
 
-                HStack(spacing: 10) {
+                LazyVGrid(columns: statsColumns, spacing: 10) {
                     ForEach(0..<3, id: \.self) { _ in
                         VStack(alignment: .leading, spacing: 8) {
                             RoundedRectangle(cornerRadius: 4)
@@ -897,24 +927,28 @@ struct AnalyticsSkeletonView: View {
 
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(AppTheme.surface)
-                    .frame(height: 250)
+                    .frame(height: chartHeight)
 
-                ForEach(0..<4, id: \.self) { _ in
-                    VStack(alignment: .leading, spacing: 8) {
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(Color.white.opacity(0.06))
-                            .frame(width: 80, height: 14)
-                        ForEach(0..<4, id: \.self) { _ in
+                LazyVGrid(columns: panelColumns, spacing: 16) {
+                    ForEach(0..<6, id: \.self) { _ in
+                        VStack(alignment: .leading, spacing: 8) {
                             RoundedRectangle(cornerRadius: 4)
-                                .fill(Color.white.opacity(0.04))
-                                .frame(height: 36)
+                                .fill(Color.white.opacity(0.06))
+                                .frame(width: 80, height: 14)
+                            ForEach(0..<4, id: \.self) { _ in
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(Color.white.opacity(0.04))
+                                    .frame(height: 36)
+                            }
                         }
+                        .padding(16)
+                        .appSurface()
                     }
-                    .padding(16)
-                    .appSurface()
                 }
             }
             .padding()
+            .frame(maxWidth: hSize == .regular ? 1100 : .infinity)
+            .frame(maxWidth: .infinity)
             .shimmering()
         }
     }

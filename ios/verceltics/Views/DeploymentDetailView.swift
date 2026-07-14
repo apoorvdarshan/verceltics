@@ -43,11 +43,10 @@ struct DeploymentDetailView: View {
             ScrollView {
                 VStack(spacing: 16) {
                     headerCard
-                    metadataCard
-                    eventsCard
+                    detailWorkspace
                 }
                 .padding()
-                .frame(maxWidth: hSize == .regular ? 820 : .infinity)
+                .frame(maxWidth: hSize == .regular ? AppLayout.detailMaxWidth : .infinity)
                 .frame(maxWidth: .infinity)
             }
         }
@@ -59,6 +58,31 @@ struct DeploymentDetailView: View {
         }
         .refreshable {
             await loadEvents()
+        }
+    }
+
+    @ViewBuilder
+    private var detailWorkspace: some View {
+        if hSize == .regular {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .top, spacing: 16) {
+                    metadataCard
+                        .frame(width: 300)
+                    eventsCard
+                        .frame(minWidth: 420, maxWidth: .infinity)
+                }
+
+                compactDetailWorkspace
+            }
+        } else {
+            compactDetailWorkspace
+        }
+    }
+
+    private var compactDetailWorkspace: some View {
+        VStack(spacing: 16) {
+            metadataCard
+            eventsCard
         }
     }
 

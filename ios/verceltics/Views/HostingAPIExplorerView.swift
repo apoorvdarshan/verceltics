@@ -18,6 +18,8 @@ struct HostingAPIExplorerView: View {
     @State private var showWriteConfirmation = false
     @State private var showBodyFileImporter = false
     @State private var showOptionalBody = false
+    @State private var twoPaneWidth: CGFloat = 0
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     init(account: VercelAccount, suggestedResource: HostingResource? = nil, preset: ProviderAPIRequestPreset? = nil) {
         self.account = account
@@ -43,125 +45,20 @@ struct HostingAPIExplorerView: View {
             ScrollView {
                 VStack(spacing: 16) {
                     warning
-
-                    requestTarget
-
-                    if showsBodyEditor {
-                        requestBodyEditor
-                    } else {
-                        optionalBodyButton
+                    AppAdaptiveTwoPane {
+                        requestComposer
+                    } secondary: {
+                        resultPane
                     }
-
-                    if showsBodyEditor && contentType.lowercased().contains("multipart/form-data") {
-                        NavigationLink {
-                            CloudflareMultipartComposerView(schemaFields: preset?.multipartFields ?? []) { body, composedContentType in
-                                requestBody = body
-                                contentType = composedContentType
-                                bodyIsBase64 = true
-                            }
-                        } label: {
-                            Label(
-                                bodyIsBase64 ? "Edit encoded multipart upload" : "Build multipart upload",
-                                systemImage: "doc.badge.plus"
-                            )
-                            .font(.subheadline.weight(.semibold))
-                            .frame(maxWidth: .infinity)
-                            .frame(minHeight: 44)
-                            .padding(.horizontal, 14)
-                            .appSurface(raised: true)
-                        }
-                        .buttonStyle(.plain)
+                    .onGeometryChange(for: CGFloat.self) { geometry in
+                        geometry.size.width
+                    } action: { width in
+                        twoPaneWidth = width
                     }
-
-                    if showsBodyEditor && contentType.lowercased().contains("application/octet-stream") {
-                        Button { showBodyFileImporter = true } label: {
-                            Label(bodyIsBase64 ? "Replace binary file" : "Choose binary file", systemImage: "doc.fill.badge.plus")
-                                .font(.subheadline.weight(.semibold))
-                                .frame(maxWidth: .infinity)
-                                .frame(minHeight: 44)
-                                .padding(.horizontal, 14)
-                                .appSurface(raised: true)
-                        }
-                        .buttonStyle(.plain)
-                    }
-
-                    VStack(alignment: .leading, spacing: 10) {
-                        editorLabel("Content type")
-                        TextField("application/json", text: $contentType)
-                            .font(.callout.monospaced())
-                            .textFieldStyle(.plain)
-                            .padding(.horizontal, 12)
-                            .frame(minHeight: 44)
-                            .background(AppTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .accessibilityLabel("Content type")
-                        editorLabel("Custom headers · JSON object")
-                        TextEditor(text: $customHeaders)
-                            .font(.footnote.monospaced())
-                            .scrollContentBackground(.hidden)
-                            .frame(minHeight: 88)
-                            .padding(10)
-                            .background(AppTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
-                            .accessibilityLabel("Custom headers JSON object")
-                    }
-                    .padding(14)
-                    .appSurface()
-
-                    Button {
-                        if isWrite { showWriteConfirmation = true } else { send() }
-                    } label: {
-                        HStack {
-                            if isSending { ProgressView().tint(.white) }
-                            else { Image(systemName: isWrite ? "exclamationmark.shield.fill" : "paperplane.fill") }
-                            Text(isWrite ? "Review write request" : "Send request")
-                                .font(.headline)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .frame(minHeight: 50)
-                        .foregroundStyle(canSend ? Color.white : AppTheme.textTertiary)
-                        .background(canSend ? AppTheme.signal : AppTheme.surfaceRaised)
-                        .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
-                    }
-                    .buttonStyle(PressScaleButtonStyle())
-                    .disabled(!canSend || isSending)
-
-                    if let error {
-                        AppFeedbackBanner(
-                            title: "Request failed",
-                            message: error,
-                            tint: AppTheme.danger
-                        )
-                    }
-
-                    if let response {
-                        VStack(alignment: .leading, spacing: 10) {
-                            HStack {
-                                editorLabel("Response")
-                                Spacer()
-                                AppStatusBadge(
-                                    text: "HTTP \(response.statusCode)",
-                                    tone: (200...299).contains(response.statusCode) ? .success : .danger
-                                )
-                            }
-                            if !response.headers.isEmpty {
-                                Text(response.headers.sorted { $0.key.lowercased() < $1.key.lowercased() }.map { "\($0.key): \($0.value)" }.joined(separator: "\n"))
-                                    .font(.caption.monospaced())
-                                    .foregroundStyle(AppTheme.textSecondary)
-                                    .textSelection(.enabled)
-                            }
-                            Text(Self.pretty(response.body))
-                                .font(.footnote.monospaced())
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        .foregroundStyle(AppTheme.textPrimary)
-                        .padding(15)
-                        .appSurface()
-                    }
-                    Spacer().frame(height: 80)
                 }
-                .padding(16)
+                .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
+                .padding(.vertical, 16)
+                .appContentWidth(AppLayout.catalogMaxWidth, horizontalSizeClass: horizontalSizeClass)
             }
         }
         .navigationTitle(preset?.title ?? "\(provider.displayName) API")
@@ -192,6 +89,139 @@ struct HostingAPIExplorerView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This is a real write request to \(provider.displayName). Confirm the path and JSON body first.")
+        }
+    }
+
+    private var requestComposer: some View {
+        VStack(spacing: 16) {
+            requestTarget
+
+            if showsBodyEditor {
+                requestBodyEditor
+            } else {
+                optionalBodyButton
+            }
+
+            if showsBodyEditor && contentType.lowercased().contains("multipart/form-data") {
+                NavigationLink {
+                    CloudflareMultipartComposerView(schemaFields: preset?.multipartFields ?? []) { body, composedContentType in
+                        requestBody = body
+                        contentType = composedContentType
+                        bodyIsBase64 = true
+                    }
+                } label: {
+                    Label(
+                        bodyIsBase64 ? "Edit encoded multipart upload" : "Build multipart upload",
+                        systemImage: "doc.badge.plus"
+                    )
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: 44)
+                    .padding(.horizontal, 14)
+                    .appSurface(raised: true)
+                }
+                .buttonStyle(.plain)
+            }
+
+            if showsBodyEditor && contentType.lowercased().contains("application/octet-stream") {
+                Button { showBodyFileImporter = true } label: {
+                    Label(bodyIsBase64 ? "Replace binary file" : "Choose binary file", systemImage: "doc.fill.badge.plus")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: 44)
+                        .padding(.horizontal, 14)
+                        .appSurface(raised: true)
+                }
+                .buttonStyle(.plain)
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                editorLabel("Content type")
+                TextField("application/json", text: $contentType)
+                    .font(.callout.monospaced())
+                    .textFieldStyle(.plain)
+                    .padding(.horizontal, 12)
+                    .frame(minHeight: 44)
+                    .background(AppTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .accessibilityLabel("Content type")
+                editorLabel("Custom headers · JSON object")
+                TextEditor(text: $customHeaders)
+                    .font(.footnote.monospaced())
+                    .scrollContentBackground(.hidden)
+                    .frame(minHeight: 88)
+                    .padding(10)
+                    .background(AppTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
+                    .accessibilityLabel("Custom headers JSON object")
+            }
+            .padding(14)
+            .appSurface()
+
+            Button {
+                if isWrite { showWriteConfirmation = true } else { send() }
+            } label: {
+                HStack {
+                    if isSending { ProgressView().tint(.white) }
+                    else { Image(systemName: isWrite ? "exclamationmark.shield.fill" : "paperplane.fill") }
+                    Text(isWrite ? "Review write request" : "Send request")
+                        .font(.headline)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: 50)
+                .foregroundStyle(canSend ? Color.white : AppTheme.textTertiary)
+                .background(canSend ? AppTheme.signal : AppTheme.surfaceRaised)
+                .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
+            }
+            .buttonStyle(PressScaleButtonStyle())
+            .disabled(!canSend || isSending)
+        }
+    }
+
+    @ViewBuilder
+    private var resultPane: some View {
+        VStack(spacing: 16) {
+            if let error {
+                AppFeedbackBanner(
+                    title: "Request failed",
+                    message: error,
+                    tint: AppTheme.danger
+                )
+            }
+
+            if let response {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        editorLabel("Response")
+                        Spacer()
+                        AppStatusBadge(
+                            text: "HTTP \(response.statusCode)",
+                            tone: (200...299).contains(response.statusCode) ? .success : .danger
+                        )
+                    }
+                    if !response.headers.isEmpty {
+                        Text(response.headers.sorted { $0.key.lowercased() < $1.key.lowercased() }.map { "\($0.key): \($0.value)" }.joined(separator: "\n"))
+                            .font(.caption.monospaced())
+                            .foregroundStyle(AppTheme.textSecondary)
+                            .textSelection(.enabled)
+                    }
+                    Text(Self.pretty(response.body))
+                        .font(.footnote.monospaced())
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .foregroundStyle(AppTheme.textPrimary)
+                .padding(15)
+                .appSurface()
+            } else if error == nil, twoPaneWidth >= 736 {
+                AppEmptyState(
+                    icon: "terminal",
+                    title: "Response workspace",
+                    message: "Send a request to inspect its status, headers, and body beside the request editor."
+                )
+                .frame(maxWidth: .infinity)
+                .appSurface()
+            }
         }
     }
 

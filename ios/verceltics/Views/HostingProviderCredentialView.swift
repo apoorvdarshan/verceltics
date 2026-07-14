@@ -22,7 +22,7 @@ struct HostingProviderCredentialView: View {
     private enum Field: Hashable { case credential, organization, projectID, accessKeyID, region, sessionToken, firebaseClientID, firebaseClientSecret }
 
     var body: some View {
-        ScrollViewReader { proxy in
+        ScrollViewReader { _ in
             ScrollView {
                 VStack(spacing: 0) {
                     header
@@ -52,14 +52,6 @@ struct HostingProviderCredentialView: View {
                 }
             }
             .scrollDismissesKeyboard(.interactively)
-            .onChange(of: focusedField) { _, value in
-                guard value != nil else { return }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    withAnimation(.easeOut(duration: 0.22)) {
-                        proxy.scrollTo("provider-connect", anchor: .bottom)
-                    }
-                }
-            }
         }
     }
 
@@ -69,7 +61,7 @@ struct HostingProviderCredentialView: View {
                 Button(action: onBack) {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 15, weight: .semibold))
-                        .frame(width: 42, height: 42)
+                        .frame(width: 44, height: 44)
                         .background(Color.white.opacity(0.07))
                         .clipShape(Circle())
                 }
@@ -133,9 +125,9 @@ struct HostingProviderCredentialView: View {
 
     private var credentialStorageMessage: String {
         if provider == .firebase, firebaseAuthMode == "refreshToken" {
-            return "Credentials stay in this iPhone’s Keychain. The refresh token goes only to Google’s official OAuth endpoint; its access token goes only to Firebase Hosting."
+            return "Credentials stay in this device’s Keychain. The refresh token goes only to Google’s official OAuth endpoint; its access token goes only to Firebase Hosting."
         }
-        return "Credentials stay in this iPhone’s Keychain. Verceltics sends them only to \(provider.displayName)’s official API."
+        return "Credentials stay in this device’s Keychain. Verceltics sends them only to \(provider.displayName)’s official API."
     }
 
     @ViewBuilder

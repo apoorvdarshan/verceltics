@@ -56,7 +56,7 @@ struct PaywallView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         FeatureRow(icon: "chart.xyaxis.line", title: "Project analytics", subtitle: "Traffic, pages, referrers, devices, and locations")
                         FeatureRow(icon: "calendar", title: "Longer history", subtitle: "Use every time range available to your provider account")
-                        FeatureRow(icon: "lock.shield", title: "Device-only credentials", subtitle: "Provider credentials remain in this iPhone's Keychain")
+                        FeatureRow(icon: "lock.shield", title: "Device-only credentials", subtitle: "Provider credentials remain in this device's Keychain")
                     }
                     .padding(18)
                     .appSurface()
@@ -260,6 +260,8 @@ struct PaywallView: View {
                     .buttonStyle(PressScaleButtonStyle())
                     .accessibilityLabel("Close")
                 }
+                .frame(maxWidth: hSize == .regular ? 520 : .infinity)
+                .frame(maxWidth: .infinity)
                 Spacer()
             }
             .padding(.horizontal, 16)

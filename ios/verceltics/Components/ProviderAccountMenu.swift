@@ -40,12 +40,15 @@ struct ProviderAccountMenu: View {
                     .font(.system(size: 8, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.45))
             }
-            .frame(height: 30)
+            .frame(width: 44, height: 44)
+            .contentShape(Rectangle())
             .accessibilityLabel("Switch connected account")
         }
         .tint(.white)
         .sheet(isPresented: $showingAddAccount) {
             LoginView(initialCategory: .hosting)
+                .presentationSizing(.page)
+                .presentationDragIndicator(.visible)
         }
     }
 

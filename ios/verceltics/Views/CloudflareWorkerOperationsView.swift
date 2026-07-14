@@ -634,7 +634,7 @@ private extension CloudflareWorkerOperationsView {
                             Image(systemName: "info.circle")
                                 .font(.system(size: 16, weight: .semibold))
                                 .foregroundStyle(.white.opacity(0.4))
-                                .frame(width: 32, height: 32)
+                                .frame(width: 44, height: 44)
                         }
                         .buttonStyle(.plain)
 
@@ -647,7 +647,7 @@ private extension CloudflareWorkerOperationsView {
                                 Image(systemName: "paperplane.fill")
                                     .font(.system(size: 12, weight: .semibold))
                                     .foregroundStyle(CloudflareStyle.orange)
-                                    .frame(width: 34, height: 34)
+                                    .frame(width: 44, height: 44)
                                     .background(CloudflareStyle.orange.opacity(0.11))
                                     .clipShape(Circle())
                             }
@@ -823,7 +823,7 @@ private extension CloudflareWorkerOperationsView {
                     Image(systemName: "trash")
                         .font(.system(size: 12, weight: .bold))
                         .foregroundStyle(CloudflareStyle.red.opacity(0.8))
-                        .frame(width: 34, height: 34)
+                        .frame(width: 44, height: 44)
                 }
                 .buttonStyle(.plain)
             }

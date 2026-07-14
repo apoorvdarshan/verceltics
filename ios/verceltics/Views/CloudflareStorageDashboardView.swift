@@ -237,7 +237,7 @@ struct CloudflareStorageDashboardView: View {
 
     private var content: some View {
         ScrollView {
-            LazyVStack(spacing: 16) {
+            VStack(spacing: 16) {
                 storageHeader
                 CloudflareWriteNotice()
 
@@ -252,18 +252,26 @@ struct CloudflareStorageDashboardView: View {
                 if !searchText.isEmpty && !hasResults {
                     CloudflareSearchEmptyView(searchText: searchText)
                 } else {
-                    d1Section
-                    kvSection
-                    r2Section
+                    storageResourceSections
                 }
             }
-            .padding()
-            .frame(maxWidth: horizontalSizeClass == .regular ? 980 : .infinity)
-            .frame(maxWidth: .infinity)
+            .padding(AppLayout.pagePadding(for: horizontalSizeClass))
+            .appContentWidth(AppLayout.dashboardMaxWidth, horizontalSizeClass: horizontalSizeClass)
         }
         .overlay(alignment: .top) {
             if viewModel.isRefreshing {
                 ProgressView().tint(CloudflareStyle.orange).padding(.top, 6)
+            }
+        }
+    }
+
+    private var storageResourceSections: some View {
+        AppAdaptiveTwoPane(primaryMinimumWidth: 380, secondaryMinimumWidth: 380) {
+            d1Section
+        } secondary: {
+            LazyVStack(spacing: 16) {
+                kvSection
+                r2Section
             }
         }
     }

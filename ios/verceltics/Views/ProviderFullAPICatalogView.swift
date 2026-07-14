@@ -22,6 +22,7 @@ struct ProviderFullAPICatalogView: View {
     @State private var selectedTag = "All"
     @State private var access: AccessFilter = .all
     @State private var error: String?
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     init(account: VercelAccount) {
         context = .hosting(account)
@@ -120,19 +121,31 @@ struct ProviderFullAPICatalogView: View {
                     .frame(maxWidth: .infinity)
                     .appSurface()
                 } else {
-                    ForEach(operations) { operation in
-                        NavigationLink {
-                            ProviderAPIOperationView(operation: operation, context: requestContext, accent: accent)
-                        } label: {
-                            operationRow(operation)
+                    LazyVGrid(columns: operationColumns, spacing: 12) {
+                        ForEach(operations) { operation in
+                            NavigationLink {
+                                ProviderAPIOperationView(operation: operation, context: requestContext, accent: accent)
+                            } label: {
+                                operationRow(operation)
+                            }
+                            .buttonStyle(PressScaleButtonStyle())
                         }
-                        .buttonStyle(PressScaleButtonStyle())
                     }
                 }
-                Spacer().frame(height: 80)
             }
-            .padding(16)
+            .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
+            .padding(.vertical, 16)
+            .appContentWidth(AppLayout.catalogMaxWidth, horizontalSizeClass: horizontalSizeClass)
         }
+    }
+
+    private var operationColumns: [GridItem] {
+        AppLayout.adaptiveColumns(
+            for: horizontalSizeClass,
+            regularMinimum: 420,
+            regularMaximum: 530,
+            spacing: 12
+        )
     }
 
     private func summary(_ catalog: ProviderAPICatalog) -> some View {
@@ -238,6 +251,7 @@ private struct ProviderAPIOperationView: View {
     @State private var values: [String: String]
     @State private var bodyText: String
     @State private var contentType: String
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     init(operation: ProviderAPIOperation, context: ProviderAPIRequestContext, accent: Color) {
         self.operation = operation
@@ -325,8 +339,10 @@ private struct ProviderAPIOperationView: View {
                     .padding(15)
                     .providerSurface(accent: accent)
 
-                    ForEach(operation.parameters) { parameter in
-                        parameterEditor(parameter)
+                    LazyVGrid(columns: parameterColumns, alignment: .leading, spacing: 12) {
+                        ForEach(operation.parameters) { parameter in
+                            parameterEditor(parameter)
+                        }
                     }
 
                     if !operation.contentTypes.isEmpty {
@@ -369,13 +385,24 @@ private struct ProviderAPIOperationView: View {
                     .disabled(hasMissingRequiredParameters)
                     .opacity(hasMissingRequiredParameters ? 0.45 : 1)
                 }
-                .padding(16)
-                .padding(.bottom, 72)
+                .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
+                .padding(.vertical, 16)
+                .padding(.bottom, 24)
+                .appContentWidth(AppLayout.detailMaxWidth, horizontalSizeClass: horizontalSizeClass)
             }
         }
         .navigationTitle(operation.summary)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
+    }
+
+    private var parameterColumns: [GridItem] {
+        AppLayout.adaptiveColumns(
+            for: horizontalSizeClass,
+            regularMinimum: 320,
+            regularMaximum: 440,
+            spacing: 12
+        )
     }
 
     private func parameterEditor(_ parameter: ProviderAPIParameter) -> some View {

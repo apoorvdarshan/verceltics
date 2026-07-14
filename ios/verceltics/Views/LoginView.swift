@@ -76,9 +76,24 @@ struct LoginView: View {
                     }
                 }
             }
-            .frame(maxWidth: hSize == .regular ? 480 : .infinity)
-            .frame(maxWidth: .infinity)
+            .appContentWidth(contentMaxWidth, horizontalSizeClass: hSize)
         }
+    }
+
+    private var contentMaxWidth: CGFloat {
+        if selectedProvider == nil, selectedRegistrarProvider == nil {
+            return AppLayout.catalogMaxWidth
+        }
+        return AppLayout.formMaxWidth
+    }
+
+    private var providerColumns: [GridItem] {
+        AppLayout.adaptiveColumns(
+            for: hSize,
+            regularMinimum: 320,
+            regularMaximum: 480,
+            spacing: 14
+        )
     }
 
     // MARK: - Platform selection
@@ -89,6 +104,8 @@ struct LoginView: View {
                 categorySelector
                     .padding(.horizontal, 20)
                     .padding(.top, 18)
+                    .frame(maxWidth: AppLayout.formMaxWidth)
+                    .frame(maxWidth: .infinity)
 
                 VStack(alignment: .leading, spacing: 12) {
                     Text(connectionCategory == .hosting ? "CONNECT A HOSTING PLATFORM" : "CONNECT A REGISTRAR")
@@ -98,16 +115,20 @@ struct LoginView: View {
                         .padding(.horizontal, 4)
 
                     if connectionCategory == .hosting {
-                        ForEach(AccountProvider.allCases) { provider in
-                            providerButton(provider)
+                        LazyVGrid(columns: providerColumns, spacing: 14) {
+                            ForEach(AccountProvider.allCases) { provider in
+                                providerButton(provider)
+                            }
                         }
                     } else {
-                        ForEach(RegistrarProvider.allCases) { provider in
-                            registrarButton(provider)
+                        LazyVGrid(columns: providerColumns, spacing: 14) {
+                            ForEach(RegistrarProvider.allCases) { provider in
+                                registrarButton(provider)
+                            }
                         }
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, AppLayout.pagePadding(for: hSize))
                 .padding(.top, 24)
 
                 Spacer().frame(height: 40)
@@ -217,7 +238,7 @@ struct LoginView: View {
     // MARK: - Token Field (scrollable)
 
     private var tokenFieldView: some View {
-        ScrollViewReader { proxy in
+        ScrollViewReader { _ in
         ScrollView {
             VStack(spacing: 0) {
                 credentialHeader(provider: .vercel)
@@ -336,22 +357,11 @@ struct LoginView: View {
             }
         }
         .scrollDismissesKeyboard(.interactively)
-        .onChange(of: isTokenFocused) { _, focused in
-            if focused {
-                // Wait for the keyboard frame to settle, then scroll the
-                // Connect button into view above the keyboard.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                    withAnimation(.easeOut(duration: 0.25)) {
-                        proxy.scrollTo("connect-button", anchor: .bottom)
-                    }
-                }
-            }
-        }
         }
     }
 
     private var cloudflareCredentialsView: some View {
-        ScrollViewReader { proxy in
+        ScrollViewReader { _ in
             ScrollView {
                 VStack(spacing: 0) {
                     credentialHeader(provider: .cloudflare)
@@ -399,8 +409,8 @@ struct LoginView: View {
                                     .foregroundStyle(Color(red: 0.96, green: 0.45, blue: 0.10))
                                 Text(
                                     cloudflareAuthenticationMode == .globalAPIKey
-                                        ? "Stored only in this iPhone’s Keychain. The Global API Key has the same Cloudflare access as your user, including write access."
-                                        : "Stored only in this iPhone’s Keychain. The app can only use permissions and resources included in this token."
+                                        ? "Stored only in this device’s Keychain. The Global API Key has the same Cloudflare access as your user, including write access."
+                                        : "Stored only in this device’s Keychain. The app can only use permissions and resources included in this token."
                                 )
                                     .font(.system(size: 10, weight: .semibold))
                                     .foregroundStyle(.white.opacity(0.48))
@@ -492,15 +502,6 @@ struct LoginView: View {
                 }
             }
             .scrollDismissesKeyboard(.interactively)
-            .onChange(of: focusedCloudflareField) { _, field in
-                if field != nil {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                        withAnimation(.easeOut(duration: 0.25)) {
-                            proxy.scrollTo("cloudflare-connect", anchor: .bottom)
-                        }
-                    }
-                }
-            }
         }
     }
 
@@ -562,7 +563,7 @@ struct LoginView: View {
                 } label: {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 15, weight: .semibold))
-                        .frame(width: 42, height: 42)
+                        .frame(width: 44, height: 44)
                         .background(Color.white.opacity(0.07))
                         .clipShape(Circle())
                 }

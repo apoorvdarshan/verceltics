@@ -28,7 +28,7 @@ struct SectionCard<Content: View>: View {
 struct ShareAppRow: View {
     var body: some View {
         let message = """
-        Verceltics — Vercel Web Analytics on your iPhone. Open source, no ads.
+        Verceltics — Vercel Web Analytics on your iPhone and iPad. Open source, no ads.
 
         App Store: https://apps.apple.com/us/app/verceltics/id6761645656
         Website: https://verceltics.com

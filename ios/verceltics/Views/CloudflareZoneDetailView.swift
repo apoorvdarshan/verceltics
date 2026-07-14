@@ -187,6 +187,27 @@ struct CloudflareZoneDetailView: View {
         }
     }
 
+    private var metricColumns: [GridItem] {
+        if horizontalSizeClass == .regular {
+            return AppLayout.adaptiveColumns(
+                for: horizontalSizeClass,
+                regularMinimum: 200,
+                regularMaximum: 250,
+                spacing: 10
+            )
+        }
+        return [GridItem(.flexible()), GridItem(.flexible())]
+    }
+
+    private var breakdownColumns: [GridItem] {
+        AppLayout.adaptiveColumns(
+            for: horizontalSizeClass,
+            regularMinimum: 360,
+            regularMaximum: 520,
+            spacing: 12
+        )
+    }
+
     var body: some View {
         ZStack {
             AppTheme.canvas.ignoresSafeArea()
@@ -215,9 +236,8 @@ struct CloudflareZoneDetailView: View {
 
                     dnsSection
                 }
-                .padding()
-                .frame(maxWidth: horizontalSizeClass == .regular ? 980 : .infinity)
-                .frame(maxWidth: .infinity)
+                .padding(AppLayout.pagePadding(for: horizontalSizeClass))
+                .appContentWidth(AppLayout.catalogMaxWidth, horizontalSizeClass: horizontalSizeClass)
             }
         }
         .navigationTitle(zone.name)
@@ -436,7 +456,7 @@ struct CloudflareZoneDetailView: View {
             }
 
             LazyVGrid(
-                columns: [GridItem(.flexible()), GridItem(.flexible())],
+                columns: metricColumns,
                 spacing: 10
             ) {
                 CloudflareMetricCard(
@@ -536,7 +556,7 @@ struct CloudflareZoneDetailView: View {
                             AxisGridLine().foregroundStyle(.white.opacity(0.05))
                         }
                     }
-                    .frame(height: 210)
+                    .frame(height: horizontalSizeClass == .regular ? 300 : 210)
                 }
                 .padding(16)
                 .cloudflarePanel(accentOpacity: 0.055)
@@ -572,8 +592,10 @@ struct CloudflareZoneDetailView: View {
                 }
                 .padding(.horizontal, 4)
 
-                ForEach(sections, id: \.0) { section in
-                    analyticsBreakdownPanel(title: section.0, icon: section.1, items: section.2)
+                LazyVGrid(columns: breakdownColumns, alignment: .leading, spacing: 12) {
+                    ForEach(sections, id: \.0) { section in
+                        analyticsBreakdownPanel(title: section.0, icon: section.1, items: section.2)
+                    }
                 }
             }
         }

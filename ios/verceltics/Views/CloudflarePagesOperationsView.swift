@@ -268,7 +268,7 @@ struct CloudflarePagesOperationsView: View {
                 if added { isAddingDomain = false }
                 return added ? nil : (viewModel.actionMessage ?? "Cloudflare could not add this domain.")
             }
-            .presentationDetents([.height(330)])
+            .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
         }
         .confirmationDialog(
@@ -646,7 +646,7 @@ struct CloudflarePagesOperationsView: View {
                     Image(systemName: "ellipsis.circle")
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.44))
-                        .frame(width: 34, height: 34)
+                        .frame(width: 44, height: 44)
                 }
             }
         }

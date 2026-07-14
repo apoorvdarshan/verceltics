@@ -326,7 +326,7 @@ struct CloudflareDashboardView: View {
 
     private var dashboardContent: some View {
         ScrollView {
-            LazyVStack(spacing: 16) {
+            VStack(spacing: 16) {
                 if let account = viewModel.selectedAccount {
                     accountHeader(account)
                 }
@@ -351,16 +351,13 @@ struct CloudflareDashboardView: View {
                 if !searchText.isEmpty && !hasSearchResults {
                     CloudflareSearchEmptyView(searchText: searchText)
                 } else {
-                    zoneSection
-                    pagesSection
-                    workersSection
+                    resourceSections
                 }
 
                 advancedTools
             }
-            .padding()
-            .frame(maxWidth: horizontalSizeClass == .regular ? 980 : .infinity)
-            .frame(maxWidth: .infinity)
+            .padding(AppLayout.pagePadding(for: horizontalSizeClass))
+            .appContentWidth(AppLayout.dashboardMaxWidth, horizontalSizeClass: horizontalSizeClass)
         }
         .refreshable { await viewModel.refresh() }
         .overlay(alignment: .top) {
@@ -368,6 +365,17 @@ struct CloudflareDashboardView: View {
                 ProgressView()
                     .tint(CloudflareStyle.orange)
                     .padding(.top, 6)
+            }
+        }
+    }
+
+    private var resourceSections: some View {
+        AppAdaptiveTwoPane(primaryMinimumWidth: 360, secondaryMinimumWidth: 360) {
+            zoneSection
+        } secondary: {
+            LazyVStack(spacing: 16) {
+                pagesSection
+                workersSection
             }
         }
     }

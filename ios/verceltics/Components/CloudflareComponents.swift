@@ -189,13 +189,27 @@ struct CloudflareEmptySection: View {
 }
 
 struct CloudflareLoadingView: View {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    private var metricColumns: [GridItem] {
+        if horizontalSizeClass == .regular {
+            return AppLayout.adaptiveColumns(
+                for: horizontalSizeClass,
+                regularMinimum: 200,
+                regularMaximum: 320,
+                spacing: 10
+            )
+        }
+        return Array(repeating: GridItem(.flexible(), spacing: 10), count: 3)
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 14) {
                 RoundedRectangle(cornerRadius: AppTheme.panelRadius)
                     .fill(Color.white.opacity(0.05))
                     .frame(height: 148)
-                HStack(spacing: 10) {
+                LazyVGrid(columns: metricColumns, spacing: 10) {
                     ForEach(0..<3, id: \.self) { _ in
                         RoundedRectangle(cornerRadius: AppTheme.panelRadius)
                             .fill(Color.white.opacity(0.05))
@@ -208,7 +222,8 @@ struct CloudflareLoadingView: View {
                         .frame(height: 88)
                 }
             }
-            .padding()
+            .padding(AppLayout.pagePadding(for: horizontalSizeClass))
+            .appContentWidth(AppLayout.dashboardMaxWidth, horizontalSizeClass: horizontalSizeClass)
             .shimmering()
         }
     }

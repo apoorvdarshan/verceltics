@@ -59,6 +59,7 @@ struct HostingResourceDetailView: View {
 
     @State private var viewModel: HostingResourceDetailViewModel
     @State private var showActionConfirmation = false
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     init(account: VercelAccount, resource: HostingResource) {
         self.account = account
@@ -114,11 +115,16 @@ struct HostingResourceDetailView: View {
                         .frame(maxWidth: .infinity)
                         .appSurface()
                     } else {
-                        ForEach(viewModel.deployments) { deployment in deploymentRow(deployment) }
+                        LazyVGrid(columns: deploymentColumns, spacing: 14) {
+                            ForEach(viewModel.deployments) { deployment in
+                                deploymentRow(deployment)
+                            }
+                        }
                     }
-                    Spacer().frame(height: 80)
                 }
-                .padding(16)
+                .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
+                .padding(.vertical, 16)
+                .appContentWidth(AppLayout.detailMaxWidth, horizontalSizeClass: horizontalSizeClass)
             }
         }
         .navigationTitle(resource.name)
@@ -161,7 +167,7 @@ struct HostingResourceDetailView: View {
                 }
             }
 
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 10)], spacing: 10) {
+            LazyVGrid(columns: actionColumns, spacing: 10) {
                 if let urlString = resource.url, let url = URL(string: urlString) {
                     Button { UIApplication.shared.open(url) } label: { actionLabel("Open", icon: "arrow.up.right") }
                 }
@@ -177,6 +183,33 @@ struct HostingResourceDetailView: View {
         }
         .padding(18)
         .providerSurface(accent: provider.accentColor)
+    }
+
+    private var actionColumns: [GridItem] {
+        if horizontalSizeClass != .regular {
+            return [GridItem(.adaptive(minimum: 120), spacing: 10)]
+        }
+        return Array(
+            repeating: GridItem(.flexible(), spacing: 10),
+            count: max(1, availableActionCount)
+        )
+    }
+
+    private var availableActionCount: Int {
+        var count = 0
+        if resource.url.flatMap(URL.init(string:)) != nil { count += 1 }
+        if viewModel.api.dashboardURL(for: resource) != nil { count += 1 }
+        if provider.primaryActionLabel != nil { count += 1 }
+        return min(count, 3)
+    }
+
+    private var deploymentColumns: [GridItem] {
+        AppLayout.adaptiveColumns(
+            for: horizontalSizeClass,
+            regularMinimum: 340,
+            regularMaximum: 440,
+            spacing: 14
+        )
     }
 
     private var metadata: some View {

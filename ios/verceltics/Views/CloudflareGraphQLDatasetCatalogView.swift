@@ -189,6 +189,7 @@ struct CloudflareGraphQLDatasetCatalogView: View {
     let accountID: String
     let zones: [CloudflareZone]
 
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var viewModel: CloudflareGraphQLDatasetCatalogViewModel
     @State private var searchText = ""
 
@@ -206,6 +207,15 @@ struct CloudflareGraphQLDatasetCatalogView: View {
                 $0.description.localizedCaseInsensitiveContains(searchText) ||
                 $0.availableFields.contains { $0.localizedCaseInsensitiveContains(searchText) }
         }
+    }
+
+    private var datasetColumns: [GridItem] {
+        AppLayout.adaptiveColumns(
+            for: horizontalSizeClass,
+            regularMinimum: 400,
+            regularMaximum: 520,
+            spacing: 10
+        )
     }
 
     var body: some View {
@@ -234,7 +244,8 @@ struct CloudflareGraphQLDatasetCatalogView: View {
                         datasetDirectory
                     }
                 }
-                .padding()
+                .padding(AppLayout.pagePadding(for: horizontalSizeClass))
+                .appContentWidth(AppLayout.catalogMaxWidth, horizontalSizeClass: horizontalSizeClass)
             }
         }
         .navigationTitle("GraphQL Datasets")
@@ -306,45 +317,66 @@ struct CloudflareGraphQLDatasetCatalogView: View {
         VStack(spacing: 0) {
             CloudflareSectionHeader(title: "Available Datasets", icon: "chart.xyaxis.line", count: filteredDatasets.count)
             Divider().overlay(Color.white.opacity(0.06))
-            ForEach(Array(filteredDatasets.enumerated()), id: \.element.id) { index, dataset in
-                NavigationLink {
-                    CloudflareGraphQLDatasetDetailView(
-                        api: api,
-                        accountID: accountID,
-                        zoneID: viewModel.selectedZoneID,
-                        scope: viewModel.scope,
-                        dataset: dataset
-                    )
-                } label: {
-                    HStack(spacing: 11) {
-                        Image(systemName: dataset.enabled == false ? "lock.fill" : "waveform.path.ecg")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(dataset.enabled == false ? .white.opacity(0.25) : CloudflareStyle.orange)
-                            .frame(width: 36, height: 36)
-                            .background(Color.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 9))
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(dataset.name)
-                                .font(.system(size: 11, weight: .bold, design: .monospaced))
-                                .foregroundStyle(.white.opacity(dataset.enabled == false ? 0.36 : 0.76))
-                            Text(dataset.enabled == false ? "Not enabled on this plan" : "\(dataset.availableFields.count) fields · \(durationLabel(dataset.maxDuration)) max window")
-                                .font(.system(size: 9, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.28))
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.22))
+            if horizontalSizeClass == .regular {
+                LazyVGrid(columns: datasetColumns, alignment: .leading, spacing: 10) {
+                    ForEach(filteredDatasets) { dataset in
+                        datasetLink(dataset)
+                            .background(AppTheme.surfaceRaised)
+                            .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous)
+                                    .strokeBorder(AppTheme.stroke, lineWidth: 0.5)
+                            }
                     }
-                    .padding(13)
-                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
-                if index < filteredDatasets.count - 1 {
-                    Divider().overlay(Color.white.opacity(0.05)).padding(.leading, 61)
+                .padding(12)
+            } else {
+                ForEach(Array(filteredDatasets.enumerated()), id: \.element.id) { index, dataset in
+                    datasetLink(dataset)
+                    if index < filteredDatasets.count - 1 {
+                        Divider().overlay(Color.white.opacity(0.05)).padding(.leading, 61)
+                    }
                 }
             }
         }
         .cloudflarePanel()
+    }
+
+    private func datasetLink(_ dataset: CloudflareGraphQLDataset) -> some View {
+        NavigationLink {
+            CloudflareGraphQLDatasetDetailView(
+                api: api,
+                accountID: accountID,
+                zoneID: viewModel.selectedZoneID,
+                scope: viewModel.scope,
+                dataset: dataset
+            )
+        } label: {
+            HStack(spacing: 11) {
+                Image(systemName: dataset.enabled == false ? "lock.fill" : "waveform.path.ecg")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(dataset.enabled == false ? .white.opacity(0.25) : CloudflareStyle.orange)
+                    .frame(width: 36, height: 36)
+                    .background(Color.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 9))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(dataset.name)
+                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                        .foregroundStyle(.white.opacity(dataset.enabled == false ? 0.36 : 0.76))
+                        .lineLimit(2)
+                    Text(dataset.enabled == false ? "Not enabled on this plan" : "\(dataset.availableFields.count) fields · \(durationLabel(dataset.maxDuration)) max window")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.28))
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.22))
+            }
+            .padding(13)
+            .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -354,6 +386,8 @@ private struct CloudflareGraphQLDatasetDetailView: View {
     let zoneID: String?
     let scope: CloudflareGraphQLScope
     let dataset: CloudflareGraphQLDataset
+
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     private var preset: CloudflareAPIOperationPreset {
         let scopeName = scope == .zone ? "zones" : "accounts"
@@ -435,7 +469,8 @@ private struct CloudflareGraphQLDatasetDetailView: View {
                     .buttonStyle(PressScaleButtonStyle())
                     .disabled(dataset.enabled == false)
                 }
-                .padding()
+                .padding(AppLayout.pagePadding(for: horizontalSizeClass))
+                .appContentWidth(AppLayout.detailMaxWidth, horizontalSizeClass: horizontalSizeClass)
             }
         }
         .navigationTitle("Dataset")

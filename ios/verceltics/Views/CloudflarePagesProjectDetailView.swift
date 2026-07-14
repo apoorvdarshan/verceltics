@@ -362,7 +362,7 @@ struct CloudflarePagesProjectDetailView: View {
                     Image(systemName: "ellipsis.circle")
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.45))
-                        .frame(width: 34, height: 34)
+                        .frame(width: 44, height: 44)
                 }
             }
         }

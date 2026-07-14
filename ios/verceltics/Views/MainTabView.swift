@@ -92,6 +92,8 @@ private struct HostingEmptyStateView: View {
             }
             .sheet(isPresented: $showConnection) {
                 LoginView(initialCategory: .hosting)
+                    .presentationSizing(.page)
+                    .presentationDragIndicator(.visible)
             }
         }
     }

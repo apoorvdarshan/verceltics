@@ -118,6 +118,7 @@ struct ProjectsView: View {
             }
             .sheet(isPresented: $showPaywall, onDismiss: handlePaywallDismiss) {
                 PaywallView()
+                    .presentationSizing(.form)
             }
             .onChange(of: authManager.activeAccountId) { _, _ in
                 Task { await refreshProjects() }

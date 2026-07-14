@@ -21,6 +21,75 @@ enum AppTheme {
     static let iconRadius: CGFloat = 9
 }
 
+/// Shared responsive dimensions for the app's operator workspace. Compact
+/// windows stay edge-to-edge; regular-width windows gain useful density without
+/// letting controls or long-form text stretch across the entire display.
+enum AppLayout {
+    static let formMaxWidth: CGFloat = 620
+    static let detailMaxWidth: CGFloat = 920
+    static let catalogMaxWidth: CGFloat = 1080
+    static let dashboardMaxWidth: CGFloat = 1180
+
+    static func pagePadding(for sizeClass: UserInterfaceSizeClass?) -> CGFloat {
+        sizeClass == .regular ? 24 : 16
+    }
+
+    static func adaptiveColumns(
+        for sizeClass: UserInterfaceSizeClass?,
+        regularMinimum: CGFloat,
+        regularMaximum: CGFloat = .infinity,
+        spacing: CGFloat = 16
+    ) -> [GridItem] {
+        guard sizeClass == .regular else {
+            return [GridItem(.flexible())]
+        }
+        return [
+            GridItem(
+                .adaptive(minimum: regularMinimum, maximum: regularMaximum),
+                spacing: spacing,
+                alignment: .top
+            )
+        ]
+    }
+}
+
+struct AppAdaptiveTwoPane<Primary: View, Secondary: View>: View {
+    private let primary: Primary
+    private let secondary: Secondary
+    private let primaryMinimumWidth: CGFloat
+    private let secondaryMinimumWidth: CGFloat
+    private let spacing: CGFloat
+
+    init(
+        primaryMinimumWidth: CGFloat = 400,
+        secondaryMinimumWidth: CGFloat = 320,
+        spacing: CGFloat = 16,
+        @ViewBuilder primary: () -> Primary,
+        @ViewBuilder secondary: () -> Secondary
+    ) {
+        self.primary = primary()
+        self.secondary = secondary()
+        self.primaryMinimumWidth = primaryMinimumWidth
+        self.secondaryMinimumWidth = secondaryMinimumWidth
+        self.spacing = spacing
+    }
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: spacing) {
+                primary
+                    .frame(minWidth: primaryMinimumWidth, maxWidth: .infinity, alignment: .top)
+                secondary
+                    .frame(minWidth: secondaryMinimumWidth, maxWidth: .infinity, alignment: .top)
+            }
+            VStack(spacing: spacing) {
+                primary
+                secondary
+            }
+        }
+    }
+}
+
 struct AppSurfaceModifier: ViewModifier {
     var cornerRadius: CGFloat = AppTheme.panelRadius
     var raised = false
@@ -92,6 +161,14 @@ extension View {
 
     func nativeGlassSurface(cornerRadius: CGFloat) -> some View {
         modifier(NativeGlassSurfaceModifier(cornerRadius: cornerRadius))
+    }
+
+    func appContentWidth(
+        _ width: CGFloat,
+        horizontalSizeClass: UserInterfaceSizeClass?
+    ) -> some View {
+        frame(maxWidth: horizontalSizeClass == .regular ? width : .infinity)
+            .frame(maxWidth: .infinity)
     }
 }
 

@@ -76,6 +76,8 @@ struct RegistrarsView: View {
         }
         .sheet(isPresented: $showConnection) {
             LoginView(initialCategory: .registrars)
+                .presentationSizing(.page)
+                .presentationDragIndicator(.visible)
         }
     }
 }
@@ -86,6 +88,7 @@ struct RegistrarDashboardView: View {
     @State private var searchText = ""
     @State private var refreshSpin = 0.0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     init(account: RegistrarAccount) {
         self.account = account
@@ -173,19 +176,31 @@ struct RegistrarDashboardView: View {
                     .frame(maxWidth: .infinity)
                     .appSurface()
                 } else {
-                    ForEach(filteredDomains) { domain in
-                        NavigationLink {
-                            RegistrarDomainDetailView(account: account, domain: domain)
-                        } label: { domainRow(domain) }
-                        .buttonStyle(PressScaleButtonStyle())
+                    LazyVGrid(columns: domainColumns, spacing: 14) {
+                        ForEach(filteredDomains) { domain in
+                            NavigationLink {
+                                RegistrarDomainDetailView(account: account, domain: domain)
+                            } label: { domainRow(domain) }
+                            .buttonStyle(PressScaleButtonStyle())
+                        }
                     }
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
             .padding(.top, 18)
             .padding(.bottom, 24)
+            .appContentWidth(AppLayout.dashboardMaxWidth, horizontalSizeClass: horizontalSizeClass)
         }
         .refreshable { await viewModel.load(refresh: true) }
+    }
+
+    private var domainColumns: [GridItem] {
+        AppLayout.adaptiveColumns(
+            for: horizontalSizeClass,
+            regularMinimum: 340,
+            regularMaximum: 540,
+            spacing: 14
+        )
     }
 
     private var portfolioHeader: some View {
@@ -233,11 +248,21 @@ struct RegistrarDashboardView: View {
     }
 
     private var stats: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 10)], spacing: 10) {
+        LazyVGrid(
+            columns: statColumns,
+            spacing: 10
+        ) {
             statCard("Domains", value: viewModel.domains.count.formatted(), icon: "globe")
             statCard("Attention", value: expiringDomains.count.formatted(), icon: "calendar.badge.exclamationmark")
             statCard("Auto renew", value: viewModel.domains.filter { $0.autoRenew == true }.count.formatted(), icon: "arrow.triangle.2.circlepath")
         }
+    }
+
+    private var statColumns: [GridItem] {
+        if horizontalSizeClass == .regular {
+            return Array(repeating: GridItem(.flexible(), spacing: 10), count: 3)
+        }
+        return [GridItem(.adaptive(minimum: 96), spacing: 10)]
     }
 
     private func statCard(_ title: String, value: String, icon: String) -> some View {

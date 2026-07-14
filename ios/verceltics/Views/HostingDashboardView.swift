@@ -52,6 +52,7 @@ struct HostingDashboardView: View {
     @State private var isSearching = false
     @State private var refreshSpin = 0.0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     init(account: VercelAccount, startWithSearch: Bool = false) {
         self.account = account
@@ -146,22 +147,34 @@ struct HostingDashboardView: View {
                     .frame(maxWidth: .infinity)
                     .appSurface()
                 } else {
-                    ForEach(filteredResources) { resource in
-                        NavigationLink {
-                            HostingResourceDetailView(account: account, resource: resource)
-                        } label: {
-                            resourceRow(resource)
+                    LazyVGrid(columns: resourceColumns, spacing: 14) {
+                        ForEach(filteredResources) { resource in
+                            NavigationLink {
+                                HostingResourceDetailView(account: account, resource: resource)
+                            } label: {
+                                resourceRow(resource)
+                            }
+                            .buttonStyle(PressScaleButtonStyle())
                         }
-                        .buttonStyle(PressScaleButtonStyle())
                     }
                 }
 
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
             .padding(.top, 18)
             .padding(.bottom, 24)
+            .appContentWidth(AppLayout.dashboardMaxWidth, horizontalSizeClass: horizontalSizeClass)
         }
         .refreshable { await viewModel.load(refresh: true) }
+    }
+
+    private var resourceColumns: [GridItem] {
+        AppLayout.adaptiveColumns(
+            for: horizontalSizeClass,
+            regularMinimum: 340,
+            regularMaximum: 540,
+            spacing: 14
+        )
     }
 
     private var accountCard: some View {
