@@ -24,6 +24,8 @@ enum ConnectionCategory: String, CaseIterable, Identifiable {
 struct LoginView: View {
     @Environment(AuthManager.self) private var authManager
     @Environment(\.horizontalSizeClass) private var hSize
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dismiss) private var dismiss
     @State private var connectionCategory: ConnectionCategory
     @State private var tokenInput = ""
@@ -51,9 +53,7 @@ struct LoginView: View {
                     RegistrarConnectionView(
                         initialProvider: registrar,
                         onBack: {
-                            withAnimation(.spring(duration: 0.35)) {
-                                selectedRegistrarProvider = nil
-                            }
+                            updateSelection { selectedRegistrarProvider = nil }
                         },
                         onConnected: {
                             selectedRegistrarProvider = nil
@@ -69,7 +69,7 @@ struct LoginView: View {
                     case .some(let provider):
                         HostingProviderCredentialView(provider: provider) {
                             authManager.error = nil
-                            withAnimation(.spring(duration: 0.35)) { selectedProvider = nil }
+                            updateSelection { selectedProvider = nil }
                         }
                     case nil:
                         welcomeView
@@ -146,7 +146,11 @@ struct LoginView: View {
         }
         .pickerStyle(.segmented)
         .controlSize(.large)
-        .frame(height: 48)
+        .frame(minHeight: 48)
+        // UISegmentedControl does not grow gracefully through the full
+        // accessibility range. Keep this compact navigation control legible
+        // while allowing the actual catalog content to scale without a cap.
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .accessibilityLabel("Connection type")
     }
 
@@ -154,7 +158,7 @@ struct LoginView: View {
         let accent = provider.accentColor
         return Button {
             authManager.error = nil
-            withAnimation(.spring(duration: 0.4)) { selectedProvider = provider }
+            updateSelection { selectedProvider = provider }
         } label: {
             HStack(spacing: 13) {
                 ZStack {
@@ -170,7 +174,7 @@ struct LoginView: View {
                     Text(provider.connectionSubtitle)
                         .font(.footnote)
                         .foregroundStyle(AppTheme.textSecondary)
-                        .lineLimit(2)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                 }
                 .layoutPriority(1)
 
@@ -185,21 +189,14 @@ struct LoginView: View {
             .foregroundStyle(.white)
             .contentShape(RoundedRectangle(cornerRadius: AppTheme.panelRadius, style: .continuous))
             .liquidGlassSurface(cornerRadius: AppTheme.panelRadius)
-            .overlay(alignment: .leading) {
-                RoundedRectangle(cornerRadius: 1, style: .continuous)
-                    .fill(accent.opacity(0.8))
-                    .frame(width: 2, height: 24)
-                    .padding(.leading, 1)
-            }
         }
         .buttonStyle(PressScaleButtonStyle())
+        .hoverEffect(.highlight)
     }
 
     private func registrarButton(_ provider: RegistrarProvider) -> some View {
         Button {
-            withAnimation(.spring(duration: 0.4)) {
-                selectedRegistrarProvider = provider
-            }
+            updateSelection { selectedRegistrarProvider = provider }
         } label: {
             HStack(spacing: 13) {
                 RegistrarMark(provider: provider, size: 34)
@@ -210,7 +207,7 @@ struct LoginView: View {
                     Text(provider.apiDescription)
                         .font(.footnote)
                         .foregroundStyle(AppTheme.textSecondary)
-                        .lineLimit(2)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                 }
                 .layoutPriority(1)
 
@@ -225,14 +222,9 @@ struct LoginView: View {
             .foregroundStyle(.white)
             .contentShape(RoundedRectangle(cornerRadius: AppTheme.panelRadius, style: .continuous))
             .liquidGlassSurface(cornerRadius: AppTheme.panelRadius)
-            .overlay(alignment: .leading) {
-                RoundedRectangle(cornerRadius: 1, style: .continuous)
-                    .fill(provider.accentColor.opacity(0.8))
-                    .frame(width: 2, height: 24)
-                    .padding(.leading, 1)
-            }
         }
         .buttonStyle(PressScaleButtonStyle())
+        .hoverEffect(.highlight)
     }
 
     // MARK: - Token Field (scrollable)
@@ -244,13 +236,8 @@ struct LoginView: View {
                 credentialHeader(provider: .vercel)
 
                 if let error = authManager.error {
-                    HStack(spacing: 8) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 12))
-                        Text(error)
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                    .foregroundStyle(.red)
+                    AppFeedbackBanner(title: "Vercel couldn’t connect", message: error, tint: AppTheme.danger)
+                    .padding(.horizontal, 20)
                     .padding(.top, 24)
                 }
 
@@ -258,8 +245,8 @@ struct LoginView: View {
                     // Steps
                     VStack(alignment: .leading, spacing: 14) {
                         Text("How to get your token")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(.white)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(AppTheme.textPrimary)
 
                         StepRow(number: 1, text: "Go to vercel.com/account/tokens")
                         StepRow(number: 2, text: "Tap \"Create Token\"")
@@ -279,12 +266,12 @@ struct LoginView: View {
                     } label: {
                         HStack(spacing: 6) {
                             Image(systemName: "arrow.up.right")
-                                .font(.system(size: 11, weight: .semibold))
+                                .font(.caption.weight(.semibold))
                             Text("Open Vercel Tokens Page")
-                                .font(.system(size: 13, weight: .bold))
+                                .font(.subheadline.weight(.semibold))
                         }
                         .frame(maxWidth: .infinity)
-                        .frame(height: 46)
+                        .frame(minHeight: 46)
                         .background(AppTheme.surfaceRaised)
                         .foregroundStyle(.white.opacity(0.75))
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -331,13 +318,13 @@ struct LoginView: View {
                                 ProgressView().tint(.black)
                             } else {
                                 Text("Connect")
-                                    .font(.system(size: 16, weight: .semibold))
+                                    .font(.headline)
                                 Image(systemName: "arrow.right")
-                                    .font(.system(size: 14, weight: .semibold))
+                                    .font(.subheadline.weight(.semibold))
                             }
                         }
                         .frame(maxWidth: .infinity)
-                        .frame(height: 54)
+                        .frame(minHeight: 54)
                         .background(tokenInput.isEmpty ? AppTheme.surfaceRaised : AppTheme.signal)
                         .foregroundStyle(tokenInput.isEmpty ? AppTheme.textTertiary : .white)
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -367,12 +354,8 @@ struct LoginView: View {
                     credentialHeader(provider: .cloudflare)
 
                     if let error = authManager.error {
-                        HStack(spacing: 8) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                            Text(error)
-                                .font(.system(size: 12, weight: .medium))
-                        }
-                        .foregroundStyle(.red)
+                        AppFeedbackBanner(title: "Cloudflare couldn’t connect", message: error, tint: AppTheme.danger)
+                        .padding(.horizontal, 20)
                         .padding(.top, 20)
                     }
 
@@ -389,9 +372,9 @@ struct LoginView: View {
                                 cloudflareAuthenticationMode == .globalAPIKey
                                     ? "Connect with Global API Key"
                                     : "Connect with scoped API token"
-                            )
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(.white)
+                                )
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(AppTheme.textPrimary)
 
                             StepRow(number: 1, text: "Open Cloudflare My Profile → API Tokens")
                             if cloudflareAuthenticationMode == .globalAPIKey {
@@ -412,8 +395,8 @@ struct LoginView: View {
                                         ? "Stored only in this device’s Keychain. The Global API Key has the same Cloudflare access as your user, including write access."
                                         : "Stored only in this device’s Keychain. The app can only use permissions and resources included in this token."
                                 )
-                                    .font(.system(size: 10, weight: .semibold))
-                                    .foregroundStyle(.white.opacity(0.48))
+                                    .font(.footnote)
+                                    .foregroundStyle(AppTheme.textSecondary)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
                         }
@@ -427,9 +410,9 @@ struct LoginView: View {
                             }
                         } label: {
                             Label("Open Cloudflare API Tokens", systemImage: "arrow.up.right")
-                                .font(.system(size: 13, weight: .bold))
+                                .font(.subheadline.weight(.semibold))
                                 .frame(maxWidth: .infinity)
-                                .frame(height: 46)
+                                .frame(minHeight: 46)
                                 .foregroundStyle(.white.opacity(0.8))
                                 .background(Color.white.opacity(0.06))
                                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -480,14 +463,14 @@ struct LoginView: View {
                                     ProgressView().tint(.white)
                                 } else {
                                     Text("Connect Cloudflare")
-                                        .font(.system(size: 16, weight: .semibold))
+                                        .font(.headline)
                                     Image(systemName: "arrow.right")
-                                        .font(.system(size: 14, weight: .semibold))
+                                        .font(.subheadline.weight(.semibold))
                                 }
                             }
                             .frame(maxWidth: .infinity)
-                            .frame(height: 54)
-                            .background(canConnectCloudflare ? CloudflareStyle.orange : AppTheme.surfaceRaised)
+                            .frame(minHeight: 54)
+                            .background(canConnectCloudflare ? AppTheme.signal : AppTheme.surfaceRaised)
                             .foregroundStyle(canConnectCloudflare ? .white : AppTheme.textTertiary)
                             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         }
@@ -559,7 +542,7 @@ struct LoginView: View {
             HStack {
                 Button {
                     authManager.error = nil
-                    withAnimation(.spring(duration: 0.35)) { selectedProvider = nil }
+                    updateSelection { selectedProvider = nil }
                 } label: {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 15, weight: .semibold))
@@ -586,6 +569,14 @@ struct LoginView: View {
         }
         .padding(.horizontal, 20)
         .padding(.top, 18)
+    }
+
+    private func updateSelection(_ changes: () -> Void) {
+        if reduceMotion {
+            changes()
+        } else {
+            withAnimation(.snappy(duration: 0.32)) { changes() }
+        }
     }
 
 }
@@ -617,7 +608,7 @@ struct StepRow: View {
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             Text("\(number)")
-                .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                .font(.caption.weight(.semibold).monospacedDigit())
                 .foregroundStyle(.white)
                 .frame(width: 22, height: 22)
                 .background(AppTheme.surfaceRaised)

@@ -77,9 +77,7 @@ struct HostingDashboardView: View {
             ZStack {
                 AppTheme.canvas.ignoresSafeArea()
                 if viewModel.isLoading {
-                    ProgressView("Loading \(provider.displayName)")
-                        .tint(provider.accentColor)
-                        .foregroundStyle(AppTheme.textSecondary)
+                    AppDashboardLoadingView(accent: provider.accentColor, showsMetrics: false)
                 } else if let error = viewModel.error, viewModel.resources.isEmpty {
                     errorView(error)
                 } else {
@@ -224,6 +222,8 @@ struct HostingDashboardView: View {
             }
         }
         .buttonStyle(PressScaleButtonStyle())
+        .frame(maxWidth: horizontalSizeClass == .regular ? 470 : .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func dashboardAction(icon: String, title: String) -> some View {
@@ -255,6 +255,7 @@ struct HostingDashboardView: View {
                     .foregroundStyle(AppTheme.textSecondary)
                     .lineLimit(2)
             }
+            .layoutPriority(1)
             Spacer()
             if let status = resource.status {
                 AppStatusBadge(text: status.capitalized, tone: .status(status))

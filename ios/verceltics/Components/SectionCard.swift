@@ -7,11 +7,10 @@ struct SectionCard<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(title)
+            Text(title.uppercased())
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(AppTheme.textSecondary)
-                .tracking(0.7)
-                .textCase(nil)
+                .tracking(1.1)
                 .padding(.horizontal, 20)
                 .padding(.bottom, 8)
 
@@ -21,6 +20,7 @@ struct SectionCard<Content: View>: View {
             .appSurface()
             .padding(.horizontal, 16)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -41,5 +41,6 @@ struct ShareAppRow: View {
             )
         }
         .buttonStyle(PressScaleButtonStyle())
+        .hoverEffect(.highlight)
     }
 }

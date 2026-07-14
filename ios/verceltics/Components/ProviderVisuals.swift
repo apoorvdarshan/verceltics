@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// The app's visual language: quiet infrastructure surfaces with provider color
 /// reserved for identity and state, rather than decorative gradients.
@@ -11,14 +12,15 @@ enum AppTheme {
     static let textTertiary = Color(red: 0.44, green: 0.47, blue: 0.53)
     static let stroke = Color.white.opacity(0.10)
     static let strokeStrong = Color.white.opacity(0.14)
+    static let strokeSoft = Color.white.opacity(0.055)
     static let signal = Color(red: 0.31, green: 0.63, blue: 1.0)
     static let success = Color(red: 0.30, green: 0.79, blue: 0.52)
     static let warning = Color(red: 0.96, green: 0.65, blue: 0.24)
     static let danger = Color(red: 0.96, green: 0.35, blue: 0.38)
 
-    static let panelRadius: CGFloat = 14
-    static let controlRadius: CGFloat = 12
-    static let iconRadius: CGFloat = 9
+    static let panelRadius: CGFloat = 16
+    static let controlRadius: CGFloat = 13
+    static let iconRadius: CGFloat = 10
 }
 
 /// Shared responsive dimensions for the app's operator workspace. Compact
@@ -95,13 +97,29 @@ struct AppSurfaceModifier: ViewModifier {
     var raised = false
 
     func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         content
             .background(raised ? AppTheme.surfaceRaised : AppTheme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .clipShape(shape)
             .overlay {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(AppTheme.stroke, lineWidth: 0.5)
+                shape.strokeBorder(
+                    LinearGradient(
+                        colors: [
+                            raised ? AppTheme.strokeStrong : AppTheme.stroke,
+                            AppTheme.stroke,
+                            AppTheme.strokeSoft,
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 0.65
+                )
             }
+            .shadow(
+                color: Color.black.opacity(raised ? 0.24 : 0.14),
+                radius: raised ? 12 : 7,
+                y: raised ? 6 : 3
+            )
     }
 }
 
@@ -110,12 +128,19 @@ struct ProviderSurfaceModifier: ViewModifier {
     var cornerRadius: CGFloat = AppTheme.panelRadius
 
     func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         content
             .background(AppTheme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .clipShape(shape)
             .overlay {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(AppTheme.stroke, lineWidth: 0.5)
+                shape.strokeBorder(
+                    LinearGradient(
+                        colors: [accent.opacity(0.22), AppTheme.stroke, AppTheme.strokeSoft],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 0.65
+                )
             }
             .overlay(alignment: .leading) {
                 RoundedRectangle(cornerRadius: 1, style: .continuous)
@@ -123,6 +148,7 @@ struct ProviderSurfaceModifier: ViewModifier {
                     .frame(width: 2, height: 24)
                     .padding(.leading, 1)
             }
+            .shadow(color: Color.black.opacity(0.16), radius: 8, y: 4)
     }
 }
 
@@ -140,7 +166,7 @@ struct NativeGlassSurfaceModifier: ViewModifier {
         } else {
             content
                 .background(.ultraThinMaterial)
-                .background(AppTheme.surface.opacity(0.82))
+                .background(AppTheme.canvas.opacity(0.38))
                 .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -220,14 +246,20 @@ struct AppStatusBadge: View {
     var tone: AppStatusTone = .neutral
 
     var body: some View {
-        Text(text)
-            .font(.caption2.weight(.semibold))
+        HStack(spacing: 5) {
+            Circle()
+                .fill(tone.color)
+                .frame(width: 5, height: 5)
+                .shadow(color: tone.color.opacity(0.65), radius: 3)
+            Text(text)
+                .font(.caption2.weight(.semibold))
+                .lineLimit(1)
+        }
             .foregroundStyle(tone.color)
-            .lineLimit(1)
             .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(tone.color.opacity(0.12), in: Capsule())
-            .overlay(Capsule().strokeBorder(tone.color.opacity(0.22), lineWidth: 0.5))
+            .padding(.vertical, 5)
+            .background(tone.color.opacity(0.09), in: Capsule())
+            .overlay(Capsule().strokeBorder(tone.color.opacity(0.18), lineWidth: 0.5))
             .accessibilityLabel("Status: \(text)")
     }
 }
@@ -242,8 +274,12 @@ struct AppIconTile: View {
             .font(.system(size: size * 0.38, weight: .semibold))
             .foregroundStyle(tint)
             .frame(width: size, height: size)
-            .background(tint.opacity(0.12))
+            .background(tint.opacity(0.105))
             .clipShape(RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous)
+                    .strokeBorder(tint.opacity(0.12), lineWidth: 0.5)
+            }
             .accessibilityHidden(true)
     }
 }
@@ -303,7 +339,7 @@ struct AppFeedbackBanner: View {
             Spacer(minLength: 0)
         }
         .padding(15)
-        .appSurface()
+        .providerSurface(accent: tint)
     }
 }
 
@@ -316,7 +352,7 @@ struct AppEmptyState: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            AppIconTile(icon: icon, size: 46)
+            AppIconTile(icon: icon, size: 50)
             VStack(spacing: 6) {
                 Text(title)
                     .font(.title3.weight(.semibold))
@@ -331,7 +367,7 @@ struct AppEmptyState: View {
                 Button(actionTitle, action: action)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, 18)
                     .frame(minHeight: 44)
                     .background(AppTheme.signal, in: RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
                     .buttonStyle(PressScaleButtonStyle())
@@ -339,6 +375,180 @@ struct AppEmptyState: View {
         }
         .frame(maxWidth: 380)
         .padding(28)
+    }
+}
+
+/// Shared loading composition for hosting and registrar dashboards. It keeps
+/// the final page geometry visible, so switching accounts feels stable rather
+/// than replacing the whole workspace with a spinner.
+struct AppDashboardLoadingView: View {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    var accent: Color = AppTheme.signal
+    var showsMetrics = true
+
+    private var columns: [GridItem] {
+        AppLayout.adaptiveColumns(
+            for: horizontalSizeClass,
+            regularMinimum: 340,
+            regularMaximum: 540,
+            spacing: 14
+        )
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 16) {
+                skeletonBlock(height: 92, accent: true)
+
+                if showsMetrics {
+                    LazyVGrid(
+                        columns: horizontalSizeClass == .regular
+                            ? Array(repeating: GridItem(.flexible(), spacing: 10), count: 3)
+                            : [GridItem(.adaptive(minimum: 96), spacing: 10)],
+                        spacing: 10
+                    ) {
+                        ForEach(0..<3, id: \.self) { _ in
+                            skeletonBlock(height: 84)
+                        }
+                    }
+                }
+
+                HStack(spacing: 10) {
+                    skeletonBlock(height: 48)
+                    skeletonBlock(height: 48)
+                }
+
+                HStack {
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        .fill(Color.white.opacity(0.075))
+                        .frame(width: 118, height: 10)
+                    Spacer()
+                }
+
+                LazyVGrid(columns: columns, spacing: 14) {
+                    ForEach(0..<6, id: \.self) { _ in
+                        skeletonBlock(height: 74)
+                    }
+                }
+            }
+            .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
+            .padding(.top, 18)
+            .padding(.bottom, 24)
+            .appContentWidth(AppLayout.dashboardMaxWidth, horizontalSizeClass: horizontalSizeClass)
+            .shimmering()
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Loading dashboard")
+    }
+
+    private func skeletonBlock(height: CGFloat, accent: Bool = false) -> some View {
+        RoundedRectangle(cornerRadius: AppTheme.panelRadius, style: .continuous)
+            .fill(accent ? self.accent.opacity(0.07) : Color.white.opacity(0.045))
+            .frame(maxWidth: .infinity)
+            .frame(height: height)
+            .overlay {
+                RoundedRectangle(cornerRadius: AppTheme.panelRadius, style: .continuous)
+                    .strokeBorder(accent ? self.accent.opacity(0.12) : AppTheme.strokeSoft, lineWidth: 0.5)
+            }
+    }
+}
+
+struct AppInsetDivider: View {
+    var leading: CGFloat = 62
+
+    var body: some View {
+        Rectangle()
+            .fill(AppTheme.strokeSoft)
+            .frame(height: 0.5)
+            .padding(.leading, leading)
+    }
+}
+
+struct AppAPIResponsePane: View {
+    let statusCode: Int
+    let headers: [String: String]
+    let responseBody: String
+
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @State private var selection: ResponseSection = .body
+
+    private enum ResponseSection: String, CaseIterable, Identifiable {
+        case body = "Body"
+        case headers = "Headers"
+        var id: Self { self }
+    }
+
+    init(statusCode: Int, headers: [String: String], body: String) {
+        self.statusCode = statusCode
+        self.headers = headers
+        responseBody = body
+    }
+
+    private var selectedText: String {
+        switch selection {
+        case .body: responseBody
+        case .headers:
+            headers
+                .sorted { $0.key.localizedCaseInsensitiveCompare($1.key) == .orderedAscending }
+                .map { "\($0.key): \($0.value)" }
+                .joined(separator: "\n")
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Label("Response", systemImage: "terminal.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                Spacer(minLength: 8)
+                AppStatusBadge(
+                    text: "HTTP \(statusCode)",
+                    tone: (200...299).contains(statusCode) ? .success : .danger
+                )
+                Button {
+                    UIPasteboard.general.string = selectedText
+                } label: {
+                    Image(systemName: "doc.on.doc")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(width: 36, height: 36)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(PressScaleButtonStyle())
+                .foregroundStyle(AppTheme.textSecondary)
+                .accessibilityLabel("Copy \(selection.rawValue.lowercased())")
+            }
+
+            if !headers.isEmpty {
+                Picker("Response section", selection: $selection) {
+                    ForEach(ResponseSection.allCases) { section in
+                        Text(section.rawValue).tag(section)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+
+            ScrollView([.horizontal, .vertical]) {
+                Text(selectedText.isEmpty ? "No response content" : selectedText)
+                    .font(.footnote.monospaced())
+                    .foregroundStyle(selectedText.isEmpty ? AppTheme.textTertiary : AppTheme.textPrimary)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(12)
+            }
+            .frame(
+                minHeight: 190,
+                maxHeight: horizontalSizeClass == .regular ? 460 : 320
+            )
+            .background(AppTheme.canvas.opacity(0.72), in: RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous)
+                    .strokeBorder(AppTheme.strokeSoft, lineWidth: 0.5)
+            }
+        }
+        .padding(15)
+        .appSurface()
     }
 }
 

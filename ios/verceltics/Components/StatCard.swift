@@ -14,8 +14,8 @@ struct StatCard: View {
     }
 
     private var changeColor: Color {
-        guard change != nil else { return .gray }
-        return isPositive ? Color(red: 0.30, green: 0.85, blue: 0.55) : Color(red: 1.0, green: 0.42, blue: 0.42)
+        guard change != nil else { return AppTheme.textTertiary }
+        return isPositive ? AppTheme.success : AppTheme.danger
     }
 
     private var changeText: String? {
@@ -28,17 +28,17 @@ struct StatCard: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 6) {
                 Image(systemName: icon)
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.35))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(AppTheme.textTertiary)
                 Text(title.uppercased())
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.45))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(AppTheme.textSecondary)
                     .tracking(0.8)
             }
 
             Text(value)
-                .font(.system(size: 28, weight: .semibold, design: .default).monospacedDigit())
-                .foregroundStyle(.white)
+                .font(.title2.weight(.semibold).monospacedDigit())
+                .foregroundStyle(AppTheme.textPrimary)
                 .contentTransition(.numericText())
                 .minimumScaleFactor(0.7)
                 .lineLimit(1)
@@ -46,9 +46,9 @@ struct StatCard: View {
             if let changeText {
                 HStack(spacing: 3) {
                     Image(systemName: isPositive ? "arrow.up.right" : "arrow.down.right")
-                        .font(.system(size: 8, weight: .semibold))
+                        .font(.caption2.weight(.semibold))
                     Text(changeText)
-                        .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                        .font(.caption.weight(.semibold).monospacedDigit())
                 }
                 .foregroundStyle(changeColor)
                 .padding(.horizontal, 7)
@@ -58,8 +58,8 @@ struct StatCard: View {
                 .overlay(Capsule().stroke(changeColor.opacity(0.18), lineWidth: 0.5))
             } else {
                 Text("—")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.2))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.textTertiary)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

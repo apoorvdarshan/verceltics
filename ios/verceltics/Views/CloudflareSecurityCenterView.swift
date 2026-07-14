@@ -438,15 +438,15 @@ struct CloudflareSecurityCenterView: View {
             VStack(alignment: .leading, spacing: 7) {
                 ForEach(viewModel.snapshot.warnings, id: \.self) { warning in
                     Text(warning)
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.38))
+                        .font(.footnote)
+                        .foregroundStyle(AppTheme.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
             .padding(.top, 10)
         } label: {
             Label("Plan-limited security products", systemImage: "lock.trianglebadge.exclamationmark.fill")
-                .font(.system(size: 13, weight: .bold))
+                .font(.subheadline.weight(.semibold))
                 .foregroundStyle(CloudflareStyle.amber)
         }
         .padding(16)
@@ -457,7 +457,7 @@ struct CloudflareSecurityCenterView: View {
         switch status?.lowercased() {
         case "active", "enabled", "allow", "whitelist": CloudflareStyle.green
         case "block", "challenge", "js_challenge", "under_attack": CloudflareStyle.red
-        default: CloudflareStyle.orange
+        default: AppTheme.textSecondary
         }
     }
 }

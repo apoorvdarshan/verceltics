@@ -12,36 +12,11 @@ struct AboutView: View {
                     Spacer().frame(height: 8)
 
                     VStack(spacing: 24) {
-                        SectionCard(title: "App") {
-                            updateCheckRow
-                        }
-
-                        SectionCard(title: "Links") {
-                            AboutRow(icon: "globe", title: "Website", subtitle: "verceltics.com", url: "https://verceltics.com")
-                            AboutRow(icon: "chevron.left.forwardslash.chevron.right", title: "Source Code", subtitle: "github.com/apoorvdarshan/verceltics", url: "https://github.com/apoorvdarshan/verceltics")
-                            AboutRow(icon: "building.2.fill", title: "Follow on LinkedIn", subtitle: "linkedin.com/company/verceltics", url: "https://www.linkedin.com/company/verceltics")
-                            AboutRow(icon: "at", title: "Follow on X", subtitle: "@apoorvdarshan", url: "https://x.com/apoorvdarshan")
-                        }
-
-                        SectionCard(title: "Help") {
-                            AboutRow(icon: "envelope.fill", title: "Contact", subtitle: "ad13dtu@gmail.com", url: "mailto:ad13dtu@gmail.com")
-                            AboutRow(icon: "ant", title: "Report an Issue", subtitle: "Open a GitHub issue", url: "https://github.com/apoorvdarshan/verceltics/issues")
-                        }
-
-                        SectionCard(title: "Account") {
-                            AboutRow(icon: "creditcard.fill", title: "Manage Subscription", subtitle: "Change plan or cancel", url: "https://apps.apple.com/account/subscriptions")
-                        }
-
-                        SectionCard(title: "Legal") {
-                            AboutRow(icon: "hand.raised.fill", title: "Privacy Policy", subtitle: "verceltics.com/privacy", url: "https://verceltics.com/privacy")
-                            AboutRow(icon: "doc.text.fill", title: "Terms of Service", subtitle: "verceltics.com/terms", url: "https://verceltics.com/terms")
-                            AboutRow(icon: "checkmark.seal.fill", title: "License", subtitle: "MIT License", url: "https://github.com/apoorvdarshan/verceltics/blob/main/LICENSE")
-                        }
-
+                        aboutSections
                         footer
                     }
                 }
-                .frame(maxWidth: hSize == .regular ? 640 : .infinity)
+                .frame(maxWidth: hSize == .regular ? 960 : .infinity)
                 .frame(maxWidth: .infinity)
             }
             .background(AppTheme.canvas)
@@ -51,6 +26,71 @@ struct AboutView: View {
             .task {
                 await appUpdateChecker.checkForUpdates()
             }
+        }
+    }
+
+    @ViewBuilder
+    private var aboutSections: some View {
+        if hSize == .regular {
+            HStack(alignment: .top, spacing: 0) {
+                VStack(spacing: 24) {
+                    appSection
+                    linksSection
+                }
+                VStack(spacing: 24) {
+                    helpSection
+                    accountSection
+                    legalSection
+                }
+            }
+        } else {
+            VStack(spacing: 24) {
+                appSection
+                linksSection
+                helpSection
+                accountSection
+                legalSection
+            }
+        }
+    }
+
+    private var appSection: some View {
+        SectionCard(title: "App") { updateCheckRow }
+    }
+
+    private var linksSection: some View {
+        SectionCard(title: "Links") {
+            AboutRow(icon: "globe", title: "Website", subtitle: "verceltics.com", url: "https://verceltics.com")
+            AppInsetDivider()
+            AboutRow(icon: "chevron.left.forwardslash.chevron.right", title: "Source Code", subtitle: "github.com/apoorvdarshan/verceltics", url: "https://github.com/apoorvdarshan/verceltics")
+            AppInsetDivider()
+            AboutRow(icon: "building.2.fill", title: "Follow on LinkedIn", subtitle: "linkedin.com/company/verceltics", url: "https://www.linkedin.com/company/verceltics")
+            AppInsetDivider()
+            AboutRow(icon: "at", title: "Follow on X", subtitle: "@apoorvdarshan", url: "https://x.com/apoorvdarshan")
+        }
+    }
+
+    private var helpSection: some View {
+        SectionCard(title: "Help") {
+            AboutRow(icon: "envelope.fill", title: "Contact", subtitle: "ad13dtu@gmail.com", url: "mailto:ad13dtu@gmail.com")
+            AppInsetDivider()
+            AboutRow(icon: "ant", title: "Report an issue", subtitle: "Open a GitHub issue", url: "https://github.com/apoorvdarshan/verceltics/issues")
+        }
+    }
+
+    private var accountSection: some View {
+        SectionCard(title: "Account") {
+            AboutRow(icon: "creditcard.fill", title: "Manage subscription", subtitle: "Change plan or cancel", url: "https://apps.apple.com/account/subscriptions")
+        }
+    }
+
+    private var legalSection: some View {
+        SectionCard(title: "Legal") {
+            AboutRow(icon: "hand.raised.fill", title: "Privacy policy", subtitle: "verceltics.com/privacy", url: "https://verceltics.com/privacy")
+            AppInsetDivider()
+            AboutRow(icon: "doc.text.fill", title: "Terms of service", subtitle: "verceltics.com/terms", url: "https://verceltics.com/terms")
+            AppInsetDivider()
+            AboutRow(icon: "checkmark.seal.fill", title: "License", subtitle: "MIT License", url: "https://github.com/apoorvdarshan/verceltics/blob/main/LICENSE")
         }
     }
 
@@ -159,9 +199,11 @@ struct AboutRow: View {
         if let action {
             Button(action: action) { content }
                 .buttonStyle(PressScaleButtonStyle())
+                .hoverEffect(.highlight)
         } else if let url, let link = URL(string: url) {
             Button { UIApplication.shared.open(link) } label: { content }
                 .buttonStyle(PressScaleButtonStyle())
+                .hoverEffect(.highlight)
         } else {
             content
         }

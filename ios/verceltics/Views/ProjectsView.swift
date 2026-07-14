@@ -162,16 +162,16 @@ struct ProjectsView: View {
                             ProjectCard(project: project)
                         }
                         .buttonStyle(PressScaleButtonStyle())
+                        .hoverEffect(.highlight)
                         .contextMenu {
                             projectContextMenu(project)
                         }
                     }
                 }
             }
-            .padding(.horizontal)
+            .padding(.horizontal, AppLayout.pagePadding(for: hSize))
             .padding(.top, 4)
-            .frame(maxWidth: hSize == .regular ? 1200 : .infinity)
-            .frame(maxWidth: .infinity)
+            .appContentWidth(AppLayout.dashboardMaxWidth, horizontalSizeClass: hSize)
         }
         .refreshable { await refreshProjects() }
     }
@@ -238,6 +238,7 @@ struct ProjectCard: View {
     let project: Project
     @State private var pulse = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     private var isFreshDeploy: Bool {
         guard let date = project.lastDeployment?.date else { return false }
@@ -266,6 +267,17 @@ struct ProjectCard: View {
 
     private func frameworkColor(_ framework: String) -> Color {
         Self.frameworkColors[framework.lowercased()] ?? Color(red: 0.30, green: 0.85, blue: 0.55)
+    }
+
+    private func frameworkName(_ framework: String) -> String {
+        switch framework.lowercased() {
+        case "nextjs", "next.js": "Next.js"
+        case "nuxtjs", "nuxt": "Nuxt"
+        case "sveltekit": "SvelteKit"
+        case "create-react-app": "React"
+        case "blitzjs": "Blitz.js"
+        default: framework.prefix(1).uppercased() + framework.dropFirst()
+        }
     }
 
     var body: some View {
@@ -321,7 +333,7 @@ struct ProjectCard: View {
                         Circle()
                             .fill(frameworkColor(framework))
                             .frame(width: 6, height: 6)
-                        Text(framework.capitalized)
+                        Text(frameworkName(framework))
                     }
                 }
                 if let scope = project.sourceScope, scope.isTeam {
@@ -334,6 +346,8 @@ struct ProjectCard: View {
 
             // Commit message + time
             if let deployment = project.lastDeployment {
+                AppInsetDivider(leading: 0)
+
                 VStack(alignment: .leading, spacing: 4) {
                     if let message = deployment.commitMessage {
                         Text(message)
@@ -355,7 +369,9 @@ struct ProjectCard: View {
             }
         }
         .padding(16)
+        .frame(minHeight: horizontalSizeClass == .regular ? 184 : nil, alignment: .top)
         .appSurface()
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -377,9 +393,8 @@ struct ProjectsSkeletonView: View {
                     SkeletonCard()
                 }
             }
-            .padding(.horizontal)
-            .frame(maxWidth: hSize == .regular ? 1200 : .infinity)
-            .frame(maxWidth: .infinity)
+            .padding(.horizontal, AppLayout.pagePadding(for: hSize))
+            .appContentWidth(AppLayout.dashboardMaxWidth, horizontalSizeClass: hSize)
         }
     }
 }
@@ -496,7 +511,7 @@ struct ProjectIcon: View {
             } else if didFail {
                 letterFallback
             } else {
-                letterFallback
+                loadingPlaceholder
             }
         }
         .frame(width: 40, height: 40)
@@ -545,13 +560,30 @@ struct ProjectIcon: View {
         }
     }
 
+    private var loadingPlaceholder: some View {
+        RoundedRectangle(cornerRadius: 10, style: .continuous)
+            .fill(AppTheme.surfaceRaised)
+            .overlay {
+                Image(systemName: "globe")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(AppTheme.textTertiary)
+            }
+            .shimmering()
+    }
+
     private func colorForName(_ name: String) -> Color {
-        let hash = abs(name.hashValue)
+        let hash = name.unicodeScalars.reduce(UInt64(5381)) { value, scalar in
+            ((value << 5) &+ value) &+ UInt64(scalar.value)
+        }
         let colors: [Color] = [
-            .red, .orange, .yellow, .green, .mint,
-            .teal, .cyan, .blue, .indigo, .purple, .pink
+            Color(red: 0.33, green: 0.50, blue: 0.76),
+            Color(red: 0.29, green: 0.61, blue: 0.56),
+            Color(red: 0.62, green: 0.44, blue: 0.73),
+            Color(red: 0.73, green: 0.45, blue: 0.34),
+            Color(red: 0.48, green: 0.53, blue: 0.65),
+            Color(red: 0.65, green: 0.43, blue: 0.55),
         ]
-        return colors[hash % colors.count].opacity(0.7)
+        return colors[Int(hash % UInt64(colors.count))]
     }
 
     private func loadFavicon() async {

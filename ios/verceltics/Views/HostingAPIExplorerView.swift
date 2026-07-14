@@ -190,29 +190,11 @@ struct HostingAPIExplorerView: View {
             }
 
             if let response {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        editorLabel("Response")
-                        Spacer()
-                        AppStatusBadge(
-                            text: "HTTP \(response.statusCode)",
-                            tone: (200...299).contains(response.statusCode) ? .success : .danger
-                        )
-                    }
-                    if !response.headers.isEmpty {
-                        Text(response.headers.sorted { $0.key.lowercased() < $1.key.lowercased() }.map { "\($0.key): \($0.value)" }.joined(separator: "\n"))
-                            .font(.caption.monospaced())
-                            .foregroundStyle(AppTheme.textSecondary)
-                            .textSelection(.enabled)
-                    }
-                    Text(Self.pretty(response.body))
-                        .font(.footnote.monospaced())
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .foregroundStyle(AppTheme.textPrimary)
-                .padding(15)
-                .appSurface()
+                AppAPIResponsePane(
+                    statusCode: response.statusCode,
+                    headers: response.headers,
+                    body: Self.pretty(response.body)
+                )
             } else if error == nil, twoPaneWidth >= 736 {
                 AppEmptyState(
                     icon: "terminal",

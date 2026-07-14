@@ -3,6 +3,19 @@ import SwiftUI
 struct RegistrarAccountMenu: View {
     @Environment(RegistrarStore.self) private var store
     @State private var showingAddAccount = false
+    @State private var removalIntent: RemovalIntent?
+
+    private enum RemovalIntent: Identifiable {
+        case current(RegistrarAccount)
+        case all
+
+        var id: String {
+            switch self {
+            case .current(let account): "current-\(account.id)"
+            case .all: "all"
+            }
+        }
+    }
 
     var body: some View {
         Menu {
@@ -23,11 +36,11 @@ struct RegistrarAccountMenu: View {
             }
             if let active = store.activeAccount {
                 Section {
-                    Button(role: .destructive) { store.removeAccount(id: active.id) } label: {
+                    Button(role: .destructive) { removalIntent = .current(active) } label: {
                         Label("Remove Current Registrar", systemImage: "rectangle.portrait.and.arrow.right")
                     }
                     if store.accounts.count > 1 {
-                        Button(role: .destructive) { store.removeAll() } label: {
+                        Button(role: .destructive) { removalIntent = .all } label: {
                             Label("Remove All Registrars", systemImage: "trash.fill")
                         }
                     }
@@ -44,6 +57,7 @@ struct RegistrarAccountMenu: View {
             .frame(width: 44, height: 44)
             .contentShape(Rectangle())
             .accessibilityLabel("Switch connected registrar")
+            .accessibilityValue(store.activeAccount?.name ?? "No active registrar")
         }
         .tint(.white)
         .sheet(isPresented: $showingAddAccount) {
@@ -51,5 +65,42 @@ struct RegistrarAccountMenu: View {
                 .presentationSizing(.page)
                 .presentationDragIndicator(.visible)
         }
+        .confirmationDialog(
+            removalTitle,
+            isPresented: Binding(
+                get: { removalIntent != nil },
+                set: { if !$0 { removalIntent = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button(removalButtonTitle, role: .destructive) { confirmRemoval() }
+            Button("Cancel", role: .cancel) { removalIntent = nil }
+        } message: {
+            Text("Credentials are removed from this device only.")
+        }
+    }
+
+    private var removalTitle: String {
+        switch removalIntent {
+        case .current(let account): "Remove \(account.name)?"
+        case .all: "Remove all registrar accounts?"
+        case nil: "Remove registrar?"
+        }
+    }
+
+    private var removalButtonTitle: String {
+        switch removalIntent {
+        case .all: "Remove All Registrars"
+        case .current, nil: "Remove Registrar"
+        }
+    }
+
+    private func confirmRemoval() {
+        switch removalIntent {
+        case .current(let account): store.removeAccount(id: account.id)
+        case .all: store.removeAll()
+        case nil: break
+        }
+        removalIntent = nil
     }
 }

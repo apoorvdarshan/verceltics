@@ -111,9 +111,7 @@ struct RegistrarDashboardView: View {
             ZStack {
                 AppTheme.canvas.ignoresSafeArea()
                 if viewModel.isLoading {
-                    ProgressView("Loading domains")
-                        .tint(provider.accentColor)
-                        .foregroundStyle(AppTheme.textSecondary)
+                    AppDashboardLoadingView(accent: provider.accentColor)
                 } else if let error = viewModel.error, viewModel.domains.isEmpty {
                     errorView(error)
                 } else {
@@ -228,15 +226,15 @@ struct RegistrarDashboardView: View {
                         .tracking(1)
                         .foregroundStyle(AppTheme.textSecondary)
                     Spacer()
-                    Text(expiringDomains.isEmpty ? "Clear" : "\(expiringDomains.count) need attention")
+                    Text(expiryHealthLabel)
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(expiringDomains.isEmpty ? AppTheme.success : AppTheme.warning)
+                        .foregroundStyle(expiryHealthColor)
                 }
                 GeometryReader { geometry in
                     ZStack(alignment: .leading) {
                         Capsule().fill(Color.white.opacity(0.07))
                         Capsule()
-                            .fill(expiringDomains.isEmpty ? AppTheme.success : AppTheme.warning)
+                            .fill(expiryHealthColor)
                             .frame(width: geometry.size.width * healthFraction)
                     }
                 }
@@ -284,6 +282,8 @@ struct RegistrarDashboardView: View {
             NavigationLink { ProviderFullAPICatalogView(account: account) } label: { actionLabel("Complete API", icon: "list.bullet.rectangle.fill") }
         }
         .buttonStyle(PressScaleButtonStyle())
+        .frame(maxWidth: horizontalSizeClass == .regular ? 470 : .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func actionLabel(_ title: String, icon: String) -> some View {
@@ -316,6 +316,7 @@ struct RegistrarDashboardView: View {
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(AppTheme.textSecondary)
             }
+            .layoutPriority(1)
             Spacer()
             Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(AppTheme.textTertiary)
         }
@@ -326,6 +327,21 @@ struct RegistrarDashboardView: View {
     private var healthFraction: CGFloat {
         guard !viewModel.domains.isEmpty else { return 0 }
         return max(0, CGFloat(viewModel.domains.count - expiringDomains.count) / CGFloat(viewModel.domains.count))
+    }
+
+    private var expiryHealthLabel: String {
+        guard !viewModel.domains.isEmpty else { return "No data" }
+        let unknown = viewModel.domains.filter { $0.daysUntilExpiry == nil }.count
+        if !expiringDomains.isEmpty { return "\(expiringDomains.count) need attention" }
+        if unknown > 0 { return "\(unknown) unknown" }
+        return "Clear"
+    }
+
+    private var expiryHealthColor: Color {
+        guard !viewModel.domains.isEmpty else { return AppTheme.textTertiary }
+        if !expiringDomains.isEmpty { return AppTheme.warning }
+        if viewModel.domains.contains(where: { $0.daysUntilExpiry == nil }) { return AppTheme.textSecondary }
+        return AppTheme.success
     }
 
     private func expiryColor(_ domain: RegistrarDomain) -> Color {

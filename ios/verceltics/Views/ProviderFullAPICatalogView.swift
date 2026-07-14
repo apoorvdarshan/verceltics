@@ -251,6 +251,7 @@ private struct ProviderAPIOperationView: View {
     @State private var values: [String: String]
     @State private var bodyText: String
     @State private var contentType: String
+    @FocusState private var focusedParameterID: String?
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     init(operation: ProviderAPIOperation, context: ProviderAPIRequestContext, accent: Color) {
@@ -417,8 +418,22 @@ private struct ProviderAPIOperationView: View {
                     get: { values[parameter.id, default: ""] },
                     set: { values[parameter.id] = $0 }
                 ))
-                .font(.footnote.monospaced()).textFieldStyle(.plain)
-                .textInputAutocapitalization(.never).autocorrectionDisabled()
+                .font(.footnote.monospaced())
+                .textFieldStyle(.plain)
+                .padding(.horizontal, 12)
+                .frame(minHeight: 44)
+                .foregroundStyle(AppTheme.textPrimary)
+                .background(AppTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous)
+                        .strokeBorder(
+                            focusedParameterID == parameter.id ? accent.opacity(0.72) : AppTheme.strokeSoft,
+                            lineWidth: focusedParameterID == parameter.id ? 1 : 0.5
+                        )
+                }
+                .focused($focusedParameterID, equals: parameter.id)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
             } else {
                 Picker(parameter.name, selection: Binding(
                     get: { values[parameter.id, default: parameter.enumValues.first ?? ""] },
@@ -426,7 +441,11 @@ private struct ProviderAPIOperationView: View {
                 )) {
                     ForEach(parameter.enumValues, id: \.self) { Text($0).tag($0) }
                 }
-                .pickerStyle(.menu).tint(.white)
+                .pickerStyle(.menu)
+                .tint(.white)
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .padding(.horizontal, 12)
+                .background(AppTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
             }
             if !parameter.description.isEmpty {
                 Text(parameter.description).font(.footnote).foregroundStyle(AppTheme.textSecondary)

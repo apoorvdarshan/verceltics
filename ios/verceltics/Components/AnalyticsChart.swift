@@ -86,11 +86,11 @@ struct AnalyticsChart: View {
             if filteredData.isEmpty {
                 VStack(spacing: 10) {
                     Image(systemName: "chart.xyaxis.line")
-                        .font(.system(size: 28))
-                        .foregroundStyle(.white.opacity(0.15))
+                        .font(.title2)
+                        .foregroundStyle(AppTheme.textTertiary)
                     Text("No \(selectedMetric.rawValue.lowercased()) data")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.3))
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(AppTheme.textSecondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -111,39 +111,39 @@ struct AnalyticsChart: View {
             .pickerStyle(.segmented)
 
             Text(selectedMetric.rawValue.uppercased())
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.45))
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(AppTheme.textSecondary)
                 .tracking(1.4)
 
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 if let selectedPoint {
                     Text(formatted(selectedPoint.value))
-                        .font(.system(size: 28, weight: .semibold, design: .default).monospacedDigit())
-                        .foregroundStyle(.white)
+                        .font(.title2.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(AppTheme.textPrimary)
                         .contentTransition(.numericText())
 
                     Text(selectedPoint.date, format: .dateTime.month(.abbreviated).day())
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(.blue)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AppTheme.signal)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
-                        .background(Color.blue.opacity(0.14))
+                        .background(AppTheme.signal.opacity(0.12))
                         .clipShape(Capsule())
                         .transition(.opacity)
                 } else {
                     Text(formatted(headlineValue))
-                        .font(.system(size: 28, weight: .semibold, design: .default).monospacedDigit())
-                        .foregroundStyle(.white)
+                        .font(.title2.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(AppTheme.textPrimary)
                         .contentTransition(.numericText())
 
                     if let peakPoint, headlineValue > 0 {
                         HStack(spacing: 4) {
                             Image(systemName: "arrow.up.forward")
-                                .font(.system(size: 8, weight: .semibold))
+                                .font(.caption2.weight(.semibold))
                             Text("Peak \(formatted(peakPoint.value))")
-                                .font(.system(size: 10, weight: .bold).monospacedDigit())
+                                .font(.caption2.weight(.semibold).monospacedDigit())
                         }
-                        .foregroundStyle(.white.opacity(0.5))
+                        .foregroundStyle(AppTheme.textSecondary)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
                         .background(Color.white.opacity(0.06))

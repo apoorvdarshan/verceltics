@@ -4,18 +4,18 @@ import RevenueCat
 private let tipAccent = AppTheme.signal
 
 private struct TipMeta {
-    let emoji: String
+    let icon: String
     let title: String
     let blurb: String
     let popular: Bool
 
     static func of(_ id: String) -> TipMeta {
         switch id {
-        case TipStore.coffeeID: return .init(emoji: "☕️", title: "Coffee", blurb: "A little caffeine", popular: false)
-        case TipStore.lunchID:  return .init(emoji: "🍕", title: "Lunch", blurb: "Treat me to lunch", popular: true)
-        case TipStore.bigID:    return .init(emoji: "🚀", title: "Big Tip", blurb: "Really generous", popular: false)
-        case TipStore.hugeID:   return .init(emoji: "💎", title: "Huge Supporter", blurb: "You're amazing", popular: false)
-        default:                return .init(emoji: "💜", title: "Tip", blurb: "Support development", popular: false)
+        case TipStore.coffeeID: return .init(icon: "cup.and.saucer.fill", title: "Coffee", blurb: "A little caffeine", popular: false)
+        case TipStore.lunchID:  return .init(icon: "fork.knife", title: "Lunch", blurb: "Treat me to lunch", popular: true)
+        case TipStore.bigID:    return .init(icon: "paperplane.fill", title: "Big Tip", blurb: "Really generous", popular: false)
+        case TipStore.hugeID:   return .init(icon: "diamond.fill", title: "Huge Supporter", blurb: "You're amazing", popular: false)
+        default:                return .init(icon: "heart.fill", title: "Tip", blurb: "Support development", popular: false)
         }
     }
 }
@@ -27,9 +27,10 @@ struct TipSectionView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Support the developer")
-                .font(.caption.weight(.semibold))
+            Text("SUPPORT THE DEVELOPER")
+                .font(.caption2.weight(.semibold))
                 .foregroundStyle(AppTheme.textSecondary)
+                .tracking(1.1)
                 .padding(.horizontal, 20)
                 .padding(.bottom, 8)
 
@@ -39,6 +40,7 @@ struct TipSectionView: View {
             .appSurface()
             .padding(.horizontal, 16)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
@@ -79,10 +81,7 @@ struct TipSectionView: View {
     }
 
     private var rowDivider: some View {
-        Rectangle()
-            .fill(Color.white.opacity(0.06))
-            .frame(height: 0.5)
-            .padding(.leading, 62)
+        AppInsetDivider()
     }
 
     private func tierRow(_ product: StoreProduct) -> some View {
@@ -92,21 +91,13 @@ struct TipSectionView: View {
             Task { await store.purchase(product) }
         } label: {
             HStack(spacing: 14) {
-                Text(meta.emoji)
-                    .font(.system(size: 17))
-                    .frame(width: 34, height: 34)
-                    .background(AppTheme.surfaceRaised)
-                    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 9, style: .continuous)
-                            .strokeBorder(Color.white.opacity(0.06), lineWidth: 0.5)
-                    )
+                AppIconTile(icon: meta.icon, tint: tipAccent, size: 34)
 
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
                         Text(meta.title)
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(.white)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(AppTheme.textPrimary)
                         if meta.popular {
                             Text("POPULAR")
                                 .font(.system(size: 7.5, weight: .semibold))
@@ -117,8 +108,8 @@ struct TipSectionView: View {
                         }
                     }
                     Text(meta.blurb)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.4))
+                        .font(.footnote)
+                        .foregroundStyle(AppTheme.textSecondary)
                 }
 
                 Spacer()

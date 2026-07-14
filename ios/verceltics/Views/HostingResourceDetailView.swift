@@ -149,7 +149,14 @@ struct HostingResourceDetailView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 14) {
-                AppIconTile(icon: provider.systemImage, tint: provider.accentColor, size: 52)
+                ProviderMark(provider: provider, size: 26)
+                    .frame(width: 52, height: 52)
+                    .background(provider.accentColor.opacity(0.105))
+                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous)
+                            .strokeBorder(provider.accentColor.opacity(0.12), lineWidth: 0.5)
+                    }
                 VStack(alignment: .leading, spacing: 5) {
                     Text(resource.name)
                         .font(.title3.weight(.semibold))

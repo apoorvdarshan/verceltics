@@ -8,15 +8,28 @@ enum CloudflareStyle {
 }
 
 struct CloudflarePanelModifier: ViewModifier {
-    var accentOpacity: Double = 0.035
+    var accentOpacity: Double = 0
 
+    @ViewBuilder
     func body(content: Content) -> some View {
-        content.appSurface()
+        if accentOpacity > 0 {
+            content
+                .background {
+                    LinearGradient(
+                        colors: [CloudflareStyle.orange.opacity(accentOpacity), .clear],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                }
+                .appSurface()
+        } else {
+            content.appSurface()
+        }
     }
 }
 
 extension View {
-    func cloudflarePanel(accentOpacity: Double = 0.035) -> some View {
+    func cloudflarePanel(accentOpacity: Double = 0) -> some View {
         modifier(CloudflarePanelModifier(accentOpacity: accentOpacity))
     }
 }
@@ -119,15 +132,20 @@ struct CloudflareStatusPill: View {
     var color: Color
 
     var body: some View {
-        Text(text)
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(color)
-            .lineLimit(1)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(color.opacity(0.12))
-            .clipShape(Capsule())
-            .overlay(Capsule().strokeBorder(color.opacity(0.2), lineWidth: 0.5))
+        HStack(spacing: 5) {
+            Circle()
+                .fill(color)
+                .frame(width: 5, height: 5)
+            Text(text)
+                .font(.caption2.weight(.semibold))
+                .lineLimit(1)
+        }
+        .foregroundStyle(color)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(color.opacity(0.09))
+        .clipShape(Capsule())
+        .overlay(Capsule().strokeBorder(color.opacity(0.18), lineWidth: 0.5))
     }
 }
 
@@ -149,7 +167,7 @@ struct CloudflareMetricCard: View {
             .foregroundStyle(AppTheme.textSecondary)
 
             Text(value)
-                .font(.system(size: 24, weight: .semibold, design: .default).monospacedDigit())
+                .font(.title3.weight(.semibold).monospacedDigit())
                 .foregroundStyle(AppTheme.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.65)
@@ -189,43 +207,8 @@ struct CloudflareEmptySection: View {
 }
 
 struct CloudflareLoadingView: View {
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-
-    private var metricColumns: [GridItem] {
-        if horizontalSizeClass == .regular {
-            return AppLayout.adaptiveColumns(
-                for: horizontalSizeClass,
-                regularMinimum: 200,
-                regularMaximum: 320,
-                spacing: 10
-            )
-        }
-        return Array(repeating: GridItem(.flexible(), spacing: 10), count: 3)
-    }
-
     var body: some View {
-        ScrollView {
-            VStack(spacing: 14) {
-                RoundedRectangle(cornerRadius: AppTheme.panelRadius)
-                    .fill(Color.white.opacity(0.05))
-                    .frame(height: 148)
-                LazyVGrid(columns: metricColumns, spacing: 10) {
-                    ForEach(0..<3, id: \.self) { _ in
-                        RoundedRectangle(cornerRadius: AppTheme.panelRadius)
-                            .fill(Color.white.opacity(0.05))
-                            .frame(height: 104)
-                    }
-                }
-                ForEach(0..<4, id: \.self) { _ in
-                    RoundedRectangle(cornerRadius: AppTheme.panelRadius)
-                        .fill(Color.white.opacity(0.045))
-                        .frame(height: 88)
-                }
-            }
-            .padding(AppLayout.pagePadding(for: horizontalSizeClass))
-            .appContentWidth(AppLayout.dashboardMaxWidth, horizontalSizeClass: horizontalSizeClass)
-            .shimmering()
-        }
+        AppDashboardLoadingView(accent: CloudflareStyle.orange)
     }
 }
 

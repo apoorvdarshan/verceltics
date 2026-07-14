@@ -184,6 +184,6 @@ struct RegistrarMark: View {
             .frame(width: size, height: size)
             .background((monochrome ? Color.white : provider.accentColor).opacity(monochrome ? 0.10 : 0.13))
             .clipShape(RoundedRectangle(cornerRadius: size * 0.28, style: .continuous))
-            .accessibilityLabel(provider.displayName)
+            .accessibilityHidden(true)
     }
 }

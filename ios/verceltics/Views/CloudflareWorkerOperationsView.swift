@@ -475,18 +475,21 @@ struct CloudflareWorkerOperationsView: View {
     }
 
     private var warningPanel: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            Label("Some Worker capabilities are unavailable", systemImage: "exclamationmark.triangle.fill")
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(CloudflareStyle.amber)
-            ForEach(viewModel.warnings, id: \.self) { warning in
-                Text(warning)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.38))
-                    .fixedSize(horizontal: false, vertical: true)
+        DisclosureGroup {
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(viewModel.warnings, id: \.self) { warning in
+                    Text(warning)
+                        .font(.footnote)
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
+            .padding(.top, 10)
+        } label: {
+            Label("Some Worker capabilities are unavailable", systemImage: "exclamationmark.triangle.fill")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(CloudflareStyle.amber)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .cloudflarePanel()
     }

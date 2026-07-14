@@ -564,23 +564,25 @@ struct CloudflareDashboardView: View {
     }
 
     private var sectionWarningCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(CloudflareStyle.amber)
-                Text("Some products could not load")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.8))
+        DisclosureGroup {
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(viewModel.sectionWarnings, id: \.self) { warning in
+                    Text(warning)
+                        .font(.footnote)
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
-            ForEach(viewModel.sectionWarnings, id: \.self) { warning in
-                Text(warning)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.35))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            .padding(.top, 10)
+        } label: {
+            Label(
+                "\(viewModel.sectionWarnings.count) product \(viewModel.sectionWarnings.count == 1 ? "issue" : "issues")",
+                systemImage: "exclamationmark.triangle.fill"
+            )
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(CloudflareStyle.amber)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
+        .padding(16)
         .cloudflarePanel()
     }
 
@@ -724,7 +726,7 @@ struct CloudflareDashboardView: View {
         case "active", "ready": CloudflareStyle.green
         case "pending", "initializing", "building": CloudflareStyle.amber
         case "moved", "deactivated", "error", "failed": CloudflareStyle.red
-        default: CloudflareStyle.orange
+        default: AppTheme.textSecondary
         }
     }
 }
