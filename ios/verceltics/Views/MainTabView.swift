@@ -45,18 +45,15 @@ struct MainTabView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            Tab(value: MainTabDestination.hosting) {
-                providerHome()
-                    .id(authManager.activeAccountId)
-            } label: {
-                if let provider = authManager.activeProvider {
-                    Label {
-                        Text(provider.displayName)
-                    } icon: {
-                        ProviderMark(provider: provider, size: 22, monochrome: true)
-                    }
-                } else {
-                    Label("Hosting", systemImage: "server.rack")
+            if let provider = authManager.activeProvider {
+                Tab(provider.displayName, image: provider.logoAssetName, value: MainTabDestination.hosting) {
+                    providerHome()
+                        .id(authManager.activeAccountId)
+                }
+            } else {
+                Tab("Hosting", systemImage: "server.rack", value: MainTabDestination.hosting) {
+                    providerHome()
+                        .id(authManager.activeAccountId)
                 }
             }
 
@@ -65,17 +62,13 @@ struct MainTabView: View {
                     .id(authManager.activeAccountId)
             }
 
-            Tab(value: MainTabDestination.registrars) {
-                RegistrarsView()
-            } label: {
-                if let provider = registrarStore.activeAccount?.provider {
-                    Label {
-                        Text(provider.displayName)
-                    } icon: {
-                        RegistrarMark(provider: provider, size: 22, monochrome: true)
-                    }
-                } else {
-                    Label("Registrars", systemImage: "globe.americas.fill")
+            if let provider = registrarStore.activeAccount?.provider {
+                Tab(provider.displayName, image: provider.logoAssetName, value: MainTabDestination.registrars) {
+                    RegistrarsView()
+                }
+            } else {
+                Tab("Registrars", systemImage: "globe.americas.fill", value: MainTabDestination.registrars) {
+                    RegistrarsView()
                 }
             }
 
