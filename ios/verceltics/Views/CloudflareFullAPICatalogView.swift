@@ -118,25 +118,18 @@ struct CloudflareFullAPICatalogView: View {
     private var catalogHeader: some View {
         VStack(alignment: .leading, spacing: 15) {
             HStack(alignment: .top, spacing: 13) {
-                Image(systemName: "point.3.filled.connected.trianglepath.dotted")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(.black.opacity(0.82))
-                    .frame(width: 48, height: 48)
-                    .background(
-                        LinearGradient(
-                            colors: [CloudflareStyle.orange, CloudflareStyle.amber],
-                            startPoint: .bottomLeading,
-                            endPoint: .topTrailing
-                        )
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                AppIconTile(
+                    icon: "point.3.filled.connected.trianglepath.dotted",
+                    tint: CloudflareStyle.orange,
+                    size: 48
+                )
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Official API directory")
-                        .font(.system(size: 21, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(AppTheme.textPrimary)
                     Text("Generated from Cloudflare’s OpenAPI schema")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.38))
+                        .font(.footnote)
+                        .foregroundStyle(AppTheme.textSecondary)
                 }
                 Spacer()
                 CloudflareStatusPill(text: "COMPLETE", color: CloudflareStyle.green)
@@ -149,8 +142,8 @@ struct CloudflareFullAPICatalogView: View {
                     catalogMetric("PATHS", Set(catalog.operations.map(\.path)).count)
                 }
                 Text("Schema \(String(catalog.sourceCommit.prefix(8))) · OpenAPI \(catalog.openAPIVersion)")
-                    .font(.system(size: 8, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.22))
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(AppTheme.textTertiary)
             }
         }
         .padding(18)
@@ -160,17 +153,17 @@ struct CloudflareFullAPICatalogView: View {
     private func catalogMetric(_ label: String, _ value: Int) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(value.formatted())
-                .font(.system(size: 18, weight: .semibold, design: .default).monospacedDigit())
-                .foregroundStyle(.white)
+                .font(.headline.monospacedDigit())
+                .foregroundStyle(AppTheme.textPrimary)
             Text(label)
-                .font(.system(size: 7, weight: .semibold))
+                .font(.caption2.weight(.semibold))
                 .tracking(0.5)
-                .foregroundStyle(.white.opacity(0.28))
+                .foregroundStyle(AppTheme.textSecondary)
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
-        .background(Color.black.opacity(0.25), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background(AppTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
     }
 
     private var filterRail: some View {
@@ -180,63 +173,69 @@ struct CloudflareFullAPICatalogView: View {
                     filter = item
                 } label: {
                     Text(item.rawValue.uppercased())
-                        .font(.system(size: 9, weight: .semibold))
+                        .font(.caption.weight(.semibold))
                         .tracking(0.6)
-                        .foregroundStyle(filter == item ? .black : .white.opacity(0.45))
+                        .foregroundStyle(filter == item ? .white : AppTheme.textSecondary)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(filter == item ? CloudflareStyle.orange : Color.white.opacity(0.045))
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .frame(minHeight: 44)
+                        .background(filter == item ? AppTheme.signal : AppTheme.surfaceRaised)
+                        .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(6)
-        .background(Color.white.opacity(0.025), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+        .padding(5)
+        .appSurface()
     }
 
     private var tagDirectory: some View {
         VStack(spacing: 0) {
             CloudflareSectionHeader(title: "Product Directory", icon: "square.grid.3x3.fill", count: visibleTags.count)
             Divider().overlay(Color.white.opacity(0.06))
-            ForEach(Array(visibleTags.enumerated()), id: \.element.id) { index, tag in
-                NavigationLink {
-                    if let catalog = viewModel.catalog {
-                        CloudflareAPITagView(
-                            api: api,
-                            accountID: accountID,
-                            zones: zones,
-                            authenticationMode: authenticationMode,
-                            tag: tag.name,
-                            operations: catalog.operations.filter { $0.primaryTag == tag.name }
-                        )
-                    }
-                } label: {
-                    HStack(spacing: 12) {
-                        Text(String(tag.name.prefix(2)).uppercased())
-                            .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                            .foregroundStyle(CloudflareStyle.orange)
-                            .frame(width: 37, height: 37)
-                            .background(CloudflareStyle.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 10))
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(tag.name)
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundStyle(.white.opacity(0.78))
-                            Text("\(tag.operationCount) operations · \(tag.writeCount) writes")
-                                .font(.system(size: 9, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.3))
+            if visibleTags.isEmpty {
+                AppEmptyState(
+                    icon: "line.3.horizontal.decrease.circle",
+                    title: "No product groups",
+                    message: "No Cloudflare product groups match this read/write filter."
+                )
+                .frame(maxWidth: .infinity)
+            } else {
+                ForEach(Array(visibleTags.enumerated()), id: \.element.id) { index, tag in
+                    NavigationLink {
+                        if let catalog = viewModel.catalog {
+                            CloudflareAPITagView(
+                                api: api,
+                                accountID: accountID,
+                                zones: zones,
+                                authenticationMode: authenticationMode,
+                                tag: tag.name,
+                                operations: catalog.operations.filter { $0.primaryTag == tag.name }
+                            )
                         }
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.23))
+                    } label: {
+                        HStack(spacing: 12) {
+                            AppIconTile(icon: "shippingbox", tint: CloudflareStyle.orange, size: 38)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(tag.name)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(AppTheme.textPrimary)
+                                Text("\(tag.operationCount) operations · \(tag.writeCount) writes")
+                                    .font(.caption)
+                                    .foregroundStyle(AppTheme.textSecondary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(AppTheme.textTertiary)
+                        }
+                        .padding(13)
+                        .frame(minHeight: 58)
+                        .contentShape(Rectangle())
                     }
-                    .padding(13)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                if index < visibleTags.count - 1 {
-                    Divider().overlay(Color.white.opacity(0.05)).padding(.leading, 62)
+                    .buttonStyle(.plain)
+                    if index < visibleTags.count - 1 {
+                        Divider().overlay(Color.white.opacity(0.05)).padding(.leading, 62)
+                    }
                 }
             }
         }
@@ -302,26 +301,37 @@ private struct CloudflareAPITagView: View {
         ZStack {
             AppTheme.canvas.ignoresSafeArea()
             ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(Array(visibleOperations.enumerated()), id: \.element.id) { index, operation in
-                        NavigationLink {
-                            CloudflareGeneratedOperationView(
-                                api: api,
-                                accountID: accountID,
-                                zones: zones,
-                                authenticationMode: authenticationMode,
-                                operation: operation
-                            )
-                        } label: {
-                            CloudflareOpenAPIOperationRow(operation: operation)
+                Group {
+                    if visibleOperations.isEmpty {
+                        AppEmptyState(
+                            icon: "magnifyingglass",
+                            title: "No operations found",
+                            message: "Adjust the search or read/write filter for this product group."
+                        )
+                        .frame(maxWidth: .infinity)
+                    } else {
+                        LazyVStack(spacing: 0) {
+                            ForEach(Array(visibleOperations.enumerated()), id: \.element.id) { index, operation in
+                                NavigationLink {
+                                    CloudflareGeneratedOperationView(
+                                        api: api,
+                                        accountID: accountID,
+                                        zones: zones,
+                                        authenticationMode: authenticationMode,
+                                        operation: operation
+                                    )
+                                } label: {
+                                    CloudflareOpenAPIOperationRow(operation: operation)
+                                }
+                                .buttonStyle(.plain)
+                                if index < visibleOperations.count - 1 {
+                                    Divider().overlay(Color.white.opacity(0.05)).padding(.leading, 62)
+                                }
+                            }
                         }
-                        .buttonStyle(.plain)
-                        if index < visibleOperations.count - 1 {
-                            Divider().overlay(Color.white.opacity(0.05)).padding(.leading, 62)
-                        }
+                        .cloudflarePanel()
                     }
                 }
-                .cloudflarePanel()
                 .padding()
             }
         }
@@ -336,7 +346,7 @@ private struct CloudflareAPITagView: View {
                         Button(value.rawValue) { filter = value }
                     }
                 }
-                .font(.system(size: 11, weight: .bold))
+                .font(.subheadline.weight(.semibold))
             }
         }
         .tint(CloudflareStyle.orange)
@@ -349,31 +359,32 @@ private struct CloudflareOpenAPIOperationRow: View {
     var body: some View {
         HStack(spacing: 11) {
             Text(operation.method.rawValue)
-                .font(.system(size: 8, weight: .semibold, design: .monospaced))
+                .font(.caption2.weight(.semibold).monospaced())
                 .foregroundStyle(methodColor)
-                .frame(width: 39, height: 28)
+                .frame(width: 44, height: 32)
                 .background(methodColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 7))
             VStack(alignment: .leading, spacing: 3) {
                 Text(operation.summary)
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(.white.opacity(operation.deprecated ? 0.42 : 0.78))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(operation.deprecated ? AppTheme.textTertiary : AppTheme.textPrimary)
                     .lineLimit(2)
                 Text(operation.path)
-                    .font(.system(size: 8, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.27))
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(AppTheme.textSecondary)
                     .lineLimit(1)
             }
             Spacer(minLength: 6)
             if operation.deprecated {
                 Text("OLD")
-                    .font(.system(size: 7, weight: .semibold))
+                    .font(.caption2.weight(.semibold))
                     .foregroundStyle(CloudflareStyle.amber)
             }
             Image(systemName: "chevron.right")
-                .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.22))
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AppTheme.textTertiary)
         }
         .padding(13)
+        .frame(minHeight: 58)
         .contentShape(Rectangle())
     }
 

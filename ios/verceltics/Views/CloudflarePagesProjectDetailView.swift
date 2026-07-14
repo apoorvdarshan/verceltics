@@ -183,18 +183,7 @@ struct CloudflarePagesProjectDetailView: View {
     private var projectHeader: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 13) {
-                Image(systemName: "doc.badge.gearshape.fill")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(.black.opacity(0.82))
-                    .frame(width: 46, height: 46)
-                    .background(
-                        LinearGradient(
-                            colors: [CloudflareStyle.orange, CloudflareStyle.amber],
-                            startPoint: .bottomLeading,
-                            endPoint: .topTrailing
-                        )
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                AppIconTile(icon: "doc.badge.gearshape.fill", tint: CloudflareStyle.orange, size: 46)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(project.name)

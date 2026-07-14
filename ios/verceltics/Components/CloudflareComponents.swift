@@ -30,24 +30,20 @@ struct CloudflareSectionHeader: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(CloudflareStyle.orange)
-                .frame(width: 22, height: 22)
-                .background(CloudflareStyle.orange.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            AppIconTile(icon: icon, tint: CloudflareStyle.orange, size: 28)
 
             Text(title)
-                .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(.white)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppTheme.textPrimary)
+                .lineLimit(2)
 
             if let count {
                 Text(count.formatted())
-                    .font(.system(size: 10, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(.white.opacity(0.4))
+                    .font(.caption2.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(AppTheme.textSecondary)
                     .padding(.horizontal, 7)
                     .padding(.vertical, 3)
-                    .background(Color.white.opacity(0.06))
+                    .background(AppTheme.surfaceRaised)
                     .clipShape(Capsule())
             }
 
@@ -55,9 +51,10 @@ struct CloudflareSectionHeader: View {
 
             if let actionTitle, let action {
                 Button(actionTitle, action: action)
-                    .font(.system(size: 11, weight: .bold))
+                    .font(.footnote.weight(.semibold))
                     .foregroundStyle(CloudflareStyle.orange)
                     .buttonStyle(.plain)
+                    .frame(minHeight: 44)
             }
         }
         .padding(.horizontal, 16)
@@ -74,24 +71,19 @@ struct CloudflareResourceRow<Trailing: View>: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(tint)
-                .frame(width: 36, height: 36)
-                .background(tint.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            AppIconTile(icon: icon, tint: tint)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.88))
-                    .lineLimit(1)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .lineLimit(2)
 
                 if let subtitle, !subtitle.isEmpty {
                     Text(subtitle)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.38))
-                        .lineLimit(1)
+                        .font(.footnote)
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .lineLimit(2)
                         .truncationMode(.middle)
                 }
             }
@@ -101,6 +93,7 @@ struct CloudflareResourceRow<Trailing: View>: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
+        .frame(minHeight: 58)
         .contentShape(Rectangle())
     }
 }
@@ -108,8 +101,8 @@ struct CloudflareResourceRow<Trailing: View>: View {
 struct CloudflareChevron: View {
     var body: some View {
         Image(systemName: "chevron.right")
-            .font(.system(size: 10, weight: .semibold))
-            .foregroundStyle(.white.opacity(0.2))
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(AppTheme.textTertiary)
     }
 }
 
@@ -127,7 +120,7 @@ struct CloudflareStatusPill: View {
 
     var body: some View {
         Text(text)
-            .font(.system(size: 9, weight: .semibold))
+            .font(.caption2.weight(.semibold))
             .foregroundStyle(color)
             .lineLimit(1)
             .padding(.horizontal, 8)
@@ -148,16 +141,16 @@ struct CloudflareMetricCard: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 6) {
                 Image(systemName: icon)
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.caption2.weight(.semibold))
                 Text(title.uppercased())
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.caption2.weight(.semibold))
                     .tracking(0.8)
             }
-            .foregroundStyle(.white.opacity(0.42))
+            .foregroundStyle(AppTheme.textSecondary)
 
             Text(value)
                 .font(.system(size: 24, weight: .semibold, design: .default).monospacedDigit())
-                .foregroundStyle(.white)
+                .foregroundStyle(AppTheme.textPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.65)
                 .contentTransition(.numericText())
@@ -179,15 +172,13 @@ struct CloudflareEmptySection: View {
 
     var body: some View {
         VStack(spacing: 9) {
-            Image(systemName: icon)
-                .font(.system(size: 20, weight: .bold))
-                .foregroundStyle(.white.opacity(0.22))
+            AppIconTile(icon: icon, tint: AppTheme.textTertiary, size: 40)
             Text(title)
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(.white.opacity(0.6))
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppTheme.textPrimary)
             Text(message)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.white.opacity(0.32))
+                .font(.footnote)
+                .foregroundStyle(AppTheme.textSecondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -201,18 +192,18 @@ struct CloudflareLoadingView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 14) {
-                RoundedRectangle(cornerRadius: 20)
+                RoundedRectangle(cornerRadius: AppTheme.panelRadius)
                     .fill(Color.white.opacity(0.05))
                     .frame(height: 148)
                 HStack(spacing: 10) {
                     ForEach(0..<3, id: \.self) { _ in
-                        RoundedRectangle(cornerRadius: 18)
+                        RoundedRectangle(cornerRadius: AppTheme.panelRadius)
                             .fill(Color.white.opacity(0.05))
                             .frame(height: 104)
                     }
                 }
                 ForEach(0..<4, id: \.self) { _ in
-                    RoundedRectangle(cornerRadius: 18)
+                    RoundedRectangle(cornerRadius: AppTheme.panelRadius)
                         .fill(Color.white.opacity(0.045))
                         .frame(height: 88)
                 }
@@ -228,32 +219,13 @@ struct CloudflareErrorView: View {
     let retry: () -> Void
 
     var body: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 30, weight: .bold))
-                .foregroundStyle(CloudflareStyle.orange)
-
-            Text("Cloudflare couldn’t load")
-                .font(.system(size: 18, weight: .bold))
-                .foregroundStyle(.white)
-
-            Text(message)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.white.opacity(0.42))
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Button("Try Again", action: retry)
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(.black)
-                .padding(.horizontal, 18)
-                .padding(.vertical, 10)
-                .background(CloudflareStyle.orange)
-                .clipShape(Capsule())
-                .buttonStyle(PressScaleButtonStyle())
-        }
-        .padding(28)
-        .frame(maxWidth: 420)
+        AppEmptyState(
+            icon: "exclamationmark.triangle.fill",
+            title: "Cloudflare couldn’t load",
+            message: message,
+            actionTitle: "Try again",
+            action: retry
+        )
     }
 }
 
@@ -267,44 +239,34 @@ struct CloudflareEdgeHeader: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack(alignment: .top, spacing: 13) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: [CloudflareStyle.orange, CloudflareStyle.amber],
-                                startPoint: .bottomLeading,
-                                endPoint: .topTrailing
-                            )
-                        )
-                    Image(systemName: "cloud.fill")
-                        .font(.system(size: 21, weight: .bold))
-                        .foregroundStyle(.black.opacity(0.82))
-                }
+                ProviderMark(provider: .cloudflare, size: 25)
+                    .frame(width: 46, height: 46)
+                    .background(CloudflareStyle.orange.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous))
                 .frame(width: 46, height: 46)
-                .shadow(color: CloudflareStyle.orange.opacity(0.22), radius: 12, y: 5)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(accountName)
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .lineLimit(2)
                     Text(email)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.36))
+                        .font(.footnote)
+                        .foregroundStyle(AppTheme.textSecondary)
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
 
                 Spacer(minLength: 8)
 
-                CloudflareStatusPill(text: "CONNECTED", color: CloudflareStyle.green)
+                AppStatusBadge(text: "Connected", tone: .success)
             }
 
             HStack(spacing: 0) {
                 edgeNode(value: zones, title: "ZONES", icon: "globe")
-                edgeLink
+                Divider().overlay(AppTheme.stroke).padding(.vertical, 4)
                 edgeNode(value: pages, title: "PAGES", icon: "doc.badge.gearshape")
-                edgeLink
+                Divider().overlay(AppTheme.stroke).padding(.vertical, 4)
                 edgeNode(value: workers, title: "WORKERS", icon: "shippingbox.fill")
             }
         }
@@ -316,27 +278,19 @@ struct CloudflareEdgeHeader: View {
         VStack(spacing: 5) {
             HStack(spacing: 5) {
                 Image(systemName: icon)
-                    .font(.system(size: 8, weight: .semibold))
+                    .font(.caption2.weight(.semibold))
                 Text(value.formatted())
-                    .font(.system(size: 16, weight: .semibold, design: .default).monospacedDigit())
+                    .font(.headline.monospacedDigit())
             }
-            .foregroundStyle(.white.opacity(0.88))
+            .foregroundStyle(AppTheme.textPrimary)
             Text(title)
-                .font(.system(size: 8, weight: .semibold))
+                .font(.caption2.weight(.semibold))
                 .tracking(0.7)
-                .foregroundStyle(.white.opacity(0.3))
-        }
-        .frame(minWidth: 62)
-    }
-
-    private var edgeLink: some View {
-        HStack(spacing: 3) {
-            Circle().fill(CloudflareStyle.orange.opacity(0.65)).frame(width: 3, height: 3)
-            Rectangle().fill(CloudflareStyle.orange.opacity(0.22)).frame(height: 1)
-            Circle().fill(CloudflareStyle.orange.opacity(0.65)).frame(width: 3, height: 3)
+                .foregroundStyle(AppTheme.textSecondary)
         }
         .frame(maxWidth: .infinity)
     }
+
 }
 
 struct CloudflareWriteNotice: View {
@@ -347,11 +301,11 @@ struct CloudflareWriteNotice: View {
                 .foregroundStyle(CloudflareStyle.orange)
             VStack(alignment: .leading, spacing: 3) {
                 Text("Write access is guarded")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.78))
-                Text("Changes use your Global API Key. Destructive actions always ask for confirmation.")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.34))
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                Text("Changes use the connected Cloudflare credential. Destructive actions always ask for confirmation.")
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
@@ -389,11 +343,11 @@ struct CloudflareActionButton: View {
                         .font(.system(size: 10, weight: .semibold))
                 }
                 Text(title)
-                    .font(.system(size: 12, weight: .bold))
+                    .font(.footnote.weight(.semibold))
             }
             .foregroundStyle(tint)
             .padding(.horizontal, 12)
-            .padding(.vertical, 9)
+            .frame(minHeight: 44)
             .background(tint.opacity(0.10))
             .clipShape(Capsule())
             .overlay(Capsule().strokeBorder(tint.opacity(0.16), lineWidth: 0.5))
@@ -415,9 +369,9 @@ struct CloudflareActionResultBanner: View {
                 .font(.system(size: 12, weight: .bold))
                 .foregroundStyle(tint)
             Text(message)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.72))
-                .lineLimit(2)
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(AppTheme.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 14)
@@ -435,22 +389,22 @@ struct CloudflareDetailRow: View {
     let icon: String
     let title: String
     let value: String
-    var valueColor: Color = .white.opacity(0.76)
+    var valueColor: Color = AppTheme.textPrimary
 
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: icon)
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.32))
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AppTheme.textTertiary)
                 .frame(width: 18)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title.uppercased())
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.caption2.weight(.semibold))
                     .tracking(0.7)
-                    .foregroundStyle(.white.opacity(0.32))
+                    .foregroundStyle(AppTheme.textSecondary)
                 Text(value)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.subheadline.weight(.medium))
                     .foregroundStyle(valueColor)
                     .lineLimit(2)
                     .truncationMode(.middle)

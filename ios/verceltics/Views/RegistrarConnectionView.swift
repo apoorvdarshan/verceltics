@@ -44,12 +44,12 @@ struct RegistrarConnectionView: View {
                     VStack(spacing: 8) {
                         Image(systemName: "globe.americas.fill")
                             .font(.system(size: 38, weight: .bold))
-                            .foregroundStyle(Color(red: 0.30, green: 0.67, blue: 1.0))
+                            .foregroundStyle(AppTheme.signal)
                         Text("Connect a registrar")
-                            .font(.system(size: 25, weight: .semibold))
+                            .font(.title2.weight(.semibold))
                         Text("Domains stay separate from hosting accounts")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.42))
+                            .font(.footnote)
+                            .foregroundStyle(AppTheme.textSecondary)
                     }
                     .padding(.vertical, 28)
 
@@ -62,16 +62,16 @@ struct RegistrarConnectionView: View {
                                 RegistrarMark(provider: provider, size: 42)
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(provider.displayName)
-                                        .font(.system(size: 15, weight: .semibold))
+                                        .font(.headline)
                                     Text(provider.apiDescription)
-                                        .font(.system(size: 10, weight: .semibold))
-                                        .foregroundStyle(.white.opacity(0.40))
-                                        .lineLimit(1)
+                                        .font(.footnote)
+                                        .foregroundStyle(AppTheme.textSecondary)
+                                        .lineLimit(2)
                                 }
                                 Spacer()
                                 Image(systemName: "arrow.right")
                                     .font(.system(size: 11, weight: .semibold))
-                                    .foregroundStyle(.white.opacity(0.30))
+                                    .foregroundStyle(AppTheme.textTertiary)
                             }
                             .foregroundStyle(.white)
                             .padding(14)
@@ -116,13 +116,13 @@ struct RegistrarConnectionView: View {
                             }
                             Spacer()
                         }
-                        RegistrarMark(provider: provider, size: 82)
+                        RegistrarMark(provider: provider, size: 72)
                         VStack(spacing: 6) {
                             Text("Connect \(provider.displayName)")
-                                .font(.system(size: 25, weight: .semibold))
+                                .font(.title2.weight(.semibold))
                             Text(provider.apiDescription)
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(.white.opacity(0.42))
+                                .font(.footnote)
+                                .foregroundStyle(AppTheme.textSecondary)
                                 .multilineTextAlignment(.center)
                         }
                     }
@@ -130,11 +130,14 @@ struct RegistrarConnectionView: View {
                     .padding(.top, 18)
 
                     if let error = store.error {
-                        Label(error, systemImage: "exclamationmark.triangle.fill")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.red)
-                            .padding(.horizontal, 20)
-                            .padding(.top, 18)
+                        AppFeedbackBanner(
+                            title: "Connection failed",
+                            message: error,
+                            icon: "exclamationmark.circle.fill",
+                            tint: AppTheme.danger
+                        )
+                        .padding(.horizontal, 20)
+                        .padding(.top, 18)
                     }
 
                     VStack(spacing: 14) {
@@ -144,12 +147,11 @@ struct RegistrarConnectionView: View {
                             if let url = provider.credentialURL { UIApplication.shared.open(url) }
                         } label: {
                             Label("Open \(provider.displayName) API settings", systemImage: "arrow.up.right")
-                                .font(.system(size: 13, weight: .bold))
+                                .font(.footnote.weight(.semibold))
                                 .frame(maxWidth: .infinity)
-                                .frame(height: 46)
-                                .foregroundStyle(.white.opacity(0.82))
-                                .background(Color.white.opacity(0.06))
-                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                .frame(minHeight: 46)
+                                .foregroundStyle(AppTheme.textPrimary)
+                                .appSurface(raised: true)
                         }
                         .buttonStyle(PressScaleButtonStyle())
 
@@ -167,8 +169,8 @@ struct RegistrarConnectionView: View {
                             }
                             .frame(maxWidth: .infinity)
                             .frame(height: 54)
-                            .background(canConnect(provider) ? provider.accentColor.opacity(0.85) : Color.white.opacity(0.12))
-                            .foregroundStyle(.white)
+                            .background(canConnect(provider) ? AppTheme.signal : AppTheme.surfaceRaised)
+                            .foregroundStyle(canConnect(provider) ? .white : AppTheme.textTertiary)
                             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         }
                         .buttonStyle(PressScaleButtonStyle())
@@ -193,15 +195,15 @@ struct RegistrarConnectionView: View {
     private func securityCard(_ provider: RegistrarProvider) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Device-only credentials", systemImage: "lock.shield.fill")
-                .font(.system(size: 13, weight: .semibold))
+                .font(.subheadline.weight(.semibold))
                 .foregroundStyle(provider.accentColor)
             Text(connectionNote(provider))
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.48))
+                .font(.footnote)
+                .foregroundStyle(AppTheme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
             Text("Credentials are stored in this iPhone’s Keychain and sent only to the registrar’s official API.")
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.white.opacity(0.34))
+                .font(.caption)
+                .foregroundStyle(AppTheme.textTertiary)
         }
         .padding(17)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -231,20 +233,29 @@ struct RegistrarConnectionView: View {
     }
 
     private func field(_ placeholder: String, text: Binding<String>, field: Field, secure: Bool = false) -> some View {
-        Group {
-            if secure { SecureField(placeholder, text: text) }
-            else { TextField(placeholder, text: text) }
+        VStack(alignment: .leading, spacing: 7) {
+            Text(placeholder)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AppTheme.textSecondary)
+            Group {
+                if secure { SecureField("Enter value", text: text) }
+                else { TextField("Enter value", text: text) }
+            }
+            .font(.body.monospaced())
+            .textFieldStyle(.plain)
+            .padding(15)
+            .background(AppTheme.surfaceRaised)
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous).strokeBorder(focusedField == field ? providerFocusColor : AppTheme.stroke, lineWidth: focusedField == field ? 1 : 0.5))
+            .foregroundStyle(.white)
+            .focused($focusedField, equals: field)
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
         }
-        .font(.system(size: 14, design: .monospaced))
-        .textFieldStyle(.plain)
-        .padding(15)
-        .background(Color.white.opacity(0.055))
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.white.opacity(focusedField == field ? 0.28 : 0.08), lineWidth: focusedField == field ? 1 : 0.5))
-        .foregroundStyle(.white)
-        .focused($focusedField, equals: field)
-        .textInputAutocapitalization(.never)
-        .autocorrectionDisabled()
+    }
+
+    private var providerFocusColor: Color {
+        selectedProvider?.accentColor.opacity(0.72) ?? AppTheme.signal
     }
 
     private func connect(_ provider: RegistrarProvider) {

@@ -86,18 +86,7 @@ struct CloudflareProductCenterView: View {
     private var commandHeader: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 13) {
-                Image(systemName: "cloud.bolt.rain.fill")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(.black.opacity(0.82))
-                    .frame(width: 48, height: 48)
-                    .background(
-                        LinearGradient(
-                            colors: [CloudflareStyle.orange, CloudflareStyle.amber],
-                            startPoint: .bottomLeading,
-                            endPoint: .topTrailing
-                        )
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                AppIconTile(icon: "cloud.bolt.rain.fill", tint: CloudflareStyle.orange, size: 48)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Cloudflare control plane")

@@ -3,6 +3,7 @@ import Charts
 
 struct AnalyticsChart: View {
     let data: [TimeseriesPoint]
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selectedMetric: Metric = .visitors
     @State private var selectedPoint: (date: Date, value: Int)?
 
@@ -151,7 +152,7 @@ struct AnalyticsChart: View {
                     }
                 }
             }
-            .animation(.snappy(duration: 0.18), value: selectedPoint?.date)
+            .animation(reduceMotion ? nil : .snappy(duration: 0.18), value: selectedPoint?.date)
         }
     }
 
@@ -254,13 +255,17 @@ struct AnalyticsChart: View {
                                 let closest = filteredData.min(by: {
                                     abs($0.date.timeIntervalSince(date)) < abs($1.date.timeIntervalSince(date))
                                 })
-                                withAnimation(.snappy(duration: 0.15)) {
+                                if reduceMotion {
                                     selectedPoint = closest
+                                } else {
+                                    withAnimation(.snappy(duration: 0.15)) { selectedPoint = closest }
                                 }
                             }
                             .onEnded { _ in
-                                withAnimation(.easeOut(duration: 0.35)) {
+                                if reduceMotion {
                                     selectedPoint = nil
+                                } else {
+                                    withAnimation(.easeOut(duration: 0.35)) { selectedPoint = nil }
                                 }
                             }
                     )
@@ -268,6 +273,12 @@ struct AnalyticsChart: View {
         }
         .sensoryFeedback(.selection, trigger: selectedPoint?.date)
         .onChange(of: selectedMetric) { _, _ in selectedPoint = nil }
+        .onChange(of: availableMetrics) { _, metrics in
+            if !metrics.contains(selectedMetric) {
+                selectedMetric = metrics.first ?? .visitors
+                selectedPoint = nil
+            }
+        }
     }
 
     private func formatted(_ value: Int) -> String {

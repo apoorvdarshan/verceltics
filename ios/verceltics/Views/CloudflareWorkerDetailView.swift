@@ -150,27 +150,16 @@ struct CloudflareWorkerDetailView: View {
     private var workerHeader: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 13) {
-                Image(systemName: "shippingbox.fill")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(.black.opacity(0.82))
-                    .frame(width: 46, height: 46)
-                    .background(
-                        LinearGradient(
-                            colors: [CloudflareStyle.orange, CloudflareStyle.amber],
-                            startPoint: .bottomLeading,
-                            endPoint: .topTrailing
-                        )
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                AppIconTile(icon: "shippingbox.fill", tint: CloudflareStyle.orange, size: 46)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(worker.id)
-                        .font(.system(size: 21, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(AppTheme.textPrimary)
                         .lineLimit(1)
                     Text(worker.hasModules == true ? "Modules Worker" : "Service Worker")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.38))
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(AppTheme.textSecondary)
                 }
 
                 Spacer(minLength: 8)
@@ -275,7 +264,7 @@ struct CloudflareWorkerDetailView: View {
                                 UIApplication.shared.open(url)
                             } label: {
                                 Image(systemName: "arrow.up.right")
-                                    .font(.system(size: 11, weight: .semibold))
+                                    .font(.caption.weight(.semibold))
                                     .foregroundStyle(CloudflareStyle.orange)
                             }
                             .buttonStyle(.plain)
@@ -331,7 +320,7 @@ struct CloudflareWorkerDetailView: View {
     private func workerDeploymentRow(_ deployment: CloudflareWorkerDeployment) -> some View {
         HStack(spacing: 12) {
             Image(systemName: "square.stack.3d.up.fill")
-                .font(.system(size: 12, weight: .semibold))
+                .font(.caption.weight(.semibold))
                 .foregroundStyle(CloudflareStyle.green)
                 .frame(width: 36, height: 36)
                 .background(CloudflareStyle.green.opacity(0.11))
@@ -339,11 +328,11 @@ struct CloudflareWorkerDetailView: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(String(deployment.id.prefix(14)))
-                    .font(.system(size: 13, weight: .bold, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.84))
+                    .font(.system(.subheadline, design: .monospaced, weight: .semibold))
+                    .foregroundStyle(AppTheme.textPrimary)
                 Text(deploymentSubtitle(deployment))
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.34))
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.textSecondary)
                     .lineLimit(1)
             }
 
@@ -360,9 +349,9 @@ struct CloudflareWorkerDetailView: View {
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.45))
-                        .frame(width: 34, height: 34)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(AppTheme.textTertiary)
+                        .frame(width: 44, height: 44)
                 }
             }
         }
@@ -376,12 +365,12 @@ struct CloudflareWorkerDetailView: View {
                 Image(systemName: "exclamationmark.shield.fill")
                     .foregroundStyle(CloudflareStyle.red)
                 Text("Danger zone")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(.white)
+                    .font(.headline)
+                    .foregroundStyle(AppTheme.textPrimary)
             }
             Text("Deleting the Worker removes the script from Cloudflare and stops traffic routed to it.")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.white.opacity(0.35))
+                .font(.footnote)
+                .foregroundStyle(AppTheme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
             CloudflareActionButton(
                 title: "Delete Worker",
@@ -419,10 +408,10 @@ struct CloudflareWorkerDetailView: View {
             UIApplication.shared.open(url)
         } label: {
             HStack(spacing: 7) {
-                Image(systemName: icon).font(.system(size: 9, weight: .semibold))
-                Text(title).font(.system(size: 12, weight: .bold))
+                Image(systemName: icon).font(.caption.weight(.semibold))
+                Text(title).font(.subheadline.weight(.semibold))
             }
-            .foregroundStyle(.white.opacity(0.78))
+            .foregroundStyle(AppTheme.textPrimary)
             .padding(.horizontal, 12)
             .padding(.vertical, 9)
             .background(Color.white.opacity(0.07))

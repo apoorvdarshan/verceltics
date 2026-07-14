@@ -69,13 +69,13 @@ struct DeploymentDetailView: View {
 
                 VStack(alignment: .leading, spacing: 5) {
                     Text(project.name)
-                        .font(.system(size: 23, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .font(.title2.weight(.semibold))
+                        .foregroundStyle(AppTheme.textPrimary)
                         .lineLimit(1)
 
                     Text(deployment.url ?? project.primaryDomain ?? "Deployment")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.42))
+                        .font(.footnote)
+                        .foregroundStyle(AppTheme.textSecondary)
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
@@ -138,10 +138,10 @@ struct DeploymentDetailView: View {
             if vm.isLoadingEvents {
                 VStack(spacing: 12) {
                     ProgressView()
-                        .tint(.white.opacity(0.7))
+                        .tint(AppTheme.textSecondary)
                     Text("Loading events")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.35))
+                        .font(.footnote)
+                        .foregroundStyle(AppTheme.textSecondary)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 32)
@@ -149,10 +149,10 @@ struct DeploymentDetailView: View {
                 VStack(spacing: 10) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 18, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.25))
+                        .foregroundStyle(AppTheme.warning)
                     Text(error)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.35))
+                        .font(.footnote)
+                        .foregroundStyle(AppTheme.textSecondary)
                         .multilineTextAlignment(.center)
                 }
                 .frame(maxWidth: .infinity)
@@ -160,8 +160,8 @@ struct DeploymentDetailView: View {
                 .padding(.vertical, 28)
             } else if vm.events.isEmpty {
                 Text("No build events returned")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.3))
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.textSecondary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 30)
             } else {
@@ -192,16 +192,11 @@ struct DeploymentDetailView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
-                Image(systemName: icon)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.blue)
-                    .frame(width: 22, height: 22)
-                    .background(Color.blue.opacity(0.12))
-                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                AppIconTile(icon: icon, tint: AppTheme.signal, size: 28)
 
                 Text(title)
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(.white)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.textPrimary)
 
                 Spacer()
             }
@@ -218,20 +213,20 @@ struct DeploymentDetailView: View {
     private func detailRow(icon: String, title: String, value: String) -> some View {
         HStack(spacing: 10) {
             Image(systemName: icon)
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.35))
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AppTheme.textTertiary)
                 .frame(width: 18)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.35))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(AppTheme.textSecondary)
                     .textCase(.uppercase)
                     .tracking(0.7)
 
                 Text(value)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.78))
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(AppTheme.textPrimary)
                     .lineLimit(2)
                     .truncationMode(.middle)
             }
@@ -248,24 +243,23 @@ struct DeploymentDetailView: View {
                 .fill(eventColor(event))
                 .frame(width: 7, height: 7)
                 .padding(.top, 7)
-                .shadow(color: eventColor(event).opacity(0.45), radius: 3)
 
             VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 7) {
                     Text(event.type)
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.caption2.weight(.semibold))
                         .foregroundStyle(eventColor(event))
                         .textCase(.uppercase)
                         .lineLimit(1)
 
                     Text(event.date.formatted(.dateTime.hour().minute().second()))
-                        .font(.system(size: 10, weight: .semibold).monospacedDigit())
-                        .foregroundStyle(.white.opacity(0.32))
+                        .font(.caption2.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(AppTheme.textSecondary)
                 }
 
                 Text(event.message)
-                    .font(.system(size: 12, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.72))
+                    .font(.footnote.monospaced())
+                    .foregroundStyle(AppTheme.textPrimary)
                     .lineLimit(4)
                     .textSelection(.enabled)
             }
@@ -289,7 +283,7 @@ struct DeploymentDetailView: View {
             .foregroundStyle(.white)
             .padding(.horizontal, 13)
             .padding(.vertical, 9)
-            .background(Color.white.opacity(0.08))
+            .background(AppTheme.surfaceRaised)
             .clipShape(Capsule())
             .overlay(Capsule().strokeBorder(Color.white.opacity(0.10), lineWidth: 0.5))
         }
@@ -297,73 +291,33 @@ struct DeploymentDetailView: View {
     }
 
     private func statusPill(_ state: String) -> some View {
-        Text(state.capitalized)
-            .font(.system(size: 10, weight: .semibold))
-            .foregroundStyle(statusColor(state))
-            .padding(.horizontal, 9)
-            .padding(.vertical, 5)
-            .background(statusColor(state).opacity(0.12))
-            .clipShape(Capsule())
-            .overlay(Capsule().strokeBorder(statusColor(state).opacity(0.20), lineWidth: 0.5))
+        AppStatusBadge(text: state.capitalized, tone: .status(state))
     }
 
     private func eventColor(_ event: DeploymentEvent) -> Color {
         if let statusCode = event.statusCode, statusCode.hasPrefix("5") {
-            return Color(red: 1.0, green: 0.35, blue: 0.35)
+            return AppTheme.danger
         }
 
         switch event.type.uppercased() {
         case "ERROR", "FATAL", "WARNING":
-            return Color(red: 1.0, green: 0.35, blue: 0.35)
+            return AppTheme.danger
         case "READY", "DONE", "COMPLETE":
-            return Color(red: 0.30, green: 0.85, blue: 0.55)
+            return AppTheme.success
         case "BUILDING", "INITIALIZING", "COMMAND":
-            return .blue
+            return AppTheme.signal
         default:
-            return .white.opacity(0.45)
+            return AppTheme.textSecondary
         }
     }
 
     private func statusColor(_ state: String) -> Color {
-        switch state.uppercased() {
-        case "READY": Color(red: 0.30, green: 0.85, blue: 0.55)
-        case "ERROR", "FAILED": Color(red: 1.0, green: 0.35, blue: 0.35)
-        case "BUILDING", "INITIALIZING": Color.blue
-        case "QUEUED", "PENDING": Color(red: 1.0, green: 0.72, blue: 0.35)
-        case "CANCELED", "CANCELLED": Color.white.opacity(0.35)
-        default: Color.white.opacity(0.45)
-        }
+        AppStatusTone.status(state).color
     }
 }
 
 private extension View {
     func deploymentPanel() -> some View {
-        self
-            .background(
-                ZStack {
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.06), Color.white.opacity(0.02)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.04), .clear],
-                        startPoint: .top,
-                        endPoint: .center
-                    )
-                }
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(
-                        LinearGradient(
-                            colors: [Color.white.opacity(0.12), Color.white.opacity(0.04)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        ),
-                        lineWidth: 0.5
-                    )
-            )
+        appSurface()
     }
 }

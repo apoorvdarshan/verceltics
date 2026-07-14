@@ -74,22 +74,28 @@ struct ProjectsView: View {
 
                 if vm.isLoading {
                     ProjectsSkeletonView()
-                } else if let error = vm.error {
+                } else if let error = vm.error, vm.projects.isEmpty {
                     ErrorStateView(message: error) {
                         Task { await loadProjects() }
                     }
                 } else if vm.projects.isEmpty {
                     EmptyStateView(
                         icon: "folder",
-                        title: "No Projects",
-                        subtitle: "You don't have any Vercel projects yet."
-                    )
+                        title: "No projects",
+                        subtitle: "Create a Vercel project, then refresh this screen.",
+                        actionTitle: "Open Vercel"
+                    ) {
+                        if let url = URL(string: "https://vercel.com/new") {
+                            UIApplication.shared.open(url)
+                        }
+                    }
                 } else if filteredProjects.isEmpty {
                     EmptyStateView(
                         icon: "magnifyingglass",
                         title: "No matches",
-                        subtitle: "Nothing in your projects matches \u{201C}\(searchText)\u{201D}."
-                    )
+                        subtitle: "Nothing in your projects matches \u{201C}\(searchText)\u{201D}.",
+                        actionTitle: "Clear search"
+                    ) { searchText = "" }
                 } else {
                     projectsList
                 }
@@ -136,44 +142,27 @@ struct ProjectsView: View {
 
     private var projectsList: some View {
         ScrollView {
-            LazyVGrid(columns: gridColumns, spacing: 12) {
-                ForEach(filteredProjects) { project in
-                    let idx = filteredProjects.firstIndex(where: { $0.id == project.id }) ?? 0
-                    Button {
-                        openProject(project)
-                    } label: {
-                        ProjectCard(project: project, appearDelay: min(Double(idx), 11) * 0.04)
+            VStack(spacing: 12) {
+                if let error = vm.error {
+                    AppFeedbackBanner(
+                        title: "Couldn’t refresh projects",
+                        message: error,
+                        actionTitle: "Try again"
+                    ) {
+                        Task { await refreshProjects() }
                     }
-                    .buttonStyle(PressScaleButtonStyle())
-                    .contextMenu {
-                        if let domain = project.primaryDomain, let url = URL(string: "https://\(domain)") {
-                            Button {
-                                UIApplication.shared.open(url)
-                            } label: {
-                                Label("Open Website", systemImage: "globe")
-                            }
+                }
 
-                            Button {
-                                UIPasteboard.general.string = "https://\(domain)"
-                            } label: {
-                                Label("Copy URL", systemImage: "doc.on.doc")
-                            }
-                        }
-                        
-                        if let url = URL(string: "https://vercel.com/\(authManager.activeAccount?.name ?? "")/\(project.name)") {
-                            Button {
-                                UIApplication.shared.open(url)
-                            } label: {
-                                Label("View on Vercel", systemImage: "triangle.fill")
-                            }
-                        }
-                        
-                        Divider()
-                        
+                LazyVGrid(columns: gridColumns, spacing: 12) {
+                    ForEach(filteredProjects) { project in
                         Button {
                             openProject(project)
                         } label: {
-                            Label("View Analytics", systemImage: "chart.bar.fill")
+                            ProjectCard(project: project)
+                        }
+                        .buttonStyle(PressScaleButtonStyle())
+                        .contextMenu {
+                            projectContextMenu(project)
                         }
                     }
                 }
@@ -184,6 +173,29 @@ struct ProjectsView: View {
             .frame(maxWidth: .infinity)
         }
         .refreshable { await refreshProjects() }
+    }
+
+    @ViewBuilder
+    private func projectContextMenu(_ project: Project) -> some View {
+        if let domain = project.primaryDomain, let url = URL(string: "https://\(domain)") {
+            Button { UIApplication.shared.open(url) } label: {
+                Label("Open website", systemImage: "globe")
+            }
+            Button { UIPasteboard.general.string = "https://\(domain)" } label: {
+                Label("Copy URL", systemImage: "doc.on.doc")
+            }
+        }
+
+        if let url = URL(string: "https://vercel.com/\(authManager.activeAccount?.name ?? "")/\(project.name)") {
+            Button { UIApplication.shared.open(url) } label: {
+                Label("View on Vercel", systemImage: "triangle.fill")
+            }
+        }
+
+        Divider()
+        Button { openProject(project) } label: {
+            Label("View analytics", systemImage: "chart.bar.fill")
+        }
     }
 
     private func openProject(_ project: Project) {
@@ -223,8 +235,8 @@ struct ProjectsView: View {
 
 struct ProjectCard: View {
     let project: Project
-    var appearDelay: Double = 0
     @State private var pulse = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var isFreshDeploy: Bool {
         guard let date = project.lastDeployment?.date else { return false }
@@ -264,24 +276,24 @@ struct ProjectCard: View {
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 7) {
                         Text(project.name)
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundStyle(.white)
+                            .font(.headline)
+                            .foregroundStyle(AppTheme.textPrimary)
                             .lineLimit(1)
 
                         if isFreshDeploy {
                             Circle()
                                 .fill(Color(red: 0.30, green: 0.85, blue: 0.55))
                                 .frame(width: 6, height: 6)
-                                .opacity(pulse ? 0.45 : 1.0)
-                                .animation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true), value: pulse)
-                                .onAppear { pulse = true }
+                                .opacity(reduceMotion ? 1 : (pulse ? 0.45 : 1.0))
+                                .animation(reduceMotion ? nil : .easeInOut(duration: 1.2).repeatForever(autoreverses: true), value: pulse)
+                                .onAppear { if !reduceMotion { pulse = true } }
                         }
                     }
 
                     if let domain = project.primaryDomain {
                         Text(domain)
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.4))
+                            .font(.footnote)
+                            .foregroundStyle(AppTheme.textSecondary)
                             .lineLimit(1)
                             .truncationMode(.middle)
                     }
@@ -290,64 +302,42 @@ struct ProjectCard: View {
                 Spacer()
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.18))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.textTertiary)
             }
 
-            // Git repo + framework on same line
-            HStack(spacing: 8) {
-                if let link = project.link, let org = link.org, let repo = link.repo {
-                    HStack(spacing: 5) {
-                        Image(systemName: "chevron.left.forwardslash.chevron.right")
-                            .font(.system(size: 8, weight: .semibold))
-                        Text("\(org)/\(repo)")
-                            .font(.system(size: 11, weight: .semibold))
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
-                    .foregroundStyle(.white.opacity(0.5))
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 4)
-                    .background(Color.white.opacity(0.06))
-                    .clipShape(Capsule())
-                    .overlay(Capsule().strokeBorder(Color.white.opacity(0.05), lineWidth: 0.5))
-                }
+            if let link = project.link, let org = link.org, let repo = link.repo {
+                Label("\(org)/\(repo)", systemImage: "chevron.left.forwardslash.chevron.right")
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
 
-                if let scope = project.sourceScope, scope.isTeam {
-                    HStack(spacing: 5) {
-                        Image(systemName: "person.3.fill")
-                            .font(.system(size: 8, weight: .semibold))
-                        Text(scope.name)
-                            .font(.system(size: 11, weight: .semibold))
-                            .lineLimit(1)
-                    }
-                    .foregroundStyle(.white.opacity(0.46))
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 4)
-                    .background(Color.white.opacity(0.05))
-                    .clipShape(Capsule())
-                    .overlay(Capsule().strokeBorder(Color.white.opacity(0.05), lineWidth: 0.5))
-                }
-
+            HStack(spacing: 14) {
                 if let framework = project.framework {
-                    HStack(spacing: 5) {
+                    HStack(spacing: 6) {
                         Circle()
                             .fill(frameworkColor(framework))
-                            .frame(width: 5, height: 5)
+                            .frame(width: 6, height: 6)
                         Text(framework.capitalized)
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.4))
                     }
                 }
+                if let scope = project.sourceScope, scope.isTeam {
+                    Label(scope.name, systemImage: "person.3.fill")
+                        .lineLimit(1)
+                }
             }
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(AppTheme.textSecondary)
 
             // Commit message + time
             if let deployment = project.lastDeployment {
                 VStack(alignment: .leading, spacing: 4) {
                     if let message = deployment.commitMessage {
                         Text(message)
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.6))
+                            .font(.subheadline)
+                            .foregroundStyle(AppTheme.textPrimary)
                             .lineLimit(1)
                     }
 
@@ -356,19 +346,15 @@ struct ProjectCard: View {
                             Image(systemName: "clock")
                                 .font(.system(size: 8, weight: .semibold))
                             Text(date.formatted(.relative(presentation: .named)))
-                            Text("·")
-                            Image(systemName: "arrow.triangle.branch")
-                                .font(.system(size: 8, weight: .semibold))
-                            Text("main")
                         }
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.3))
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.textSecondary)
                     }
                 }
             }
         }
         .padding(16)
-        .providerSurface(accent: AppTheme.textSecondary)
+        .appSurface()
     }
 }
 
@@ -429,18 +415,7 @@ struct SkeletonCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .background(
-            LinearGradient(
-                colors: [Color.white.opacity(0.05), Color.white.opacity(0.02)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color.white.opacity(0.06), lineWidth: 0.5)
-        )
+        .appSurface()
         .shimmering()
     }
 }
@@ -450,8 +425,11 @@ struct SkeletonCard: View {
 struct ProjectIcon: View {
     let domain: String?
     let name: String
-    @State private var loadedImage: Image?
+    @State private var loadedImage: UIImage?
     @State private var didFail = false
+
+    @MainActor private static let imageCache = NSCache<NSString, UIImage>()
+    @MainActor private static var failedAt: [String: Date] = [:]
 
     private var directFaviconURLs: [URL] {
         guard let domain else { return [] }
@@ -508,7 +486,7 @@ struct ProjectIcon: View {
     var body: some View {
         Group {
             if let loadedImage {
-                loadedImage
+                Image(uiImage: loadedImage)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .frame(width: 40, height: 40)
@@ -518,22 +496,35 @@ struct ProjectIcon: View {
                 letterFallback
             } else {
                 letterFallback
-                    .opacity(0.5)
-                    .overlay(
-                        ProgressView()
-                            .scaleEffect(0.4)
-                    )
             }
         }
         .frame(width: 40, height: 40)
-        .task {
-            // Race: load favicon vs 18s timeout (SVG rasterisation chain
+        .task(id: domain) {
+            loadedImage = nil
+            didFail = false
+            guard let domain else {
+                didFail = true
+                return
+            }
+            if let cached = Self.imageCache.object(forKey: domain as NSString) {
+                loadedImage = cached
+                return
+            }
+            if let failedAt = Self.failedAt[domain], Date().timeIntervalSince(failedAt) < 300 {
+                didFail = true
+                return
+            }
+
+            // Race: load favicon vs a bounded timeout (SVG rasterisation chain
             // can be: fetch HTML -> fetch SVG -> proxy fetch -> render).
             await withTaskGroup(of: Void.self) { group in
                 group.addTask { @MainActor in await loadFavicon() }
                 group.addTask { @MainActor in
-                    try? await Task.sleep(for: .seconds(18))
-                    if loadedImage == nil { didFail = true }
+                    try? await Task.sleep(for: .seconds(8))
+                    if loadedImage == nil {
+                        didFail = true
+                        Self.failedAt[domain] = Date()
+                    }
                 }
                 await group.next()
                 group.cancelAll()
@@ -567,7 +558,7 @@ struct ProjectIcon: View {
 
         // 1. Race all direct paths in parallel — first valid image wins
         if let image = await raceForFirstImage(directFaviconURLs, minSize: 32) {
-            loadedImage = image
+            store(image, for: domain)
             return
         }
 
@@ -575,7 +566,7 @@ struct ProjectIcon: View {
         if let scraped = await scrapeFaviconURLs(domain: domain) {
             for url in scraped {
                 if let image = await fetchImage(from: url) {
-                    loadedImage = image
+                    store(image, for: domain)
                     return
                 }
             }
@@ -583,16 +574,24 @@ struct ProjectIcon: View {
 
         // 3. Third-party services in parallel — these almost always return something
         if let image = await raceForFirstImage(fallbackServiceURLs, minSize: 16) {
-            loadedImage = image
+            store(image, for: domain)
             return
         }
 
         didFail = true
+        Self.failedAt[domain] = Date()
     }
 
-    private func raceForFirstImage(_ urls: [URL], minSize: CGFloat) async -> Image? {
+    private func store(_ image: UIImage, for domain: String) {
+        Self.imageCache.setObject(image, forKey: domain as NSString)
+        Self.failedAt[domain] = nil
+        loadedImage = image
+        didFail = false
+    }
+
+    private func raceForFirstImage(_ urls: [URL], minSize: CGFloat) async -> UIImage? {
         guard !urls.isEmpty else { return nil }
-        return await withTaskGroup(of: Image?.self) { group in
+        return await withTaskGroup(of: UIImage?.self) { group in
             for url in urls {
                 group.addTask { @MainActor in
                     guard let (data, contentType) = await fetchImageData(from: url) else { return nil }
@@ -604,7 +603,9 @@ struct ProjectIcon: View {
                     }
                     guard let image = uiImage,
                           image.size.width >= minSize || image.size.height >= minSize else { return nil }
-                    return Image(uiImage: removeWhiteBackground(image))
+                    return await Task.detached(priority: .utility) {
+                        Self.removeWhiteBackground(image)
+                    }.value
                 }
             }
             for await result in group {
@@ -654,7 +655,7 @@ struct ProjectIcon: View {
         return uiImage
     }
 
-    private func fetchImage(from url: URL) async -> Image? {
+    private func fetchImage(from url: URL) async -> UIImage? {
         guard let (data, contentType) = await fetchImageData(from: url) else { return nil }
 
         let uiImage: UIImage?
@@ -665,11 +666,12 @@ struct ProjectIcon: View {
         }
         guard let image = uiImage,
               image.size.width >= 32 || image.size.height >= 32 else { return nil }
-        let cleaned = removeWhiteBackground(image)
-        return Image(uiImage: cleaned)
+        return await Task.detached(priority: .utility) {
+            Self.removeWhiteBackground(image)
+        }.value
     }
 
-    nonisolated private func removeWhiteBackground(_ image: UIImage) -> UIImage {
+    nonisolated private static func removeWhiteBackground(_ image: UIImage) -> UIImage {
         guard let cgImage = image.cgImage else { return image }
         let width = cgImage.width
         let height = cgImage.height
@@ -855,31 +857,13 @@ struct ErrorStateView: View {
     let retry: () -> Void
 
     var body: some View {
-        VStack(spacing: 18) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 38))
-                .foregroundStyle(.white.opacity(0.18))
-            Text(message)
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(.white.opacity(0.5))
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
-            Button(action: retry) {
-                HStack(spacing: 6) {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 11, weight: .bold))
-                    Text("Retry")
-                        .font(.system(size: 13, weight: .semibold))
-                }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 18)
-                .padding(.vertical, 10)
-                .background(Color.white.opacity(0.08))
-                .clipShape(Capsule())
-                .overlay(Capsule().stroke(Color.white.opacity(0.08), lineWidth: 0.5))
-            }
-            .buttonStyle(PressScaleButtonStyle())
-        }
+        AppEmptyState(
+            icon: "exclamationmark.triangle.fill",
+            title: "Couldn’t load data",
+            message: message,
+            actionTitle: "Try again",
+            action: retry
+        )
     }
 }
 
@@ -887,20 +871,16 @@ struct EmptyStateView: View {
     let icon: String
     let title: String
     let subtitle: String
+    var actionTitle: String?
+    var action: (() -> Void)?
 
     var body: some View {
-        VStack(spacing: 14) {
-            Image(systemName: icon)
-                .font(.system(size: 38))
-                .foregroundStyle(.white.opacity(0.18))
-            Text(title)
-                .font(.system(size: 16, weight: .bold))
-                .foregroundStyle(.white)
-            Text(subtitle)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.white.opacity(0.4))
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
-        }
+        AppEmptyState(
+            icon: icon,
+            title: title,
+            message: subtitle,
+            actionTitle: actionTitle,
+            action: action
+        )
     }
 }

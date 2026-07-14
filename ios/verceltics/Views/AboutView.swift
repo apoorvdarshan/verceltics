@@ -45,6 +45,7 @@ struct AboutView: View {
                 .frame(maxWidth: .infinity)
             }
             .background(AppTheme.canvas)
+            .navigationTitle("About")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .task {
@@ -60,8 +61,8 @@ struct AboutView: View {
                 .foregroundStyle(AppTheme.textSecondary)
 
             Text("Verceltics is an independent app and is not affiliated with, endorsed by, or sponsored by any supported hosting platform or domain registrar. All provider names and marks belong to their respective owners.")
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.white.opacity(0.22))
+                .font(.caption)
+                .foregroundStyle(AppTheme.textTertiary)
                 .multilineTextAlignment(.center)
                 .lineSpacing(2)
         }
@@ -135,7 +136,7 @@ struct AboutRow: View {
     let url: String?
     let action: (() -> Void)?
 
-    init(icon: String, iconColor: Color = .white.opacity(0.5), title: String, subtitle: String, url: String? = nil, action: (() -> Void)? = nil) {
+    init(icon: String, iconColor: Color = AppTheme.textSecondary, title: String, subtitle: String, url: String? = nil, action: (() -> Void)? = nil) {
         self.icon = icon
         self.iconColor = iconColor
         self.title = title
@@ -169,7 +170,7 @@ struct AboutRow: View {
 
 struct AboutRowContent: View {
     let icon: String
-    var iconColor: Color = .white.opacity(0.55)
+    var iconColor: Color = AppTheme.textSecondary
     let title: String
     let subtitle: String
     var showsChevron: Bool = true
@@ -185,12 +186,12 @@ struct AboutRowContent: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(AppTheme.textPrimary)
                 Text(subtitle)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.footnote)
                     .foregroundStyle(AppTheme.textSecondary)
-                    .lineLimit(1)
+                    .lineLimit(2)
                     .truncationMode(.middle)
             }
 
@@ -203,7 +204,8 @@ struct AboutRowContent: View {
             }
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 13)
+        .padding(.vertical, 12)
+        .frame(minHeight: 58)
         .contentShape(Rectangle())
     }
 }

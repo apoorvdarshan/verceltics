@@ -66,26 +66,21 @@ struct MainTabView: View {
 }
 
 private struct HostingEmptyStateView: View {
+    @State private var showConnection = false
+
     var body: some View {
         NavigationStack {
             ZStack {
                 AppTheme.canvas.ignoresSafeArea()
 
-                VStack(spacing: 18) {
-                    Image(systemName: "server.rack")
-                        .font(.system(size: 44, weight: .bold))
-                        .foregroundStyle(AppTheme.signal)
-
-                    VStack(spacing: 7) {
-                        Text("No hosting account")
-                            .font(.system(size: 22, weight: .semibold))
-                        Text("Use the account menu to connect a hosting platform. Its projects, deployments, logs, domains, and analytics will appear here.")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.42))
-                            .multilineTextAlignment(.center)
-                    }
+                AppEmptyState(
+                    icon: "server.rack",
+                    title: "No hosting account",
+                    message: "Connect a hosting platform to see projects, deployments, logs, domains, and analytics.",
+                    actionTitle: "Connect hosting"
+                ) {
+                    showConnection = true
                 }
-                .padding(34)
             }
             .navigationTitle("Hosting")
             .navigationBarTitleDisplayMode(.inline)
@@ -94,6 +89,9 @@ private struct HostingEmptyStateView: View {
                 ToolbarItem(placement: .topBarLeading) {
                     ProviderAccountMenu()
                 }
+            }
+            .sheet(isPresented: $showConnection) {
+                LoginView(initialCategory: .hosting)
             }
         }
     }

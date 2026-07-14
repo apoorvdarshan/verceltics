@@ -111,18 +111,7 @@ struct CloudflareR2BucketView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 13) {
-                Image(systemName: "shippingbox.fill")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(.black.opacity(0.82))
-                    .frame(width: 46, height: 46)
-                    .background(
-                        LinearGradient(
-                            colors: [CloudflareStyle.orange, CloudflareStyle.amber],
-                            startPoint: .bottomLeading,
-                            endPoint: .topTrailing
-                        )
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                AppIconTile(icon: "shippingbox.fill", tint: CloudflareStyle.orange, size: 46)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(viewModel.bucket.name)
@@ -144,10 +133,10 @@ struct CloudflareR2BucketView: View {
                     UIApplication.shared.open(dashboardURL)
                 } label: {
                     Label("Open Cloudflare Dashboard", systemImage: "arrow.up.right")
-                        .font(.system(size: 12, weight: .bold))
+                        .font(.subheadline.weight(.semibold))
                         .foregroundStyle(CloudflareStyle.orange)
                         .padding(.horizontal, 12)
-                        .padding(.vertical, 9)
+                        .frame(minHeight: 44)
                         .background(CloudflareStyle.orange.opacity(0.10))
                         .clipShape(Capsule())
                 }

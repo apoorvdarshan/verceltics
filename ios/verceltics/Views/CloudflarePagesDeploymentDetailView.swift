@@ -112,18 +112,11 @@ struct CloudflarePagesDeploymentDetailView: View {
         let item = viewModel.deployment
         return VStack(alignment: .leading, spacing: 15) {
             HStack(spacing: 13) {
-                Image(systemName: item.isSkipped == true ? "forward.fill" : "square.stack.3d.up.fill")
-                    .font(.system(size: 19, weight: .semibold))
-                    .foregroundStyle(.black.opacity(0.82))
-                    .frame(width: 46, height: 46)
-                    .background(
-                        LinearGradient(
-                            colors: [statusColor, CloudflareStyle.amber],
-                            startPoint: .bottomLeading,
-                            endPoint: .topTrailing
-                        )
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                AppIconTile(
+                    icon: item.isSkipped == true ? "forward.fill" : "square.stack.3d.up.fill",
+                    tint: statusColor,
+                    size: 46
+                )
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(item.shortID ?? String(item.id.prefix(12)))

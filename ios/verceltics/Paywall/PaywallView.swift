@@ -8,7 +8,9 @@ struct PaywallView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var selectedPackage: Package?
     @State private var isPurchasing = false
-    @State private var isEligibleForTrial = true
+    @State private var isRestoring = false
+    @State private var isEligibleForTrial = false
+    @State private var transactionError: String?
     private var subscribeButtonLabel: String {
         guard let package = selectedPackage else { return "Subscribe" }
         if package.storeProduct.productIdentifier == PaywallManager.lifetimeProductID { return "Buy Lifetime" }
@@ -64,7 +66,8 @@ struct PaywallView: View {
                     Spacer().frame(height: 20)
 
                     // Trial badge
-                    if isEligibleForTrial {
+                    if isEligibleForTrial,
+                       selectedPackage?.identifier == paywall.yearlyPackage?.identifier {
                         HStack(spacing: 6) {
                             Image(systemName: "gift.fill")
                                 .font(.system(size: 11, weight: .semibold))
@@ -86,6 +89,19 @@ struct PaywallView: View {
                         ProgressView()
                             .tint(.white)
                             .padding(.vertical, 20)
+                    } else if paywall.yearlyPackage == nil,
+                              paywall.monthlyPackage == nil,
+                              paywall.lifetimePackage == nil {
+                        AppFeedbackBanner(
+                            title: "Plans unavailable",
+                            message: paywall.error ?? "The App Store did not return any plans. Check your connection and try again.",
+                            icon: "exclamationmark.triangle.fill",
+                            tint: AppTheme.warning,
+                            actionTitle: "Try again"
+                        ) {
+                            Task { await loadPlans() }
+                        }
+                        .padding(.horizontal, 20)
                     } else {
                         VStack(spacing: 10) {
                             if let yearly = paywall.yearlyPackage {
@@ -130,8 +146,10 @@ struct PaywallView: View {
                     Button {
                         guard let package = selectedPackage else { return }
                         isPurchasing = true
+                        transactionError = nil
                         Task {
-                            _ = await paywall.purchase(package)
+                            let succeeded = await paywall.purchase(package)
+                            if !succeeded { transactionError = paywall.error }
                             isPurchasing = false
                         }
                     } label: {
@@ -159,26 +177,42 @@ struct PaywallView: View {
                     .disabled(selectedPackage == nil || isPurchasing)
                     .padding(.horizontal, 20)
 
-                    if let error = paywall.error {
-                        Text(error)
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(.red)
-                            .padding(.top, 8)
+                    if let transactionError {
+                        AppFeedbackBanner(
+                            title: "Purchase couldn’t be completed",
+                            message: transactionError,
+                            icon: "exclamationmark.circle.fill",
+                            tint: AppTheme.danger
+                        )
+                        .padding(.horizontal, 20)
+                        .padding(.top, 10)
                     }
 
                     // Footer
                     VStack(spacing: 12) {
                         Button {
-                            Task { await paywall.restorePurchases() }
+                            isRestoring = true
+                            transactionError = nil
+                            Task {
+                                await paywall.restorePurchases()
+                                if let error = paywall.error { transactionError = error }
+                                isRestoring = false
+                            }
                         } label: {
                             HStack(spacing: 6) {
-                                Image(systemName: "arrow.clockwise")
-                                    .font(.system(size: 10, weight: .semibold))
-                                Text("Restore Purchases")
-                                    .font(.system(size: 13, weight: .bold))
+                                if isRestoring {
+                                    ProgressView().controlSize(.small)
+                                } else {
+                                    Image(systemName: "arrow.clockwise")
+                                }
+                                Text("Restore purchases")
+                                    .font(.footnote.weight(.semibold))
                             }
-                            .foregroundStyle(.white.opacity(0.45))
+                            .foregroundStyle(AppTheme.textSecondary)
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
                         }
+                        .disabled(isRestoring)
 
                         HStack(spacing: 14) {
                             if let privacyURL = URL(string: "https://verceltics.com/privacy"),
@@ -188,12 +222,12 @@ struct PaywallView: View {
                                 Link("Terms of Use", destination: termsURL)
                             }
                         }
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.3))
+                        .font(.footnote)
+                        .foregroundStyle(AppTheme.textSecondary)
 
                         Text("Payment charged to Apple ID. Auto-renews unless cancelled 24h before period ends.")
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.2))
+                            .font(.caption)
+                            .foregroundStyle(AppTheme.textTertiary)
                             .multilineTextAlignment(.center)
                             .lineSpacing(1.5)
                             .padding(.horizontal, 40)
@@ -201,6 +235,8 @@ struct PaywallView: View {
                         Button("Sign Out") { authManager.logout() }
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(Color(red: 1.0, green: 0.42, blue: 0.42).opacity(0.6))
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
                             .padding(.top, 4)
                     }
                     .padding(.top, 20)
@@ -210,19 +246,42 @@ struct PaywallView: View {
                 .frame(maxWidth: hSize == .regular ? 520 : .infinity)
                 .frame(maxWidth: .infinity)
             }
+
+            VStack {
+                HStack {
+                    Spacer()
+                    Button { dismiss() } label: {
+                        Image(systemName: "xmark")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(AppTheme.textPrimary)
+                            .frame(width: 44, height: 44)
+                            .background(AppTheme.surfaceRaised, in: Circle())
+                    }
+                    .buttonStyle(PressScaleButtonStyle())
+                    .accessibilityLabel("Close")
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
         }
         .task {
-            await paywall.loadProducts()
-            if selectedPackage == nil {
-                selectedPackage = paywall.yearlyPackage ?? paywall.monthlyPackage ?? paywall.lifetimePackage
-            }
-            isEligibleForTrial = await paywall.isEligibleForTrial(paywall.yearlyPackage)
+            await loadPlans()
         }
         .onChange(of: paywall.hasActiveSubscription) { _, isActive in
             // Auto-dismiss when shown as a sheet over Projects after a
             // successful purchase or restore.
             if isActive { dismiss() }
         }
+    }
+
+    @MainActor
+    private func loadPlans() async {
+        await paywall.loadProducts()
+        if selectedPackage == nil {
+            selectedPackage = paywall.yearlyPackage ?? paywall.monthlyPackage ?? paywall.lifetimePackage
+        }
+        isEligibleForTrial = await paywall.isEligibleForTrial(paywall.yearlyPackage)
     }
 }
 
@@ -244,11 +303,12 @@ struct FeatureRow: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(.white)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.textPrimary)
                 Text(subtitle)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.4))
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -264,6 +324,7 @@ struct PlanCard: View {
     let badge: String?
     var showTrial: Bool = true
     let onTap: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Button(action: onTap) {
@@ -308,9 +369,10 @@ struct PlanCard: View {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .strokeBorder(isSelected ? AppTheme.signal.opacity(0.65) : AppTheme.stroke, lineWidth: isSelected ? 1 : 0.5)
             )
-            .animation(.easeOut(duration: 0.18), value: isSelected)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: isSelected)
         }
         .buttonStyle(PressScaleButtonStyle())
         .sensoryFeedback(.selection, trigger: isSelected)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }

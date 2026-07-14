@@ -316,8 +316,8 @@ struct CloudflareZoneDetailView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Label("Traffic interval", systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.58))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.textSecondary)
                 Spacer()
                 if viewModel.isLoading {
                     ProgressView().controlSize(.small).tint(CloudflareStyle.orange)
@@ -335,9 +335,9 @@ struct CloudflareZoneDetailView: View {
                             }
                         } label: {
                             Text(range.displayName)
-                                .font(.system(size: 10, weight: .semibold).monospacedDigit())
+                                .font(.caption.weight(.semibold).monospacedDigit())
                                 .foregroundStyle(
-                                    viewModel.selectedAnalyticsRange == range ? .black : .white.opacity(0.55)
+                                    viewModel.selectedAnalyticsRange == range ? .black : AppTheme.textSecondary
                                 )
                                 .padding(.horizontal, 13)
                                 .frame(height: 34)
@@ -355,8 +355,8 @@ struct CloudflareZoneDetailView: View {
             }
 
             Text("Cloudflare automatically applies this zone’s retention and query-width limits.")
-                .font(.system(size: 9, weight: .medium))
-                .foregroundStyle(.white.opacity(0.28))
+                .font(.footnote)
+                .foregroundStyle(AppTheme.textSecondary)
         }
         .padding(14)
         .cloudflarePanel(accentOpacity: 0.045)
@@ -365,27 +365,16 @@ struct CloudflareZoneDetailView: View {
     private var zoneHeader: some View {
         VStack(alignment: .leading, spacing: 17) {
             HStack(alignment: .top, spacing: 13) {
-                Image(systemName: "globe.americas.fill")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(.black.opacity(0.82))
-                    .frame(width: 46, height: 46)
-                    .background(
-                        LinearGradient(
-                            colors: [CloudflareStyle.orange, CloudflareStyle.amber],
-                            startPoint: .bottomLeading,
-                            endPoint: .topTrailing
-                        )
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                AppIconTile(icon: "globe.americas.fill", tint: CloudflareStyle.orange, size: 46)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(zone.name)
-                        .font(.system(size: 21, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(AppTheme.textPrimary)
                         .lineLimit(1)
                     Text(zone.plan?.name ?? zone.type?.capitalized ?? "Cloudflare zone")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.38))
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(AppTheme.textSecondary)
                 }
 
                 Spacer(minLength: 8)
@@ -421,14 +410,14 @@ struct CloudflareZoneDetailView: View {
         VStack(spacing: 12) {
             HStack(spacing: 8) {
                 Text(analytics.chartTitle)
-                    .font(.system(size: 10, weight: .semibold))
-                    .tracking(1.0)
-                    .foregroundStyle(.white.opacity(0.46))
+                    .font(.caption.weight(.semibold))
+                    .tracking(0.8)
+                    .foregroundStyle(AppTheme.textSecondary)
                 Spacer()
                 Text(analytics.granularity.displayName)
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.caption2.weight(.semibold))
                     .tracking(0.7)
-                    .foregroundStyle(CloudflareStyle.orange.opacity(0.82))
+                    .foregroundStyle(CloudflareStyle.orange)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 5)
                     .background(CloudflareStyle.orange.opacity(0.1), in: Capsule())
@@ -440,8 +429,8 @@ struct CloudflareZoneDetailView: View {
                     "Cloudflare shortened this range to fit the zone's analytics limit",
                     systemImage: "clock.badge.checkmark"
                 )
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(CloudflareStyle.amber.opacity(0.72))
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(CloudflareStyle.amber)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 4)
             }
@@ -502,13 +491,13 @@ struct CloudflareZoneDetailView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
                         Text("TRAFFIC TREND")
-                            .font(.system(size: 10, weight: .semibold))
-                            .tracking(1.0)
-                            .foregroundStyle(.white.opacity(0.4))
+                            .font(.caption.weight(.semibold))
+                            .tracking(0.8)
+                            .foregroundStyle(AppTheme.textSecondary)
                         Spacer()
                         Text(analytics.totals.pageViews.formatted() + " page views")
-                            .font(.system(size: 10, weight: .semibold).monospacedDigit())
-                            .foregroundStyle(.white.opacity(0.32))
+                            .font(.caption.weight(.medium).monospacedDigit())
+                            .foregroundStyle(AppTheme.textSecondary)
                     }
 
                     Chart(analytics.series) { point in
@@ -534,13 +523,16 @@ struct CloudflareZoneDetailView: View {
                     .chartXAxis {
                         AxisMarks(values: .automatic(desiredCount: 4)) { _ in
                             AxisValueLabel(format: .dateTime.weekday(.abbreviated))
-                                .foregroundStyle(.white.opacity(0.32))
+                                .font(.caption2)
+                                .foregroundStyle(AppTheme.textSecondary)
                             AxisGridLine().foregroundStyle(.white.opacity(0.04))
                         }
                     }
                     .chartYAxis {
                         AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { _ in
-                            AxisValueLabel().foregroundStyle(.white.opacity(0.32))
+                            AxisValueLabel()
+                                .font(.caption2)
+                                .foregroundStyle(AppTheme.textSecondary)
                             AxisGridLine().foregroundStyle(.white.opacity(0.05))
                         }
                     }
@@ -568,14 +560,14 @@ struct CloudflareZoneDetailView: View {
             VStack(spacing: 12) {
                 HStack {
                     Text("TRAFFIC BREAKDOWNS")
-                        .font(.system(size: 10, weight: .semibold))
-                        .tracking(1)
-                        .foregroundStyle(.white.opacity(0.46))
+                        .font(.caption.weight(.semibold))
+                        .tracking(0.8)
+                        .foregroundStyle(AppTheme.textSecondary)
                     Spacer()
                     if breakdowns.encryptedBytes > 0 {
                         Text(ByteCountFormatter.string(fromByteCount: breakdowns.encryptedBytes, countStyle: .file) + " encrypted")
-                            .font(.system(size: 9, weight: .semibold).monospacedDigit())
-                            .foregroundStyle(CloudflareStyle.green.opacity(0.75))
+                            .font(.caption2.weight(.semibold).monospacedDigit())
+                            .foregroundStyle(CloudflareStyle.green)
                     }
                 }
                 .padding(.horizontal, 4)
@@ -603,8 +595,8 @@ struct CloudflareZoneDetailView: View {
                     tint: item.threats > 0 ? CloudflareStyle.red : CloudflareStyle.orange
                 ) {
                     Text(analyticsBreakdownValue(item))
-                        .font(.system(size: 12, weight: .semibold, design: .default).monospacedDigit())
-                        .foregroundStyle(.white.opacity(0.68))
+                        .font(.footnote.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(AppTheme.textPrimary)
                 }
                 if item.id != items.prefix(12).last?.id {
                     Divider().overlay(Color.white.opacity(0.05)).padding(.leading, 64)
@@ -755,7 +747,7 @@ struct CloudflareZoneDetailView: View {
                     Image(systemName: "ellipsis.circle")
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.45))
-                        .frame(width: 34, height: 34)
+                        .frame(width: 44, height: 44)
                 }
             }
         }
@@ -773,12 +765,12 @@ struct CloudflareZoneDetailView: View {
             UIApplication.shared.open(url)
         } label: {
             HStack(spacing: 7) {
-                Image(systemName: icon).font(.system(size: 9, weight: .semibold))
-                Text(title).font(.system(size: 12, weight: .bold))
+                Image(systemName: icon).font(.caption.weight(.semibold))
+                Text(title).font(.subheadline.weight(.semibold))
             }
             .foregroundStyle(.white.opacity(0.78))
             .padding(.horizontal, 12)
-            .padding(.vertical, 9)
+            .frame(minHeight: 44)
             .background(Color.white.opacity(0.07))
             .clipShape(Capsule())
             .overlay(Capsule().strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5))

@@ -32,6 +32,7 @@ final class CloudflareGraphQLDatasetCatalogViewModel {
     var isLoading = false
     var error: String?
     private var loadGeneration = 0
+    private var datasetCache: [String: [CloudflareGraphQLDataset]] = [:]
 
     init(api: CloudflareAPI, accountID: String, zones: [CloudflareZone]) {
         self.api = api
@@ -46,7 +47,8 @@ final class CloudflareGraphQLDatasetCatalogViewModel {
         let generation = loadGeneration
         isLoading = true
         error = nil
-        datasets = []
+        let key = cacheKey
+        datasets = datasetCache[key] ?? []
 
         do {
             let rootType = scope.rawValue
@@ -74,6 +76,7 @@ final class CloudflareGraphQLDatasetCatalogViewModel {
                 if $0.enabled != $1.enabled { return $0.enabled == true }
                 return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
             }
+            datasetCache[key] = datasets
         } catch {
             guard generation == loadGeneration else { return }
             self.error = error.localizedDescription
@@ -97,6 +100,10 @@ final class CloudflareGraphQLDatasetCatalogViewModel {
         case .zone: ["tag": .string(selectedZoneID ?? "")]
         case .account: ["tag": .string(accountID)]
         }
+    }
+
+    private var cacheKey: String {
+        "\(scope.rawValue)|\(selectedZoneID ?? accountID)"
     }
 
     private func introspect(type: String) async throws -> [IntrospectionField] {
@@ -207,13 +214,23 @@ struct CloudflareGraphQLDatasetCatalogView: View {
             ScrollView {
                 LazyVStack(spacing: 15) {
                     scopePanel
-                    if viewModel.isLoading {
+                    if viewModel.isLoading && viewModel.datasets.isEmpty {
                         CloudflareLoadingView()
                             .frame(minHeight: 220)
-                    } else if let error = viewModel.error {
+                    } else if let error = viewModel.error, viewModel.datasets.isEmpty {
                         CloudflareErrorView(message: error) { Task { await viewModel.load() } }
                             .frame(minHeight: 220)
                     } else {
+                        if let error = viewModel.error {
+                            AppFeedbackBanner(
+                                title: "Dataset refresh failed",
+                                message: error,
+                                tint: AppTheme.warning,
+                                actionTitle: "Retry"
+                            ) {
+                                Task { await viewModel.load() }
+                            }
+                        }
                         datasetDirectory
                     }
                 }

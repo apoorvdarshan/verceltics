@@ -13,9 +13,21 @@ struct VercelticsApp: App {
                 if !authManager.isAuthenticated && registrarStore.accounts.isEmpty {
                     LoginView()
                 } else if !paywallManager.hasCheckedEntitlements {
-                    // Brief flash-prevention while RevenueCat checks entitlements
-                    // needed to know whether to gate the analytics drilldown.
-                    AppTheme.canvas.ignoresSafeArea()
+                    ZStack {
+                        AppTheme.canvas.ignoresSafeArea()
+                        VStack(spacing: 14) {
+                            Image("AppLogo")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 48, height: 48)
+                            ProgressView()
+                                .tint(AppTheme.textSecondary)
+                            Text("Loading workspace")
+                                .font(.footnote)
+                                .foregroundStyle(AppTheme.textSecondary)
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
                 } else {
                     // Soft paywall: everyone sees the projects list. Analytics
                     // taps gate via PaywallView sheet inside ProjectsView.

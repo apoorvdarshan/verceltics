@@ -31,6 +31,7 @@ struct SupportView: View {
                 .frame(maxWidth: .infinity)
             }
             .background(AppTheme.canvas)
+            .navigationTitle("Support")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarColorScheme(.dark, for: .navigationBar)
         }

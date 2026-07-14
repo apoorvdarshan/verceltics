@@ -55,10 +55,14 @@ struct ProviderFullAPICatalogView: View {
             if let catalog {
                 catalogBody(catalog)
             } else if let error {
-                ContentUnavailableView("Catalog unavailable", systemImage: "exclamationmark.triangle.fill", description: Text(error))
-                    .foregroundStyle(.white)
+                AppEmptyState(
+                    icon: "exclamationmark.triangle.fill",
+                    title: "Catalog unavailable",
+                    message: error,
+                    actionTitle: "Try again"
+                ) { loadCatalog() }
             } else {
-                ProgressView("Loading every operation…").tint(accent).foregroundStyle(.white)
+                ProgressView("Loading operations").tint(accent).foregroundStyle(AppTheme.textSecondary)
             }
         }
         .navigationTitle("Complete API")
@@ -93,32 +97,37 @@ struct ProviderFullAPICatalogView: View {
                                 selectedTag = tag
                             } label: {
                                 Text(tag)
-                                    .font(.system(size: 10, weight: .bold))
-                                    .foregroundStyle(selectedTag == tag ? .black : .white.opacity(0.66))
-                                    .padding(.horizontal, 12).padding(.vertical, 8)
-                                    .background(selectedTag == tag ? accent : Color.white.opacity(0.07))
-                                    .clipShape(Capsule())
+                                    .font(.footnote.weight(.semibold))
+                                    .foregroundStyle(selectedTag == tag ? .white : AppTheme.textSecondary)
+                                    .padding(.horizontal, 13)
+                                    .frame(minHeight: 44)
+                                    .background(selectedTag == tag ? AppTheme.signal : AppTheme.surfaceRaised)
+                                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
                             }
                             .buttonStyle(.plain)
                         }
                     }
                 }
 
-                HStack {
-                    Text("\(operations.count.formatted()) OPERATIONS")
-                    Spacer()
-                    Text("RAW RESPONSE PRESERVED")
-                }
-                .font(.system(size: 9, weight: .semibold)).tracking(1)
-                .foregroundStyle(.white.opacity(0.34))
+                AppSectionHeader(title: "Operations", count: operations.count, accent: accent)
 
-                ForEach(operations) { operation in
-                    NavigationLink {
-                        ProviderAPIOperationView(operation: operation, context: requestContext, accent: accent)
-                    } label: {
-                        operationRow(operation)
+                if operations.isEmpty {
+                    AppEmptyState(
+                        icon: "magnifyingglass",
+                        title: "No matching operations",
+                        message: "Change the search, access filter, or selected tag."
+                    )
+                    .frame(maxWidth: .infinity)
+                    .appSurface()
+                } else {
+                    ForEach(operations) { operation in
+                        NavigationLink {
+                            ProviderAPIOperationView(operation: operation, context: requestContext, accent: accent)
+                        } label: {
+                            operationRow(operation)
+                        }
+                        .buttonStyle(PressScaleButtonStyle())
                     }
-                    .buttonStyle(PressScaleButtonStyle())
                 }
                 Spacer().frame(height: 80)
             }
@@ -130,19 +139,19 @@ struct ProviderFullAPICatalogView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(catalog.title).font(.system(size: 19, weight: .semibold))
-                    Text(catalog.apiVersion).font(.system(size: 10, weight: .bold)).foregroundStyle(accent)
+                    Text(catalog.title).font(.title3.weight(.semibold))
+                    Text(catalog.apiVersion).font(.caption.weight(.semibold)).foregroundStyle(accent)
                 }
                 Spacer()
                 Text(catalog.operations.count.formatted())
-                    .font(.system(size: 26, weight: .bold).monospacedDigit())
+                    .font(.title2.weight(.semibold).monospacedDigit())
             }
             Text(catalog.sourceDescription)
-                .font(.system(size: 10, weight: .semibold)).foregroundStyle(.white.opacity(0.45))
+                .font(.footnote).foregroundStyle(AppTheme.textSecondary)
             if let url = URL(string: catalog.sourceURL) {
                 Link(destination: url) {
                     Label("Official API definition", systemImage: "arrow.up.right")
-                        .font(.system(size: 10, weight: .bold)).foregroundStyle(accent)
+                        .font(.footnote.weight(.semibold)).foregroundStyle(accent)
                 }
             }
         }
@@ -162,14 +171,14 @@ struct ProviderFullAPICatalogView: View {
             HStack(spacing: 11) {
                 Image(systemName: "terminal.fill").foregroundStyle(accent)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Manual raw request").font(.system(size: 12, weight: .bold))
+                    Text("Manual raw request").font(.subheadline.weight(.semibold))
                     Text("For undocumented, beta, or newly released routes")
-                        .font(.system(size: 9, weight: .semibold)).foregroundStyle(.white.opacity(0.38))
+                        .font(.footnote).foregroundStyle(AppTheme.textSecondary)
                 }
                 Spacer()
-                Image(systemName: "chevron.right").foregroundStyle(.white.opacity(0.22))
+                Image(systemName: "chevron.right").foregroundStyle(AppTheme.textTertiary)
             }
-            .foregroundStyle(.white).padding(14).providerPanel(accent: accent)
+            .foregroundStyle(.white).padding(14).appSurface(raised: true)
         }
         .buttonStyle(PressScaleButtonStyle())
     }
@@ -177,22 +186,22 @@ struct ProviderFullAPICatalogView: View {
     private func operationRow(_ operation: ProviderAPIOperation) -> some View {
         HStack(spacing: 12) {
             Text(operation.method)
-                .font(.system(size: 8, weight: .bold, design: .monospaced))
+                .font(.caption2.weight(.semibold).monospaced())
                 .foregroundStyle(operation.isMutation ? .orange : .green)
                 .frame(width: 48, height: 29)
                 .background((operation.isMutation ? Color.orange : Color.green).opacity(0.12))
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             VStack(alignment: .leading, spacing: 4) {
-                Text(operation.summary).font(.system(size: 12, weight: .bold)).lineLimit(2)
-                Text(operation.path).font(.system(size: 9, design: .monospaced)).foregroundStyle(.white.opacity(0.38)).lineLimit(1)
-                Text(operation.primaryTag.uppercased()).font(.system(size: 7, weight: .semibold)).tracking(0.8).foregroundStyle(accent)
+                Text(operation.summary).font(.subheadline.weight(.semibold)).lineLimit(2)
+                Text(operation.path).font(.caption.monospaced()).foregroundStyle(AppTheme.textSecondary).lineLimit(2)
+                Text(operation.primaryTag.uppercased()).font(.caption2.weight(.semibold)).tracking(0.6).foregroundStyle(accent)
             }
             Spacer()
-            Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold)).foregroundStyle(.white.opacity(0.22))
+            Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(AppTheme.textTertiary)
         }
         .foregroundStyle(.white)
         .padding(14)
-        .providerPanel(accent: accent)
+        .appSurface()
     }
 
     private var requestContext: ProviderAPIRequestContext {
@@ -300,13 +309,21 @@ private struct ProviderAPIOperationView: View {
                             Spacer()
                             Text(operation.primaryTag.uppercased()).foregroundStyle(accent)
                         }
-                        .font(.system(size: 9, weight: .semibold)).tracking(0.8)
-                        Text(operation.path).font(.system(size: 11, design: .monospaced)).textSelection(.enabled)
+                        .font(.caption.weight(.semibold))
+                        .tracking(0.7)
+                        Text(operation.path)
+                            .font(.footnote.monospaced())
+                            .foregroundStyle(AppTheme.textPrimary)
+                            .textSelection(.enabled)
                         if !operation.description.isEmpty {
-                            Text(operation.description).font(.system(size: 10, weight: .medium)).foregroundStyle(.white.opacity(0.48))
+                            Text(operation.description)
+                                .font(.footnote)
+                                .foregroundStyle(AppTheme.textSecondary)
                         }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading).padding(15).providerPanel(accent: accent)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(15)
+                    .providerSurface(accent: accent)
 
                     ForEach(operation.parameters) { parameter in
                         parameterEditor(parameter)
@@ -322,10 +339,13 @@ private struct ProviderAPIOperationView: View {
                     if !operation.bodyTemplate.isEmpty || operation.requestBodyRequired {
                         VStack(alignment: .leading, spacing: 8) {
                             Text(operation.requestBodyRequired ? "REQUEST BODY · REQUIRED" : "REQUEST BODY")
-                                .font(.system(size: 9, weight: .semibold)).tracking(1).foregroundStyle(.white.opacity(0.36))
+                                .font(.caption2.weight(.semibold))
+                                .tracking(1)
+                                .foregroundStyle(AppTheme.textSecondary)
                             TextEditor(text: $bodyText)
-                                .font(.system(size: 10, design: .monospaced))
-                                .scrollContentBackground(.hidden).frame(minHeight: 170)
+                                .font(.footnote.monospaced())
+                                .scrollContentBackground(.hidden)
+                                .frame(minHeight: 170)
                         }
                         .padding(14).providerPanel(accent: accent)
                     }
@@ -342,15 +362,15 @@ private struct ProviderAPIOperationView: View {
                                 : (operation.isMutation ? "Review write request" : "Review request"),
                             systemImage: operation.isMutation ? "exclamationmark.shield.fill" : "arrow.right"
                         )
-                            .font(.system(size: 14, weight: .semibold)).frame(maxWidth: .infinity).frame(height: 54)
-                            .background(accent.opacity(0.82)).clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .font(.body.weight(.semibold)).frame(maxWidth: .infinity).frame(height: 54)
+                            .background(AppTheme.signal).clipShape(RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
                     }
                     .buttonStyle(PressScaleButtonStyle()).foregroundStyle(.white)
                     .disabled(hasMissingRequiredParameters)
                     .opacity(hasMissingRequiredParameters ? 0.45 : 1)
-                    Spacer().frame(height: 80)
                 }
                 .padding(16)
+                .padding(.bottom, 72)
             }
         }
         .navigationTitle(operation.summary)
@@ -361,16 +381,16 @@ private struct ProviderAPIOperationView: View {
     private func parameterEditor(_ parameter: ProviderAPIParameter) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack {
-                Text(parameter.name).font(.system(size: 10, weight: .bold, design: .monospaced))
-                Text(parameter.location.rawValue.uppercased()).font(.system(size: 7, weight: .semibold)).foregroundStyle(accent)
-                if parameter.required { Text("REQUIRED").font(.system(size: 7, weight: .semibold)).foregroundStyle(.orange) }
+                Text(parameter.name).font(.caption.weight(.semibold).monospaced())
+                Text(parameter.location.rawValue.uppercased()).font(.caption2.weight(.semibold)).foregroundStyle(accent)
+                if parameter.required { Text("REQUIRED").font(.caption2.weight(.semibold)).foregroundStyle(AppTheme.warning) }
             }
             if parameter.enumValues.isEmpty {
                 TextField(parameter.type, text: Binding(
                     get: { values[parameter.id, default: ""] },
                     set: { values[parameter.id] = $0 }
                 ))
-                .font(.system(size: 12, design: .monospaced)).textFieldStyle(.plain)
+                .font(.footnote.monospaced()).textFieldStyle(.plain)
                 .textInputAutocapitalization(.never).autocorrectionDisabled()
             } else {
                 Picker(parameter.name, selection: Binding(
@@ -382,9 +402,9 @@ private struct ProviderAPIOperationView: View {
                 .pickerStyle(.menu).tint(.white)
             }
             if !parameter.description.isEmpty {
-                Text(parameter.description).font(.system(size: 9, weight: .medium)).foregroundStyle(.white.opacity(0.35))
+                Text(parameter.description).font(.footnote).foregroundStyle(AppTheme.textSecondary)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading).padding(14).providerPanel(accent: accent)
+        .frame(maxWidth: .infinity, alignment: .leading).padding(14).appSurface()
     }
 }

@@ -43,6 +43,7 @@ final class RegistrarDashboardViewModel {
 
 struct RegistrarsView: View {
     @Environment(RegistrarStore.self) private var store
+    @State private var showConnection = false
 
     var body: some View {
         Group {
@@ -53,20 +54,14 @@ struct RegistrarsView: View {
                 NavigationStack {
                     ZStack {
                         AppTheme.canvas.ignoresSafeArea()
-                        VStack(spacing: 18) {
-                            Image(systemName: "globe.americas.fill")
-                                .font(.system(size: 44, weight: .bold))
-                                .foregroundStyle(AppTheme.signal)
-                            VStack(spacing: 7) {
-                                Text("No registrar account")
-                                    .font(.system(size: 22, weight: .semibold))
-                                Text("Use the account menu to connect a registrar. Domain expiry, renewal, privacy, locks, and nameservers will appear here.")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundStyle(.white.opacity(0.42))
-                                    .multilineTextAlignment(.center)
-                            }
+                        AppEmptyState(
+                            icon: "globe.americas.fill",
+                            title: "No registrar account",
+                            message: "Connect a registrar to track expiry, renewal, privacy, locks, and nameservers.",
+                            actionTitle: "Connect registrar"
+                        ) {
+                            showConnection = true
                         }
-                        .padding(34)
                     }
                     .navigationTitle("Registrars")
                     .navigationBarTitleDisplayMode(.inline)
@@ -79,6 +74,9 @@ struct RegistrarsView: View {
                 }
             }
         }
+        .sheet(isPresented: $showConnection) {
+            LoginView(initialCategory: .registrars)
+        }
     }
 }
 
@@ -87,6 +85,7 @@ struct RegistrarDashboardView: View {
     @State private var viewModel: RegistrarDashboardViewModel
     @State private var searchText = ""
     @State private var refreshSpin = 0.0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(account: RegistrarAccount) {
         self.account = account
@@ -111,7 +110,7 @@ struct RegistrarDashboardView: View {
                 if viewModel.isLoading {
                     ProgressView("Loading domains")
                         .tint(provider.accentColor)
-                        .foregroundStyle(.white.opacity(0.55))
+                        .foregroundStyle(AppTheme.textSecondary)
                 } else if let error = viewModel.error, viewModel.domains.isEmpty {
                     errorView(error)
                 } else {
@@ -126,7 +125,9 @@ struct RegistrarDashboardView: View {
                 ToolbarItem(placement: .topBarLeading) { RegistrarAccountMenu() }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        withAnimation(.easeInOut(duration: 0.55)) { refreshSpin += 360 }
+                        if !reduceMotion {
+                            withAnimation(.easeInOut(duration: 0.45)) { refreshSpin += 360 }
+                        }
                         Task { await viewModel.load(refresh: true) }
                     } label: {
                         Image(systemName: "arrow.clockwise")
@@ -135,6 +136,7 @@ struct RegistrarDashboardView: View {
                             .rotationEffect(.degrees(refreshSpin))
                     }
                     .disabled(viewModel.isRefreshing)
+                    .accessibilityLabel(viewModel.isRefreshing ? "Refreshing domains" : "Refresh domains")
                 }
             }
             .task(id: account.id) { await viewModel.load() }
@@ -149,29 +151,27 @@ struct RegistrarDashboardView: View {
                 actions
 
                 if let error = viewModel.error {
-                    Label(error, systemImage: "exclamationmark.triangle.fill")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.orange)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(15)
-                        .providerPanel(accent: .orange)
+                    AppFeedbackBanner(
+                        title: "Couldn’t refresh domains",
+                        message: error,
+                        actionTitle: "Try again"
+                    ) {
+                        Task { await viewModel.load(refresh: true) }
+                    }
                 }
 
-                HStack {
-                    Text("DOMAIN PORTFOLIO")
-                        .font(.system(size: 10, weight: .semibold)).tracking(1.4).foregroundStyle(.white.opacity(0.38))
-                    Spacer()
-                    Text(filteredDomains.count.formatted())
-                        .font(.system(size: 10, weight: .semibold).monospacedDigit()).foregroundStyle(provider.accentColor)
-                }
+                AppSectionHeader(title: "Domain portfolio", count: filteredDomains.count, accent: provider.accentColor)
 
                 if filteredDomains.isEmpty {
-                    Text(searchText.isEmpty ? "The API returned no domains for this account." : "No domains match this search.")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.4))
-                        .padding(34)
-                        .frame(maxWidth: .infinity)
-                        .providerPanel(accent: provider.accentColor)
+                    AppEmptyState(
+                        icon: searchText.isEmpty ? "globe" : "magnifyingglass",
+                        title: searchText.isEmpty ? "No domains returned" : "No matching domains",
+                        message: searchText.isEmpty
+                            ? "This registrar did not return any domains for the connected account."
+                            : "Nothing matches “\(searchText)”."
+                    )
+                    .frame(maxWidth: .infinity)
+                    .appSurface()
                 } else {
                     ForEach(filteredDomains) { domain in
                         NavigationLink {
@@ -180,10 +180,10 @@ struct RegistrarDashboardView: View {
                         .buttonStyle(PressScaleButtonStyle())
                     }
                 }
-                Spacer().frame(height: 90)
             }
             .padding(.horizontal, 16)
             .padding(.top, 18)
+            .padding(.bottom, 24)
         }
         .refreshable { await viewModel.load(refresh: true) }
     }
@@ -193,26 +193,35 @@ struct RegistrarDashboardView: View {
             HStack(spacing: 13) {
                 RegistrarMark(provider: provider, size: 55)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(account.name).font(.system(size: 18, weight: .semibold)).lineLimit(1)
-                    Text(provider.apiDescription).font(.system(size: 10, weight: .semibold)).foregroundStyle(.white.opacity(0.4)).lineLimit(1)
+                    Text(account.name)
+                        .font(.headline)
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .lineLimit(1)
+                    Text(provider.apiDescription)
+                        .font(.footnote)
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .lineLimit(2)
                 }
                 Spacer()
-                Text("CONNECTED")
-                    .font(.system(size: 8, weight: .semibold)).foregroundStyle(.green)
+                AppStatusBadge(text: "Connected", tone: .success)
             }
 
             VStack(alignment: .leading, spacing: 7) {
                 HStack {
-                    Text("EXPIRY HEALTH").font(.system(size: 8, weight: .semibold)).tracking(1.1).foregroundStyle(.white.opacity(0.34))
+                    Text("EXPIRY HEALTH")
+                        .font(.caption2.weight(.semibold))
+                        .tracking(1)
+                        .foregroundStyle(AppTheme.textSecondary)
                     Spacer()
-                    Text(expiringDomains.isEmpty ? "Clear" : "\(expiringDomains.count) due soon")
-                        .font(.system(size: 9, weight: .semibold)).foregroundStyle(expiringDomains.isEmpty ? .green : .orange)
+                    Text(expiringDomains.isEmpty ? "Clear" : "\(expiringDomains.count) need attention")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(expiringDomains.isEmpty ? AppTheme.success : AppTheme.warning)
                 }
                 GeometryReader { geometry in
                     ZStack(alignment: .leading) {
                         Capsule().fill(Color.white.opacity(0.07))
                         Capsule()
-                            .fill(LinearGradient(colors: [.green, expiringDomains.isEmpty ? .green : .orange], startPoint: .leading, endPoint: .trailing))
+                            .fill(expiringDomains.isEmpty ? AppTheme.success : AppTheme.warning)
                             .frame(width: geometry.size.width * healthFraction)
                     }
                 }
@@ -220,26 +229,26 @@ struct RegistrarDashboardView: View {
             }
         }
         .padding(18)
-        .providerPanel(accent: provider.accentColor)
+        .providerSurface(accent: provider.accentColor)
     }
 
     private var stats: some View {
-        HStack(spacing: 10) {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 10)], spacing: 10) {
             statCard("Domains", value: viewModel.domains.count.formatted(), icon: "globe")
-            statCard("≤ 30 days", value: expiringDomains.count.formatted(), icon: "calendar.badge.exclamationmark")
+            statCard("Attention", value: expiringDomains.count.formatted(), icon: "calendar.badge.exclamationmark")
             statCard("Auto renew", value: viewModel.domains.filter { $0.autoRenew == true }.count.formatted(), icon: "arrow.triangle.2.circlepath")
         }
     }
 
     private func statCard(_ title: String, value: String, icon: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Image(systemName: icon).font(.system(size: 11, weight: .semibold)).foregroundStyle(provider.accentColor)
-            Text(value).font(.system(size: 20, weight: .semibold).monospacedDigit())
-            Text(title.uppercased()).font(.system(size: 7, weight: .semibold)).tracking(0.8).foregroundStyle(.white.opacity(0.34)).lineLimit(1)
+            Image(systemName: icon).font(.caption.weight(.semibold)).foregroundStyle(provider.accentColor)
+            Text(value).font(.title3.weight(.semibold).monospacedDigit())
+            Text(title.uppercased()).font(.caption2.weight(.semibold)).tracking(0.6).foregroundStyle(AppTheme.textSecondary).lineLimit(1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(13)
-        .providerPanel(accent: provider.accentColor)
+        .appSurface()
     }
 
     private var actions: some View {
@@ -257,15 +266,15 @@ struct RegistrarDashboardView: View {
             .font(.system(size: 12, weight: .bold))
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity).frame(height: 47)
-            .providerPanel(accent: provider.accentColor)
+            .appSurface(raised: true)
     }
 
     private func domainRow(_ domain: RegistrarDomain) -> some View {
         HStack(spacing: 13) {
             VStack(spacing: 1) {
-                Text(domain.daysUntilExpiry.map { max($0, 0).formatted() } ?? "—")
-                    .font(.system(size: 14, weight: .semibold).monospacedDigit())
-                Text("DAYS").font(.system(size: 6, weight: .semibold)).tracking(0.7)
+                Text(expiryValue(domain))
+                    .font(.subheadline.weight(.semibold).monospacedDigit())
+                Text(expiryUnit(domain)).font(.caption2.weight(.semibold)).tracking(0.5)
             }
             .foregroundStyle(expiryColor(domain))
             .frame(width: 42, height: 42)
@@ -273,41 +282,52 @@ struct RegistrarDashboardView: View {
             .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(domain.name).font(.system(size: 14, weight: .bold)).foregroundStyle(.white.opacity(0.9)).lineLimit(1)
+                Text(domain.name).font(.subheadline.weight(.semibold)).foregroundStyle(AppTheme.textPrimary).lineLimit(2)
                 HStack(spacing: 7) {
                     if domain.autoRenew == true { Label("Auto", systemImage: "arrow.triangle.2.circlepath") }
                     if domain.locked == true { Label("Locked", systemImage: "lock.fill") }
                     if let date = domain.expiresAt { Text("Expires \(date.formatted(date: .abbreviated, time: .omitted))") }
                 }
-                .font(.system(size: 8, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.34))
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(AppTheme.textSecondary)
             }
             Spacer()
-            Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold)).foregroundStyle(.white.opacity(0.2))
+            Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(AppTheme.textTertiary)
         }
         .padding(14)
-        .providerPanel(accent: provider.accentColor)
+        .appSurface()
     }
 
     private var healthFraction: CGFloat {
         guard !viewModel.domains.isEmpty else { return 0 }
-        return max(0.08, CGFloat(viewModel.domains.count - expiringDomains.count) / CGFloat(viewModel.domains.count))
+        return max(0, CGFloat(viewModel.domains.count - expiringDomains.count) / CGFloat(viewModel.domains.count))
     }
 
     private func expiryColor(_ domain: RegistrarDomain) -> Color {
         guard let days = domain.daysUntilExpiry else { return provider.accentColor }
-        if days < 0 { return .red }
-        if days <= 30 { return .orange }
-        return .green
+        if days < 0 { return AppTheme.danger }
+        if days <= 30 { return AppTheme.warning }
+        return AppTheme.success
+    }
+
+    private func expiryValue(_ domain: RegistrarDomain) -> String {
+        guard let days = domain.daysUntilExpiry else { return "—" }
+        return abs(days).formatted()
+    }
+
+    private func expiryUnit(_ domain: RegistrarDomain) -> String {
+        guard let days = domain.daysUntilExpiry else { return "UNKNOWN" }
+        return days < 0 ? "EXPIRED" : "DAYS"
     }
 
     private func errorView(_ message: String) -> some View {
-        VStack(spacing: 14) {
-            Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 28)).foregroundStyle(provider.accentColor)
-            Text("Could not load domains").font(.system(size: 17, weight: .semibold))
-            Text(message).font(.system(size: 12, weight: .medium)).foregroundStyle(.white.opacity(0.45)).multilineTextAlignment(.center)
-            Button("Try Again") { Task { await viewModel.load() } }.font(.system(size: 13, weight: .bold)).foregroundStyle(provider.accentColor)
+        AppEmptyState(
+            icon: "exclamationmark.triangle.fill",
+            title: "Could not load domains",
+            message: message,
+            actionTitle: "Try again"
+        ) {
+            Task { await viewModel.load(refresh: true) }
         }
-        .padding(28)
     }
 }

@@ -77,32 +77,42 @@ struct HostingResourceDetailView: View {
                     metadata
 
                     if let message = viewModel.successMessage {
-                        Label(message, systemImage: "checkmark.circle.fill")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(.green)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(15)
-                            .providerPanel(accent: .green)
+                        AppFeedbackBanner(
+                            title: "Request accepted",
+                            message: message,
+                            icon: "checkmark.circle.fill",
+                            tint: AppTheme.success
+                        )
                     }
                     if let error = viewModel.error {
-                        Label(error, systemImage: "exclamationmark.triangle.fill")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.orange)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(15)
-                            .providerPanel(accent: .orange)
+                        AppFeedbackBanner(
+                            title: "Request failed",
+                            message: error,
+                            tint: AppTheme.danger
+                        )
                     }
 
-                    sectionHeader
+                    AppSectionHeader(
+                        title: historyTitle,
+                        count: viewModel.deployments.count,
+                        accent: provider.accentColor
+                    )
                     if viewModel.isLoading {
-                        ProgressView().tint(provider.accentColor).padding(36)
-                    } else if viewModel.deployments.isEmpty {
-                        Text("No deployments, releases, jobs, or Machines were returned.")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.4))
-                            .padding(28)
+                        ProgressView("Loading \(historyTitle.lowercased())")
+                            .font(.footnote)
+                            .tint(AppTheme.signal)
+                            .foregroundStyle(AppTheme.textSecondary)
                             .frame(maxWidth: .infinity)
-                            .providerPanel(accent: provider.accentColor)
+                            .padding(.vertical, 32)
+                            .appSurface()
+                    } else if viewModel.deployments.isEmpty {
+                        AppEmptyState(
+                            icon: provider.systemImage,
+                            title: "No \(historyTitle.lowercased())",
+                            message: "\(provider.displayName) did not return any \(historyTitle.lowercased()) for this resource."
+                        )
+                        .frame(maxWidth: .infinity)
+                        .appSurface()
                     } else {
                         ForEach(viewModel.deployments) { deployment in deploymentRow(deployment) }
                     }
@@ -133,27 +143,25 @@ struct HostingResourceDetailView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 14) {
-                Image(systemName: provider.systemImage)
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundStyle(provider.accentColor)
-                    .frame(width: 58, height: 58)
-                    .background(provider.accentColor.opacity(0.14))
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                AppIconTile(icon: provider.systemImage, tint: provider.accentColor, size: 52)
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(resource.name).font(.system(size: 20, weight: .semibold)).lineLimit(2)
-                    Text([resource.kind, resource.region].compactMap { $0 }.joined(separator: " · "))
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.42))
+                    Text(resource.name)
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .lineLimit(2)
+                    if !resourceSubtitle.isEmpty {
+                        Text(resourceSubtitle)
+                            .font(.subheadline)
+                            .foregroundStyle(AppTheme.textSecondary)
+                    }
                 }
-                Spacer()
+                Spacer(minLength: 8)
                 if let status = resource.status {
-                    Text(status.uppercased())
-                        .font(.system(size: 8, weight: .semibold))
-                        .foregroundStyle(statusColor(status))
+                    AppStatusBadge(text: status, tone: .status(status))
                 }
             }
 
-            HStack(spacing: 10) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 10)], spacing: 10) {
                 if let urlString = resource.url, let url = URL(string: urlString) {
                     Button { UIApplication.shared.open(url) } label: { actionLabel("Open", icon: "arrow.up.right") }
                 }
@@ -168,69 +176,78 @@ struct HostingResourceDetailView: View {
             .buttonStyle(PressScaleButtonStyle())
         }
         .padding(18)
-        .providerPanel(accent: provider.accentColor)
+        .providerSurface(accent: provider.accentColor)
     }
 
     private var metadata: some View {
         NavigationLink {
             ProviderFullAPICatalogView(account: account)
         } label: {
-            HStack {
-                Image(systemName: "terminal.fill").foregroundStyle(provider.accentColor)
+            HStack(spacing: 12) {
+                AppIconTile(icon: "terminal.fill", tint: provider.accentColor, size: 36)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Complete API").font(.system(size: 13, weight: .bold))
-                    Text("Search official operations or send a manual raw request").font(.system(size: 10, weight: .semibold)).foregroundStyle(.white.opacity(0.38))
+                    Text("Complete API")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(AppTheme.textPrimary)
+                    Text("Search official operations or send a manual raw request")
+                        .font(.footnote)
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                Spacer()
-                Image(systemName: "chevron.right").foregroundStyle(.white.opacity(0.2))
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.textTertiary)
             }
-            .foregroundStyle(.white)
             .padding(16)
-            .providerPanel(accent: provider.accentColor)
+            .appSurface()
         }
         .buttonStyle(PressScaleButtonStyle())
     }
 
-    private var sectionHeader: some View {
-        HStack {
-            Text(historyTitle.uppercased())
-                .font(.system(size: 10, weight: .semibold)).tracking(1.4).foregroundStyle(.white.opacity(0.38))
-            Spacer()
-            Text(viewModel.deployments.count.formatted()).font(.system(size: 10, weight: .semibold)).foregroundStyle(provider.accentColor)
-        }
-    }
-
     private func deploymentRow(_ deployment: HostingDeployment) -> some View {
-        VStack(alignment: .leading, spacing: 9) {
-            HStack {
-                Text(deployment.title).font(.system(size: 13, weight: .bold)).lineLimit(2)
-                Spacer()
-                Text(deployment.status.uppercased())
-                    .font(.system(size: 8, weight: .semibold))
-                    .foregroundStyle(statusColor(deployment.status))
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
+                Text(deployment.title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .lineLimit(2)
+                Spacer(minLength: 8)
+                AppStatusBadge(text: deployment.status, tone: .status(deployment.status))
             }
             if let message = deployment.commitMessage, !message.isEmpty {
-                Text(message).font(.system(size: 10, weight: .medium)).foregroundStyle(.white.opacity(0.4)).lineLimit(3)
+                Text(message)
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .lineLimit(3)
             }
             HStack(spacing: 8) {
                 if let branch = deployment.branch, !branch.isEmpty { Label(branch, systemImage: "arrow.triangle.branch").lineLimit(1) }
                 if let date = deployment.createdAt { Text(date.formatted(date: .abbreviated, time: .shortened)) }
             }
-            .font(.system(size: 9, weight: .semibold))
-            .foregroundStyle(.white.opacity(0.28))
+            .font(.caption)
+            .foregroundStyle(AppTheme.textTertiary)
         }
         .padding(15)
-        .providerPanel(accent: provider.accentColor)
+        .appSurface()
     }
 
     private func actionLabel(_ title: String, icon: String) -> some View {
         Label(title, systemImage: icon)
-            .font(.system(size: 10, weight: .bold))
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(AppTheme.textPrimary)
             .lineLimit(1)
             .frame(maxWidth: .infinity)
-            .frame(height: 42)
-            .background(Color.white.opacity(0.06))
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .frame(minHeight: 44)
+            .background(AppTheme.surfaceRaised)
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
+    }
+
+    private var resourceSubtitle: String {
+        [resource.kind, resource.region]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty }
+            .joined(separator: " · ")
     }
 
     private var historyTitle: String {

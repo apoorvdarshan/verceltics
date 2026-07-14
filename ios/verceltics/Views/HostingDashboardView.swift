@@ -51,6 +51,7 @@ struct HostingDashboardView: View {
     @State private var searchText = ""
     @State private var isSearching = false
     @State private var refreshSpin = 0.0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(account: VercelAccount, startWithSearch: Bool = false) {
         self.account = account
@@ -77,7 +78,7 @@ struct HostingDashboardView: View {
                 if viewModel.isLoading {
                     ProgressView("Loading \(provider.displayName)")
                         .tint(provider.accentColor)
-                        .foregroundStyle(.white.opacity(0.6))
+                        .foregroundStyle(AppTheme.textSecondary)
                 } else if let error = viewModel.error, viewModel.resources.isEmpty {
                     errorView(error)
                 } else {
@@ -92,7 +93,9 @@ struct HostingDashboardView: View {
                 ToolbarItem(placement: .topBarLeading) { ProviderAccountMenu() }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        withAnimation(.easeInOut(duration: 0.55)) { refreshSpin += 360 }
+                        if !reduceMotion {
+                            withAnimation(.easeInOut(duration: 0.45)) { refreshSpin += 360 }
+                        }
                         Task { await viewModel.load(refresh: true) }
                     } label: {
                         Image(systemName: "arrow.clockwise")
@@ -101,6 +104,7 @@ struct HostingDashboardView: View {
                             .rotationEffect(.degrees(refreshSpin))
                     }
                     .disabled(viewModel.isRefreshing)
+                    .accessibilityLabel(viewModel.isRefreshing ? "Refreshing \(provider.displayName)" : "Refresh \(provider.displayName)")
                 }
             }
             .task(id: account.id) { await viewModel.load() }
@@ -118,38 +122,29 @@ struct HostingDashboardView: View {
                 accountCard
 
                 if let error = viewModel.error {
-                    Label(error, systemImage: "exclamationmark.triangle.fill")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.orange)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(16)
-                        .providerPanel(accent: .orange)
+                    AppFeedbackBanner(
+                        title: "Couldn’t refresh \(provider.displayName)",
+                        message: error,
+                        actionTitle: "Try again"
+                    ) {
+                        Task { await viewModel.load(refresh: true) }
+                    }
                 }
 
                 actionGrid
 
-                HStack {
-                    Text(resourceTitle.uppercased())
-                        .font(.system(size: 10, weight: .semibold))
-                        .tracking(1.4)
-                        .foregroundStyle(.white.opacity(0.38))
-                    Spacer()
-                    Text(filteredResources.count.formatted())
-                        .font(.system(size: 10, weight: .semibold).monospacedDigit())
-                        .foregroundStyle(provider.accentColor)
-                }
+                AppSectionHeader(title: resourceTitle, count: filteredResources.count, accent: provider.accentColor)
 
                 if filteredResources.isEmpty {
-                    VStack(spacing: 10) {
-                        Image(systemName: provider.systemImage)
-                            .font(.system(size: 26, weight: .bold))
-                        Text(searchText.isEmpty ? "No resources returned" : "No matching resources")
-                            .font(.system(size: 14, weight: .bold))
-                    }
-                    .foregroundStyle(.white.opacity(0.38))
+                    AppEmptyState(
+                        icon: searchText.isEmpty ? provider.systemImage : "magnifyingglass",
+                        title: searchText.isEmpty ? "No resources returned" : "No matching resources",
+                        message: searchText.isEmpty
+                            ? "This provider did not return any \(resourceTitle.lowercased()) for the connected account."
+                            : "Nothing matches “\(searchText)”."
+                    )
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 44)
-                    .providerPanel(accent: provider.accentColor)
+                    .appSurface()
                 } else {
                     ForEach(filteredResources) { resource in
                         NavigationLink {
@@ -161,10 +156,10 @@ struct HostingDashboardView: View {
                     }
                 }
 
-                Spacer().frame(height: 96)
             }
             .padding(.horizontal, 16)
             .padding(.top, 18)
+            .padding(.bottom, 24)
         }
         .refreshable { await viewModel.load(refresh: true) }
     }
@@ -187,24 +182,19 @@ struct HostingDashboardView: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(account.name)
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.headline)
+                    .foregroundStyle(AppTheme.textPrimary)
                     .lineLimit(1)
                 Text(account.email ?? provider.connectionSubtitle)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.4))
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.textSecondary)
                     .lineLimit(1)
             }
             Spacer()
-            Text("CONNECTED")
-                .font(.system(size: 8, weight: .semibold))
-                .foregroundStyle(.green)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 5)
-                .background(Color.green.opacity(0.12))
-                .clipShape(Capsule())
+            AppStatusBadge(text: "Connected", tone: .success)
         }
         .padding(18)
-        .providerPanel(accent: provider.accentColor)
+        .providerSurface(accent: provider.accentColor)
     }
 
     private var actionGrid: some View {
@@ -227,11 +217,11 @@ struct HostingDashboardView: View {
         HStack(spacing: 8) {
             Image(systemName: icon)
                 .foregroundStyle(provider.accentColor)
-            Text(title).font(.system(size: 12, weight: .bold))
+            Text(title).font(.subheadline.weight(.semibold))
         }
         .frame(maxWidth: .infinity)
         .frame(height: 48)
-        .providerPanel(accent: provider.accentColor)
+        .appSurface(raised: true)
     }
 
     private func resourceRow(_ resource: HostingResource) -> some View {
@@ -244,46 +234,35 @@ struct HostingDashboardView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
             VStack(alignment: .leading, spacing: 4) {
                 Text(resource.name)
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.9))
-                    .lineLimit(1)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .lineLimit(2)
                 Text([resource.kind, resource.region, resource.subtitle].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.36))
-                    .lineLimit(1)
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .lineLimit(2)
             }
             Spacer()
             if let status = resource.status {
-                Text(status.uppercased())
-                    .font(.system(size: 8, weight: .semibold))
-                    .foregroundStyle(statusColor(status))
-                    .lineLimit(1)
+                AppStatusBadge(text: status.capitalized, tone: .status(status))
             }
             Image(systemName: "chevron.right")
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.2))
+                .foregroundStyle(AppTheme.textTertiary)
         }
         .padding(15)
-        .providerPanel(accent: provider.accentColor)
+        .appSurface()
     }
 
     private func errorView(_ message: String) -> some View {
-        VStack(spacing: 14) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 28))
-                .foregroundStyle(provider.accentColor)
-            Text("Could not load \(provider.displayName)")
-                .font(.system(size: 17, weight: .semibold))
-            Text(message)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.white.opacity(0.45))
-                .multilineTextAlignment(.center)
-            Button("Try Again") { Task { await viewModel.load() } }
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(provider.accentColor)
+        AppEmptyState(
+            icon: "exclamationmark.triangle.fill",
+            title: "Could not load \(provider.displayName)",
+            message: message,
+            actionTitle: "Try again"
+        ) {
+            Task { await viewModel.load(refresh: true) }
         }
-        .padding(28)
-        .frame(maxWidth: 360)
     }
 
     private var resourceTitle: String {
@@ -311,7 +290,7 @@ struct ProviderPanelModifier: ViewModifier {
     let accent: Color
 
     func body(content: Content) -> some View {
-        content.providerSurface(accent: accent)
+        content.appSurface()
     }
 }
 
@@ -320,9 +299,5 @@ extension View {
 }
 
 func statusColor(_ status: String) -> Color {
-    let value = status.lowercased()
-    if value.contains("active") || value.contains("ready") || value.contains("success") || value.contains("live") || value.contains("running") || value.contains("published") || value.contains("succeed") { return AppTheme.success }
-    if value.contains("fail") || value.contains("error") || value.contains("cancel") || value.contains("suspend") { return AppTheme.danger }
-    if value.contains("build") || value.contains("progress") || value.contains("pending") || value.contains("starting") { return AppTheme.warning }
-    return AppTheme.textSecondary
+    AppStatusTone.status(status).color
 }

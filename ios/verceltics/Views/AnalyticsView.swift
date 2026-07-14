@@ -22,6 +22,8 @@ final class AnalyticsViewModel {
     var recentDeployments: [RecentDeployment] = []
     var selectedRange: TimeRange = .week
     var selectedEnvironment: VercelEnvironment = .production
+    var displayedRange: TimeRange?
+    var displayedEnvironment: VercelEnvironment?
     var hasLongAnalyticsHistory = false
     var isLoading = true
     var error: String?
@@ -38,7 +40,7 @@ final class AnalyticsViewModel {
         token: String,
         hasLongAnalyticsHistory: Bool,
         forceRefresh: Bool = false
-    ) async -> (didUnlock: Bool, applied: Bool) {
+    ) async -> (didUnlock: Bool, applied: Bool, succeeded: Bool) {
         let cacheKey = [
             token.hashValue.description,
             project.id,
@@ -54,9 +56,11 @@ final class AnalyticsViewModel {
             recentDeployments = cached.recentDeployments
             self.hasLongAnalyticsHistory = hasLongAnalyticsHistory || cached.hasLongAnalyticsHistory
             analyticsUnavailableMessage = cached.analyticsUnavailableMessage
+            displayedRange = selectedRange
+            displayedEnvironment = selectedEnvironment
             error = nil
             isLoading = false
-            return (false, true)
+            return (false, true, true)
         }
 
         loadGeneration += 1
@@ -140,8 +144,14 @@ final class AnalyticsViewModel {
         let domains = await fetchedDomains
         let deployments = await fetchedDeployments
 
-        guard generation == loadGeneration else { return (false, false) }
-        data = loadedData
+        guard generation == loadGeneration else { return (false, false, false) }
+        if loadedError == nil || data.overview == nil {
+            data = loadedData
+        }
+        if loadedError == nil {
+            displayedRange = range
+            displayedEnvironment = selectedEnvironment
+        }
         error = loadedError
         analyticsUnavailableMessage = loadedUnavailableMessage
         self.hasLongAnalyticsHistory = hasLongAnalyticsHistory || didUnlockLongAnalyticsHistory
@@ -160,7 +170,7 @@ final class AnalyticsViewModel {
                 analyticsUnavailableMessage: analyticsUnavailableMessage
             )
         }
-        return (didUnlockLongAnalyticsHistory, true)
+        return (didUnlockLongAnalyticsHistory, true, loadedError == nil)
     }
 }
 
@@ -168,6 +178,7 @@ struct AnalyticsView: View {
     let project: Project
     @Environment(AuthManager.self) private var authManager
     @Environment(\.horizontalSizeClass) private var hSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var vm: AnalyticsViewModel
     @State private var lastUpdated: Date?
     @State private var refreshSpin: Double = 0
@@ -182,9 +193,9 @@ struct AnalyticsView: View {
         ZStack {
             AppTheme.canvas.ignoresSafeArea()
 
-            if vm.isLoading {
+            if vm.isLoading && !hasVisibleContent {
                 AnalyticsSkeletonView()
-            } else if let error = vm.error {
+            } else if let error = vm.error, !hasVisibleContent {
                 ErrorStateView(message: error) {
                     Task { await loadData(forceRefresh: true) }
                 }
@@ -198,8 +209,8 @@ struct AnalyticsView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
-                    withAnimation(.easeInOut(duration: 0.6)) {
-                        refreshSpin += 360
+                    if !reduceMotion {
+                        withAnimation(.easeInOut(duration: 0.45)) { refreshSpin += 360 }
                     }
                     Task { await loadData(forceRefresh: true) }
                 } label: {
@@ -227,6 +238,10 @@ struct AnalyticsView: View {
         .sensoryFeedback(.selection, trigger: vm.selectedEnvironment)
     }
 
+    private var hasVisibleContent: Bool {
+        vm.displayedRange != nil
+    }
+
     private var breakdownColumns: [GridItem] {
         hSize == .regular
             ? [GridItem(.adaptive(minimum: 320, maximum: 480), spacing: 16)]
@@ -237,6 +252,17 @@ struct AnalyticsView: View {
         ScrollView {
             VStack(spacing: 16) {
                 header
+
+                if let error = vm.error {
+                    AppFeedbackBanner(
+                        title: "Analytics refresh failed",
+                        message: staleAnalyticsMessage(error),
+                        tint: AppTheme.warning,
+                        actionTitle: "Retry"
+                    ) {
+                        Task { await loadData(forceRefresh: true) }
+                    }
+                }
 
                 if let analyticsUnavailableMessage = vm.analyticsUnavailableMessage {
                     analyticsUnavailableCard(analyticsUnavailableMessage)
@@ -259,74 +285,24 @@ struct AnalyticsView: View {
     }
 
     private func analyticsUnavailableCard(_ message: String) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "chart.bar.xaxis")
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(.blue)
-                .frame(width: 34, height: 34)
-                .background(Color.blue.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-
-            VStack(alignment: .leading, spacing: 5) {
-                Text("Analytics unavailable")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.86))
-
-                Text(message)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.42))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(16)
-        .background(
-            LinearGradient(
-                colors: [Color.white.opacity(0.06), Color.white.opacity(0.025)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+        AppFeedbackBanner(
+            title: "Analytics unavailable",
+            message: message,
+            icon: "chart.bar.xaxis",
+            tint: AppTheme.signal
         )
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5)
-        )
+    }
+
+    private func staleAnalyticsMessage(_ error: String) -> String {
+        guard let range = vm.displayedRange, let environment = vm.displayedEnvironment else { return error }
+        return "\(error) Showing the last successful \(range.rawValue) · \(environment.controlLabel) result."
     }
 
     private var analyticsChartCard: some View {
         AnalyticsChart(data: vm.data.timeseries)
             .frame(height: 260)
             .padding(18)
-            .background(
-                ZStack {
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.06), Color.white.opacity(0.02)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                    LinearGradient(
-                        colors: [Color.blue.opacity(0.04), .clear],
-                        startPoint: .topLeading, endPoint: .bottomTrailing
-                    )
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.04), .clear],
-                        startPoint: .top, endPoint: .center
-                    )
-                }
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(
-                        LinearGradient(
-                            colors: [Color.white.opacity(0.14), Color.white.opacity(0.04)],
-                            startPoint: .top, endPoint: .bottom
-                        ),
-                        lineWidth: 0.5
-                    )
-            )
+            .appSurface()
     }
 
     private var analyticsBreakdowns: some View {
@@ -383,13 +359,7 @@ struct AnalyticsView: View {
                         }
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
-                        .background(
-                            LinearGradient(
-                                colors: [Color.white.opacity(0.08), Color.white.opacity(0.035)],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
+                        .background(AppTheme.surfaceRaised)
                         .clipShape(Capsule())
                         .overlay(Capsule().strokeBorder(Color.white.opacity(0.09), lineWidth: 0.5))
                     }
@@ -430,15 +400,10 @@ struct AnalyticsView: View {
                     }
                     .padding(.horizontal, 11)
                     .padding(.vertical, 9)
-                    .background(
-                        LinearGradient(
-                            colors: [Color.white.opacity(0.10), Color.white.opacity(0.04)],
-                            startPoint: .top, endPoint: .bottom
-                        )
-                    )
+                    .background(AppTheme.surfaceRaised)
                     .foregroundStyle(.white)
-                    .clipShape(Capsule())
-                    .overlay(Capsule().strokeBorder(Color.white.opacity(0.10), lineWidth: 0.5))
+                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous).strokeBorder(AppTheme.stroke, lineWidth: 0.5))
                 }
                 .buttonStyle(PressScaleButtonStyle())
 
@@ -469,32 +434,25 @@ struct AnalyticsView: View {
                     }
                     .padding(.horizontal, 11)
                     .padding(.vertical, 9)
-                    .background(
-                        LinearGradient(
-                            colors: [Color.white.opacity(0.10), Color.white.opacity(0.04)],
-                            startPoint: .top, endPoint: .bottom
-                        )
-                    )
+                    .background(AppTheme.surfaceRaised)
                     .foregroundStyle(.white)
-                    .clipShape(Capsule())
-                    .overlay(Capsule().strokeBorder(Color.white.opacity(0.10), lineWidth: 0.5))
+                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous).strokeBorder(AppTheme.stroke, lineWidth: 0.5))
                 }
                 .buttonStyle(PressScaleButtonStyle())
                 .layoutPriority(1)
 
                 Spacer()
-
-                if let lastUpdated {
-                    HStack(spacing: 5) {
-                        Circle()
-                            .fill(Color(red: 0.30, green: 0.85, blue: 0.55))
-                            .frame(width: 5, height: 5)
-                        Text("Updated \(lastUpdated.formatted(.relative(presentation: .named)))")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(.white.opacity(0.4))
-                    }
-                    .transition(.opacity)
+                if vm.isLoading {
+                    ProgressView().controlSize(.small).tint(AppTheme.textSecondary)
                 }
+            }
+
+            if let lastUpdated {
+                Label("Updated \(lastUpdated.formatted(.relative(presentation: .named)))", systemImage: "checkmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .transition(.opacity)
             }
         }
         .padding(.bottom, 2)
@@ -503,7 +461,7 @@ struct AnalyticsView: View {
     // MARK: - Stats Cards
 
     private var statsCards: some View {
-        HStack(spacing: 10) {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 106), spacing: 10)], spacing: 10) {
             StatCard(
                 title: "Visitors",
                 value: formatNumber(vm.data.overview?.devices ?? 0),
@@ -623,16 +581,11 @@ struct AnalyticsView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
-                Image(systemName: icon)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.blue)
-                    .frame(width: 22, height: 22)
-                    .background(Color.blue.opacity(0.12))
-                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                AppIconTile(icon: icon, tint: AppTheme.signal, size: 28)
 
                 Text(title)
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(.white)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.textPrimary)
 
                 Spacer()
             }
@@ -643,52 +596,28 @@ struct AnalyticsView: View {
 
             content()
         }
-        .background(
-            ZStack {
-                LinearGradient(
-                    colors: [Color.white.opacity(0.06), Color.white.opacity(0.02)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                LinearGradient(
-                    colors: [Color.white.opacity(0.04), .clear],
-                    startPoint: .top,
-                    endPoint: .center
-                )
-            }
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.12), Color.white.opacity(0.04)],
-                        startPoint: .top, endPoint: .bottom
-                    ),
-                    lineWidth: 0.5
-                )
-        )
+        .appSurface()
     }
 
     @ViewBuilder
     private func detailRow(icon: String, title: String, value: String, url: URL? = nil) -> some View {
         let content = HStack(spacing: 10) {
             Image(systemName: icon)
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.35))
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AppTheme.textTertiary)
                 .frame(width: 18)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.35))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(AppTheme.textSecondary)
                     .textCase(.uppercase)
                     .tracking(0.7)
 
                 Text(value)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.78))
-                    .lineLimit(1)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .lineLimit(2)
                     .truncationMode(.middle)
             }
 
@@ -697,7 +626,7 @@ struct AnalyticsView: View {
             if url != nil {
                 Image(systemName: "arrow.up.right")
                     .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.blue.opacity(0.75))
+                    .foregroundStyle(AppTheme.signal)
             }
         }
         .padding(.horizontal, 16)
@@ -736,7 +665,6 @@ struct AnalyticsView: View {
                 .fill(deploymentStatusColor(deployment.displayState))
                 .frame(width: 8, height: 8)
                 .padding(.top, 5)
-                .shadow(color: deploymentStatusColor(deployment.displayState).opacity(0.45), radius: 3)
 
             VStack(alignment: .leading, spacing: 5) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -745,13 +673,7 @@ struct AnalyticsView: View {
                         .foregroundStyle(.white.opacity(0.82))
                         .lineLimit(1)
 
-                    Text(deployment.displayState.capitalized)
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(deploymentStatusColor(deployment.displayState))
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 3)
-                        .background(deploymentStatusColor(deployment.displayState).opacity(0.12))
-                        .clipShape(Capsule())
+                    AppStatusBadge(text: deployment.displayState.capitalized, tone: .status(deployment.displayState))
                 }
 
                 HStack(spacing: 6) {
@@ -779,7 +701,7 @@ struct AnalyticsView: View {
 
             Image(systemName: "chevron.right")
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.22))
+            .foregroundStyle(AppTheme.textTertiary)
                 .frame(width: 24, height: 24)
         }
         .padding(.horizontal, 16)
@@ -788,21 +710,14 @@ struct AnalyticsView: View {
 
     private func emptyInfoState(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 12, weight: .medium))
-            .foregroundStyle(.white.opacity(0.3))
+            .font(.footnote)
+            .foregroundStyle(AppTheme.textSecondary)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 28)
     }
 
     private func deploymentStatusColor(_ state: String) -> Color {
-        switch state.uppercased() {
-        case "READY": Color(red: 0.30, green: 0.85, blue: 0.55)
-        case "ERROR", "FAILED": Color(red: 1.0, green: 0.35, blue: 0.35)
-        case "BUILDING", "INITIALIZING": Color.blue
-        case "QUEUED", "PENDING": Color(red: 1.0, green: 0.72, blue: 0.35)
-        case "CANCELED", "CANCELLED": Color.white.opacity(0.35)
-        default: Color.white.opacity(0.45)
-        }
+        AppStatusTone.status(state).color
     }
 
     // MARK: - Breakdown Card
@@ -822,15 +737,10 @@ struct AnalyticsView: View {
             // Header
             HStack {
                 HStack(spacing: 8) {
-                    Image(systemName: icon)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.blue)
-                        .frame(width: 22, height: 22)
-                        .background(Color.blue.opacity(0.12))
-                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    AppIconTile(icon: icon, tint: AppTheme.signal, size: 28)
                     Text(title)
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(.white)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(AppTheme.textPrimary)
                 }
                 Spacer()
                 HStack(spacing: 0) {
@@ -839,8 +749,8 @@ struct AnalyticsView: View {
                     Text("VISITORS")
                         .frame(width: 64, alignment: .trailing)
                 }
-                .font(.system(size: 8, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.35))
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(AppTheme.textSecondary)
                 .tracking(0.7)
             }
             .padding(.horizontal, 16)
@@ -854,20 +764,20 @@ struct AnalyticsView: View {
                     VStack(spacing: 8) {
                         Image(systemName: "lock.fill")
                             .font(.system(size: 18))
-                            .foregroundStyle(.white.opacity(0.2))
+                            .foregroundStyle(AppTheme.textTertiary)
                         Text(lockTitle)
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(.white.opacity(0.7))
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(AppTheme.textPrimary)
                         Text(lockedSubtitle ?? "Upgrade your Vercel plan")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.35))
+                            .font(.footnote)
+                            .foregroundStyle(AppTheme.textSecondary)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 28)
                 } else {
                     Text("No data available")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.3))
+                        .font(.footnote)
+                        .foregroundStyle(AppTheme.textSecondary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 28)
                 }
@@ -878,12 +788,7 @@ struct AnalyticsView: View {
                         ZStack(alignment: .leading) {
                             GeometryReader { geo in
                                 RoundedRectangle(cornerRadius: 5)
-                                    .fill(
-                                        LinearGradient(
-                                            colors: [Color.blue.opacity(0.18), Color.blue.opacity(0.06)],
-                                            startPoint: .leading, endPoint: .trailing
-                                        )
-                                    )
+                                    .fill(AppTheme.signal.opacity(0.13))
                                     .frame(width: geo.size.width * CGFloat(item.visitors) / CGFloat(maxVal))
                             }
                             HStack(spacing: 7) {
@@ -892,8 +797,8 @@ struct AnalyticsView: View {
                                         .font(.system(size: 13))
                                 }
                                 Text(displayName(item.key, emptyLabel: emptyLabel, isCountry: isCountry))
-                                    .font(.system(size: 13, weight: .medium))
-                                    .foregroundStyle(.white)
+                                    .font(.footnote.weight(.medium))
+                                    .foregroundStyle(AppTheme.textPrimary)
                                     .lineLimit(1)
                             }
                             .padding(.horizontal, 12)
@@ -907,37 +812,13 @@ struct AnalyticsView: View {
                             .frame(width: 64, alignment: .trailing)
                             .padding(.trailing, 12)
                     }
-                    .font(.system(size: 11, weight: .bold).monospacedDigit())
-                    .foregroundStyle(.white.opacity(0.55))
+                    .font(.caption.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(AppTheme.textSecondary)
                 }
                 Spacer().frame(height: 4)
             }
         }
-        .background(
-            ZStack {
-                LinearGradient(
-                    colors: [Color.white.opacity(0.06), Color.white.opacity(0.02)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                LinearGradient(
-                    colors: [Color.white.opacity(0.04), .clear],
-                    startPoint: .top,
-                    endPoint: .center
-                )
-            }
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.12), Color.white.opacity(0.04)],
-                        startPoint: .top, endPoint: .bottom
-                    ),
-                    lineWidth: 0.5
-                )
-        )
+        .appSurface()
     }
 
     // MARK: - Helpers
@@ -954,7 +835,9 @@ struct AnalyticsView: View {
         if result.didUnlock {
             authManager.markLongAnalyticsHistoryAvailable(for: accountId)
         }
-        lastUpdated = Date()
+        if result.succeeded {
+            lastUpdated = Date()
+        }
     }
 
     private func formatNumber(_ value: Int) -> String {
@@ -1008,25 +891,12 @@ struct AnalyticsSkeletonView: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(14)
-                        .background(
-                            LinearGradient(
-                                colors: [Color.white.opacity(0.05), Color.white.opacity(0.02)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .appSurface()
                     }
                 }
 
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.white.opacity(0.05), Color.white.opacity(0.02)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
+                    .fill(AppTheme.surface)
                     .frame(height: 250)
 
                 ForEach(0..<4, id: \.self) { _ in
@@ -1041,14 +911,7 @@ struct AnalyticsSkeletonView: View {
                         }
                     }
                     .padding(16)
-                    .background(
-                        LinearGradient(
-                            colors: [Color.white.opacity(0.05), Color.white.opacity(0.02)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .appSurface()
                 }
             }
             .padding()

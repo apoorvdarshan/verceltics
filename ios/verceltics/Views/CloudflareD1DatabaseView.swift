@@ -140,18 +140,7 @@ struct CloudflareD1DatabaseView: View {
 
     private var header: some View {
         HStack(alignment: .top, spacing: 13) {
-            Image(systemName: "cylinder.split.1x2.fill")
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(.black.opacity(0.82))
-                .frame(width: 46, height: 46)
-                .background(
-                    LinearGradient(
-                        colors: [CloudflareStyle.orange, CloudflareStyle.amber],
-                        startPoint: .bottomLeading,
-                        endPoint: .topTrailing
-                    )
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            AppIconTile(icon: "cylinder.split.1x2.fill", tint: CloudflareStyle.orange, size: 46)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(viewModel.database.name)

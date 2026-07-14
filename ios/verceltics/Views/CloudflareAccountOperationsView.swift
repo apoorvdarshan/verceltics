@@ -135,18 +135,7 @@ struct CloudflareAccountOperationsView: View {
 
     private var accountHeader: some View {
         HStack(alignment: .top, spacing: 13) {
-            Image(systemName: "building.2.crop.circle.fill")
-                .font(.system(size: 23, weight: .semibold))
-                .foregroundStyle(.black.opacity(0.82))
-                .frame(width: 50, height: 50)
-                .background(
-                    LinearGradient(
-                        colors: [CloudflareStyle.orange, CloudflareStyle.amber],
-                        startPoint: .bottomLeading,
-                        endPoint: .topTrailing
-                    )
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            AppIconTile(icon: "building.2.crop.circle.fill", tint: CloudflareStyle.orange, size: 50)
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(viewModel.account.name)

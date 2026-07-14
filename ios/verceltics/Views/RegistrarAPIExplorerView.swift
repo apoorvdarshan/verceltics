@@ -17,6 +17,7 @@ struct RegistrarAPIExplorerView: View {
     @State private var isSending = false
     @State private var showConfirmation = false
     @State private var showBodyFileImporter = false
+    @State private var showOptionalBody = false
 
     init(account: RegistrarAccount, domain: RegistrarDomain? = nil, preset: ProviderAPIRequestPreset? = nil) {
         self.account = account
@@ -33,6 +34,10 @@ struct RegistrarAPIExplorerView: View {
     private var provider: RegistrarProvider { account.provider }
     private var api: RegistrarAPI { RegistrarAPI(account: account) }
     private var requiresConfirmation: Bool { api.isLikelyWrite(method: method, path: path) }
+    private var bodyIsOptional: Bool { ["GET", "DELETE", "HEAD", "OPTIONS"].contains(method) }
+    private var hasBody: Bool { !requestBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    private var showsBodyEditor: Bool { !bodyIsOptional || hasBody || showOptionalBody }
+    private var canSend: Bool { !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
     var body: some View {
         ZStack {
@@ -40,32 +45,16 @@ struct RegistrarAPIExplorerView: View {
             ScrollView {
                 VStack(spacing: 16) {
                     safetyCard
-                    Picker("Method", selection: $method) {
-                        ForEach(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"], id: \.self) { Text($0).tag($0) }
+
+                    requestTarget
+
+                    if showsBodyEditor {
+                        requestBodyEditor
+                    } else {
+                        optionalBodyButton
                     }
-                    .pickerStyle(.menu).tint(provider.accentColor)
 
-                    TextField("/registrar-relative/path", text: $path)
-                        .font(.system(size: 12, design: .monospaced))
-                        .textFieldStyle(.plain)
-                        .padding(14)
-                        .foregroundStyle(.white)
-                        .providerPanel(accent: provider.accentColor)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(bodyIsBase64 ? "BASE64-ENCODED BINARY BODY" : "REQUEST BODY")
-                            .font(.system(size: 9, weight: .semibold)).tracking(1.2).foregroundStyle(.white.opacity(0.35))
-                        TextEditor(text: $requestBody)
-                            .font(.system(size: 11, design: .monospaced))
-                            .scrollContentBackground(.hidden)
-                            .frame(minHeight: 130)
-                    }
-                    .padding(14)
-                    .providerPanel(accent: provider.accentColor)
-
-                    if contentType.lowercased().contains("multipart/form-data") {
+                    if showsBodyEditor && contentType.lowercased().contains("multipart/form-data") {
                         NavigationLink {
                             CloudflareMultipartComposerView(schemaFields: preset?.multipartFields ?? []) { body, composedContentType in
                                 requestBody = body
@@ -77,35 +66,49 @@ struct RegistrarAPIExplorerView: View {
                                 bodyIsBase64 ? "Edit encoded multipart upload" : "Build multipart upload",
                                 systemImage: "doc.badge.plus"
                             )
-                            .font(.system(size: 12, weight: .bold))
+                            .font(.subheadline.weight(.semibold))
                             .frame(maxWidth: .infinity)
-                            .padding(14)
-                            .providerPanel(accent: provider.accentColor)
+                            .frame(minHeight: 44)
+                            .padding(.horizontal, 14)
+                            .appSurface(raised: true)
                         }
                         .buttonStyle(.plain)
                     }
 
-                    if contentType.lowercased().contains("application/octet-stream") {
+                    if showsBodyEditor && contentType.lowercased().contains("application/octet-stream") {
                         Button { showBodyFileImporter = true } label: {
                             Label(bodyIsBase64 ? "Replace binary file" : "Choose binary file", systemImage: "doc.fill.badge.plus")
-                                .font(.system(size: 12, weight: .bold))
+                                .font(.subheadline.weight(.semibold))
                                 .frame(maxWidth: .infinity)
-                                .padding(14)
-                                .providerPanel(accent: provider.accentColor)
+                                .frame(minHeight: 44)
+                                .padding(.horizontal, 14)
+                                .appSurface(raised: true)
                         }
                         .buttonStyle(.plain)
                     }
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("CONTENT TYPE").font(.system(size: 9, weight: .semibold)).tracking(1.2).foregroundStyle(.white.opacity(0.35))
+                    VStack(alignment: .leading, spacing: 10) {
+                        editorLabel("Content type")
                         TextField("application/json", text: $contentType)
-                            .font(.system(size: 11, design: .monospaced)).textInputAutocapitalization(.never).autocorrectionDisabled()
-                        Text("CUSTOM HEADERS · JSON OBJECT")
-                            .font(.system(size: 9, weight: .semibold)).tracking(1.2).foregroundStyle(.white.opacity(0.35))
+                            .font(.callout.monospaced())
+                            .textFieldStyle(.plain)
+                            .padding(.horizontal, 12)
+                            .frame(minHeight: 44)
+                            .background(AppTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .accessibilityLabel("Content type")
+                        editorLabel("Custom headers · JSON object")
                         TextEditor(text: $customHeaders)
-                            .font(.system(size: 10, design: .monospaced)).scrollContentBackground(.hidden).frame(minHeight: 72)
+                            .font(.footnote.monospaced())
+                            .scrollContentBackground(.hidden)
+                            .frame(minHeight: 88)
+                            .padding(10)
+                            .background(AppTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
+                            .accessibilityLabel("Custom headers JSON object")
                     }
-                    .padding(14).providerPanel(accent: provider.accentColor)
+                    .padding(14)
+                    .appSurface()
 
                     Button {
                         if requiresConfirmation { showConfirmation = true } else { send() }
@@ -113,37 +116,49 @@ struct RegistrarAPIExplorerView: View {
                         HStack(spacing: 9) {
                             if isSending { ProgressView().tint(.white) }
                             else { Image(systemName: requiresConfirmation ? "exclamationmark.shield.fill" : "paperplane.fill") }
-                            Text(requiresConfirmation ? "Review & Send Request" : "Send Request")
-                                .font(.system(size: 14, weight: .semibold))
+                            Text(requiresConfirmation ? "Review request" : "Send request")
+                                .font(.headline)
                         }
-                        .frame(maxWidth: .infinity).frame(height: 52)
-                        .background(provider.accentColor.opacity(path.isEmpty ? 0.22 : 0.82))
-                        .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: 50)
+                        .foregroundStyle(canSend ? Color.white : AppTheme.textTertiary)
+                        .background(canSend ? AppTheme.signal : AppTheme.surfaceRaised)
+                        .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
                     }
                     .buttonStyle(PressScaleButtonStyle())
-                    .disabled(path.isEmpty || isSending)
+                    .disabled(!canSend || isSending)
 
                     if let error {
-                        Text(error).font(.system(size: 11, weight: .semibold)).foregroundStyle(.red)
-                            .frame(maxWidth: .infinity, alignment: .leading).padding(15).providerPanel(accent: .red)
+                        AppFeedbackBanner(
+                            title: "Request failed",
+                            message: error,
+                            tint: AppTheme.danger
+                        )
                     }
                     if let response {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack {
-                                Text("RESPONSE").font(.system(size: 9, weight: .semibold)).tracking(1.2)
+                                editorLabel("Response")
                                 Spacer()
-                                Text("HTTP \(response.statusCode)").font(.system(size: 9, weight: .semibold))
-                                    .foregroundStyle((200...299).contains(response.statusCode) ? .green : .red)
+                                AppStatusBadge(
+                                    text: "HTTP \(response.statusCode)",
+                                    tone: (200...299).contains(response.statusCode) ? .success : .danger
+                                )
                             }
                             if !response.headers.isEmpty {
                                 Text(response.headers.sorted { $0.key.lowercased() < $1.key.lowercased() }.map { "\($0.key): \($0.value)" }.joined(separator: "\n"))
-                                    .font(.system(size: 9, design: .monospaced)).foregroundStyle(.white.opacity(0.42)).textSelection(.enabled)
+                                    .font(.caption.monospaced())
+                                    .foregroundStyle(AppTheme.textSecondary)
+                                    .textSelection(.enabled)
                             }
                             Text(Self.pretty(response.body))
-                                .font(.system(size: 10, design: .monospaced)).textSelection(.enabled)
+                                .font(.footnote.monospaced())
+                                .textSelection(.enabled)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        .foregroundStyle(.white.opacity(0.72)).padding(15).providerPanel(accent: provider.accentColor)
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .padding(15)
+                        .appSurface()
                     }
                     Spacer().frame(height: 80)
                 }
@@ -181,16 +196,93 @@ struct RegistrarAPIExplorerView: View {
         }
     }
 
+    private var requestTarget: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            editorLabel("Method")
+            Picker("Method", selection: $method) {
+                ForEach(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"], id: \.self) {
+                    Text($0).tag($0)
+                }
+            }
+            .pickerStyle(.menu)
+            .tint(AppTheme.textPrimary)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .padding(.horizontal, 12)
+            .background(AppTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
+
+            editorLabel("Request path")
+            TextField("/registrar-relative/path", text: $path)
+                .font(.callout.monospaced())
+                .textFieldStyle(.plain)
+                .padding(.horizontal, 12)
+                .frame(minHeight: 48)
+                .foregroundStyle(AppTheme.textPrimary)
+                .background(AppTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .accessibilityLabel("Request path")
+        }
+        .padding(14)
+        .appSurface()
+    }
+
+    private var requestBodyEditor: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                editorLabel(bodyIsBase64 ? "Base64-encoded binary body" : "Request body")
+                Spacer()
+                if bodyIsOptional && !hasBody {
+                    Button("Hide") { showOptionalBody = false }
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .frame(minHeight: 44)
+                }
+            }
+            TextEditor(text: $requestBody)
+                .font(.footnote.monospaced())
+                .scrollContentBackground(.hidden)
+                .frame(minHeight: 120)
+                .padding(10)
+                .background(AppTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
+                .accessibilityLabel("Request body")
+        }
+        .padding(14)
+        .appSurface()
+    }
+
+    private var optionalBodyButton: some View {
+        Button { showOptionalBody = true } label: {
+            Label("Add optional request body", systemImage: "plus")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppTheme.textSecondary)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .appSurface()
+    }
+
+    private func editorLabel(_ title: String) -> some View {
+        Text(title)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(AppTheme.textSecondary)
+    }
+
     private var safetyCard: some View {
         HStack(alignment: .top, spacing: 11) {
             Image(systemName: "lock.shield.fill").foregroundStyle(provider.accentColor)
             VStack(alignment: .leading, spacing: 4) {
-                Text("Full official registrar API").font(.system(size: 13, weight: .bold))
+                Text("Full official registrar API")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.textPrimary)
                 Text("Authentication is attached privately. Paths cannot leave \(provider.displayName)’s API host, and detected write or purchase commands require confirmation.")
-                    .font(.system(size: 10, weight: .semibold)).foregroundStyle(.white.opacity(0.42))
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.textSecondary)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading).padding(15).providerPanel(accent: provider.accentColor)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(15)
+        .appSurface()
     }
 
     private func send() {

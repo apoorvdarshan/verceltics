@@ -324,20 +324,11 @@ struct CloudflarePagesOperationsView: View {
     private func projectHeader(_ fullProject: CloudflarePagesOperationsProject) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 13) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 13, style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: [CloudflareStyle.orange, CloudflareStyle.amber],
-                                startPoint: .bottomLeading,
-                                endPoint: .topTrailing
-                            )
-                        )
-                    Image(systemName: "point.3.filled.connected.trianglepath.dotted")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(.black.opacity(0.82))
-                }
-                .frame(width: 48, height: 48)
+                AppIconTile(
+                    icon: "point.3.filled.connected.trianglepath.dotted",
+                    tint: CloudflareStyle.orange,
+                    size: 48
+                )
 
                 VStack(alignment: .leading, spacing: 5) {
                     Text(fullProject.name)

@@ -113,7 +113,6 @@ final class CloudflareStorageDashboardViewModel {
         switch result {
         case .success(let values): target = values
         case .failure(let error):
-            target = []
             warnings.append("\(section): \(error.localizedDescription)")
         }
     }
@@ -137,6 +136,7 @@ struct CloudflareStorageDashboardView: View {
     let allowsR2: Bool
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var viewModel: CloudflareStorageDashboardViewModel
     @State private var searchText = ""
     @State private var creationSheet: CloudflareStorageCreationSheet?
@@ -204,7 +204,9 @@ struct CloudflareStorageDashboardView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
-                    withAnimation(.easeInOut(duration: 0.6)) { refreshSpin += 360 }
+                    if !reduceMotion {
+                        withAnimation(.easeInOut(duration: 0.45)) { refreshSpin += 360 }
+                    }
                     Task { await viewModel.load(force: true) }
                 } label: {
                     Image(systemName: "arrow.clockwise")
@@ -215,7 +217,7 @@ struct CloudflareStorageDashboardView: View {
                 .disabled(viewModel.isRefreshing)
             }
         }
-        .onAppear { Task { await viewModel.load(force: true) } }
+        .task { await viewModel.load() }
         .refreshable { await viewModel.load(force: true) }
         .sheet(item: $creationSheet) { sheet in
             NavigationStack {
@@ -269,18 +271,7 @@ struct CloudflareStorageDashboardView: View {
     private var storageHeader: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 13) {
-                Image(systemName: "externaldrive.connected.to.line.below.fill")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(.black.opacity(0.82))
-                    .frame(width: 46, height: 46)
-                    .background(
-                        LinearGradient(
-                            colors: [CloudflareStyle.orange, CloudflareStyle.amber],
-                            startPoint: .bottomLeading,
-                            endPoint: .topTrailing
-                        )
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                AppIconTile(icon: "externaldrive.connected.to.line.below.fill", tint: CloudflareStyle.orange, size: 46)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Developer Storage")

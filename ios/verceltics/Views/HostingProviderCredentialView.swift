@@ -28,11 +28,14 @@ struct HostingProviderCredentialView: View {
                     header
 
                     if let error = authManager.error {
-                        Label(error, systemImage: "exclamationmark.triangle.fill")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.red)
-                            .padding(.horizontal, 20)
-                            .padding(.top, 18)
+                        AppFeedbackBanner(
+                            title: "Connection failed",
+                            message: error,
+                            icon: "exclamationmark.circle.fill",
+                            tint: AppTheme.danger
+                        )
+                        .padding(.horizontal, 20)
+                        .padding(.top, 18)
                     }
 
                     VStack(spacing: 14) {
@@ -74,19 +77,17 @@ struct HostingProviderCredentialView: View {
                 Spacer()
             }
 
-            ZStack {
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(provider.accentColor.opacity(0.14))
-                ProviderMark(provider: provider, size: 42)
-            }
-            .frame(width: 92, height: 92)
+            ProviderMark(provider: provider, size: 34)
+                .frame(width: 72, height: 72)
+                .background(provider.accentColor.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 
             VStack(spacing: 6) {
                 Text("Connect \(provider.displayName)")
-                    .font(.system(size: 26, weight: .semibold))
+                    .font(.title2.weight(.semibold))
                 Text(provider.connectionSubtitle)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.42))
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.textSecondary)
                     .multilineTextAlignment(.center)
             }
         }
@@ -97,7 +98,7 @@ struct HostingProviderCredentialView: View {
     private var instructions: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Connect securely")
-                .font(.system(size: 13, weight: .semibold))
+                .font(.subheadline.weight(.semibold))
             StepRow(number: 1, text: instructionOne)
             StepRow(number: 2, text: instructionTwo)
             StepRow(number: 3, text: "Paste the credentials below and connect")
@@ -106,8 +107,8 @@ struct HostingProviderCredentialView: View {
                 Image(systemName: "lock.shield.fill")
                     .foregroundStyle(provider.accentColor)
                 Text(credentialStorageMessage)
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.48))
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -121,12 +122,11 @@ struct HostingProviderCredentialView: View {
             if let url = provider.credentialPageURL { UIApplication.shared.open(url) }
         } label: {
             Label("Open \(provider.displayName) credentials", systemImage: "arrow.up.right")
-                .font(.system(size: 13, weight: .bold))
+                .font(.footnote.weight(.semibold))
                 .frame(maxWidth: .infinity)
-                .frame(height: 46)
-                .foregroundStyle(.white.opacity(0.82))
-                .background(Color.white.opacity(0.06))
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .frame(minHeight: 46)
+                .foregroundStyle(AppTheme.textPrimary)
+                .appSurface(raised: true)
         }
         .buttonStyle(PressScaleButtonStyle())
     }
@@ -178,26 +178,31 @@ struct HostingProviderCredentialView: View {
         field: Field,
         secure: Bool = false
     ) -> some View {
-        Group {
-            if secure {
-                SecureField(placeholder, text: text)
-            } else {
-                TextField(placeholder, text: text)
+        VStack(alignment: .leading, spacing: 7) {
+            Text(placeholder)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AppTheme.textSecondary)
+            Group {
+                if secure {
+                    SecureField("Enter value", text: text)
+                } else {
+                    TextField("Enter value", text: text)
+                }
             }
+            .textFieldStyle(.plain)
+            .font(.body.monospaced())
+            .padding(15)
+            .background(AppTheme.surfaceRaised)
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous)
+                    .strokeBorder(focusedField == field ? provider.accentColor.opacity(0.7) : AppTheme.stroke, lineWidth: focusedField == field ? 1 : 0.5)
+            )
+            .foregroundStyle(.white)
+            .focused($focusedField, equals: field)
+            .autocorrectionDisabled()
+            .textInputAutocapitalization(.never)
         }
-        .textFieldStyle(.plain)
-        .font(.system(size: 14, design: .monospaced))
-        .padding(15)
-        .background(Color.white.opacity(0.055))
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(focusedField == field ? provider.accentColor.opacity(0.7) : Color.white.opacity(0.08), lineWidth: focusedField == field ? 1 : 0.5)
-        )
-        .foregroundStyle(.white)
-        .focused($focusedField, equals: field)
-        .autocorrectionDisabled()
-        .textInputAutocapitalization(.never)
     }
 
     private var connectButton: some View {
@@ -219,7 +224,7 @@ struct HostingProviderCredentialView: View {
             }
             .frame(maxWidth: .infinity)
             .frame(height: 54)
-            .background(canConnect ? provider.accentColor : AppTheme.surfaceRaised)
+            .background(canConnect ? AppTheme.signal : AppTheme.surfaceRaised)
             .foregroundStyle(canConnect ? .white : AppTheme.textTertiary)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }

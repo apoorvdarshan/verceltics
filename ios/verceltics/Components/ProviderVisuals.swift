@@ -7,18 +7,22 @@ enum AppTheme {
     static let surface = Color(red: 0.060, green: 0.070, blue: 0.090)
     static let surfaceRaised = Color(red: 0.082, green: 0.092, blue: 0.115)
     static let textPrimary = Color(red: 0.94, green: 0.95, blue: 0.97)
-    static let textSecondary = Color(red: 0.57, green: 0.60, blue: 0.66)
-    static let textTertiary = Color(red: 0.36, green: 0.39, blue: 0.45)
-    static let stroke = Color.white.opacity(0.085)
+    static let textSecondary = Color(red: 0.64, green: 0.67, blue: 0.73)
+    static let textTertiary = Color(red: 0.44, green: 0.47, blue: 0.53)
+    static let stroke = Color.white.opacity(0.10)
     static let strokeStrong = Color.white.opacity(0.14)
     static let signal = Color(red: 0.31, green: 0.63, blue: 1.0)
     static let success = Color(red: 0.30, green: 0.79, blue: 0.52)
     static let warning = Color(red: 0.96, green: 0.65, blue: 0.24)
     static let danger = Color(red: 0.96, green: 0.35, blue: 0.38)
+
+    static let panelRadius: CGFloat = 14
+    static let controlRadius: CGFloat = 12
+    static let iconRadius: CGFloat = 9
 }
 
 struct AppSurfaceModifier: ViewModifier {
-    var cornerRadius: CGFloat = 16
+    var cornerRadius: CGFloat = AppTheme.panelRadius
     var raised = false
 
     func body(content: Content) -> some View {
@@ -34,7 +38,7 @@ struct AppSurfaceModifier: ViewModifier {
 
 struct ProviderSurfaceModifier: ViewModifier {
     let accent: Color
-    var cornerRadius: CGFloat = 16
+    var cornerRadius: CGFloat = AppTheme.panelRadius
 
     func body(content: Content) -> some View {
         content
@@ -45,9 +49,9 @@ struct ProviderSurfaceModifier: ViewModifier {
                     .strokeBorder(AppTheme.stroke, lineWidth: 0.5)
             }
             .overlay(alignment: .leading) {
-                Capsule()
+                RoundedRectangle(cornerRadius: 1, style: .continuous)
                     .fill(accent.opacity(0.72))
-                    .frame(width: 2, height: 30)
+                    .frame(width: 2, height: 24)
                     .padding(.leading, 1)
             }
     }
@@ -78,16 +82,186 @@ struct NativeGlassSurfaceModifier: ViewModifier {
 }
 
 extension View {
-    func appSurface(cornerRadius: CGFloat = 16, raised: Bool = false) -> some View {
+    func appSurface(cornerRadius: CGFloat = AppTheme.panelRadius, raised: Bool = false) -> some View {
         modifier(AppSurfaceModifier(cornerRadius: cornerRadius, raised: raised))
     }
 
-    func providerSurface(accent: Color, cornerRadius: CGFloat = 16) -> some View {
+    func providerSurface(accent: Color, cornerRadius: CGFloat = AppTheme.panelRadius) -> some View {
         modifier(ProviderSurfaceModifier(accent: accent, cornerRadius: cornerRadius))
     }
 
     func nativeGlassSurface(cornerRadius: CGFloat) -> some View {
         modifier(NativeGlassSurfaceModifier(cornerRadius: cornerRadius))
+    }
+}
+
+enum AppStatusTone {
+    case success
+    case warning
+    case danger
+    case progress
+    case neutral
+
+    var color: Color {
+        switch self {
+        case .success: AppTheme.success
+        case .warning: AppTheme.warning
+        case .danger: AppTheme.danger
+        case .progress: AppTheme.signal
+        case .neutral: AppTheme.textSecondary
+        }
+    }
+
+    static func status(_ value: String) -> AppStatusTone {
+        let value = value.lowercased()
+        if value.contains("inactive") || value.contains("deactiv") || value.contains("expired")
+            || value.contains("disabled") || value.contains("deleted") || value.contains("blocked")
+            || value.contains("fail") || value.contains("error") || value.contains("cancel")
+            || value.contains("suspend") || value.contains("fatal") || value.contains("stopped")
+            || value.contains("offline") {
+            return .danger
+        }
+        if value.contains("build") || value.contains("progress") || value.contains("initial") {
+            return .progress
+        }
+        if value.contains("pending") || value.contains("queued") || value.contains("starting")
+            || value.contains("warning") || value.contains("paused") || value.contains("not ready")
+            || value.contains("incomplete") {
+            return .warning
+        }
+        if value.contains("active") || value.contains("ready") || value.contains("success")
+            || value.contains("live") || value.contains("running") || value.contains("published")
+            || value.contains("succeed") || value.contains("complete") {
+            return .success
+        }
+        return .neutral
+    }
+}
+
+struct AppStatusBadge: View {
+    let text: String
+    var tone: AppStatusTone = .neutral
+
+    var body: some View {
+        Text(text)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(tone.color)
+            .lineLimit(1)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(tone.color.opacity(0.12), in: Capsule())
+            .overlay(Capsule().strokeBorder(tone.color.opacity(0.22), lineWidth: 0.5))
+            .accessibilityLabel("Status: \(text)")
+    }
+}
+
+struct AppIconTile: View {
+    let icon: String
+    var tint: Color = AppTheme.signal
+    var size: CGFloat = 36
+
+    var body: some View {
+        Image(systemName: icon)
+            .font(.system(size: size * 0.38, weight: .semibold))
+            .foregroundStyle(tint)
+            .frame(width: size, height: size)
+            .background(tint.opacity(0.12))
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous))
+            .accessibilityHidden(true)
+    }
+}
+
+struct AppSectionHeader: View {
+    let title: String
+    var count: Int?
+    var accent: Color = AppTheme.textSecondary
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(title.uppercased())
+                .font(.caption2.weight(.semibold))
+                .tracking(1.1)
+                .foregroundStyle(AppTheme.textSecondary)
+            Spacer(minLength: 8)
+            if let count {
+                Text(count.formatted())
+                    .font(.caption2.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(accent)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(AppTheme.surfaceRaised, in: Capsule())
+            }
+        }
+    }
+}
+
+struct AppFeedbackBanner: View {
+    let title: String
+    let message: String
+    var icon = "exclamationmark.triangle.fill"
+    var tint = AppTheme.warning
+    var actionTitle: String?
+    var action: (() -> Void)?
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            AppIconTile(icon: icon, tint: tint, size: 34)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                Text(message)
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let actionTitle, let action {
+                    Button(actionTitle, action: action)
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(tint)
+                        .frame(minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
+                        .buttonStyle(.plain)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(15)
+        .appSurface()
+    }
+}
+
+struct AppEmptyState: View {
+    let icon: String
+    let title: String
+    let message: String
+    var actionTitle: String?
+    var action: (() -> Void)?
+
+    var body: some View {
+        VStack(spacing: 16) {
+            AppIconTile(icon: icon, size: 46)
+            VStack(spacing: 6) {
+                Text(title)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                Text(message)
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if let actionTitle, let action {
+                Button(actionTitle, action: action)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .frame(minHeight: 44)
+                    .background(AppTheme.signal, in: RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
+                    .buttonStyle(PressScaleButtonStyle())
+            }
+        }
+        .frame(maxWidth: 380)
+        .padding(28)
     }
 }
 

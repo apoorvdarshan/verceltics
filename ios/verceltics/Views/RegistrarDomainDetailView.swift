@@ -18,23 +18,27 @@ struct RegistrarDomainDetailView: View {
                         ProviderFullAPICatalogView(account: account)
                     } label: {
                         HStack(spacing: 12) {
-                            Image(systemName: "terminal.fill").foregroundStyle(provider.accentColor)
+                            AppIconTile(icon: "terminal.fill", tint: provider.accentColor, size: 38)
                             VStack(alignment: .leading, spacing: 3) {
-                                Text("Complete registrar API").font(.system(size: 13, weight: .bold))
+                                Text("Complete registrar API")
+                                    .font(.subheadline.weight(.semibold))
                                 Text("Search every indexed read and write operation, then inspect the full raw response")
-                                    .font(.system(size: 9, weight: .semibold)).foregroundStyle(.white.opacity(0.38)).lineLimit(2)
+                                    .font(.caption)
+                                    .foregroundStyle(AppTheme.textSecondary)
+                                    .lineLimit(2)
                             }
                             Spacer()
-                            Image(systemName: "chevron.right").foregroundStyle(.white.opacity(0.2))
+                            Image(systemName: "chevron.right")
+                                .foregroundStyle(AppTheme.textTertiary)
                         }
-                        .foregroundStyle(.white)
+                        .foregroundStyle(AppTheme.textPrimary)
                         .padding(16)
-                        .providerPanel(accent: provider.accentColor)
+                        .appSurface()
                     }
                     .buttonStyle(PressScaleButtonStyle())
-                    Spacer().frame(height: 80)
                 }
                 .padding(16)
+                .padding(.bottom, 72)
             }
         }
         .navigationTitle(domain.name)
@@ -47,21 +51,30 @@ struct RegistrarDomainDetailView: View {
             HStack(spacing: 13) {
                 RegistrarMark(provider: provider, size: 54)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(domain.name).font(.system(size: 20, weight: .semibold)).lineLimit(2)
-                    Text(domain.status?.uppercased() ?? provider.displayName.uppercased())
-                        .font(.system(size: 8, weight: .semibold)).tracking(0.9).foregroundStyle(provider.accentColor)
+                    Text(domain.name)
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(AppTheme.textPrimary)
+                        .lineLimit(2)
+                    AppStatusBadge(
+                        text: domain.status?.uppercased() ?? provider.displayName.uppercased(),
+                        tone: AppStatusTone.status(domain.status ?? "")
+                    )
                 }
                 Spacer()
             }
 
             HStack(alignment: .lastTextBaseline) {
-                Text(domain.daysUntilExpiry.map { max(0, $0).formatted() } ?? "—")
-                    .font(.system(size: 42, weight: .bold).monospacedDigit())
-                Text("days left").font(.system(size: 11, weight: .semibold)).foregroundStyle(.white.opacity(0.38))
+                Text(expiryValue)
+                    .font(.largeTitle.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(expiryTone.color)
+                Text(expiryLabel)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.textSecondary)
                 Spacer()
                 if let date = domain.expiresAt {
                     Text(date.formatted(date: .abbreviated, time: .omitted))
-                        .font(.system(size: 11, weight: .bold)).foregroundStyle(.white.opacity(0.6))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AppTheme.textSecondary)
                 }
             }
 
@@ -76,7 +89,7 @@ struct RegistrarDomainDetailView: View {
             .buttonStyle(PressScaleButtonStyle())
         }
         .padding(18)
-        .providerPanel(accent: provider.accentColor)
+        .providerSurface(accent: provider.accentColor)
     }
 
     private var properties: some View {
@@ -91,43 +104,73 @@ struct RegistrarDomainDetailView: View {
                 property("Registered", value: date.formatted(date: .abbreviated, time: .omitted), icon: "calendar.badge.checkmark")
             }
         }
-        .providerPanel(accent: provider.accentColor)
+        .appSurface()
     }
 
     private var nameservers: some View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Nameservers", systemImage: "server.rack")
-                .font(.system(size: 12, weight: .semibold)).foregroundStyle(provider.accentColor)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(provider.accentColor)
             if domain.nameservers.isEmpty {
                 Text("The list endpoint did not include nameservers. Open the API explorer for the domain detail or DNS route.")
-                    .font(.system(size: 10, weight: .semibold)).foregroundStyle(.white.opacity(0.38))
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.textSecondary)
             } else {
                 ForEach(domain.nameservers, id: \.self) { value in
-                    Text(value).font(.system(size: 11, weight: .semibold, design: .monospaced)).foregroundStyle(.white.opacity(0.65))
+                    Text(value)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(AppTheme.textSecondary)
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .providerPanel(accent: provider.accentColor)
+        .appSurface()
     }
 
     private func property(_ title: String, value: String, icon: String) -> some View {
         HStack(spacing: 12) {
-            Image(systemName: icon).font(.system(size: 11, weight: .semibold)).foregroundStyle(provider.accentColor).frame(width: 22)
-            Text(title).font(.system(size: 12, weight: .semibold)).foregroundStyle(.white.opacity(0.58))
+            Image(systemName: icon)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(provider.accentColor)
+                .frame(width: 22)
+            Text(title)
+                .font(.subheadline)
+                .foregroundStyle(AppTheme.textSecondary)
             Spacer()
-            Text(value).font(.system(size: 11, weight: .semibold)).foregroundStyle(.white.opacity(0.82))
+            Text(value)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppTheme.textPrimary)
         }
         .padding(.horizontal, 15).padding(.vertical, 13)
     }
 
     private func action(_ title: String, icon: String) -> some View {
         Label(title, systemImage: icon)
-            .font(.system(size: 10, weight: .bold))
-            .frame(maxWidth: .infinity).frame(height: 42)
-            .background(Color.white.opacity(0.06))
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(AppTheme.textPrimary)
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: 44)
+            .background(AppTheme.surfaceRaised)
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
+    }
+
+    private var expiryValue: String {
+        guard let days = domain.daysUntilExpiry else { return "—" }
+        return abs(days).formatted()
+    }
+
+    private var expiryLabel: String {
+        guard let days = domain.daysUntilExpiry else { return "expiry unavailable" }
+        return days < 0 ? "days expired" : "days left"
+    }
+
+    private var expiryTone: AppStatusTone {
+        guard let days = domain.daysUntilExpiry else { return .neutral }
+        if days < 0 { return .danger }
+        if days <= 30 { return .warning }
+        return .success
     }
 
     private func booleanText(_ value: Bool?) -> String {

@@ -92,9 +92,9 @@ struct LoginView: View {
 
                 VStack(alignment: .leading, spacing: 12) {
                     Text(connectionCategory == .hosting ? "CONNECT A HOSTING PLATFORM" : "CONNECT A REGISTRAR")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.caption2.weight(.semibold))
                         .tracking(1.5)
-                        .foregroundStyle(.white.opacity(0.35))
+                        .foregroundStyle(AppTheme.textSecondary)
                         .padding(.horizontal, 4)
 
                     if connectionCategory == .hosting {
@@ -145,12 +145,13 @@ struct LoginView: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Connect \(provider.displayName)")
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(.headline)
                     Text(provider.connectionSubtitle)
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(Color.white.opacity(0.45))
-                        .lineLimit(1)
+                        .font(.footnote)
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .lineLimit(2)
                 }
+                .layoutPriority(1)
 
                 Spacer()
                 Image(systemName: "arrow.right")
@@ -158,10 +159,17 @@ struct LoginView: View {
             }
             .padding(.horizontal, 14)
             .frame(maxWidth: .infinity)
-            .frame(height: 66)
+            .frame(minHeight: 64)
+            .padding(.vertical, 8)
             .foregroundStyle(.white)
-            .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .liquidGlassSurface(cornerRadius: 20)
+            .contentShape(RoundedRectangle(cornerRadius: AppTheme.panelRadius, style: .continuous))
+            .liquidGlassSurface(cornerRadius: AppTheme.panelRadius)
+            .overlay(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 1, style: .continuous)
+                    .fill(accent.opacity(0.8))
+                    .frame(width: 2, height: 24)
+                    .padding(.leading, 1)
+            }
         }
         .buttonStyle(PressScaleButtonStyle())
     }
@@ -177,12 +185,13 @@ struct LoginView: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Connect \(provider.displayName)")
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(.headline)
                     Text(provider.apiDescription)
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.45))
-                        .lineLimit(1)
+                        .font(.footnote)
+                        .foregroundStyle(AppTheme.textSecondary)
+                        .lineLimit(2)
                 }
+                .layoutPriority(1)
 
                 Spacer()
                 Image(systemName: "arrow.right")
@@ -190,10 +199,17 @@ struct LoginView: View {
             }
             .padding(.horizontal, 14)
             .frame(maxWidth: .infinity)
-            .frame(height: 66)
+            .frame(minHeight: 64)
+            .padding(.vertical, 8)
             .foregroundStyle(.white)
-            .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .liquidGlassSurface(cornerRadius: 20)
+            .contentShape(RoundedRectangle(cornerRadius: AppTheme.panelRadius, style: .continuous))
+            .liquidGlassSurface(cornerRadius: AppTheme.panelRadius)
+            .overlay(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 1, style: .continuous)
+                    .fill(provider.accentColor.opacity(0.8))
+                    .frame(width: 2, height: 24)
+                    .padding(.leading, 1)
+            }
         }
         .buttonStyle(PressScaleButtonStyle())
     }
@@ -259,21 +275,26 @@ struct LoginView: View {
                     .buttonStyle(PressScaleButtonStyle())
 
                     // Token input
-                    SecureField("Paste your Vercel token", text: $tokenInput)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 15, design: .monospaced))
-                        .padding(15)
-                        .background(AppTheme.surfaceRaised)
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .strokeBorder(isTokenFocused ? AppTheme.signal.opacity(0.7) : AppTheme.stroke, lineWidth: isTokenFocused ? 1.0 : 0.5)
-                        )
-                        .foregroundStyle(.white)
-                        .focused($isTokenFocused)
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                        .animation(.easeOut(duration: 0.18), value: isTokenFocused)
+                    VStack(alignment: .leading, spacing: 7) {
+                        Text("Vercel token")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(AppTheme.textSecondary)
+                        SecureField("Paste token", text: $tokenInput)
+                            .textFieldStyle(.plain)
+                            .font(.body.monospaced())
+                            .padding(15)
+                            .background(AppTheme.surfaceRaised)
+                            .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous)
+                                    .strokeBorder(isTokenFocused ? AppTheme.signal.opacity(0.7) : AppTheme.stroke, lineWidth: isTokenFocused ? 1.0 : 0.5)
+                            )
+                            .foregroundStyle(.white)
+                            .focused($isTokenFocused)
+                            .autocorrectionDisabled()
+                            .textInputAutocapitalization(.never)
+                            .animation(.easeOut(duration: 0.18), value: isTokenFocused)
+                    }
 
                     // Connect
                     Button {
@@ -506,25 +527,30 @@ struct LoginView: View {
                 TextField(placeholder, text: text)
             }
         }
-        content
-            .textFieldStyle(.plain)
-            .font(.system(size: 14, design: .monospaced))
-            .padding(15)
-            .background(Color.white.opacity(0.055))
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .strokeBorder(
-                        focusedCloudflareField == field
-                            ? Color(red: 0.96, green: 0.45, blue: 0.10).opacity(0.65)
-                            : Color.white.opacity(0.08),
-                        lineWidth: focusedCloudflareField == field ? 1 : 0.5
-                    )
-            )
-            .foregroundStyle(.white)
-            .focused($focusedCloudflareField, equals: field)
-            .autocorrectionDisabled()
-            .textInputAutocapitalization(.never)
+        VStack(alignment: .leading, spacing: 7) {
+            Text(placeholder)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AppTheme.textSecondary)
+            content
+                .textFieldStyle(.plain)
+                .font(.body.monospaced())
+                .padding(15)
+                .background(AppTheme.surfaceRaised)
+                .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous)
+                        .strokeBorder(
+                            focusedCloudflareField == field
+                                ? CloudflareStyle.orange.opacity(0.7)
+                                : AppTheme.stroke,
+                            lineWidth: focusedCloudflareField == field ? 1 : 0.5
+                        )
+                )
+                .foregroundStyle(.white)
+                .focused($focusedCloudflareField, equals: field)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+        }
     }
 
     private func credentialHeader(provider: AccountProvider) -> some View {
@@ -544,31 +570,17 @@ struct LoginView: View {
                 Spacer()
             }
 
-            ZStack {
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(
-                        provider == .cloudflare
-                            ? Color(red: 0.96, green: 0.45, blue: 0.10).opacity(0.14)
-                            : Color.white.opacity(0.08)
-                )
-                if provider == .cloudflare {
-                    Image("CloudflareMark")
-                        .resizable()
-                        .scaledToFit()
-                        .padding(20)
-                } else {
-                    Image(systemName: "triangle.fill")
-                        .font(.system(size: 33, weight: .bold))
-                }
-            }
-            .frame(width: 92, height: 92)
+            ProviderMark(provider: provider, size: 34)
+                .frame(width: 72, height: 72)
+                .background(provider.accentColor.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 
             VStack(spacing: 6) {
                 Text("Connect \(provider.displayName)")
-                    .font(.system(size: 26, weight: .semibold))
+                    .font(.title2.weight(.semibold))
                 Text(provider == .cloudflare ? "Manage your Cloudflare edge" : "Analytics for your Vercel projects")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.42))
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.textSecondary)
             }
         }
         .padding(.horizontal, 20)
@@ -612,16 +624,19 @@ struct StepRow: View {
                 .overlay(Circle().strokeBorder(Color.white.opacity(0.06), lineWidth: 0.5))
 
             Text(text)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.55))
+                .font(.footnote)
+                .foregroundStyle(AppTheme.textSecondary)
         }
     }
 }
 
 struct PressScaleButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.97 : 1)
-            .animation(.spring(response: 0.22, dampingFraction: 0.72), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.985 : 1)
+            .opacity(configuration.isPressed ? 0.82 : 1)
+            .animation(reduceMotion ? nil : .snappy(duration: 0.16), value: configuration.isPressed)
     }
 }

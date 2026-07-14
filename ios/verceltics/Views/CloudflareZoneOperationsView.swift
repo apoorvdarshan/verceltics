@@ -299,18 +299,7 @@ struct CloudflareZoneOperationsView: View {
     private var zoneHeader: some View {
         VStack(alignment: .leading, spacing: 15) {
             HStack(alignment: .top, spacing: 13) {
-                Image(systemName: "globe.americas.fill")
-                    .font(.system(size: 21, weight: .semibold))
-                    .foregroundStyle(.black.opacity(0.82))
-                    .frame(width: 48, height: 48)
-                    .background(
-                        LinearGradient(
-                            colors: [CloudflareStyle.orange, CloudflareStyle.amber],
-                            startPoint: .bottomLeading,
-                            endPoint: .topTrailing
-                        )
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                AppIconTile(icon: "globe.americas.fill", tint: CloudflareStyle.orange, size: 48)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(viewModel.zone.name)

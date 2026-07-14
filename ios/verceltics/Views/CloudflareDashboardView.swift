@@ -3,13 +3,17 @@ import SwiftUI
 @Observable
 @MainActor
 final class CloudflareDashboardViewModel {
-    private struct CachedDashboard {
-        let accounts: [CloudflareAccountSummary]
-        let selectedAccountID: String?
+    private struct CachedResources {
         let zones: [CloudflareZone]
         let pagesProjects: [CloudflarePagesProject]
         let workers: [CloudflareWorkerScript]
         let sectionWarnings: [String]
+    }
+
+    private struct CachedDashboard {
+        let accounts: [CloudflareAccountSummary]
+        let selectedAccountID: String?
+        let resourcesByAccountID: [String: CachedResources]
     }
 
     private static var dashboards: [String: CachedDashboard] = [:]
@@ -20,6 +24,7 @@ final class CloudflareDashboardViewModel {
     private var loadedAuthenticationMode: CloudflareAuthenticationMode?
     private var loadedCacheKey: String?
     private var resourceLoadGeneration = 0
+    private var resourcesByAccountID: [String: CachedResources] = [:]
 
     var accounts: [CloudflareAccountSummary] = []
     var selectedAccountID: String?
@@ -56,10 +61,8 @@ final class CloudflareDashboardViewModel {
             loadedCacheKey = cacheKey
             accounts = cached.accounts
             selectedAccountID = cached.selectedAccountID
-            zones = cached.zones
-            pagesProjects = cached.pagesProjects
-            workers = cached.workers
-            sectionWarnings = cached.sectionWarnings
+            resourcesByAccountID = cached.resourcesByAccountID
+            applyCachedResources(for: cached.selectedAccountID)
             error = nil
             isLoading = false
             isRefreshing = false
@@ -74,8 +77,18 @@ final class CloudflareDashboardViewModel {
             return
         }
 
-        let isInitialLoad = accounts.isEmpty || email != loadedEmail || credential != loadedCredential
+        let credentialChanged = email != loadedEmail || credential != loadedCredential
             || authenticationMode != loadedAuthenticationMode
+        if credentialChanged {
+            accounts = []
+            selectedAccountID = nil
+            zones = []
+            pagesProjects = []
+            workers = []
+            sectionWarnings = []
+            resourcesByAccountID = [:]
+        }
+        let isInitialLoad = accounts.isEmpty || credentialChanged
         if isInitialLoad {
             isLoading = true
         } else {
@@ -122,10 +135,12 @@ final class CloudflareDashboardViewModel {
     func selectAccount(_ id: String) async {
         guard selectedAccountID != id else { return }
         selectedAccountID = id
-        zones = []
-        pagesProjects = []
-        workers = []
-        sectionWarnings = []
+        if !applyCachedResources(for: id) {
+            zones = []
+            pagesProjects = []
+            workers = []
+            sectionWarnings = []
+        }
         isRefreshing = true
         error = nil
         await loadSelectedAccount()
@@ -164,6 +179,12 @@ final class CloudflareDashboardViewModel {
         zones.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         pagesProjects.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         workers.sort { $0.id.localizedCaseInsensitiveCompare($1.id) == .orderedAscending }
+        resourcesByAccountID[accountID] = CachedResources(
+            zones: zones,
+            pagesProjects: pagesProjects,
+            workers: workers,
+            sectionWarnings: sectionWarnings
+        )
     }
 
     private func saveCache() {
@@ -171,11 +192,18 @@ final class CloudflareDashboardViewModel {
         Self.dashboards[loadedCacheKey] = CachedDashboard(
             accounts: accounts,
             selectedAccountID: selectedAccountID,
-            zones: zones,
-            pagesProjects: pagesProjects,
-            workers: workers,
-            sectionWarnings: sectionWarnings
+            resourcesByAccountID: resourcesByAccountID
         )
+    }
+
+    @discardableResult
+    private func applyCachedResources(for accountID: String?) -> Bool {
+        guard let accountID, let cached = resourcesByAccountID[accountID] else { return false }
+        zones = cached.zones
+        pagesProjects = cached.pagesProjects
+        workers = cached.workers
+        sectionWarnings = cached.sectionWarnings
+        return true
     }
 
     private func capture<T>(_ operation: () async throws -> T) async -> Result<T, Error> {
@@ -191,7 +219,6 @@ final class CloudflareDashboardViewModel {
         case .success(let items):
             value = items
         case .failure(let error):
-            value = []
             sectionWarnings.append("\(section): \(error.localizedDescription)")
         }
     }
@@ -204,6 +231,7 @@ struct CloudflareDashboardView: View {
     var startWithSearch = false
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var viewModel = CloudflareDashboardViewModel()
     @State private var searchText = ""
     @State private var isSearching = false
@@ -248,9 +276,9 @@ struct CloudflareDashboardView: View {
             ZStack {
                 AppTheme.canvas.ignoresSafeArea()
 
-                if viewModel.isLoading {
+                if viewModel.isLoading && viewModel.accounts.isEmpty {
                     CloudflareLoadingView()
-                } else if let error = viewModel.error {
+                } else if let error = viewModel.error, viewModel.accounts.isEmpty {
                     CloudflareErrorView(message: error) {
                         Task { await viewModel.refresh() }
                     }
@@ -268,7 +296,9 @@ struct CloudflareDashboardView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        withAnimation(.easeInOut(duration: 0.6)) { refreshSpin += 360 }
+                        if !reduceMotion {
+                            withAnimation(.easeInOut(duration: 0.45)) { refreshSpin += 360 }
+                        }
                         Task { await viewModel.refresh() }
                     } label: {
                         Image(systemName: "arrow.clockwise")
@@ -299,6 +329,17 @@ struct CloudflareDashboardView: View {
             LazyVStack(spacing: 16) {
                 if let account = viewModel.selectedAccount {
                     accountHeader(account)
+                }
+
+                if let error = viewModel.error {
+                    AppFeedbackBanner(
+                        title: "Cloudflare refresh failed",
+                        message: error,
+                        tint: AppTheme.warning,
+                        actionTitle: "Retry"
+                    ) {
+                        Task { await viewModel.refresh() }
+                    }
                 }
 
                 CloudflareWriteNotice()
