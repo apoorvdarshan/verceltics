@@ -39,6 +39,13 @@ enum RegistrarProvider: String, Codable, CaseIterable, Identifiable, Sendable {
         }
     }
 
+    var navigationLogoAssetName: String {
+        switch self {
+        case .nameDotCom: "NameDotComNavigationMark"
+        default: logoAssetName
+        }
+    }
+
     var logoNeedsTint: Bool {
         switch self {
         case .dynadot, .nameSilo: true
@@ -175,7 +182,7 @@ struct RegistrarMark: View {
     var monochrome = false
 
     var body: some View {
-        Image(provider.logoAssetName)
+        Image(monochrome ? provider.navigationLogoAssetName : provider.logoAssetName)
             .resizable()
             .renderingMode(monochrome || provider.logoNeedsTint ? .template : .original)
             .scaledToFit()

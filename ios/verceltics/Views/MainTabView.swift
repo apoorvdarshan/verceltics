@@ -63,7 +63,7 @@ struct MainTabView: View {
             }
 
             if let provider = registrarStore.activeAccount?.provider {
-                Tab(provider.displayName, image: provider.logoAssetName, value: MainTabDestination.registrars) {
+                Tab(provider.displayName, image: provider.navigationLogoAssetName, value: MainTabDestination.registrars) {
                     RegistrarsView()
                 }
             } else {
