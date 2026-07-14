@@ -217,11 +217,11 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## Star History
 
-<a href="https://www.star-history.com/?type=date&repos=apoorvdarshan%2Fverceltics">
+<a href="https://www.star-history.com/?repos=apoorvdarshan%2Fverceltics&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=apoorvdarshan/verceltics&type=date&theme=dark&legend=top-left&sealed_token=ivNQKdt-gZMt3AKN-YEFzOo3CExAGhCXGUzNFGp8ohIwZyY5i8sQ2J4QJNvw2V-DZseAHt1sTy-CFm7XQUPKgEl_QGHwudYNy5QZsYl803tkS0SfW5zcDGjah4RMi3XuXie2FBGy1HoQQRIpghKdnLrKAY8gO0iTpkia7Cr5ayUYlw-1jE4_SccK_5Hk" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=apoorvdarshan/verceltics&type=date&legend=top-left&sealed_token=ivNQKdt-gZMt3AKN-YEFzOo3CExAGhCXGUzNFGp8ohIwZyY5i8sQ2J4QJNvw2V-DZseAHt1sTy-CFm7XQUPKgEl_QGHwudYNy5QZsYl803tkS0SfW5zcDGjah4RMi3XuXie2FBGy1HoQQRIpghKdnLrKAY8gO0iTpkia7Cr5ayUYlw-1jE4_SccK_5Hk" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=apoorvdarshan/verceltics&type=date&legend=top-left&sealed_token=ivNQKdt-gZMt3AKN-YEFzOo3CExAGhCXGUzNFGp8ohIwZyY5i8sQ2J4QJNvw2V-DZseAHt1sTy-CFm7XQUPKgEl_QGHwudYNy5QZsYl803tkS0SfW5zcDGjah4RMi3XuXie2FBGy1HoQQRIpghKdnLrKAY8gO0iTpkia7Cr5ayUYlw-1jE4_SccK_5Hk" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=apoorvdarshan/verceltics&type=date&theme=dark&legend=top-left&sealed_token=DwXYLjTue4rdo7cn1p8qwQo08vbXrdJjAzQvLP7dCR8FmYlWU0xbnYxZcceEqenzxHmWVnYukXgzUdhFozwZFiF01DWMu9Kbr8HOGhfTHo7dXTsB-WAI8b2tdKMQf5U-1nMjuCkavC3ySKBymks0EbOxCt2chNurnGGIgvHMuOG4-2tLTy5Duq7rqc_y" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=apoorvdarshan/verceltics&type=date&legend=top-left&sealed_token=DwXYLjTue4rdo7cn1p8qwQo08vbXrdJjAzQvLP7dCR8FmYlWU0xbnYxZcceEqenzxHmWVnYukXgzUdhFozwZFiF01DWMu9Kbr8HOGhfTHo7dXTsB-WAI8b2tdKMQf5U-1nMjuCkavC3ySKBymks0EbOxCt2chNurnGGIgvHMuOG4-2tLTy5Duq7rqc_y" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=apoorvdarshan/verceltics&type=date&legend=top-left&sealed_token=DwXYLjTue4rdo7cn1p8qwQo08vbXrdJjAzQvLP7dCR8FmYlWU0xbnYxZcceEqenzxHmWVnYukXgzUdhFozwZFiF01DWMu9Kbr8HOGhfTHo7dXTsB-WAI8b2tdKMQf5U-1nMjuCkavC3ySKBymks0EbOxCt2chNurnGGIgvHMuOG4-2tLTy5Duq7rqc_y" />
  </picture>
 </a>
 
