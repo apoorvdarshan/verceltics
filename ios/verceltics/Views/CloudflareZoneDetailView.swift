@@ -25,9 +25,9 @@ final class CloudflareZoneDetailViewModel {
         let breakdowns: Result<CloudflareZoneAnalyticsBreakdowns, Error>
     }
 
-    private static var zoneCache: [String: CachedZone] = [:]
-    private static var analyticsCache: [String: CachedZoneAnalytics] = [:]
-    private static var dnsCache: [String: CachedDNSRecords] = [:]
+    @ResettableMemoryCache private static var zoneCache: [String: CachedZone] = [:]
+    @ResettableMemoryCache private static var analyticsCache: [String: CachedZoneAnalytics] = [:]
+    @ResettableMemoryCache private static var dnsCache: [String: CachedDNSRecords] = [:]
     private static let cacheLifetime: TimeInterval = 180
 
     let api: CloudflareAPI

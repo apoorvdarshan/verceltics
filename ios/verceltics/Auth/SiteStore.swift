@@ -114,6 +114,7 @@ final class SiteStore {
                 updatedAccounts.append(connectedAccount)
             }
             try KeychainHelper.saveSiteIntegrationAccounts(updatedAccounts)
+            AppMemoryCacheRegistry.resetAll()
 
             invalidateRefresh(for: connectedAccount.id)
             accounts = updatedAccounts
@@ -184,6 +185,7 @@ final class SiteStore {
         }
 
         invalidateRefresh(for: id)
+        AppMemoryCacheRegistry.resetAll()
         accounts = updatedAccounts
         snapshots[id] = nil
         refreshErrors[id] = nil
@@ -207,6 +209,7 @@ final class SiteStore {
         }
 
         refreshAttemptIDs = [:]
+        AppMemoryCacheRegistry.resetAll()
         accounts = []
         snapshots = [:]
         refreshErrors = [:]

@@ -158,6 +158,7 @@ final class RegistrarStore {
         activeAccountID updatedActiveID: UUID?
     ) throws {
         try KeychainHelper.saveRegistrarAccounts(updatedAccounts)
+        AppMemoryCacheRegistry.resetAll()
         accounts = updatedAccounts
         activeAccountID = updatedActiveID
         KeychainHelper.saveActiveRegistrarAccountID(updatedActiveID)

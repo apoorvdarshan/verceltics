@@ -8,7 +8,7 @@ final class RegistrarDashboardViewModel {
         let updatedAt: Date
     }
 
-    private static var cachedDomains: [String: CachedDomains] = [:]
+    @ResettableMemoryCache private static var cachedDomains: [String: CachedDomains] = [:]
     private static let cacheLifetime: TimeInterval = 3 * 60
 
     let account: RegistrarAccount

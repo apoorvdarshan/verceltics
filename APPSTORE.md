@@ -90,11 +90,6 @@ Verceltics 2.0 expands beyond Vercel.
 • Separate hosting and registrar account switching with device-only Keychain storage.
 ```
 
-## Keywords (100 chars max)
-```
-vercel,analytics,web traffic,visitors,referrers,charts,developer,deploy,website,open source
-```
-
 ## Privacy URL
 ```
 https://verceltics.com/privacy

@@ -17,7 +17,7 @@ final class CloudflareStorageDashboardViewModel {
         let buckets: Result<[CloudflareR2Bucket], Error>
     }
 
-    private static var cache: [String: CacheEntry] = [:]
+    @ResettableMemoryCache private static var cache: [String: CacheEntry] = [:]
     private static let cacheLifetime: TimeInterval = 180
 
     let api: CloudflareAPI

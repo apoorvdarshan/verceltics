@@ -77,7 +77,7 @@ final class ProjectsViewModel {
         let updatedAt: Date
     }
 
-    private static var cachedProjects: [String: CachedProjects] = [:]
+    @ResettableMemoryCache private static var cachedProjects: [String: CachedProjects] = [:]
     private static let cacheLifetime: TimeInterval = 3 * 60
 
     var projects: [Project] = []
@@ -621,7 +621,7 @@ struct ProjectIcon: View {
     @State private var didFail = false
 
     @MainActor private static let imageCache = NSCache<NSString, UIImage>()
-    @MainActor private static var failedAt: [String: Date] = [:]
+    @ResettableMemoryCache(limit: 64) private static var failedAt: [String: Date] = [:]
 
     private var safeDomain: String? {
         guard let domain else { return nil }

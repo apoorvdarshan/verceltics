@@ -8,7 +8,7 @@ final class CloudflareR2BucketViewModel {
         let updatedAt: Date
     }
 
-    private static var bucketCache: [String: CacheEntry] = [:]
+    @ResettableMemoryCache private static var bucketCache: [String: CacheEntry] = [:]
     private static let cacheLifetime: TimeInterval = 180
 
     let api: CloudflareAPI

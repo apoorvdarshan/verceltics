@@ -73,7 +73,7 @@ nonisolated enum CloudflareHTTPMethod: String, CaseIterable, Identifiable, Codab
 extension Notification.Name {
     /// Emitted after a successful authenticated Cloudflare mutation so visible
     /// dashboards can reconcile their summaries without waiting for a TTL.
-    static let cloudflareDataDidChange = Notification.Name("verceltics.cloudflareDataDidChange")
+    nonisolated static let cloudflareDataDidChange = Notification.Name("verceltics.cloudflareDataDidChange")
 }
 
 nonisolated enum CloudflareRequestBodyEncoding: String, CaseIterable, Identifiable, Sendable {
@@ -616,6 +616,38 @@ actor CloudflareAPI {
         return CloudflareRawResponse(statusCode: response.statusCode, headers: headers, data: data)
     }
 
+    /// Pages asset endpoints use the short-lived project upload JWT instead of
+    /// the account credential used by the rest of `/client/v4`.
+    func pagesAuthenticatedAssetRequest(
+        path: String,
+        jwt: String,
+        body: Data
+    ) async throws -> CloudflareRawResponse {
+        let normalizedJWT = jwt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedJWT.isEmpty,
+              !normalizedJWT.contains("\r"),
+              !normalizedJWT.contains("\n"),
+              path == "/pages/assets/check-missing"
+                || path == "/pages/assets/upload"
+                || path == "/pages/assets/upsert-hashes" else {
+            throw CloudflareAPIError.invalidRequest("The Pages asset upload request is invalid.")
+        }
+
+        let (data, response) = try await execute(
+            path: path,
+            method: .post,
+            body: body,
+            contentType: "application/json",
+            additionalHeaders: ["Authorization": "Bearer \(normalizedJWT)"],
+            useAccountAuthentication: false
+        )
+        try throwForHTTPFailure(data: data, response: response)
+        let headers = response.allHeaderFields.reduce(into: [String: String]()) { result, entry in
+            result[String(describing: entry.key)] = String(describing: entry.value)
+        }
+        return CloudflareRawResponse(statusCode: response.statusCode, headers: headers, data: data)
+    }
+
     func rawGraphQLQuery(
         query: String,
         variables: [String: CloudflareJSONValue] = [:]
@@ -760,9 +792,12 @@ actor CloudflareAPI {
         queryItems: [URLQueryItem] = [],
         body: Data? = nil,
         contentType: String? = "application/json",
-        additionalHeaders: [String: String] = [:]
+        additionalHeaders: [String: String] = [:],
+        useAccountAuthentication: Bool = true
     ) async throws -> (Data, HTTPURLResponse) {
-        try validateConfiguredCredentials()
+        if useAccountAuthentication {
+            try validateConfiguredCredentials()
+        }
 
         guard var components = URLComponents(string: Self.baseURL + path) else {
             throw CloudflareAPIError.invalidRequest("The Cloudflare API path is invalid.")
@@ -777,12 +812,14 @@ actor CloudflareAPI {
         var request = URLRequest(url: url)
         request.httpMethod = method.rawValue
         request.httpBody = body
-        switch authenticationMode {
-        case .globalAPIKey:
-            request.setValue(email, forHTTPHeaderField: "X-Auth-Email")
-            request.setValue(credential, forHTTPHeaderField: "X-Auth-Key")
-        case .apiToken:
-            request.setValue("Bearer \(credential)", forHTTPHeaderField: "Authorization")
+        if useAccountAuthentication {
+            switch authenticationMode {
+            case .globalAPIKey:
+                request.setValue(email, forHTTPHeaderField: "X-Auth-Email")
+                request.setValue(credential, forHTTPHeaderField: "X-Auth-Key")
+            case .apiToken:
+                request.setValue("Bearer \(credential)", forHTTPHeaderField: "Authorization")
+            }
         }
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         if body != nil, let contentType, !contentType.isEmpty {

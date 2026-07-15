@@ -28,6 +28,31 @@ struct RailwayPaginationGuard {
 
 struct HostingProviderAPI {
     static let awsAmplifyBranchAndJobPageSize = 50
+    @ResettableMemoryCache(limit: 8)
+    private static var firebaseOAuthCredentials: [String: GoogleOAuthCredential] = [:]
+
+    private struct HerokuAppSnapshot: Sendable {
+        let id: String
+        let name: String
+        let subtitle: String?
+        let url: String?
+        let maintenance: Bool
+        let region: String?
+        let updatedAt: Date?
+    }
+
+    private struct FlyAppSnapshot: Sendable {
+        let id: String
+        let name: String
+        let fallbackMachineCount: Int
+        let volumeCount: Int
+    }
+
+    private struct FlyMachineSnapshot: Sendable {
+        let count: Int
+        let states: [String]
+        let updatedAt: Date?
+    }
 
     private static let awsStandardRegionPattern =
         #"^(?:af|ap|ca|eu|il|me|mx|sa|us)-[a-z]+-[1-9][0-9]*$"#
@@ -121,7 +146,14 @@ struct HostingProviderAPI {
         case .firebase:
             let projectID = try requiredMetadata("projectID", label: "Firebase project ID")
             _ = try await requestJSON(path: "/projects/\(pathComponent(projectID))/sites?pageSize=1")
-            return HostingProviderProfile(id: projectID, name: projectID, email: nil, avatarURL: nil)
+            let googleCredential = try? firebaseGoogleOAuthCredential()
+            let identity = googleCredential?.subject ?? googleCredential?.email ?? credentialFingerprint
+            return HostingProviderProfile(
+                id: "\(identity):\(projectID)",
+                name: projectID,
+                email: googleCredential?.email,
+                avatarURL: nil
+            )
 
         case .awsAmplify:
             let accessKeyID = try requiredMetadata("accessKeyID", label: "AWS access key ID")
@@ -275,22 +307,44 @@ struct HostingProviderAPI {
             }
 
         case .heroku:
-            return try await fetchHerokuRangePages(path: "/apps").compactMap { value in
+            let apps = try await fetchHerokuRangePages(path: "/apps")
+            let snapshots = apps.compactMap { value -> HerokuAppSnapshot? in
                 let app = object(value)
                 guard let id = stableIdentifier(
                     string(app, "id", "name"),
                     namespace: "heroku-app",
                     values: [string(app, "name"), string(app, "web_url")]
                 ) else { return nil }
-                return HostingResource(
+                return HerokuAppSnapshot(
                     id: id,
                     name: string(app, "name") ?? "Untitled app",
                     subtitle: string(object(app["stack"]), "name"),
                     url: string(app, "web_url"),
-                    status: bool(app, "maintenance") == true ? "Maintenance" : "Running",
+                    maintenance: bool(app, "maintenance") == true,
                     region: string(object(app["region"]), "name"),
+                    updatedAt: date(app["updated_at"])
+                )
+            }
+            let dynoStates: [[String]?] = try await fetchLiveProviderValues(
+                identifiers: snapshots.map(\.id)
+            ) { id in
+                try await fetchHerokuRangePages(
+                    path: "/apps/\(pathComponent(id))/dynos"
+                ).compactMap { string(object($0), "state") }
+            }
+            return snapshots.enumerated().map { index, app in
+                HostingResource(
+                    id: app.id,
+                    name: app.name,
+                    subtitle: app.subtitle,
+                    url: app.url,
+                    status: Self.herokuAppStatus(
+                        maintenance: app.maintenance,
+                        dynoStates: dynoStates[index]
+                    ),
+                    region: app.region,
                     kind: "App",
-                    updatedAt: date(app["updated_at"]),
+                    updatedAt: app.updatedAt,
                     metadata: [:]
                 )
             }
@@ -298,19 +352,40 @@ struct HostingProviderAPI {
         case .fly:
             let organization = try requiredMetadata("organization", label: "Fly.io organization slug")
             let root = object(try await requestJSON(path: "/apps?org_slug=\(queryComponent(organization))"))
-            return array(root["apps"]).map { value in
+            let snapshots = array(root["apps"]).map { value -> FlyAppSnapshot in
                 let app = object(value)
                 let name = string(app, "name") ?? "untitled-app"
-                return HostingResource(
+                return FlyAppSnapshot(
                     id: string(app, "id", "name") ?? name,
                     name: name,
-                    subtitle: "\(integer(app["machine_count"]) ?? 0) Machines · \(integer(app["volume_count"]) ?? 0) volumes",
-                    url: "https://\(name).fly.dev",
-                    status: "Active",
+                    fallbackMachineCount: integer(app["machine_count"]) ?? 0,
+                    volumeCount: integer(app["volume_count"]) ?? 0
+                )
+            }
+            let machineSnapshots: [FlyMachineSnapshot?] = try await fetchLiveProviderValues(
+                identifiers: snapshots.map(\.name)
+            ) { appName in
+                let machines = array(try await requestJSON(
+                    path: "/apps/\(pathComponent(appName))/machines"
+                )).map(object)
+                return FlyMachineSnapshot(
+                    count: machines.count,
+                    states: machines.compactMap { string($0, "state") },
+                    updatedAt: machines.compactMap { date($0["updated_at"]) }.max()
+                )
+            }
+            return snapshots.enumerated().map { index, app in
+                let machines = machineSnapshots[index]
+                return HostingResource(
+                    id: app.id,
+                    name: app.name,
+                    subtitle: "\(machines?.count ?? app.fallbackMachineCount) Machines · \(app.volumeCount) volumes",
+                    url: "https://\(app.name).fly.dev",
+                    status: Self.flyAppStatus(machineStates: machines?.states),
                     region: nil,
                     kind: "App",
-                    updatedAt: nil,
-                    metadata: ["appName": name]
+                    updatedAt: machines?.updatedAt,
+                    metadata: ["appName": app.name]
                 )
             }
 
@@ -758,6 +833,49 @@ struct HostingProviderAPI {
         return "/v2\(path)"
     }
 
+    /// Summarizes Heroku's documented dyno states without claiming an app is
+    /// running when its live dyno list could not be read.
+    static func herokuAppStatus(maintenance: Bool, dynoStates: [String]?) -> String {
+        if maintenance { return "Maintenance" }
+        guard let dynoStates else { return "Unknown" }
+        let states = dynoStates.map { $0.lowercased() }
+        guard !states.isEmpty else { return "Stopped" }
+
+        let running = states.filter { $0 == "up" }.count
+        let idle = states.filter { $0 == "idle" }.count
+        if states.allSatisfy({ $0 == "up" }) { return "Running" }
+        if states.allSatisfy({ $0 == "idle" }) { return "Idle" }
+        if states.allSatisfy({ $0 == "down" }) { return "Stopped" }
+        if states.contains("crashed") {
+            return running + idle > 0 ? "Degraded" : "Crashed"
+        }
+        if states.contains("starting") && running + idle == 0 { return "Starting" }
+        if running + idle > 0 { return "Degraded" }
+        return "Unknown"
+    }
+
+    /// Summarizes Fly's live Machine states. `nil` means the Machines API was
+    /// unavailable, while an empty array means the app currently has no Machines.
+    static func flyAppStatus(machineStates: [String]?) -> String {
+        guard let machineStates else { return "Unknown" }
+        let states = machineStates.map { $0.lowercased() }
+        guard !states.isEmpty else { return "Stopped" }
+
+        let running = states.filter { $0 == "started" }.count
+        if states.allSatisfy({ $0 == "started" }) { return "Running" }
+        if states.allSatisfy({ $0 == "stopped" || $0 == "destroyed" }) { return "Stopped" }
+        if states.allSatisfy({ $0 == "suspended" }) { return "Suspended" }
+        if states.contains("failed") {
+            return running > 0 ? "Degraded" : "Failed"
+        }
+        if states.contains(where: { $0 == "starting" || $0 == "created" || $0 == "replacing" }) && running == 0 {
+            return "Starting"
+        }
+        if states.contains("stopping") && running == 0 { return "Stopping" }
+        if running > 0 { return "Degraded" }
+        return "Unknown"
+    }
+
     private var baseURL: String? {
         switch provider {
         case .netlify: "https://api.netlify.com/api/v1"
@@ -775,6 +893,50 @@ struct HostingProviderAPI {
         let response = try await rawRequest(method: "GET", path: path, body: nil)
         if response.body.isEmpty { return [:] }
         return try parseJSON(response.body)
+    }
+
+    /// Loads per-resource live state with a small concurrency window. Provider
+    /// dashboards can contain dozens of apps, so serial requests are too slow,
+    /// while launching every request at once can trigger rate limits.
+    private func fetchLiveProviderValues<Value: Sendable>(
+        identifiers: [String],
+        maximumConcurrent: Int = 6,
+        fetch: @escaping @MainActor @Sendable (String) async throws -> Value
+    ) async throws -> [Value?] {
+        guard !identifiers.isEmpty else { return [] }
+        let concurrency = max(1, min(maximumConcurrent, identifiers.count))
+
+        return try await withThrowingTaskGroup(of: (Int, Value?).self) { group in
+            let operation: @MainActor @Sendable (Int) async throws -> (Int, Value?) = { index in
+                do {
+                    return (index, try await fetch(identifiers[index]))
+                } catch is CancellationError {
+                    throw CancellationError()
+                } catch let error as URLError where error.code == .cancelled && Task.isCancelled {
+                    throw CancellationError()
+                } catch {
+                    // A provider may deny only one app. Keep the remaining
+                    // dashboard useful and render that app's live state unknown.
+                    return (index, nil)
+                }
+            }
+
+            for index in 0..<concurrency {
+                group.addTask { @MainActor in try await operation(index) }
+            }
+
+            var nextIndex = concurrency
+            var values = [Value?](repeating: nil, count: identifiers.count)
+            while let (index, value) = try await group.next() {
+                values[index] = value
+                if nextIndex < identifiers.count {
+                    let indexToLoad = nextIndex
+                    nextIndex += 1
+                    group.addTask { @MainActor in try await operation(indexToLoad) }
+                }
+            }
+            return values
+        }
     }
 
     private func collectNumberedPages(
@@ -953,9 +1115,22 @@ struct HostingProviderAPI {
     }
 
     private func resolvedBearerCredential() async throws -> String {
-        guard provider == .firebase, metadata["firebaseAuthMode"] == "refreshToken" else {
+        guard provider == .firebase else {
             return credential
         }
+        if metadata["firebaseAuthMode"] == "googleOAuth" {
+            let cacheKey = credentialFingerprint
+            let stored: GoogleOAuthCredential
+            if let cachedCredential = Self.firebaseOAuthCredentials[cacheKey] {
+                stored = cachedCredential
+            } else {
+                stored = try firebaseGoogleOAuthCredential()
+            }
+            let refreshed = try await GoogleOAuthService.shared.refreshedCredential(stored)
+            Self.firebaseOAuthCredentials[cacheKey] = refreshed
+            return refreshed.accessToken
+        }
+        guard metadata["firebaseAuthMode"] == "refreshToken" else { return credential }
         let clientID = try requiredMetadata("firebaseClientID", label: "Google OAuth client ID")
         var items = [
             URLQueryItem(name: "client_id", value: clientID),
@@ -991,6 +1166,17 @@ struct HostingProviderAPI {
             )
         }
         return token
+    }
+
+    private func firebaseGoogleOAuthCredential() throws -> GoogleOAuthCredential {
+        guard provider == .firebase, metadata["firebaseAuthMode"] == "googleOAuth" else {
+            throw HostingProviderAPIError.invalidConfiguration("Reconnect Firebase with Google.")
+        }
+        do {
+            return try GoogleOAuthCredential.fromKeychainValue(credential)
+        } catch {
+            throw HostingProviderAPIError.invalidConfiguration("The saved Firebase Google credential is invalid. Reconnect Firebase.")
+        }
     }
 
     // MARK: - AWS Signature Version 4

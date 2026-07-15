@@ -13,8 +13,8 @@ final class CloudflareWorkerDetailViewModel {
         let updatedAt: Date
     }
 
-    private static var workerCache: [String: WorkerCacheEntry] = [:]
-    private static var deploymentCache: [String: DeploymentCacheEntry] = [:]
+    @ResettableMemoryCache private static var workerCache: [String: WorkerCacheEntry] = [:]
+    @ResettableMemoryCache private static var deploymentCache: [String: DeploymentCacheEntry] = [:]
     private static let cacheLifetime: TimeInterval = 180
 
     let api: CloudflareAPI

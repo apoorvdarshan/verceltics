@@ -34,8 +34,8 @@ final class AnalyticsViewModel {
         }
     }
 
-    private static var analyticsCache: [String: CachedAnalytics] = [:]
-    private static var projectContextCache: [String: CachedProjectContext] = [:]
+    @ResettableMemoryCache private static var analyticsCache: [String: CachedAnalytics] = [:]
+    @ResettableMemoryCache private static var projectContextCache: [String: CachedProjectContext] = [:]
     private static let analyticsCacheLifetime: TimeInterval = 180
     private static let projectContextCacheLifetime: TimeInterval = 300
 

@@ -8,7 +8,7 @@ final class HostingDashboardViewModel {
         let updatedAt: Date
     }
 
-    private static var cachedResources: [String: CachedResources] = [:]
+    @ResettableMemoryCache private static var cachedResources: [String: CachedResources] = [:]
     private static let cacheLifetime: TimeInterval = 3 * 60
 
     let account: VercelAccount

@@ -7,7 +7,7 @@ private enum ProviderCatalogViewCache {
         let updatedAt: Date
     }
 
-    static var entries: [String: Entry] = [:]
+    @ResettableMemoryCache static var entries: [String: Entry] = [:]
     static let lifetime: TimeInterval = 300
 
     static func catalog(for key: String) -> ProviderAPICatalog? {

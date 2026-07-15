@@ -116,6 +116,176 @@ final class ProviderAPIRequestEncodingTests: XCTestCase {
         )
     }
 
+    func testHerokuStatusUsesLiveDynoStates() {
+        XCTAssertEqual(HostingProviderAPI.herokuAppStatus(maintenance: true, dynoStates: ["up"]), "Maintenance")
+        XCTAssertEqual(HostingProviderAPI.herokuAppStatus(maintenance: false, dynoStates: nil), "Unknown")
+        XCTAssertEqual(HostingProviderAPI.herokuAppStatus(maintenance: false, dynoStates: []), "Stopped")
+        XCTAssertEqual(HostingProviderAPI.herokuAppStatus(maintenance: false, dynoStates: ["up", "up"]), "Running")
+        XCTAssertEqual(HostingProviderAPI.herokuAppStatus(maintenance: false, dynoStates: ["up", "crashed"]), "Degraded")
+        XCTAssertEqual(HostingProviderAPI.herokuAppStatus(maintenance: false, dynoStates: ["crashed"]), "Crashed")
+    }
+
+    func testFlyStatusUsesLiveMachineStates() {
+        XCTAssertEqual(HostingProviderAPI.flyAppStatus(machineStates: nil), "Unknown")
+        XCTAssertEqual(HostingProviderAPI.flyAppStatus(machineStates: []), "Stopped")
+        XCTAssertEqual(HostingProviderAPI.flyAppStatus(machineStates: ["started", "started"]), "Running")
+        XCTAssertEqual(HostingProviderAPI.flyAppStatus(machineStates: ["started", "failed"]), "Degraded")
+        XCTAssertEqual(HostingProviderAPI.flyAppStatus(machineStates: ["failed"]), "Failed")
+        XCTAssertEqual(HostingProviderAPI.flyAppStatus(machineStates: ["suspended"]), "Suspended")
+    }
+
+    func testFirebaseOAuthUsesHostingWriteScope() {
+        XCTAssertEqual(
+            GoogleOAuthService.firebaseHostingScopes,
+            [
+                "openid",
+                "email",
+                "https://www.googleapis.com/auth/firebase.hosting",
+            ]
+        )
+
+        let configuration = GoogleOAuthClientConfiguration.current
+        XCTAssertNotNil(configuration)
+        XCTAssertTrue(configuration?.clientID.hasSuffix(".apps.googleusercontent.com") == true)
+        XCTAssertEqual(
+            configuration?.redirectURI,
+            "\(configuration?.redirectScheme ?? ""):/oauthredirect"
+        )
+    }
+
+    func testExpiredFirebaseCredentialRetainsOfflineRefreshCapabilityInKeychainValue() throws {
+        let expired = GoogleOAuthCredential(
+            accessToken: "expired-access-token",
+            refreshToken: "durable-refresh-token",
+            tokenType: "Bearer",
+            scopes: GoogleOAuthService.firebaseHostingScopes,
+            expiresAt: .distantPast,
+            subject: "google-subject",
+            email: "owner@example.com"
+        )
+
+        let restored = try GoogleOAuthCredential.fromKeychainValue(expired.keychainValue())
+        XCTAssertTrue(restored.needsRefresh)
+        XCTAssertEqual(restored.refreshToken, "durable-refresh-token")
+        XCTAssertFalse(restored.accessToken.isEmpty)
+    }
+
+    func testRailwayTemplatesExpandRequiredInputsAndSelectUsefulFields() throws {
+        let nonNull: ([String: Any]) -> [String: Any] = { nested in
+            ["kind": "NON_NULL", "name": NSNull(), "ofType": nested]
+        }
+        let scalar: (String) -> [String: Any] = { name in
+            ["kind": "SCALAR", "name": name, "ofType": NSNull()]
+        }
+        let named: (String, String) -> [String: Any] = { kind, name in
+            ["kind": kind, "name": name, "ofType": NSNull()]
+        }
+        let argument: (String, [String: Any], Any) -> [String: Any] = { name, type, defaultValue in
+            ["name": name, "type": type, "defaultValue": defaultValue]
+        }
+        let field: (String, [String: Any], [[String: Any]]) -> [String: Any] = { name, type, arguments in
+            [
+                "name": name,
+                "description": "",
+                "isDeprecated": false,
+                "deprecationReason": NSNull(),
+                "type": type,
+                "args": arguments,
+            ]
+        }
+
+        let schema: [String: Any] = [
+            "queryType": ["name": "Query"],
+            "mutationType": ["name": "Mutation"],
+            "types": [
+                [
+                    "kind": "OBJECT", "name": "Query",
+                    "fields": [field(
+                        "project",
+                        named("OBJECT", "Project"),
+                        [
+                            argument("id", nonNull(scalar("ID")), NSNull()),
+                            argument("includeServices", scalar("Boolean"), NSNull()),
+                        ]
+                    )],
+                ],
+                [
+                    "kind": "OBJECT", "name": "Mutation",
+                    "fields": [field(
+                        "deploy",
+                        named("OBJECT", "Deployment"),
+                        [
+                            argument("input", nonNull(named("INPUT_OBJECT", "DeployInput")), NSNull()),
+                            argument("dryRun", scalar("Boolean"), NSNull()),
+                        ]
+                    )],
+                ],
+                [
+                    "kind": "INPUT_OBJECT", "name": "DeployInput",
+                    "inputFields": [
+                        argument("environment", nonNull(named("ENUM", "Environment")), NSNull()),
+                        argument("config", nonNull(named("INPUT_OBJECT", "DeployConfigInput")), NSNull()),
+                        argument("note", scalar("String"), NSNull()),
+                    ],
+                ],
+                [
+                    "kind": "INPUT_OBJECT", "name": "DeployConfigInput",
+                    "inputFields": [
+                        argument("replicas", nonNull(scalar("Int")), NSNull()),
+                        argument("region", scalar("String"), NSNull()),
+                    ],
+                ],
+                ["kind": "ENUM", "name": "Environment", "enumValues": [["name": "PRODUCTION"], ["name": "STAGING"]]],
+                [
+                    "kind": "OBJECT", "name": "Project",
+                    "fields": [
+                        field("id", scalar("ID"), []),
+                        field("name", scalar("String"), []),
+                        field("updatedAt", scalar("DateTime"), []),
+                    ],
+                ],
+                [
+                    "kind": "OBJECT", "name": "Deployment",
+                    "fields": [
+                        field("id", scalar("ID"), []),
+                        field("status", scalar("String"), []),
+                        field("createdAt", scalar("DateTime"), []),
+                    ],
+                ],
+                ["kind": "SCALAR", "name": "ID"],
+                ["kind": "SCALAR", "name": "String"],
+                ["kind": "SCALAR", "name": "Boolean"],
+                ["kind": "SCALAR", "name": "Int"],
+                ["kind": "SCALAR", "name": "DateTime"],
+            ],
+        ]
+        let operations = try RailwayGraphQLTemplateBuilder.operations(
+            schemaData: JSONSerialization.data(withJSONObject: schema)
+        )
+
+        let deploy = try XCTUnwrap(operations.first(where: { $0.summary == "deploy" }))
+        let deployBody = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(deploy.bodyTemplate.utf8)) as? [String: Any]
+        )
+        let deployQuery = try XCTUnwrap(deployBody["query"] as? String)
+        let deployVariables = try XCTUnwrap(deployBody["variables"] as? [String: Any])
+        let input = try XCTUnwrap(deployVariables["input"] as? [String: Any])
+        let config = try XCTUnwrap(input["config"] as? [String: Any])
+
+        XCTAssertEqual(input["environment"] as? String, "PRODUCTION")
+        XCTAssertEqual(config["replicas"] as? Int, 1)
+        XCTAssertNil(input["note"])
+        XCTAssertNil(deployVariables["dryRun"])
+        XCTAssertTrue(deployQuery.contains("deploy(input: $input)"))
+        XCTAssertTrue(deployQuery.contains("id"))
+        XCTAssertTrue(deployQuery.contains("status"))
+        XCTAssertFalse(deployQuery.contains("{ __typename }"))
+
+        let project = try XCTUnwrap(operations.first(where: { $0.summary == "project" }))
+        XCTAssertTrue(project.bodyTemplate.contains("REPLACE_ME"))
+        XCTAssertTrue(project.description.contains("includeServices: Boolean"))
+    }
+
     func testFaviconHostSafetyRejectsPrivateAndReservedAddresses() {
         for address in [
             "127.0.0.1", "10.1.2.3", "100.64.0.1", "169.254.1.1", "172.31.1.1",

@@ -8,7 +8,7 @@ final class CloudflareD1DatabaseViewModel {
         let updatedAt: Date
     }
 
-    private static var databaseCache: [String: CacheEntry] = [:]
+    @ResettableMemoryCache private static var databaseCache: [String: CacheEntry] = [:]
     private static let cacheLifetime: TimeInterval = 180
 
     let api: CloudflareAPI

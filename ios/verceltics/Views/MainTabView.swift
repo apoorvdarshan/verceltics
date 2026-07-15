@@ -1,8 +1,8 @@
 import SwiftUI
 
-private let lastPrimaryWorkspaceKey = "mainTab.lastPrimaryWorkspace"
+let lastPrimaryWorkspaceKey = "mainTab.lastPrimaryWorkspace"
 
-private enum PrimaryWorkspace: String {
+enum PrimaryWorkspace: String, CaseIterable {
     case hosting
     case registrars
     case sites
@@ -14,9 +14,13 @@ private enum PrimaryWorkspace: String {
         case .sites: .sites
         }
     }
+
+    static func restored(from storedValue: String?) -> PrimaryWorkspace {
+        storedValue.flatMap(PrimaryWorkspace.init(rawValue:)) ?? .hosting
+    }
 }
 
-private enum MainTabDestination: Hashable {
+enum MainTabDestination: Hashable {
     case hosting
     case search
     case registrars
@@ -48,7 +52,7 @@ struct MainTabView: View {
 
     init() {
         let storedValue = UserDefaults.standard.string(forKey: lastPrimaryWorkspaceKey)
-        let workspace = storedValue.flatMap(PrimaryWorkspace.init(rawValue:)) ?? .hosting
+        let workspace = PrimaryWorkspace.restored(from: storedValue)
         _selectedTab = State(initialValue: workspace.destination)
     }
 
@@ -93,7 +97,7 @@ struct MainTabView: View {
         .tint(AppTheme.textPrimary)
         .onChange(of: selectedTab) { _, newValue in
             if newValue == .search {
-                let workspace = PrimaryWorkspace(rawValue: lastPrimaryWorkspace) ?? .hosting
+                let workspace = PrimaryWorkspace.restored(from: lastPrimaryWorkspace)
                 selectedTab = workspace.destination
                 Task { @MainActor in
                     await Task.yield()
@@ -155,8 +159,7 @@ struct MainTabView: View {
     private func requestBackgroundRefreshForCurrentWorkspace() {
         guard scenePhase == .active else { return }
         let workspace = selectedTab.primaryWorkspace
-            ?? PrimaryWorkspace(rawValue: lastPrimaryWorkspace)
-            ?? .hosting
+            ?? PrimaryWorkspace.restored(from: lastPrimaryWorkspace)
         switch workspace {
         case .hosting:
             hostingRefreshRequestID &+= 1

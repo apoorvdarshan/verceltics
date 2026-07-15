@@ -33,7 +33,7 @@
 
 - **Projects Dashboard** — Personal and team Vercel projects with favicons, git repo, last commit, framework
 - **Multi-provider accounts** — Connect and switch between 10 hosting platforms, 8 domain registrars, and 9 site-intelligence services
-- **Cloudflare Control** — Accounts, zones, DNS CRUD, analytics, Pages deployments/logs/actions, Workers deployments/actions, cache purge, and a guarded advanced API explorer
+- **Cloudflare Control** — Accounts, zones, DNS CRUD, analytics, Pages folder uploads/deployments/logs/actions, Workers deployments/actions, cache purge, and a guarded advanced API explorer
 - **Hosting dashboards** — Netlify, Railway, Render, DigitalOcean, Heroku, Fly.io, Firebase, and AWS Amplify resources, deployments, logs, actions, and provider API operation catalogs
 - **Registrar dashboards** — Name.com, Namecheap, Porkbun, Spaceship, Dynadot, NameSilo, Gandi, and GoDaddy domains with provider API catalogs
 - **Sites dashboard** — Combine Google Search Console, Google Analytics, PageSpeed & CrUX, Bing Webmaster, Microsoft Clarity, Plausible, Umami, UptimeRobot, and Better Stack signals by site
@@ -47,11 +47,11 @@
 - **Soft Paywall** — Browse projects free; analytics gated per project tap
 - **Private Favicons** — Bounded direct and same-origin icon discovery with a local letter fallback; project domains are never sent to third-party favicon services
 - **Search** — Filter projects by name, domain, or framework
-- **Pull to Refresh** — Live data from Vercel API
+- **Responsive Refreshing** — Cached dashboards open immediately, refresh quietly in the background, and support manual pull to refresh
 - **Update Checks** — About tab shows when a newer App Store version is available
 - **About Tab** — Optional tips, rate/share links, contact, legal, update checks, and subscription management in one place
 - **iPad** — Adaptive grid + sidebar tab style on regular size class
-- **Dark Mode** — Pure black (#000000) Vercel-style design
+- **Appearance** — System-default, light, and pure-black dark themes
 - **Secure** — Every credential uses device-only iOS Keychain storage; cross-host redirects are blocked and detected writes require confirmation
 
 ## Pricing
@@ -125,9 +125,9 @@ The app uses [Vercel personal access tokens](https://vercel.com/account/tokens) 
 3. Paste it in the app
 4. Add more accounts from the account switcher
 
-### Cloudflare Global API Key
+### Cloudflare credentials
 
-Cloudflare accounts use the login email plus the legacy Global API Key from [Cloudflare User Profile → API Tokens](https://dash.cloudflare.com/profile/api-tokens). The key inherits the Cloudflare user's permissions, including write access. Credentials are sent directly to `api.cloudflare.com`; typed destructive actions and all non-GET advanced API requests require confirmation.
+Cloudflare accounts can use either a scoped API token or the login email plus legacy Global API Key from [Cloudflare User Profile → API Tokens](https://dash.cloudflare.com/profile/api-tokens). A Global API Key inherits the Cloudflare user's permissions, including write access. Credentials are sent directly to `api.cloudflare.com`; typed destructive actions and all non-GET advanced API requests require confirmation.
 
 ### Purchase Testing
 
@@ -154,7 +154,7 @@ The app communicates directly with these provider API hosts:
 | `api.vercel.com` | `/v2/user`, `/v9/projects`, `/v9/projects/{id}`, `/v9/projects/{id}/domains` | Bearer token |
 | `vercel.com/api` | `/web-analytics/v2/*` | Bearer token |
 | `api.cloudflare.com` | `/client/v4/*`, including GraphQL analytics | Global key or scoped API token |
-| Hosting provider APIs | Netlify, Railway, Render, DigitalOcean, Heroku, Fly.io, Firebase, and AWS Amplify | Provider token/key |
+| Hosting provider APIs | Netlify, Railway, Render, DigitalOcean, Heroku, Fly.io, Firebase, and AWS Amplify | Provider token/key or Google OAuth for Firebase |
 | Registrar provider APIs | Name.com, Namecheap, Porkbun, Spaceship, Dynadot, NameSilo, Gandi, and GoDaddy | Provider key/token |
 | Site-intelligence APIs | Google Search Console, Google Analytics, PageSpeed & CrUX, Bing Webmaster, Microsoft Clarity, Plausible, Umami, UptimeRobot, and Better Stack | Google OAuth or provider API key/token |
 

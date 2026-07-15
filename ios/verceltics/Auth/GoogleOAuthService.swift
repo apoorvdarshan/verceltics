@@ -135,6 +135,11 @@ private final class GoogleOAuthSessionBox {
 @MainActor
 final class GoogleOAuthService: NSObject, ASWebAuthenticationPresentationContextProviding {
     static let shared = GoogleOAuthService()
+    nonisolated static let firebaseHostingScopes = [
+        "openid",
+        "email",
+        "https://www.googleapis.com/auth/firebase.hosting",
+    ]
 
     private var activeSession: ASWebAuthenticationSession?
 
@@ -146,6 +151,20 @@ final class GoogleOAuthService: NSObject, ASWebAuthenticationPresentationContext
         guard provider == .googleSearchConsole || provider == .googleAnalytics else {
             throw GoogleOAuthError.invalidAuthorizationResponse
         }
+        return try await authorize(scopes: oauthConfiguration(for: provider).scopes)
+    }
+
+    func authorizeFirebaseHosting() async throws -> GoogleOAuthCredential {
+        let credential = try await authorize(scopes: Self.firebaseHostingScopes)
+        guard credential.refreshToken?.isEmpty == false else {
+            // Firebase credentials live in the Keychain and must remain usable
+            // after Google's short-lived access token expires.
+            throw GoogleOAuthError.refreshTokenMissing
+        }
+        return credential
+    }
+
+    private func authorize(scopes: [String]) async throws -> GoogleOAuthCredential {
         guard let configuration = GoogleOAuthClientConfiguration.current else {
             throw GoogleOAuthError.configurationMissing
         }
@@ -156,10 +175,8 @@ final class GoogleOAuthService: NSObject, ASWebAuthenticationPresentationContext
         let verifier = try randomURLSafeString(byteCount: 64)
         let challenge = Data(SHA256.hash(data: Data(verifier.utf8))).base64URLEncodedString()
         let state = try randomURLSafeString(byteCount: 32)
-        let scopes = oauthConfiguration(for: provider).scopes
-
         var components = URLComponents(
-            url: oauthConfiguration(for: provider).authorizationEndpoint,
+            url: SiteIntegrationsAPI.googleSearchConsoleOAuth.authorizationEndpoint,
             resolvingAgainstBaseURL: false
         )!
         components.queryItems = [

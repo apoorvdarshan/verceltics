@@ -8,7 +8,7 @@ final class CloudflareSecurityCenterViewModel {
         let updatedAt: Date
     }
 
-    private static var cache: [String: CacheEntry] = [:]
+    @ResettableMemoryCache private static var cache: [String: CacheEntry] = [:]
     private static let cacheLifetime: TimeInterval = 180
 
     let api: CloudflareAPI
@@ -555,7 +555,7 @@ private final class CloudflareRulesetDetailViewModel {
         let updatedAt: Date
     }
 
-    private static var cache: [String: CacheEntry] = [:]
+    @ResettableMemoryCache private static var cache: [String: CacheEntry] = [:]
     private static let cacheLifetime: TimeInterval = 180
 
     let api: CloudflareAPI

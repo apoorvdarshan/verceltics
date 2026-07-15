@@ -1,12 +1,19 @@
 import CryptoKit
 import Foundation
 
+nonisolated enum PorkbunPaginationAction: Equatable, Sendable {
+    case complete
+    case loadNextPage
+    case noProgress
+}
+
 struct RegistrarAPI {
     let provider: RegistrarProvider
     let primaryCredential: String
     let secondaryCredential: String?
     let metadata: [String: String]
     private static let maximumPaginationPages = 200
+    nonisolated static let porkbunPageSize = 1_000
 
     init(
         provider: RegistrarProvider,
@@ -50,9 +57,7 @@ struct RegistrarAPI {
             return try await fetchNamecheapDomains()
 
         case .porkbun:
-            let root = object(try await jsonRequest(method: "POST", path: "/domain/listAll", body: "{}"))
-            try validateStatus(root)
-            return array(root["domains"]).compactMap { normalizePorkbun(object($0)) }
+            return try await fetchPorkbunDomains()
 
         case .spaceship:
             return try await fetchSpaceshipDomains()
@@ -249,6 +254,62 @@ struct RegistrarAPI {
             page += 1
         }
         return deduplicatedDomains(domains)
+    }
+
+    private func fetchPorkbunDomains() async throws -> [RegistrarDomain] {
+        var domains: [RegistrarDomain] = []
+        var seenDomainNames = Set<String>()
+        var seenOffsets = Set<Int>()
+        var start = 0
+        var pageCount = 0
+
+        while true {
+            try Task.checkCancellation()
+            guard seenOffsets.insert(start).inserted else {
+                throw RegistrarAPIError.decoding("Porkbun pagination repeated offset \(start).")
+            }
+            let root = object(try await jsonRequest(
+                method: "GET",
+                path: Self.porkbunListAllPath(start: start),
+                body: nil
+            ))
+            try validateStatus(root)
+            let pageItems = array(root["domains"])
+            let pageDomains = pageItems.compactMap { normalizePorkbun(object($0)) }
+            let newDomains = pageDomains.filter { domain in
+                seenDomainNames.insert(domain.name.lowercased()).inserted
+            }
+            domains.append(contentsOf: newDomains)
+            pageCount += 1
+
+            switch Self.porkbunPaginationAction(
+                pageItemCount: pageItems.count,
+                newUniqueDomainCount: newDomains.count
+            ) {
+            case .complete:
+                return domains
+            case .noProgress:
+                throw RegistrarAPIError.decoding(
+                    "Porkbun pagination returned no new domains for a full page."
+                )
+            case .loadNextPage:
+                guard pageCount < Self.maximumPaginationPages else { throw paginationLimitError() }
+                start += Self.porkbunPageSize
+            }
+        }
+    }
+
+    nonisolated static func porkbunListAllPath(start: Int) -> String {
+        "/domain/listAll?start=\(max(0, start))"
+    }
+
+    nonisolated static func porkbunPaginationAction(
+        pageItemCount: Int,
+        newUniqueDomainCount: Int
+    ) -> PorkbunPaginationAction {
+        guard pageItemCount >= porkbunPageSize else { return .complete }
+        guard newUniqueDomainCount > 0 else { return .noProgress }
+        return .loadNextPage
     }
 
     private func fetchSpaceshipDomains() async throws -> [RegistrarDomain] {

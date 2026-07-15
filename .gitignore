@@ -21,6 +21,10 @@ web/next-env.d.ts
 web/.env*
 !web/.env.example
 
+# ── Python test artifacts ──
+__pycache__/
+*.py[cod]
+
 # ── Debug logs ──
 npm-debug.log*
 yarn-debug.log*

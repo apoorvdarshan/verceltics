@@ -18,7 +18,7 @@ final class CloudflareDashboardViewModel {
         let updatedAt: Date
     }
 
-    private static var dashboards: [String: CachedDashboard] = [:]
+    @ResettableMemoryCache private static var dashboards: [String: CachedDashboard] = [:]
     private static let cacheLifetime: TimeInterval = 3 * 60
 
     private(set) var api: CloudflareAPI?

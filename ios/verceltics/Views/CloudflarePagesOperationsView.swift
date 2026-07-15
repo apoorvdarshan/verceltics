@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 @Observable
 @MainActor
@@ -12,7 +13,7 @@ final class CloudflarePagesOperationsViewModel {
         let updatedAt: Date
     }
 
-    private static var cache: [String: CacheEntry] = [:]
+    @ResettableMemoryCache private static var cache: [String: CacheEntry] = [:]
     private static let cacheLifetime: TimeInterval = 180
 
     let api: CloudflareAPI
@@ -29,6 +30,7 @@ final class CloudflarePagesOperationsViewModel {
     var actionMessage: String?
     var actionFailed = false
     var didDeleteProject = false
+    var directUploadProgress: CloudflarePagesDirectUploadProgress?
     private var loadGeneration = 0
 
     var projectName: String { project?.name ?? initialProject.name }
@@ -202,6 +204,59 @@ final class CloudflarePagesOperationsViewModel {
         }
     }
 
+    func uploadBuild(
+        from directoryURL: URL,
+        options: CloudflarePagesDirectUploadOptions
+    ) async {
+        guard !isWorking else { return }
+        isWorking = true
+        workingResourceID = "direct-upload"
+        actionMessage = nil
+        actionFailed = false
+        directUploadProgress = .init(stage: .authorizing, completed: 0, total: 0)
+        let hasSecurityScope = directoryURL.startAccessingSecurityScopedResource()
+        defer {
+            if hasSecurityScope { directoryURL.stopAccessingSecurityScopedResource() }
+            directUploadProgress = nil
+            isWorking = false
+            workingResourceID = nil
+        }
+
+        let path = projectPath + "/deployments"
+        do {
+            let result = try await api.pagesOperationsDirectUpload(
+                accountID: accountID,
+                projectName: projectName,
+                directoryURL: directoryURL,
+                options: options,
+                confirmation: CloudflareMutationConfirmation(confirmingResourceID: path),
+                progress: { [weak self] update in
+                    Task { @MainActor [weak self] in
+                        guard self?.workingResourceID == "direct-upload" else { return }
+                        self?.directUploadProgress = update
+                    }
+                }
+            )
+            let deploymentID = result.deployment.shortID ?? String(result.deployment.id.prefix(8))
+            let reused = result.reusedAssetCount > 0
+                ? " · \(result.reusedAssetCount) already on Cloudflare"
+                : ""
+            actionMessage = "Deployment \(deploymentID) created with \(result.assetCount) files\(reused)."
+            actionFailed = false
+            if let refreshedProject = try? await api.pagesOperationsFetchProject(
+                accountID: accountID,
+                projectName: projectName
+            ) {
+                project = refreshedProject
+                updateCache()
+            }
+        } catch is CancellationError {
+            return
+        } catch {
+            showError(error.localizedDescription)
+        }
+    }
+
     func deleteProject() async {
         _ = await runAction(resourceID: projectName, success: "Project deleted.") {
             try await api.pagesOperationsDeleteProject(
@@ -219,6 +274,7 @@ final class CloudflarePagesOperationsViewModel {
         success: String,
         operation: () async throws -> Void
     ) async -> Bool {
+        guard !isWorking else { return false }
         isWorking = true
         workingResourceID = resourceID
         actionMessage = nil
@@ -283,6 +339,7 @@ struct CloudflarePagesOperationsView: View {
     @State private var editDraft: CloudflarePagesProjectEditDraft?
     @State private var isAddingDomain = false
     @State private var pendingAction: CloudflarePagesOperationsPendingAction?
+    @State private var directUploadDraft: CloudflarePagesDirectUploadDraft?
 
     init(
         api: CloudflareAPI,
@@ -343,6 +400,14 @@ struct CloudflarePagesOperationsView: View {
                 let added = await viewModel.addDomain(domain)
                 if added { isAddingDomain = false }
                 return added ? nil : (viewModel.actionMessage ?? "Cloudflare could not add this domain.")
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
+        .sheet(item: $directUploadDraft) { draft in
+            CloudflarePagesDirectUploadSheet(draft: draft) { directoryURL, options in
+                directUploadDraft = nil
+                Task { await viewModel.uploadBuild(from: directoryURL, options: options) }
             }
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
@@ -760,10 +825,10 @@ struct CloudflarePagesOperationsView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Direct upload preparation")
+                    Text("Direct upload")
                         .font(.system(size: 13, weight: .bold))
                         .foregroundStyle(AppTheme.textPrimary)
-                    Text("Cloudflare requires a multipart manifest plus every hashed build file. The app prepares the exact endpoint; use Wrangler to package and upload the directory without corrupting binary assets.")
+                    Text("Choose a prebuilt folder and Verceltics will hash, deduplicate and upload every asset directly to Cloudflare Pages. Binary files stay intact and are sent only to Cloudflare.")
                         .font(.system(size: 10, weight: .medium))
                         .foregroundStyle(AppTheme.textTertiary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -776,15 +841,40 @@ struct CloudflarePagesOperationsView: View {
             }
             .padding(16)
 
+            if let uploadProgress = viewModel.directUploadProgress {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(CloudflareStyle.orange)
+                        Text(uploadProgress.message)
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(AppTheme.textSecondary)
+                        Spacer(minLength: 0)
+                    }
+                    if let fraction = uploadProgress.fractionCompleted {
+                        ProgressView(value: fraction)
+                            .tint(CloudflareStyle.orange)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 14)
+            }
+
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 9) {
-                    if let latestDeployment = fullProject.latestDeployment {
-                        smallActionButton("Redeploy latest", icon: "arrow.clockwise") {
-                            Task { await viewModel.redeploy(latestDeployment) }
+                    if viewModel.workingResourceID != "direct-upload" {
+                        smallActionButton("Upload build", icon: "folder.badge.plus", disabled: viewModel.isWorking) {
+                            directUploadDraft = CloudflarePagesDirectUploadDraft(
+                                environment: selectedEnvironment,
+                                productionBranch: fullProject.productionBranch
+                            )
                         }
                     }
-                    smallActionButton("Copy endpoint", icon: "doc.on.doc") {
-                        UIPasteboard.general.string = preparation.endpointPath
+                    if let latestDeployment = fullProject.latestDeployment {
+                        smallActionButton("Redeploy latest", icon: "arrow.clockwise", disabled: viewModel.isWorking) {
+                            Task { await viewModel.redeploy(latestDeployment) }
+                        }
                     }
                     smallActionButton("Upload guide", icon: "arrow.up.right") {
                         if let url = URL(string: "https://developers.cloudflare.com/pages/get-started/direct-upload/") {
@@ -907,7 +997,12 @@ struct CloudflarePagesOperationsView: View {
             .clipShape(Capsule())
     }
 
-    private func smallActionButton(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
+    private func smallActionButton(
+        _ title: String,
+        icon: String,
+        disabled: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             Label(title, systemImage: icon)
                 .font(.system(size: 10, weight: .bold))
@@ -919,6 +1014,7 @@ struct CloudflarePagesOperationsView: View {
                 .overlay(Capsule().strokeBorder(CloudflareStyle.orange.opacity(0.14), lineWidth: 0.5))
         }
         .buttonStyle(PressScaleButtonStyle())
+        .disabled(disabled)
     }
 
     private func destructiveButton(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
@@ -990,6 +1086,180 @@ struct CloudflarePagesOperationsView: View {
         case .deleteProject:
             await viewModel.deleteProject()
         }
+    }
+}
+
+// MARK: - Direct upload
+
+nonisolated struct CloudflarePagesDirectUploadDraft: Identifiable, Sendable {
+    let id = UUID()
+    var environment: CloudflarePagesEnvironment
+    let productionBranch: String?
+    var previewBranch: String
+    var commitMessage: String
+
+    init(environment: CloudflarePagesEnvironment, productionBranch: String?) {
+        self.environment = environment
+        self.productionBranch = productionBranch?.trimmingCharacters(in: .whitespacesAndNewlines)
+        previewBranch = "verceltics-preview"
+        commitMessage = "Uploaded from Verceltics"
+    }
+
+    var options: CloudflarePagesDirectUploadOptions {
+        .init(
+            branch: environment == .production ? productionBranch : previewBranch,
+            commitMessage: commitMessage
+        )
+    }
+}
+
+private struct CloudflarePagesDirectUploadSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @State var draft: CloudflarePagesDirectUploadDraft
+    @State private var isChoosingFolder = false
+    @State private var errorMessage: String?
+    let onDeploy: (URL, CloudflarePagesDirectUploadOptions) -> Void
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                AppTheme.canvas.ignoresSafeArea()
+                ScrollView {
+                    VStack(spacing: 16) {
+                        HStack(alignment: .top, spacing: 12) {
+                            Image(systemName: "arrow.up.doc.fill")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundStyle(.black.opacity(0.82))
+                                .frame(width: 43, height: 43)
+                                .background(CloudflareStyle.orange, in: RoundedRectangle(cornerRadius: 12))
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Deploy a prebuilt folder")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundStyle(AppTheme.textPrimary)
+                                Text("Assets are hashed on this device, deduplicated by Cloudflare and then attached to a new Pages deployment.")
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundStyle(AppTheme.textTertiary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .padding(16)
+                        .cloudflarePanel(accentOpacity: 0.08)
+
+                        VStack(spacing: 0) {
+                            CloudflareSectionHeader(title: "Deployment", icon: "shippingbox.fill")
+                            Divider().overlay(AppTheme.divider)
+
+                            Picker("Environment", selection: $draft.environment) {
+                                Text("Production").tag(CloudflarePagesEnvironment.production)
+                                Text("Preview").tag(CloudflarePagesEnvironment.preview)
+                            }
+                            .pickerStyle(.segmented)
+                            .padding(14)
+
+                            Divider().overlay(AppTheme.strokeSoft).padding(.leading, 14)
+
+                            if draft.environment == .production {
+                                HStack(spacing: 11) {
+                                    Image(systemName: "arrow.triangle.branch")
+                                        .foregroundStyle(CloudflareStyle.orange)
+                                        .frame(width: 24)
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text("Production branch")
+                                            .font(.system(size: 10, weight: .bold))
+                                            .foregroundStyle(AppTheme.textTertiary)
+                                        Text(draft.productionBranch?.nilIfEmpty ?? "Cloudflare default")
+                                            .font(.system(size: 12, weight: .semibold))
+                                            .foregroundStyle(AppTheme.textPrimary)
+                                    }
+                                    Spacer()
+                                }
+                                .padding(14)
+                            } else {
+                                uploadField(
+                                    "Preview branch",
+                                    text: $draft.previewBranch,
+                                    icon: "arrow.triangle.branch"
+                                )
+                            }
+
+                            Divider().overlay(AppTheme.strokeSoft).padding(.leading, 14)
+                            uploadField(
+                                "Commit message (optional)",
+                                text: $draft.commitMessage,
+                                icon: "text.bubble.fill"
+                            )
+                        }
+                        .cloudflarePanel()
+
+                        if let errorMessage {
+                            CloudflareActionResultBanner(message: errorMessage, isError: true)
+                        }
+
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label("Choose the output folder, not the source project.", systemImage: "folder.fill")
+                            Label("Each file may be up to 25 MiB; the account plan controls the file-count limit.", systemImage: "checkmark.shield.fill")
+                            Label("Raw Pages Functions source must be bundled first.", systemImage: "function")
+                        }
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(AppTheme.textTertiary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 4)
+
+                        Button {
+                            let previewBranch = draft.previewBranch.trimmingCharacters(in: .whitespacesAndNewlines)
+                            guard draft.environment == .production || !previewBranch.isEmpty else {
+                                errorMessage = "Enter a branch name for the preview deployment."
+                                return
+                            }
+                            errorMessage = nil
+                            isChoosingFolder = true
+                        } label: {
+                            Label("Choose folder and deploy", systemImage: "folder.badge.plus")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(.black.opacity(0.84))
+                                .frame(maxWidth: .infinity)
+                                .frame(minHeight: 52)
+                                .background(CloudflareStyle.orange, in: RoundedRectangle(cornerRadius: 14))
+                        }
+                        .buttonStyle(PressScaleButtonStyle())
+                    }
+                    .padding()
+                }
+            }
+            .navigationTitle("Direct upload")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+            .fileImporter(isPresented: $isChoosingFolder, allowedContentTypes: [.folder]) { result in
+                do {
+                    let url = try result.get()
+                    onDeploy(url, draft.options)
+                    dismiss()
+                } catch {
+                    errorMessage = error.localizedDescription
+                }
+            }
+            .tint(CloudflareStyle.orange)
+        }
+    }
+
+    private func uploadField(_ title: String, text: Binding<String>, icon: String) -> some View {
+        HStack(spacing: 11) {
+            Image(systemName: icon)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(CloudflareStyle.orange)
+                .frame(width: 24)
+            TextField(title, text: text)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(AppTheme.textPrimary)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+        }
+        .padding(14)
     }
 }
 
@@ -1286,7 +1556,7 @@ private final class CloudflarePagesDomainDetailViewModel {
         let updatedAt: Date
     }
 
-    private static var cache: [String: CacheEntry] = [:]
+    @ResettableMemoryCache private static var cache: [String: CacheEntry] = [:]
     private static let cacheLifetime: TimeInterval = 120
 
     let api: CloudflareAPI

@@ -34,8 +34,61 @@ enum SiteIntegrationsAPIError: LocalizedError, Equatable {
     }
 }
 
-struct SiteIntegrationsAPI {
+struct GoogleAnalyticsDataStreamDescriptor: Equatable, Sendable {
+    let name: String
+    let type: String
+    let displayName: String?
+    let measurementID: String?
+    let defaultURL: URL?
+}
+
+struct GoogleAnalyticsStreamAttribution: Equatable, Sendable {
+    let url: URL?
+    let subtitle: String
+    let metadata: [String: String]
+    let isPropertyWide: Bool
+}
+
+private struct SiteIntegrationDetailResult: Sendable {
+    let resource: SiteIntegrationResource
+    let warnings: [String]
+    let metricsArePartial: Bool
+}
+
+private struct SearchConsolePropertyDescriptor: Sendable {
+    let propertyID: String
+    let permission: String
+    let displayURL: URL?
+    let resourceID: String
+}
+
+private struct GoogleAnalyticsPropertyDescriptor: Sendable {
+    let propertyName: String
+    let propertyID: String
+    let displayName: String
+    let accountName: String
+    let propertyType: String
+    let canEdit: Bool
+}
+
+private struct BingSiteDescriptor: Sendable {
+    let value: String
+    let url: URL?
+    let isVerified: Bool
+    let resourceID: String
+}
+
+private struct UmamiSiteDescriptor: Sendable {
+    let id: String
+    let name: String
+    let domain: String?
+    let url: URL?
+    let updatedAt: Date?
+}
+
+struct SiteIntegrationsAPI: Sendable {
     let account: SiteIntegrationAccount
+    nonisolated private static let maximumConcurrentDetailLoads = 4
 
     // Shared by the native PKCE flow and token refresh implementation.
     static let googleSearchConsoleOAuth = SiteIntegrationOAuthConfiguration(
@@ -147,6 +200,49 @@ struct SiteIntegrationsAPI {
         }
     }
 
+    nonisolated static func detailIndexBatches(
+        itemCount: Int,
+        maximumConcurrent: Int = maximumConcurrentDetailLoads
+    ) -> [[Int]] {
+        guard itemCount > 0 else { return [] }
+        let batchSize = max(1, maximumConcurrent)
+        return stride(from: 0, to: itemCount, by: batchSize).map { start in
+            Array(start..<min(start + batchSize, itemCount))
+        }
+    }
+
+    private func boundedConcurrentMap<Input: Sendable, Output: Sendable>(
+        _ values: [Input],
+        operation: @escaping @MainActor @Sendable (Input) async throws -> Output
+    ) async throws -> [Output] {
+        var indexedResults: [(index: Int, value: Output)] = []
+        indexedResults.reserveCapacity(values.count)
+
+        for batch in Self.detailIndexBatches(itemCount: values.count) {
+            try Task.checkCancellation()
+            let batchResults = try await withThrowingTaskGroup(
+                of: (Int, Output).self,
+                returning: [(Int, Output)].self
+            ) { group in
+                for index in batch {
+                    let value = values[index]
+                    group.addTask { @MainActor in
+                        (index, try await operation(value))
+                    }
+                }
+                var completed: [(Int, Output)] = []
+                completed.reserveCapacity(batch.count)
+                for try await result in group {
+                    completed.append(result)
+                }
+                return completed
+            }
+            indexedResults.append(contentsOf: batchResults)
+        }
+
+        return indexedResults.sorted { $0.index < $1.index }.map(\.value)
+    }
+
     // MARK: - Google Search Console
 
     private func fetchGoogleSearchConsoleSnapshot(accountID: UUID) async throws -> SiteIntegrationSnapshot {
@@ -158,94 +254,22 @@ struct SiteIntegrationsAPI {
         guard root["siteEntry"] != nil || root.isEmpty else {
             throw SiteIntegrationsAPIError.decoding("Search Console did not return a siteEntry list.")
         }
-        let entries = array(root["siteEntry"]).map(object)
-        let maximumDetailedProperties = 25
-        var resources: [SiteIntegrationResource] = []
-        var warnings: [String] = []
-        var detailedMetricsArePartial = false
-
-        for (index, entry) in entries.enumerated() {
-            try Task.checkCancellation()
-            guard let propertyID = string(entry["siteUrl"]), !propertyID.isEmpty else { continue }
-            let permission = string(entry["permissionLevel"]) ?? "siteUnverifiedUser"
-            let displayURL = searchConsoleDisplayURL(propertyID)
-            let resourceID = stableSiteResourceID(propertyID)
-            var metrics: [SiteIntegrationMetric] = []
-            var metadata: [String: String] = [
-                "propertyID": propertyID,
-                "permissionLevel": permission,
-                "range": "28 days",
-            ]
-            var status = permission == "siteUnverifiedUser" ? "Unverified" : "Verified"
-
-            if index < maximumDetailedProperties {
-                do {
-                    let analytics = try await fetchSearchConsoleAnalytics(
-                        propertyID: propertyID,
-                        headers: headers,
-                        resourceID: resourceID
-                    )
-                    metrics.append(contentsOf: analytics)
-                } catch {
-                    try throwIfGoogleUnauthorized(error)
-                    detailedMetricsArePartial = true
-                    warnings.append("\(propertyID) search performance could not load: \(error.localizedDescription)")
-                }
-
-                do {
-                    let sitemapCount = try await fetchSearchConsoleSitemapCount(
-                        propertyID: propertyID,
-                        headers: headers
-                    )
-                    metrics.append(metric(
-                        key: "searchconsole.sitemaps",
-                        label: "Sitemaps",
-                        value: Double(sitemapCount),
-                        unit: .count,
-                        resourceID: resourceID
-                    ))
-                } catch {
-                    try throwIfGoogleUnauthorized(error)
-                    detailedMetricsArePartial = true
-                    warnings.append("\(propertyID) sitemaps could not load: \(error.localizedDescription)")
-                }
-
-                if let inspectionURL = displayURL {
-                    do {
-                        let inspection = try await inspectSearchConsoleURL(
-                            inspectionURL,
-                            propertyID: propertyID,
-                            headers: headers
-                        )
-                        metadata.merge(inspection.metadata) { _, new in new }
-                        if let inspectionStatus = inspection.status { status = inspectionStatus }
-                    } catch {
-                        try throwIfGoogleUnauthorized(error)
-                        warnings.append("\(propertyID) index status could not load: \(error.localizedDescription)")
-                    }
-                }
-            }
-
-            resources.append(SiteIntegrationResource(
-                id: resourceID,
-                provider: .googleSearchConsole,
-                name: displayURL?.host ?? propertyID.replacingOccurrences(of: "sc-domain:", with: ""),
-                subtitle: propertyID,
-                url: displayURL,
-                status: status,
-                updatedAt: date(metadata["lastCrawlTime"]),
-                metrics: metrics,
-                metadata: metadata
-            ))
-        }
-
-        if entries.count > maximumDetailedProperties {
-            warnings.append(
-                "Detailed Google data was loaded for the first \(maximumDetailedProperties) of \(entries.count) properties to protect API quotas."
+        let descriptors = array(root["siteEntry"]).compactMap { value -> SearchConsolePropertyDescriptor? in
+            let entry = object(value)
+            guard let propertyID = nonEmpty(string(entry["siteUrl"])) else { return nil }
+            return SearchConsolePropertyDescriptor(
+                propertyID: propertyID,
+                permission: string(entry["permissionLevel"]) ?? "siteUnverifiedUser",
+                displayURL: searchConsoleDisplayURL(propertyID),
+                resourceID: stableSiteResourceID(propertyID)
             )
         }
-
-        let hasPartialMetrics = detailedMetricsArePartial || entries.count > maximumDetailedProperties
+        let detailResults = try await boundedConcurrentMap(descriptors) { descriptor in
+            try await self.fetchSearchConsoleProperty(descriptor, headers: headers)
+        }
+        let resources = detailResults.map(\.resource)
+        let warnings = detailResults.flatMap(\.warnings)
+        let hasPartialMetrics = detailResults.contains(where: \.metricsArePartial)
         let metrics = markPartialMetrics(
             aggregateSearchConsoleMetrics(resources),
             when: hasPartialMetrics,
@@ -258,6 +282,85 @@ struct SiteIntegrationsAPI {
             metrics: metrics,
             status: resources.isEmpty ? "No properties" : (hasPartialMetrics ? "Connected · Partial metrics" : "Connected"),
             warnings: warnings
+        )
+    }
+
+    private func fetchSearchConsoleProperty(
+        _ descriptor: SearchConsolePropertyDescriptor,
+        headers: [String: String]
+    ) async throws -> SiteIntegrationDetailResult {
+        var metrics: [SiteIntegrationMetric] = []
+        var warnings: [String] = []
+        var metricsArePartial = false
+        var metadata: [String: String] = [
+            "propertyID": descriptor.propertyID,
+            "permissionLevel": descriptor.permission,
+            "range": "28 days",
+        ]
+        var status = descriptor.permission == "siteUnverifiedUser" ? "Unverified" : "Verified"
+
+        do {
+            metrics.append(contentsOf: try await fetchSearchConsoleAnalytics(
+                propertyID: descriptor.propertyID,
+                headers: headers,
+                resourceID: descriptor.resourceID
+            ))
+        } catch {
+            try throwIfGoogleUnauthorized(error)
+            metricsArePartial = true
+            warnings.append(
+                "\(descriptor.propertyID) search performance could not load: \(error.localizedDescription)"
+            )
+        }
+
+        do {
+            let sitemapCount = try await fetchSearchConsoleSitemapCount(
+                propertyID: descriptor.propertyID,
+                headers: headers
+            )
+            metrics.append(metric(
+                key: "searchconsole.sitemaps",
+                label: "Sitemaps",
+                value: Double(sitemapCount),
+                unit: .count,
+                resourceID: descriptor.resourceID
+            ))
+        } catch {
+            try throwIfGoogleUnauthorized(error)
+            metricsArePartial = true
+            warnings.append("\(descriptor.propertyID) sitemaps could not load: \(error.localizedDescription)")
+        }
+
+        if let inspectionURL = descriptor.displayURL {
+            do {
+                let inspection = try await inspectSearchConsoleURL(
+                    inspectionURL,
+                    propertyID: descriptor.propertyID,
+                    headers: headers
+                )
+                metadata.merge(inspection.metadata) { _, new in new }
+                if let inspectionStatus = inspection.status { status = inspectionStatus }
+            } catch {
+                try throwIfGoogleUnauthorized(error)
+                warnings.append("\(descriptor.propertyID) index status could not load: \(error.localizedDescription)")
+            }
+        }
+
+        return SiteIntegrationDetailResult(
+            resource: SiteIntegrationResource(
+                id: descriptor.resourceID,
+                provider: .googleSearchConsole,
+                name: descriptor.displayURL?.host
+                    ?? descriptor.propertyID.replacingOccurrences(of: "sc-domain:", with: ""),
+                subtitle: descriptor.propertyID,
+                url: descriptor.displayURL,
+                status: status,
+                updatedAt: date(metadata["lastCrawlTime"]),
+                metrics: metrics,
+                metadata: metadata
+            ),
+            warnings: warnings,
+            metricsArePartial: metricsArePartial
         )
     }
 
@@ -408,8 +511,6 @@ struct SiteIntegrationsAPI {
         var pageToken: String?
         var seenTokens = Set<String>()
         var warnings: [String] = []
-        let maximumSummaryPages = 20
-        var summaryPageCount = 0
         var summaryListIsPartial = false
 
         repeat {
@@ -423,16 +524,9 @@ struct SiteIntegrationsAPI {
                 throw SiteIntegrationsAPIError.decoding("Google Analytics did not return account summaries.")
             }
             summaries.append(contentsOf: array(root["accountSummaries"]).map(object))
-            summaryPageCount += 1
             let nextPageToken = nonEmpty(string(root["nextPageToken"]))
             if let nextPageToken, !seenTokens.insert(nextPageToken).inserted {
                 warnings.append("Google Analytics repeated a pagination token, so account loading stopped safely.")
-                summaryListIsPartial = true
-                pageToken = nil
-            } else if nextPageToken != nil, summaryPageCount >= maximumSummaryPages {
-                warnings.append(
-                    "Google Analytics account loading stopped after \(maximumSummaryPages) pages to protect the device. Some properties may not be shown."
-                )
                 summaryListIsPartial = true
                 pageToken = nil
             } else {
@@ -440,93 +534,31 @@ struct SiteIntegrationsAPI {
             }
         } while pageToken != nil
 
-        let properties = summaries.flatMap { summary -> [(property: [String: Any], accountName: String)] in
+        let properties = summaries.flatMap { summary -> [GoogleAnalyticsPropertyDescriptor] in
             let accountName = string(summary["displayName"]) ?? string(summary["account"]) ?? "Google Analytics"
-            return array(summary["propertySummaries"]).map { (object($0), accountName) }
-        }
-        let maximumDetailedProperties = 25
-        var resources: [SiteIntegrationResource] = []
-        var detailedMetricsArePartial = false
-
-        for (index, item) in properties.enumerated() {
-            try Task.checkCancellation()
-            guard let propertyName = string(item.property["property"]),
-                  let propertyID = propertyName.split(separator: "/").last.map(String.init),
-                  !propertyID.isEmpty,
-                  propertyID.allSatisfy(\.isNumber) else { continue }
-            let displayName = string(item.property["displayName"]) ?? "GA4 property \(propertyID)"
-            var metrics: [SiteIntegrationMetric] = []
-            var metadata: [String: String] = [
-                "property": propertyName,
-                "propertyID": propertyID,
-                "accountName": item.accountName,
-                "propertyType": string(item.property["propertyType"]) ?? "PROPERTY_TYPE_ORDINARY",
-                "canEdit": String(boolean(item.property["canEdit"]) ?? false),
-                "range": "30 days",
-            ]
-            var siteURL: URL?
-
-            if index < maximumDetailedProperties {
-                do {
-                    let stream = try await fetchGoogleAnalyticsWebStream(propertyID: propertyID, headers: headers)
-                    siteURL = stream.url
-                    metadata.merge(stream.metadata) { _, new in new }
-                } catch {
-                    try throwIfGoogleUnauthorized(error)
-                    warnings.append("\(displayName) website details could not load: \(error.localizedDescription)")
-                }
-
-                do {
-                    metrics.append(contentsOf: try await fetchGoogleAnalyticsReport(
-                        propertyID: propertyID,
-                        headers: headers,
-                        resourceID: propertyName
-                    ))
-                } catch {
-                    try throwIfGoogleUnauthorized(error)
-                    detailedMetricsArePartial = true
-                    warnings.append("\(displayName) analytics could not load: \(error.localizedDescription)")
-                }
-
-                do {
-                    if let realtime = try await fetchGoogleAnalyticsRealtimeUsers(propertyID: propertyID, headers: headers) {
-                        metrics.append(metric(
-                            key: "ga4.realtime_active_users",
-                            label: "Active Now",
-                            value: realtime,
-                            unit: .count,
-                            resourceID: propertyName
-                        ))
-                    }
-                } catch {
-                    try throwIfGoogleUnauthorized(error)
-                    detailedMetricsArePartial = true
-                    warnings.append("\(displayName) realtime data could not load: \(error.localizedDescription)")
-                }
+            return array(summary["propertySummaries"]).compactMap { value in
+                let property = object(value)
+                guard let propertyName = nonEmpty(string(property["property"])),
+                      let propertyID = propertyName.split(separator: "/").last.map(String.init),
+                      !propertyID.isEmpty,
+                      propertyID.allSatisfy(\.isNumber) else { return nil }
+                return GoogleAnalyticsPropertyDescriptor(
+                    propertyName: propertyName,
+                    propertyID: propertyID,
+                    displayName: string(property["displayName"]) ?? "GA4 property \(propertyID)",
+                    accountName: accountName,
+                    propertyType: string(property["propertyType"]) ?? "PROPERTY_TYPE_ORDINARY",
+                    canEdit: boolean(property["canEdit"]) ?? false
+                )
             }
-
-            resources.append(SiteIntegrationResource(
-                id: propertyName,
-                provider: .googleAnalytics,
-                name: displayName,
-                subtitle: siteURL?.absoluteString ?? item.accountName,
-                url: siteURL,
-                status: metrics.isEmpty ? "Property found" : "Reporting",
-                updatedAt: .now,
-                metrics: metrics,
-                metadata: metadata
-            ))
         }
-
-        if properties.count > maximumDetailedProperties {
-            warnings.append(
-                "Detailed GA4 data was loaded for the first \(maximumDetailedProperties) of \(properties.count) properties to protect API quotas."
-            )
+        let detailResults = try await boundedConcurrentMap(properties) { property in
+            try await self.fetchGoogleAnalyticsProperty(property, headers: headers)
         }
-
+        let resources = detailResults.map(\.resource)
+        warnings.append(contentsOf: detailResults.flatMap(\.warnings))
         let hasPartialMetrics = summaryListIsPartial
-            || detailedMetricsArePartial
-            || properties.count > maximumDetailedProperties
+            || detailResults.contains(where: \.metricsArePartial)
         return SiteIntegrationSnapshot(
             accountID: accountID,
             provider: .googleAnalytics,
@@ -541,26 +573,187 @@ struct SiteIntegrationsAPI {
         )
     }
 
-    private func fetchGoogleAnalyticsWebStream(
+    private func fetchGoogleAnalyticsProperty(
+        _ property: GoogleAnalyticsPropertyDescriptor,
+        headers: [String: String]
+    ) async throws -> SiteIntegrationDetailResult {
+        var metrics: [SiteIntegrationMetric] = []
+        var warnings: [String] = []
+        var metricsArePartial = false
+        var attribution = GoogleAnalyticsStreamAttribution(
+            url: nil,
+            subtitle: property.accountName,
+            metadata: ["metricsScope": "Property-wide"],
+            isPropertyWide: true
+        )
+
+        do {
+            attribution = Self.googleAnalyticsStreamAttribution(
+                streams: try await fetchGoogleAnalyticsDataStreams(
+                    propertyID: property.propertyID,
+                    headers: headers
+                ),
+                accountName: property.accountName
+            )
+        } catch {
+            try throwIfGoogleUnauthorized(error)
+            warnings.append("\(property.displayName) data streams could not load: \(error.localizedDescription)")
+        }
+
+        do {
+            metrics.append(contentsOf: try await fetchGoogleAnalyticsReport(
+                propertyID: property.propertyID,
+                headers: headers,
+                resourceID: property.propertyName
+            ))
+        } catch {
+            try throwIfGoogleUnauthorized(error)
+            metricsArePartial = true
+            warnings.append("\(property.displayName) analytics could not load: \(error.localizedDescription)")
+        }
+
+        do {
+            if let realtime = try await fetchGoogleAnalyticsRealtimeUsers(
+                propertyID: property.propertyID,
+                headers: headers
+            ) {
+                metrics.append(metric(
+                    key: "ga4.realtime_active_users",
+                    label: "Active Now",
+                    value: realtime,
+                    unit: .count,
+                    resourceID: property.propertyName
+                ))
+            }
+        } catch {
+            try throwIfGoogleUnauthorized(error)
+            metricsArePartial = true
+            warnings.append("\(property.displayName) realtime data could not load: \(error.localizedDescription)")
+        }
+
+        var metadata: [String: String] = [
+            "property": property.propertyName,
+            "propertyID": property.propertyID,
+            "accountName": property.accountName,
+            "propertyType": property.propertyType,
+            "canEdit": String(property.canEdit),
+            "range": "30 days",
+        ]
+        metadata.merge(attribution.metadata) { _, new in new }
+        let status: String
+        if metrics.isEmpty {
+            status = "Property found"
+        } else {
+            status = attribution.isPropertyWide ? "Reporting · Property-wide" : "Reporting"
+        }
+
+        return SiteIntegrationDetailResult(
+            resource: SiteIntegrationResource(
+                id: property.propertyName,
+                provider: .googleAnalytics,
+                name: property.displayName,
+                subtitle: attribution.subtitle,
+                url: attribution.url,
+                status: status,
+                updatedAt: .now,
+                metrics: metrics,
+                metadata: metadata
+            ),
+            warnings: warnings,
+            metricsArePartial: metricsArePartial
+        )
+    }
+
+    private func fetchGoogleAnalyticsDataStreams(
         propertyID: String,
         headers: [String: String]
-    ) async throws -> (url: URL?, metadata: [String: String]) {
-        var components = URLComponents(
-            string: "https://analyticsadmin.googleapis.com/v1beta/properties/\(propertyID)/dataStreams"
-        )!
-        components.queryItems = [URLQueryItem(name: "pageSize", value: "200")]
-        let root = object(try await jsonRequest(url: components.url!, headers: headers))
-        let streams = array(root["dataStreams"]).map(object)
-        guard let stream = streams.first(where: { string($0["type"]) == "WEB_DATA_STREAM" }) else {
-            return (nil, [:])
+    ) async throws -> [GoogleAnalyticsDataStreamDescriptor] {
+        var descriptors: [GoogleAnalyticsDataStreamDescriptor] = []
+        var pageToken: String?
+        var seenTokens = Set<String>()
+
+        repeat {
+            try Task.checkCancellation()
+            var components = URLComponents(
+                string: "https://analyticsadmin.googleapis.com/v1beta/properties/\(propertyID)/dataStreams"
+            )!
+            var queryItems = [URLQueryItem(name: "pageSize", value: "200")]
+            if let pageToken { queryItems.append(URLQueryItem(name: "pageToken", value: pageToken)) }
+            components.queryItems = queryItems
+            let root = object(try await jsonRequest(url: components.url!, headers: headers))
+            guard root["dataStreams"] != nil || root.isEmpty else {
+                throw SiteIntegrationsAPIError.decoding("Google Analytics did not return a data stream list.")
+            }
+            descriptors.append(contentsOf: array(root["dataStreams"]).compactMap { value in
+                let stream = object(value)
+                guard let name = nonEmpty(string(stream["name"])),
+                      let type = nonEmpty(string(stream["type"])) else { return nil }
+                let web = object(stream["webStreamData"])
+                return GoogleAnalyticsDataStreamDescriptor(
+                    name: name,
+                    type: type,
+                    displayName: nonEmpty(string(stream["displayName"])),
+                    measurementID: nonEmpty(string(web["measurementId"])),
+                    defaultURL: nonEmpty(string(web["defaultUri"])).flatMap(URL.init(string:))
+                )
+            })
+            let nextPageToken = nonEmpty(string(root["nextPageToken"]))
+            if let nextPageToken, !seenTokens.insert(nextPageToken).inserted {
+                throw SiteIntegrationsAPIError.decoding(
+                    "Google Analytics data stream pagination repeated a token."
+                )
+            }
+            pageToken = nextPageToken
+        } while pageToken != nil
+
+        return descriptors
+    }
+
+    nonisolated static func googleAnalyticsStreamAttribution(
+        streams: [GoogleAnalyticsDataStreamDescriptor],
+        accountName: String
+    ) -> GoogleAnalyticsStreamAttribution {
+        let webStreams = streams.filter { $0.type == "WEB_DATA_STREAM" }
+        let hasSingleWebOnly = streams.count == 1 && webStreams.count == 1
+        var metadata: [String: String] = [
+            "dataStreamCount": String(streams.count),
+            "webStreamCount": String(webStreams.count),
+            "metricsScope": hasSingleWebOnly ? "Single data stream" : "Property-wide",
+        ]
+
+        let streamNames = streams.map(\.name)
+        if !streamNames.isEmpty { metadata["dataStreams"] = streamNames.joined(separator: ", ") }
+        let measurementIDs = webStreams.compactMap(\.measurementID)
+        if !measurementIDs.isEmpty { metadata["measurementIDs"] = measurementIDs.joined(separator: ", ") }
+        let siteURLs = webStreams.compactMap { $0.defaultURL?.absoluteString }
+        if !siteURLs.isEmpty { metadata["siteURLs"] = siteURLs.joined(separator: ", ") }
+
+        if hasSingleWebOnly, let stream = webStreams.first {
+            metadata["dataStream"] = stream.name
+            if let measurementID = stream.measurementID { metadata["measurementID"] = measurementID }
+            if let siteURL = stream.defaultURL?.absoluteString { metadata["siteURL"] = siteURL }
+            return GoogleAnalyticsStreamAttribution(
+                url: stream.defaultURL,
+                subtitle: stream.defaultURL?.absoluteString ?? stream.displayName ?? accountName,
+                metadata: metadata,
+                isPropertyWide: false
+            )
         }
-        let web = object(stream["webStreamData"])
-        let rawURL = string(web["defaultUri"])
-        var metadata: [String: String] = [:]
-        if let measurementID = string(web["measurementId"]) { metadata["measurementID"] = measurementID }
-        if let streamName = string(stream["name"]) { metadata["dataStream"] = streamName }
-        if let rawURL { metadata["siteURL"] = rawURL }
-        return (rawURL.flatMap(URL.init(string:)), metadata)
+
+        let subtitle: String
+        if webStreams.count > 1, webStreams.count == streams.count {
+            subtitle = "\(webStreams.count) web streams · \(accountName)"
+        } else if !streams.isEmpty {
+            subtitle = "\(streams.count) data streams · \(accountName)"
+        } else {
+            subtitle = accountName
+        }
+        return GoogleAnalyticsStreamAttribution(
+            url: nil,
+            subtitle: subtitle,
+            metadata: metadata,
+            isPropertyWide: true
+        )
     }
 
     private func fetchGoogleAnalyticsReport(
@@ -888,67 +1081,23 @@ struct SiteIntegrationsAPI {
         guard root["d"] != nil || root["sites"] != nil else {
             throw SiteIntegrationsAPIError.decoding("Bing Webmaster did not return a site list.")
         }
-        let sites = array(root["d"] ?? root["sites"])
-        let maximumDetailedSites = 25
-        var resources: [SiteIntegrationResource] = []
-        var warnings: [String] = []
-        var detailedSiteCount = 0
-        var detailedMetricsArePartial = false
-        for item in sites {
+        let descriptors = array(root["d"] ?? root["sites"]).compactMap { item -> BingSiteDescriptor? in
             let site = object(item)
-            guard let value = string(site["Url"] ?? site["url"]), !value.isEmpty else { continue }
-            let siteURL = URL(string: value)
-            let isVerified = boolean(site["IsVerified"] ?? site["isVerified"]) ?? false
-            let resourceID = stableSiteResourceID(value)
-            var resourceMetrics: [SiteIntegrationMetric] = []
-            var metadata = ["verified": String(isVerified)]
-
-            if isVerified, detailedSiteCount < maximumDetailedSites {
-                detailedSiteCount += 1
-                do {
-                    resourceMetrics.append(contentsOf: try await fetchBingTrafficMetrics(
-                        siteURL: value,
-                        apiKey: key,
-                        resourceID: resourceID
-                    ))
-                } catch {
-                    try throwIfCancellation(error)
-                    detailedMetricsArePartial = true
-                    warnings.append("\(value) Bing traffic could not load: \(error.localizedDescription)")
-                }
-                do {
-                    let crawl = try await fetchBingCrawlMetrics(
-                        siteURL: value,
-                        apiKey: key,
-                        resourceID: resourceID
-                    )
-                    resourceMetrics.append(contentsOf: crawl.metrics)
-                    metadata.merge(crawl.metadata) { _, new in new }
-                } catch {
-                    try throwIfCancellation(error)
-                    detailedMetricsArePartial = true
-                    warnings.append("\(value) Bing crawl data could not load: \(error.localizedDescription)")
-                }
-            }
-
-            resources.append(SiteIntegrationResource(
-                id: resourceID,
-                provider: .bingWebmaster,
-                name: siteURL?.host ?? value,
-                subtitle: value,
-                url: siteURL,
-                status: isVerified ? "Verified" : "Unverified",
-                metrics: resourceMetrics,
-                metadata: metadata
-            ))
-        }
-        if resources.filter({ $0.status == "Verified" }).count > maximumDetailedSites {
-            warnings.append(
-                "Detailed Bing data was loaded for the first \(maximumDetailedSites) verified sites to protect API quotas."
+            guard let value = nonEmpty(string(site["Url"] ?? site["url"])) else { return nil }
+            return BingSiteDescriptor(
+                value: value,
+                url: URL(string: value),
+                isVerified: boolean(site["IsVerified"] ?? site["isVerified"]) ?? false,
+                resourceID: stableSiteResourceID(value)
             )
         }
+        let detailResults = try await boundedConcurrentMap(descriptors) { descriptor in
+            try await self.fetchBingSite(descriptor, apiKey: key)
+        }
+        let resources = detailResults.map(\.resource)
+        let warnings = detailResults.flatMap(\.warnings)
         let verifiedCount = resources.filter { $0.status == "Verified" }.count
-        let hasPartialMetrics = detailedMetricsArePartial || verifiedCount > maximumDetailedSites
+        let hasPartialMetrics = detailResults.contains(where: \.metricsArePartial)
         var metrics = [
             metric(key: "bing.sites", label: "Sites", value: Double(resources.count), unit: .count),
             metric(key: "bing.verified", label: "Verified", value: Double(verifiedCount), unit: .count)
@@ -981,6 +1130,58 @@ struct SiteIntegrationsAPI {
             ),
             status: resources.isEmpty ? "No sites" : (hasPartialMetrics ? "Connected · Partial metrics" : "Connected"),
             warnings: warnings
+        )
+    }
+
+    private func fetchBingSite(
+        _ descriptor: BingSiteDescriptor,
+        apiKey: String
+    ) async throws -> SiteIntegrationDetailResult {
+        var resourceMetrics: [SiteIntegrationMetric] = []
+        var metadata = ["verified": String(descriptor.isVerified)]
+        var warnings: [String] = []
+        var metricsArePartial = false
+
+        if descriptor.isVerified {
+            do {
+                resourceMetrics.append(contentsOf: try await fetchBingTrafficMetrics(
+                    siteURL: descriptor.value,
+                    apiKey: apiKey,
+                    resourceID: descriptor.resourceID
+                ))
+            } catch {
+                try throwIfCancellation(error)
+                metricsArePartial = true
+                warnings.append("\(descriptor.value) Bing traffic could not load: \(error.localizedDescription)")
+            }
+            do {
+                let crawl = try await fetchBingCrawlMetrics(
+                    siteURL: descriptor.value,
+                    apiKey: apiKey,
+                    resourceID: descriptor.resourceID
+                )
+                resourceMetrics.append(contentsOf: crawl.metrics)
+                metadata.merge(crawl.metadata) { _, new in new }
+            } catch {
+                try throwIfCancellation(error)
+                metricsArePartial = true
+                warnings.append("\(descriptor.value) Bing crawl data could not load: \(error.localizedDescription)")
+            }
+        }
+
+        return SiteIntegrationDetailResult(
+            resource: SiteIntegrationResource(
+                id: descriptor.resourceID,
+                provider: .bingWebmaster,
+                name: descriptor.url?.host ?? descriptor.value,
+                subtitle: descriptor.value,
+                url: descriptor.url,
+                status: descriptor.isVerified ? "Verified" : "Unverified",
+                metrics: resourceMetrics,
+                metadata: metadata
+            ),
+            warnings: warnings,
+            metricsArePartial: metricsArePartial
         )
     }
 
@@ -1248,7 +1449,7 @@ struct SiteIntegrationsAPI {
         var warnings: [String] = []
         var seenPageSignatures = Set<String>()
         var seenWebsiteIDs = Set<String>()
-        let maximumWebsitePages = 20
+        var siteListIsPartial = false
         repeat {
             try Task.checkCancellation()
             let url = try endpoint(
@@ -1271,6 +1472,7 @@ struct SiteIntegrationsAPI {
             let pageSignature = pageIDs.sorted().joined(separator: "|")
             if !pageSignature.isEmpty, !seenPageSignatures.insert(pageSignature).inserted {
                 warnings.append("Umami repeated a results page, so site loading stopped safely.")
+                siteListIsPartial = true
                 break
             }
             let uniquePageItems = pageItems.filter { website in
@@ -1282,6 +1484,7 @@ struct SiteIntegrationsAPI {
             page += 1
             if !pageItems.isEmpty, uniquePageItems.isEmpty {
                 warnings.append("Umami returned no new sites on the next page, so site loading stopped safely.")
+                siteListIsPartial = true
                 break
             }
             if pageItems.isEmpty
@@ -1289,61 +1492,34 @@ struct SiteIntegrationsAPI {
                 || expectedCount.map({ seenWebsiteIDs.count >= $0 }) == true {
                 break
             }
-            if page > maximumWebsitePages {
-                let suffix = expectedCount.map { " of \($0)" } ?? ""
-                warnings.append(
-                    "Umami site loading stopped after \(websites.count)\(suffix) sites (\(maximumWebsitePages) pages) to protect the device."
-                )
-                break
-            }
         } while true
 
         let endAt = Int(Date.now.timeIntervalSince1970 * 1_000)
         let startAt = Int(Date.now.addingTimeInterval(-30 * 86_400).timeIntervalSince1970 * 1_000)
-        let maximumDetailedSites = 10
-        var resources: [SiteIntegrationResource] = []
-        var detailedMetricsArePartial = false
-        for (index, website) in websites.enumerated() {
-            try Task.checkCancellation()
-            guard let id = string(website["id"]), !id.isEmpty else { continue }
-            let name = string(website["name"]) ?? string(website["domain"]) ?? "Umami site"
-            let domain = string(website["domain"])
-            let siteURL = domain.flatMap { URL(string: $0.contains("://") ? $0 : "https://\($0)") }
-            var resourceMetrics: [SiteIntegrationMetric] = []
-            if index < maximumDetailedSites {
-                do {
-                    let statsURL = try endpoint(
-                        base: apiBase,
-                        path: "websites/\(try Self.pathComponent(id))/stats",
-                        queryItems: [
-                            URLQueryItem(name: "startAt", value: String(startAt)),
-                            URLQueryItem(name: "endAt", value: String(endAt))
-                        ]
-                    )
-                    let stats = object(try await jsonRequest(url: statsURL, headers: headers))
-                    resourceMetrics = normalizeUmamiStats(stats, resourceID: id)
-                } catch {
-                    try throwIfCancellation(error)
-                    detailedMetricsArePartial = true
-                    warnings.append("\(name) stats could not load: \(error.localizedDescription)")
-                }
-            }
-            resources.append(SiteIntegrationResource(
+        let descriptors = websites.compactMap { website -> UmamiSiteDescriptor? in
+            guard let id = nonEmpty(string(website["id"])) else { return nil }
+            let domain = nonEmpty(string(website["domain"]))
+            return UmamiSiteDescriptor(
                 id: id,
-                provider: .umami,
-                name: name,
-                subtitle: domain,
-                url: siteURL,
-                status: "Connected",
-                updatedAt: date(website["updatedAt"] ?? website["createdAt"]),
-                metrics: resourceMetrics,
-                metadata: ["domain": domain ?? ""]
-            ))
+                name: string(website["name"]) ?? domain ?? "Umami site",
+                domain: domain,
+                url: domain.flatMap { URL(string: $0.contains("://") ? $0 : "https://\($0)") },
+                updatedAt: date(website["updatedAt"] ?? website["createdAt"])
+            )
         }
-        if resources.count > maximumDetailedSites {
-            warnings.append("Analytics totals were loaded for the first \(maximumDetailedSites) of \(resources.count) sites to respect API limits.")
+        let detailResults = try await boundedConcurrentMap(descriptors) { descriptor in
+            try await self.fetchUmamiSite(
+                descriptor,
+                apiBase: apiBase,
+                headers: headers,
+                startAt: startAt,
+                endAt: endAt
+            )
         }
-        let hasPartialMetrics = detailedMetricsArePartial || resources.count > maximumDetailedSites
+        let resources = detailResults.map(\.resource)
+        warnings.append(contentsOf: detailResults.flatMap(\.warnings))
+        let hasPartialMetrics = siteListIsPartial
+            || detailResults.contains(where: \.metricsArePartial)
         let aggregate = markPartialMetrics(
             aggregateUmamiMetrics(resources: resources),
             when: hasPartialMetrics
@@ -1355,6 +1531,50 @@ struct SiteIntegrationsAPI {
             metrics: aggregate,
             status: resources.isEmpty ? "No sites" : (hasPartialMetrics ? "Connected · Partial metrics" : "Connected"),
             warnings: warnings
+        )
+    }
+
+    private func fetchUmamiSite(
+        _ descriptor: UmamiSiteDescriptor,
+        apiBase: URL,
+        headers: [String: String],
+        startAt: Int,
+        endAt: Int
+    ) async throws -> SiteIntegrationDetailResult {
+        var resourceMetrics: [SiteIntegrationMetric] = []
+        var warnings: [String] = []
+        var metricsArePartial = false
+        do {
+            let statsURL = try endpoint(
+                base: apiBase,
+                path: "websites/\(try Self.pathComponent(descriptor.id))/stats",
+                queryItems: [
+                    URLQueryItem(name: "startAt", value: String(startAt)),
+                    URLQueryItem(name: "endAt", value: String(endAt))
+                ]
+            )
+            let stats = object(try await jsonRequest(url: statsURL, headers: headers))
+            resourceMetrics = normalizeUmamiStats(stats, resourceID: descriptor.id)
+        } catch {
+            try throwIfCancellation(error)
+            metricsArePartial = true
+            warnings.append("\(descriptor.name) stats could not load: \(error.localizedDescription)")
+        }
+
+        return SiteIntegrationDetailResult(
+            resource: SiteIntegrationResource(
+                id: descriptor.id,
+                provider: .umami,
+                name: descriptor.name,
+                subtitle: descriptor.domain,
+                url: descriptor.url,
+                status: "Connected",
+                updatedAt: descriptor.updatedAt,
+                metrics: resourceMetrics,
+                metadata: ["domain": descriptor.domain ?? ""]
+            ),
+            warnings: warnings,
+            metricsArePartial: metricsArePartial
         )
     }
 

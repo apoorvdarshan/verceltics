@@ -27,7 +27,7 @@ final class CloudflareGraphQLDatasetCatalogViewModel {
         let updatedAt: Date
     }
 
-    private static var datasetCache: [String: CacheEntry] = [:]
+    @ResettableMemoryCache private static var datasetCache: [String: CacheEntry] = [:]
     private static let cacheLifetime: TimeInterval = 300
 
     let api: CloudflareAPI

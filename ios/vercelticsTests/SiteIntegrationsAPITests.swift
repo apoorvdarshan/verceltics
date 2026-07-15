@@ -292,6 +292,92 @@ final class SiteIntegrationsAPITests: XCTestCase {
         XCTAssertEqual(SiteIntegrationsAPI.safeInteger(-42.9), -42)
     }
 
+    func testDetailBatchesCoverEveryResourceWithoutLegacyCutoff() {
+        let batches = SiteIntegrationsAPI.detailIndexBatches(itemCount: 77, maximumConcurrent: 4)
+
+        XCTAssertEqual(batches.flatMap { $0 }, Array(0..<77))
+        XCTAssertTrue(batches.allSatisfy { !$0.isEmpty && $0.count <= 4 })
+        XCTAssertEqual(batches.count, 20)
+    }
+
+    func testGA4SingleWebStreamCanUseItsWebsiteAsPropertyIdentity() throws {
+        let url = try XCTUnwrap(URL(string: "https://example.com"))
+        let attribution = SiteIntegrationsAPI.googleAnalyticsStreamAttribution(
+            streams: [
+                GoogleAnalyticsDataStreamDescriptor(
+                    name: "properties/123/dataStreams/456",
+                    type: "WEB_DATA_STREAM",
+                    displayName: "Production",
+                    measurementID: "G-EXAMPLE",
+                    defaultURL: url
+                )
+            ],
+            accountName: "Example Account"
+        )
+
+        XCTAssertEqual(attribution.url, url)
+        XCTAssertEqual(attribution.subtitle, "https://example.com")
+        XCTAssertFalse(attribution.isPropertyWide)
+        XCTAssertEqual(attribution.metadata["measurementID"], "G-EXAMPLE")
+        XCTAssertEqual(attribution.metadata["metricsScope"], "Single data stream")
+    }
+
+    func testGA4MultipleWebStreamsKeepPropertyWideMetricsUnattributed() throws {
+        let attribution = SiteIntegrationsAPI.googleAnalyticsStreamAttribution(
+            streams: [
+                GoogleAnalyticsDataStreamDescriptor(
+                    name: "properties/123/dataStreams/one",
+                    type: "WEB_DATA_STREAM",
+                    displayName: "Main",
+                    measurementID: "G-ONE",
+                    defaultURL: try XCTUnwrap(URL(string: "https://one.example"))
+                ),
+                GoogleAnalyticsDataStreamDescriptor(
+                    name: "properties/123/dataStreams/two",
+                    type: "WEB_DATA_STREAM",
+                    displayName: "Docs",
+                    measurementID: "G-TWO",
+                    defaultURL: try XCTUnwrap(URL(string: "https://docs.example"))
+                ),
+            ],
+            accountName: "Example Account"
+        )
+
+        XCTAssertNil(attribution.url)
+        XCTAssertEqual(attribution.subtitle, "2 web streams · Example Account")
+        XCTAssertTrue(attribution.isPropertyWide)
+        XCTAssertEqual(attribution.metadata["webStreamCount"], "2")
+        XCTAssertEqual(attribution.metadata["measurementIDs"], "G-ONE, G-TWO")
+        XCTAssertEqual(attribution.metadata["metricsScope"], "Property-wide")
+    }
+
+    func testGA4MixedWebAndAppStreamsDoNotClaimWebOnlyAttribution() throws {
+        let attribution = SiteIntegrationsAPI.googleAnalyticsStreamAttribution(
+            streams: [
+                GoogleAnalyticsDataStreamDescriptor(
+                    name: "properties/123/dataStreams/web",
+                    type: "WEB_DATA_STREAM",
+                    displayName: "Website",
+                    measurementID: "G-WEB",
+                    defaultURL: try XCTUnwrap(URL(string: "https://example.com"))
+                ),
+                GoogleAnalyticsDataStreamDescriptor(
+                    name: "properties/123/dataStreams/ios",
+                    type: "IOS_APP_DATA_STREAM",
+                    displayName: "iOS",
+                    measurementID: nil,
+                    defaultURL: nil
+                ),
+            ],
+            accountName: "Example Account"
+        )
+
+        XCTAssertNil(attribution.url)
+        XCTAssertEqual(attribution.subtitle, "2 data streams · Example Account")
+        XCTAssertTrue(attribution.isPropertyWide)
+        XCTAssertEqual(attribution.metadata["dataStreamCount"], "2")
+    }
+
     func testUptimeRobotPaginationTreatsRepeatedPagesAsNoProgressBeforeCompletion() {
         XCTAssertEqual(
             SiteIntegrationsAPI.uptimeRobotPaginationAction(

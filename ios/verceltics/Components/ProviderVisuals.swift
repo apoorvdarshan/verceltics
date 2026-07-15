@@ -700,7 +700,7 @@ extension AccountProvider {
         case .digitalOcean: value = "https://cloud.digitalocean.com/account/api/tokens"
         case .heroku: value = "https://dashboard.heroku.com/account/applications"
         case .fly: value = "https://fly.io/user/personal_access_tokens"
-        case .firebase: value = "https://developers.google.com/oauthplayground/"
+        case .firebase: value = "https://console.firebase.google.com/"
         case .awsAmplify: value = "https://console.aws.amazon.com/iam/home#/security_credentials"
         }
         return URL(string: value)

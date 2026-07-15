@@ -8,7 +8,7 @@ final class DeploymentDetailViewModel {
         let updatedAt: Date
     }
 
-    private static var cache: [String: CacheEntry] = [:]
+    @ResettableMemoryCache private static var cache: [String: CacheEntry] = [:]
     private static let cacheLifetime: TimeInterval = 120
 
     var events: [DeploymentEvent] = []

@@ -15,7 +15,7 @@ final class CloudflareAccountOperationsViewModel {
         let updatedAt: Date
     }
 
-    private static var cache: [String: CacheEntry] = [:]
+    @ResettableMemoryCache private static var cache: [String: CacheEntry] = [:]
     private static let cacheLifetime: TimeInterval = 300
 
     let api: CloudflareAPI

@@ -17,7 +17,7 @@ final class CloudflareWorkerOperationsViewModel {
         let updatedAt: Date
     }
 
-    private static var cache: [String: CacheEntry] = [:]
+    @ResettableMemoryCache private static var cache: [String: CacheEntry] = [:]
     private static let cacheLifetime: TimeInterval = 180
 
     let api: CloudflareAPI
@@ -1212,7 +1212,7 @@ private final class CloudflareWorkerVersionDetailViewModel {
         let updatedAt: Date
     }
 
-    private static var cache: [String: CacheEntry] = [:]
+    @ResettableMemoryCache private static var cache: [String: CacheEntry] = [:]
     private static let cacheLifetime: TimeInterval = 180
 
     let api: CloudflareAPI
@@ -1407,7 +1407,7 @@ private final class CloudflareWorkerContentViewModel {
         let updatedAt: Date
     }
 
-    private static var cache: [String: CacheEntry] = [:]
+    @ResettableMemoryCache private static var cache: [String: CacheEntry] = [:]
     private static let cacheLifetime: TimeInterval = 120
 
     let api: CloudflareAPI

@@ -406,6 +406,7 @@ final class AuthManager {
         activeAccountID updatedActiveID: UUID?
     ) throws {
         try KeychainHelper.saveAccounts(updatedAccounts)
+        AppMemoryCacheRegistry.resetAll()
         accounts = updatedAccounts
         activeAccountId = updatedActiveID
         KeychainHelper.saveActiveAccountId(updatedActiveID)
