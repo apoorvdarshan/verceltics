@@ -45,16 +45,35 @@ struct ResettableMemoryCache<Value> {
         }
         _modify {
             var value: [String: Value] = AppMemoryCacheRegistry.value(for: registrationID)
-            defer { AppMemoryCacheRegistry.set(trimmed(value), for: registrationID) }
+            let existingKeys = Set(value.keys)
+            defer {
+                let insertedKeys = Set(value.keys).subtracting(existingKeys)
+                AppMemoryCacheRegistry.set(
+                    trimmed(value, preserving: insertedKeys),
+                    for: registrationID
+                )
+            }
             yield &value
         }
     }
 
-    private func trimmed(_ value: [String: Value]) -> [String: Value] {
+    private func trimmed(
+        _ value: [String: Value],
+        preserving preservedKeys: Set<String> = []
+    ) -> [String: Value] {
         let overflow = value.count - limit
         guard overflow > 0 else { return value }
         var result = value
-        for key in result.keys.prefix(overflow) {
+        let protectedKeys = Set(
+            preservedKeys
+                .filter { result[$0] != nil }
+                .sorted()
+                .suffix(limit)
+        )
+        let evictionCandidates = result.keys
+            .filter { !protectedKeys.contains($0) }
+            .sorted()
+        for key in evictionCandidates.prefix(overflow) {
             result[key] = nil
         }
         return result
