@@ -109,7 +109,6 @@ struct CloudflareFullAPICatalogView: View {
         }
         .navigationTitle("Complete API")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .searchable(text: $searchText, prompt: "Search official operations")
         .task { await viewModel.load() }
         .tint(CloudflareStyle.orange)
@@ -191,7 +190,7 @@ struct CloudflareFullAPICatalogView: View {
     private var tagDirectory: some View {
         VStack(spacing: 0) {
             CloudflareSectionHeader(title: "Product Directory", icon: "square.grid.3x3.fill", count: visibleTags.count)
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
             if visibleTags.isEmpty {
                 AppEmptyState(
                     icon: "line.3.horizontal.decrease.circle",
@@ -234,7 +233,7 @@ struct CloudflareFullAPICatalogView: View {
                     }
                     .buttonStyle(.plain)
                     if index < visibleTags.count - 1 {
-                        Divider().overlay(Color.white.opacity(0.05)).padding(.leading, 62)
+                        Divider().overlay(AppTheme.strokeSoft).padding(.leading, 62)
                     }
                 }
             }
@@ -254,11 +253,11 @@ struct CloudflareFullAPICatalogView: View {
         } else {
             VStack(spacing: 0) {
                 CloudflareSectionHeader(title: "Matching Operations", icon: "terminal.fill", count: searchResults.count)
-                Divider().overlay(Color.white.opacity(0.06))
+                Divider().overlay(AppTheme.divider)
                 ForEach(Array(searchResults.enumerated()), id: \.element.id) { index, operation in
                     endpointLink(operation)
                     if index < searchResults.count - 1 {
-                        Divider().overlay(Color.white.opacity(0.05)).padding(.leading, 62)
+                        Divider().overlay(AppTheme.strokeSoft).padding(.leading, 62)
                     }
                 }
             }
@@ -325,7 +324,7 @@ private struct CloudflareAPITagView: View {
                                 }
                                 .buttonStyle(.plain)
                                 if index < visibleOperations.count - 1 {
-                                    Divider().overlay(Color.white.opacity(0.05)).padding(.leading, 62)
+                                    Divider().overlay(AppTheme.strokeSoft).padding(.leading, 62)
                                 }
                             }
                         }
@@ -337,7 +336,6 @@ private struct CloudflareAPITagView: View {
         }
         .navigationTitle(tag)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .searchable(text: $searchText, prompt: "Search \(operations.count) operations")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -498,7 +496,6 @@ private struct CloudflareGeneratedOperationView: View {
         }
         .navigationTitle(operation.summary)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .tint(CloudflareStyle.orange)
     }
 
@@ -514,7 +511,7 @@ private struct CloudflareGeneratedOperationView: View {
                 Text(operation.primaryTag.uppercased())
                     .font(.system(size: 9, weight: .semibold))
                     .tracking(0.6)
-                    .foregroundStyle(.white.opacity(0.34))
+                    .foregroundStyle(AppTheme.textTertiary)
                 Spacer()
                 if operation.deprecated {
                     CloudflareStatusPill(text: "DEPRECATED", color: CloudflareStyle.amber)
@@ -522,7 +519,7 @@ private struct CloudflareGeneratedOperationView: View {
             }
             Text(operation.summary)
                 .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(AppTheme.textPrimary)
             Text(operation.path)
                 .font(.system(size: 10, weight: .semibold, design: .monospaced))
                 .foregroundStyle(CloudflareStyle.orange.opacity(0.72))
@@ -530,7 +527,7 @@ private struct CloudflareGeneratedOperationView: View {
             if !operation.description.isEmpty {
                 Text(operation.description)
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.4))
+                    .foregroundStyle(AppTheme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -543,7 +540,7 @@ private struct CloudflareGeneratedOperationView: View {
             Text("REQUIRED TOKEN PERMISSIONS")
                 .font(.system(size: 9, weight: .semibold))
                 .tracking(0.8)
-                .foregroundStyle(.white.opacity(0.34))
+                .foregroundStyle(AppTheme.textTertiary)
             ForEach(operation.permissions, id: \.self) { permission in
                 Label(permission, systemImage: "key.fill")
                     .font(.system(size: 11, weight: .bold))
@@ -576,11 +573,11 @@ private struct CloudflareGeneratedOperationView: View {
         if !operation.parameters.isEmpty {
             VStack(spacing: 0) {
                 CloudflareSectionHeader(title: "Request Parameters", icon: "slider.horizontal.3", count: operation.parameters.count)
-                Divider().overlay(Color.white.opacity(0.06))
+                Divider().overlay(AppTheme.divider)
                 ForEach(Array(operation.parameters.enumerated()), id: \.element.id) { index, parameter in
                     parameterEditor(parameter)
                     if index < operation.parameters.count - 1 {
-                        Divider().overlay(Color.white.opacity(0.05)).padding(.leading, 16)
+                        Divider().overlay(AppTheme.strokeSoft).padding(.leading, 16)
                     }
                 }
             }
@@ -596,7 +593,7 @@ private struct CloudflareGeneratedOperationView: View {
                     .foregroundStyle(CloudflareStyle.orange)
                 Text(parameter.name)
                     .font(.system(size: 11, weight: .bold, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.72))
+                    .foregroundStyle(AppTheme.textSecondary)
                 if parameter.required {
                     Text("REQUIRED")
                         .font(.system(size: 7, weight: .semibold))
@@ -605,7 +602,7 @@ private struct CloudflareGeneratedOperationView: View {
                 Spacer()
                 Text(parameter.format ?? parameter.type ?? "value")
                     .font(.system(size: 8, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.25))
+                    .foregroundStyle(AppTheme.textTertiary)
             }
             if let values = parameter.enumValues, !values.isEmpty {
                 Menu {
@@ -621,7 +618,7 @@ private struct CloudflareGeneratedOperationView: View {
             if !parameter.description.isEmpty {
                 Text(parameter.description)
                     .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.28))
+                    .foregroundStyle(AppTheme.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -634,14 +631,14 @@ private struct CloudflareGeneratedOperationView: View {
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
             .padding(11)
-            .background(Color.black.opacity(0.3), in: RoundedRectangle(cornerRadius: 9))
-            .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(Color.white.opacity(0.07), lineWidth: 0.5))
+            .background(AppTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: 9))
+            .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(AppTheme.stroke, lineWidth: 0.5))
     }
 
     private var requestBodyPanel: some View {
         VStack(spacing: 0) {
             CloudflareSectionHeader(title: "Request Body", icon: "doc.text.fill")
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
             VStack(alignment: .leading, spacing: 11) {
                 Picker("Content type", selection: $contentType) {
                     ForEach(operation.contentTypes, id: \.self) { Text($0).tag($0) }
@@ -659,22 +656,22 @@ private struct CloudflareGeneratedOperationView: View {
                                 .foregroundStyle(CloudflareStyle.orange)
                             Text(field.name)
                                 .font(.system(size: 10, weight: .bold, design: .monospaced))
-                                .foregroundStyle(.white.opacity(0.62))
+                                .foregroundStyle(AppTheme.textSecondary)
                             Spacer()
                             Text(field.required ? "REQUIRED" : (field.format ?? field.type ?? "FIELD").uppercased())
                                 .font(.system(size: 7, weight: .semibold))
-                                .foregroundStyle(.white.opacity(0.25))
+                                .foregroundStyle(AppTheme.textTertiary)
                         }
                     }
                 } else {
                     TextEditor(text: $bodyText)
                         .font(.system(size: 11, weight: .medium, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.76))
+                        .foregroundStyle(AppTheme.textPrimary)
                         .scrollContentBackground(.hidden)
                         .frame(minHeight: 180)
                         .padding(8)
-                        .background(Color.black.opacity(0.3), in: RoundedRectangle(cornerRadius: 10))
-                        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.white.opacity(0.07), lineWidth: 0.5))
+                        .background(AppTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: 10))
+                        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(AppTheme.stroke, lineWidth: 0.5))
                 }
             }
             .padding(14)

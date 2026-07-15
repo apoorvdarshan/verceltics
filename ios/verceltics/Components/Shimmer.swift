@@ -15,7 +15,7 @@ private struct ShimmerModifier: ViewModifier {
                         LinearGradient(
                             gradient: Gradient(stops: [
                                 .init(color: .clear, location: 0),
-                                .init(color: .white.opacity(0.08), location: 0.5),
+                                .init(color: AppTheme.textPrimary.opacity(0.08), location: 0.5),
                                 .init(color: .clear, location: 1)
                             ]),
                             startPoint: .topLeading,
@@ -23,7 +23,6 @@ private struct ShimmerModifier: ViewModifier {
                         )
                         .frame(width: geo.size.width * 1.5)
                         .offset(x: phase * geo.size.width)
-                        .blendMode(.plusLighter)
                     }
                     .mask(content)
                     .allowsHitTesting(false)

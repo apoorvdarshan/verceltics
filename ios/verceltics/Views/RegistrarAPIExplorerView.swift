@@ -65,7 +65,6 @@ struct RegistrarAPIExplorerView: View {
         }
         .navigationTitle(preset?.title ?? "\(provider.displayName) API")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .onChange(of: contentType) { _, value in
             if !value.localizedCaseInsensitiveContains("multipart/form-data") &&
                 !value.localizedCaseInsensitiveContains("application/octet-stream") {

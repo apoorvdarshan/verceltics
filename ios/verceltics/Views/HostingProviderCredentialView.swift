@@ -62,10 +62,10 @@ struct HostingProviderCredentialView: View {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 15, weight: .semibold))
                         .frame(width: 44, height: 44)
-                        .background(Color.white.opacity(0.07))
+                        .background(AppTheme.surfaceRaised)
                         .clipShape(Circle())
                 }
-                .foregroundStyle(.white)
+                .foregroundStyle(AppTheme.textPrimary)
                 Spacer()
             }
 
@@ -190,7 +190,7 @@ struct HostingProviderCredentialView: View {
                 RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous)
                     .strokeBorder(focusedField == field ? provider.accentColor.opacity(0.7) : AppTheme.stroke, lineWidth: focusedField == field ? 1 : 0.5)
             )
-            .foregroundStyle(.white)
+            .foregroundStyle(AppTheme.textPrimary)
             .focused($focusedField, equals: field)
             .autocorrectionDisabled()
             .textInputAutocapitalization(.never)

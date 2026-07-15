@@ -3,6 +3,15 @@ import SwiftUI
 @Observable
 @MainActor
 final class CloudflarePagesDeploymentDetailViewModel {
+    private struct CacheEntry {
+        let deployment: CloudflarePagesDeployment
+        let logs: [CloudflarePagesDeploymentLog]
+        let updatedAt: Date
+    }
+
+    private static var cache: [String: CacheEntry] = [:]
+    private static let cacheLifetime: TimeInterval = 120
+
     let api: CloudflareAPI
     let accountID: String
     let projectName: String
@@ -13,6 +22,8 @@ final class CloudflarePagesDeploymentDetailViewModel {
     var isLoading = true
     var detailError: String?
     var logsError: String?
+    private var hasLoadedSnapshot = false
+    private var loadGeneration = 0
 
     init(api: CloudflareAPI, accountID: String, projectName: String, deployment: CloudflarePagesDeployment) {
         self.api = api
@@ -20,10 +31,36 @@ final class CloudflarePagesDeploymentDetailViewModel {
         self.projectName = projectName
         initialDeployment = deployment
         self.deployment = deployment
+        let key = "\(api.cacheScope)|\(accountID)|pages-deployment|\(projectName)|\(deployment.id)"
+        if let cached = Self.cache[key] {
+            self.deployment = cached.deployment
+            logs = cached.logs
+            hasLoadedSnapshot = true
+            isLoading = false
+        }
     }
 
-    func load() async {
-        isLoading = true
+    private var cacheKey: String {
+        "\(api.cacheScope)|\(accountID)|pages-deployment|\(projectName)|\(initialDeployment.id)"
+    }
+
+    func load(forceRefresh: Bool = false) async {
+        if let cached = Self.cache[cacheKey] {
+            deployment = cached.deployment
+            logs = cached.logs
+            hasLoadedSnapshot = true
+            isLoading = false
+            detailError = nil
+            logsError = nil
+            if !forceRefresh,
+               Date.now.timeIntervalSince(cached.updatedAt) < Self.cacheLifetime {
+                return
+            }
+        }
+
+        loadGeneration += 1
+        let generation = loadGeneration
+        isLoading = !hasLoadedSnapshot
         detailError = nil
         logsError = nil
 
@@ -42,13 +79,20 @@ final class CloudflarePagesDeploymentDetailViewModel {
             )
         }
 
-        switch await detailResult {
+        let loadedDetail = await detailResult
+        let loadedLogs = await logsResult
+        guard generation == loadGeneration else { return }
+        switch loadedDetail {
         case .success(let value): deployment = value
         case .failure(let error): detailError = error.localizedDescription
         }
-        switch await logsResult {
+        switch loadedLogs {
         case .success(let value): logs = value
         case .failure(let error): logsError = error.localizedDescription
+        }
+        if case .success = loadedDetail, case .success = loadedLogs {
+            hasLoadedSnapshot = true
+            Self.cache[cacheKey] = CacheEntry(deployment: deployment, logs: logs, updatedAt: .now)
         }
         isLoading = false
     }
@@ -102,9 +146,8 @@ struct CloudflarePagesDeploymentDetailView: View {
         }
         .navigationTitle(viewModel.deployment.shortID ?? "Deployment")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .task { await viewModel.load() }
-        .refreshable { await viewModel.load() }
+        .refreshable { await viewModel.load(forceRefresh: true) }
         .tint(CloudflareStyle.orange)
     }
 
@@ -121,10 +164,10 @@ struct CloudflarePagesDeploymentDetailView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(item.shortID ?? String(item.id.prefix(12)))
                         .font(.system(size: 18, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(AppTheme.textPrimary)
                     Text(item.branch ?? item.url ?? projectName)
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.38))
+                        .foregroundStyle(AppTheme.textTertiary)
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
@@ -137,10 +180,10 @@ struct CloudflarePagesDeploymentDetailView: View {
                 Button { UIApplication.shared.open(url) } label: {
                     Label("Open deployment", systemImage: "arrow.up.right")
                         .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.78))
+                        .foregroundStyle(AppTheme.textPrimary)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 9)
-                        .background(Color.white.opacity(0.07))
+                        .background(AppTheme.stroke)
                         .clipShape(Capsule())
                 }
                 .buttonStyle(PressScaleButtonStyle())
@@ -154,7 +197,7 @@ struct CloudflarePagesDeploymentDetailView: View {
         let item = viewModel.deployment
         return VStack(spacing: 0) {
             CloudflareSectionHeader(title: "Deployment", icon: "info.circle.fill")
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
             CloudflareDetailRow(icon: "number", title: "Deployment ID", value: item.id)
             CloudflareDetailRow(icon: "folder", title: "Project", value: item.projectName ?? projectName)
             CloudflareDetailRow(icon: "shippingbox", title: "Environment", value: item.environment?.rawValue.capitalized ?? "Unknown")
@@ -174,7 +217,7 @@ struct CloudflarePagesDeploymentDetailView: View {
         let item = viewModel.deployment
         return VStack(spacing: 0) {
             CloudflareSectionHeader(title: "Source", icon: "arrow.triangle.branch")
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
             CloudflareDetailRow(icon: "bolt", title: "Trigger", value: item.deploymentTrigger?.type ?? "Unknown")
             CloudflareDetailRow(icon: "arrow.triangle.branch", title: "Branch", value: item.branch ?? "Not returned")
             CloudflareDetailRow(icon: "number", title: "Commit", value: item.commitHash ?? "Not returned")
@@ -194,7 +237,7 @@ struct CloudflarePagesDeploymentDetailView: View {
             : viewModel.deployment.stages
         return VStack(spacing: 0) {
             CloudflareSectionHeader(title: "Build stages", icon: "list.bullet.rectangle.fill", count: stages.count)
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
             if stages.isEmpty {
                 CloudflareEmptySection(icon: "list.bullet", title: "No stages returned", message: "Cloudflare did not include build-stage history for this deployment.")
             } else {
@@ -208,7 +251,7 @@ struct CloudflarePagesDeploymentDetailView: View {
                         CloudflareStatusPill(text: (stage.status ?? "unknown").uppercased(), color: stageColor(stage.status))
                     }
                     if index < stages.count - 1 {
-                        Divider().overlay(Color.white.opacity(0.055)).padding(.leading, 64)
+                        Divider().overlay(AppTheme.divider).padding(.leading, 64)
                     }
                 }
             }
@@ -222,7 +265,7 @@ struct CloudflarePagesDeploymentDetailView: View {
         let environmentKeys = item.environmentVariables.keys.sorted()
         return VStack(spacing: 0) {
             CloudflareSectionHeader(title: "Build configuration", icon: "hammer.fill")
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
             CloudflareDetailRow(icon: "terminal", title: "Build command", value: config?.buildCommand ?? "Not set")
             CloudflareDetailRow(icon: "folder", title: "Destination", value: config?.destinationDirectory ?? "Not set")
             CloudflareDetailRow(icon: "folder.badge.gearshape", title: "Root directory", value: config?.rootDirectory ?? "Not set")
@@ -240,15 +283,23 @@ struct CloudflarePagesDeploymentDetailView: View {
     private var logsPanel: some View {
         VStack(spacing: 0) {
             CloudflareSectionHeader(title: "Deployment logs", icon: "doc.text.fill", count: viewModel.logs.count)
-            Divider().overlay(Color.white.opacity(0.06))
-            if viewModel.isLoading {
+            Divider().overlay(AppTheme.divider)
+            if viewModel.isLoading && viewModel.logs.isEmpty {
                 ProgressView().tint(CloudflareStyle.orange).padding(.vertical, 32)
                     .frame(maxWidth: .infinity)
-            } else if let logsError = viewModel.logsError {
+            } else if let logsError = viewModel.logsError, viewModel.logs.isEmpty {
                 CloudflareEmptySection(icon: "exclamationmark.triangle.fill", title: "Logs unavailable", message: logsError)
             } else if viewModel.logs.isEmpty {
                 CloudflareEmptySection(icon: "doc.text", title: "No logs returned", message: "This deployment has no build-history logs available.")
             } else {
+                if let logsError = viewModel.logsError {
+                    CloudflareDetailRow(
+                        icon: "exclamationmark.triangle",
+                        title: "Refresh warning",
+                        value: "\(logsError) Showing cached logs.",
+                        valueColor: CloudflareStyle.amber
+                    )
+                }
                 ForEach(viewModel.logs) { log in
                     VStack(alignment: .leading, spacing: 5) {
                         if let date = log.date {
@@ -258,13 +309,13 @@ struct CloudflarePagesDeploymentDetailView: View {
                         }
                         Text(log.line)
                             .font(.system(size: 10, weight: .medium, design: .monospaced))
-                            .foregroundStyle(.white.opacity(0.62))
+                            .foregroundStyle(AppTheme.textSecondary)
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
-                    Divider().overlay(Color.white.opacity(0.045)).padding(.leading, 16)
+                    Divider().overlay(AppTheme.strokeSoft).padding(.leading, 16)
                 }
             }
         }

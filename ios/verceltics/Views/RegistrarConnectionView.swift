@@ -75,7 +75,7 @@ struct RegistrarConnectionView: View {
                                     .font(.system(size: 11, weight: .semibold))
                                     .foregroundStyle(AppTheme.textTertiary)
                             }
-                            .foregroundStyle(.white)
+                            .foregroundStyle(AppTheme.textPrimary)
                             .padding(14)
                             .providerPanel(accent: provider.accentColor)
                         }
@@ -87,10 +87,9 @@ struct RegistrarConnectionView: View {
             }
             .navigationTitle("Registrars")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Close") { dismiss() }.foregroundStyle(.white)
+                    Button("Close") { dismiss() }.foregroundStyle(AppTheme.textPrimary)
                 }
             }
         }
@@ -115,7 +114,7 @@ struct RegistrarConnectionView: View {
                                 Image(systemName: "chevron.left")
                                     .font(.system(size: 15, weight: .semibold))
                                     .frame(width: 44, height: 44)
-                                    .background(Color.white.opacity(0.07))
+                                    .background(AppTheme.surfaceRaised)
                                     .clipShape(Circle())
                             }
                             Spacer()
@@ -247,7 +246,7 @@ struct RegistrarConnectionView: View {
             .background(AppTheme.surfaceRaised)
             .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous).strokeBorder(focusedField == field ? providerFocusColor : AppTheme.stroke, lineWidth: focusedField == field ? 1 : 0.5))
-            .foregroundStyle(.white)
+            .foregroundStyle(AppTheme.textPrimary)
             .focused($focusedField, equals: field)
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()

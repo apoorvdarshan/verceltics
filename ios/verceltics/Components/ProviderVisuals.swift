@@ -4,19 +4,88 @@ import UIKit
 /// The app's visual language: quiet infrastructure surfaces with provider color
 /// reserved for identity and state, rather than decorative gradients.
 enum AppTheme {
-    static let canvas = Color(red: 0.018, green: 0.022, blue: 0.030)
-    static let surface = Color(red: 0.060, green: 0.070, blue: 0.090)
-    static let surfaceRaised = Color(red: 0.082, green: 0.092, blue: 0.115)
-    static let textPrimary = Color(red: 0.94, green: 0.95, blue: 0.97)
-    static let textSecondary = Color(red: 0.64, green: 0.67, blue: 0.73)
-    static let textTertiary = Color(red: 0.44, green: 0.47, blue: 0.53)
-    static let stroke = Color.white.opacity(0.10)
-    static let strokeStrong = Color.white.opacity(0.14)
-    static let strokeSoft = Color.white.opacity(0.055)
-    static let signal = Color(red: 0.31, green: 0.63, blue: 1.0)
-    static let success = Color(red: 0.30, green: 0.79, blue: 0.52)
-    static let warning = Color(red: 0.96, green: 0.65, blue: 0.24)
-    static let danger = Color(red: 0.96, green: 0.35, blue: 0.38)
+    private static func adaptive(light: UIColor, dark: UIColor) -> Color {
+        Color(uiColor: UIColor { traits in
+            traits.userInterfaceStyle == .dark ? dark : light
+        })
+    }
+
+    static let canvas = adaptive(
+        light: UIColor(red: 0.955, green: 0.966, blue: 0.982, alpha: 1),
+        dark: UIColor(red: 0.018, green: 0.022, blue: 0.030, alpha: 1)
+    )
+    static let surface = adaptive(
+        light: UIColor(red: 0.995, green: 0.998, blue: 1.0, alpha: 1),
+        dark: UIColor(red: 0.060, green: 0.070, blue: 0.090, alpha: 1)
+    )
+    static let surfaceRaised = adaptive(
+        light: UIColor(red: 0.918, green: 0.935, blue: 0.961, alpha: 1),
+        dark: UIColor(red: 0.082, green: 0.092, blue: 0.115, alpha: 1)
+    )
+    static let textPrimary = adaptive(
+        light: UIColor(red: 0.070, green: 0.090, blue: 0.125, alpha: 1),
+        dark: UIColor(red: 0.94, green: 0.95, blue: 0.97, alpha: 1)
+    )
+    static let textSecondary = adaptive(
+        light: UIColor(red: 0.33, green: 0.37, blue: 0.44, alpha: 1),
+        dark: UIColor(red: 0.64, green: 0.67, blue: 0.73, alpha: 1)
+    )
+    static let textTertiary = adaptive(
+        light: UIColor(red: 0.49, green: 0.53, blue: 0.60, alpha: 1),
+        dark: UIColor(red: 0.44, green: 0.47, blue: 0.53, alpha: 1)
+    )
+    static let stroke = adaptive(
+        light: UIColor.black.withAlphaComponent(0.095),
+        dark: UIColor.white.withAlphaComponent(0.10)
+    )
+    static let strokeStrong = adaptive(
+        light: UIColor.black.withAlphaComponent(0.15),
+        dark: UIColor.white.withAlphaComponent(0.14)
+    )
+    static let strokeSoft = adaptive(
+        light: UIColor.black.withAlphaComponent(0.060),
+        dark: UIColor.white.withAlphaComponent(0.055)
+    )
+    static let divider = adaptive(
+        light: UIColor.black.withAlphaComponent(0.075),
+        dark: UIColor.white.withAlphaComponent(0.065)
+    )
+    static let signal = adaptive(
+        light: UIColor(red: 0.075, green: 0.37, blue: 0.79, alpha: 1),
+        dark: UIColor(red: 0.31, green: 0.63, blue: 1.0, alpha: 1)
+    )
+    static let success = adaptive(
+        light: UIColor(red: 0.08, green: 0.49, blue: 0.27, alpha: 1),
+        dark: UIColor(red: 0.30, green: 0.79, blue: 0.52, alpha: 1)
+    )
+    static let warning = adaptive(
+        light: UIColor(red: 0.65, green: 0.36, blue: 0.02, alpha: 1),
+        dark: UIColor(red: 0.96, green: 0.65, blue: 0.24, alpha: 1)
+    )
+    static let danger = adaptive(
+        light: UIColor(red: 0.73, green: 0.12, blue: 0.17, alpha: 1),
+        dark: UIColor(red: 0.96, green: 0.35, blue: 0.38, alpha: 1)
+    )
+    static let shadow = adaptive(
+        light: UIColor.black.withAlphaComponent(0.10),
+        dark: UIColor.black.withAlphaComponent(0.24)
+    )
+    static let shadowSoft = adaptive(
+        light: UIColor.black.withAlphaComponent(0.065),
+        dark: UIColor.black.withAlphaComponent(0.14)
+    )
+    static let glassTint = adaptive(
+        light: UIColor.white.withAlphaComponent(0.16),
+        dark: UIColor.black.withAlphaComponent(0.58)
+    )
+    static let skeleton = adaptive(
+        light: UIColor.black.withAlphaComponent(0.045),
+        dark: UIColor.white.withAlphaComponent(0.045)
+    )
+    static let skeletonStrong = adaptive(
+        light: UIColor.black.withAlphaComponent(0.070),
+        dark: UIColor.white.withAlphaComponent(0.075)
+    )
 
     static let panelRadius: CGFloat = 16
     static let controlRadius: CGFloat = 13
@@ -116,7 +185,7 @@ struct AppSurfaceModifier: ViewModifier {
                 )
             }
             .shadow(
-                color: Color.black.opacity(raised ? 0.24 : 0.14),
+                color: raised ? AppTheme.shadow : AppTheme.shadowSoft,
                 radius: raised ? 12 : 7,
                 y: raised ? 6 : 3
             )
@@ -148,7 +217,7 @@ struct ProviderSurfaceModifier: ViewModifier {
                     .frame(width: 2, height: 24)
                     .padding(.leading, 1)
             }
-            .shadow(color: Color.black.opacity(0.16), radius: 8, y: 4)
+            .shadow(color: AppTheme.shadowSoft, radius: 8, y: 4)
     }
 }
 
@@ -160,7 +229,7 @@ struct NativeGlassSurfaceModifier: ViewModifier {
         if #available(iOS 26.0, *) {
             content
                 .glassEffect(
-                    .regular.tint(Color.black.opacity(0.58)).interactive(),
+                    .regular.tint(AppTheme.glassTint).interactive(),
                     in: .rect(cornerRadius: cornerRadius)
                 )
         } else {
@@ -420,7 +489,7 @@ struct AppDashboardLoadingView: View {
 
                 HStack {
                     RoundedRectangle(cornerRadius: 3, style: .continuous)
-                        .fill(Color.white.opacity(0.075))
+                        .fill(AppTheme.skeletonStrong)
                         .frame(width: 118, height: 10)
                     Spacer()
                 }
@@ -443,7 +512,7 @@ struct AppDashboardLoadingView: View {
 
     private func skeletonBlock(height: CGFloat, accent: Bool = false) -> some View {
         RoundedRectangle(cornerRadius: AppTheme.panelRadius, style: .continuous)
-            .fill(accent ? self.accent.opacity(0.07) : Color.white.opacity(0.045))
+            .fill(accent ? self.accent.opacity(0.07) : AppTheme.skeleton)
             .frame(maxWidth: .infinity)
             .frame(height: height)
             .overlay {
@@ -458,7 +527,7 @@ struct AppInsetDivider: View {
 
     var body: some View {
         Rectangle()
-            .fill(AppTheme.strokeSoft)
+            .fill(AppTheme.divider)
             .frame(height: 0.5)
             .padding(.leading, leading)
     }
@@ -592,7 +661,7 @@ extension AccountProvider {
 
     var accentColor: Color {
         switch self {
-        case .vercel: .white
+        case .vercel: AppTheme.textPrimary
         case .cloudflare: Color(red: 0.95, green: 0.42, blue: 0.08)
         case .netlify: Color(red: 0.18, green: 0.82, blue: 0.78)
         case .railway: Color(red: 0.67, green: 0.48, blue: 0.98)
@@ -657,7 +726,7 @@ struct ProviderMark: View {
             .resizable()
             .renderingMode(monochrome || provider.logoNeedsTint ? .template : .original)
             .scaledToFit()
-            .foregroundStyle(monochrome ? Color.white : provider.accentColor)
+            .foregroundStyle(monochrome ? AppTheme.textPrimary : provider.accentColor)
         .frame(width: size, height: size)
         .accessibilityHidden(true)
     }

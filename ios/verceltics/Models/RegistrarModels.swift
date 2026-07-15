@@ -186,10 +186,10 @@ struct RegistrarMark: View {
             .resizable()
             .renderingMode(monochrome || provider.logoNeedsTint ? .template : .original)
             .scaledToFit()
-            .foregroundStyle(monochrome ? Color.white : provider.accentColor)
+            .foregroundStyle(monochrome ? AppTheme.textPrimary : provider.accentColor)
             .frame(width: size * 0.55, height: size * 0.55)
             .frame(width: size, height: size)
-            .background((monochrome ? Color.white : provider.accentColor).opacity(monochrome ? 0.10 : 0.13))
+            .background((monochrome ? AppTheme.textPrimary : provider.accentColor).opacity(monochrome ? 0.10 : 0.13))
             .clipShape(RoundedRectangle(cornerRadius: size * 0.28, style: .continuous))
             .accessibilityHidden(true)
     }

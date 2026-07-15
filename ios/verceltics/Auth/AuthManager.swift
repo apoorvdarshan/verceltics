@@ -347,10 +347,10 @@ final class AuthManager {
     }
 
     func switchAccount(to id: UUID) {
-        if accounts.contains(where: { $0.id == id }) {
-            activeAccountId = id
-            KeychainHelper.saveActiveAccountId(id)
-        }
+        guard activeAccountId != id,
+              accounts.contains(where: { $0.id == id }) else { return }
+        activeAccountId = id
+        KeychainHelper.saveActiveAccountId(id)
     }
 
     func hasLongAnalyticsHistory(for id: UUID?) -> Bool {

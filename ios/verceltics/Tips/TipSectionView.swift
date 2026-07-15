@@ -62,7 +62,7 @@ struct TipSectionView: View {
             if let msg = store.errorMessage {
                 Text(msg)
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Color(red: 1.0, green: 0.5, blue: 0.5))
+                    .foregroundStyle(AppTheme.danger)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 14)
                     .padding(.bottom, 12)
@@ -73,7 +73,7 @@ struct TipSectionView: View {
     private var explainer: some View {
         Text("A one-time tip — completely optional and unlocks nothing.")
             .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(.white.opacity(0.42))
+            .foregroundStyle(AppTheme.textSecondary)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 14)
             .padding(.top, 13)
@@ -138,10 +138,10 @@ struct TipSectionView: View {
 
     private var loadingRow: some View {
         HStack(spacing: 10) {
-            ProgressView().tint(.white.opacity(0.6))
+            ProgressView().tint(tipAccent)
             Text("Loading tip options…")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.4))
+                .foregroundStyle(AppTheme.textSecondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 26)
@@ -151,7 +151,7 @@ struct TipSectionView: View {
         VStack(spacing: 12) {
             Text("Couldn't load tip options right now.")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.5))
+                .foregroundStyle(AppTheme.textSecondary)
             Button { Task { await store.loadProducts() } } label: {
                 Text("Try Again")
                     .font(.system(size: 13, weight: .bold))
@@ -172,10 +172,10 @@ struct TipSectionView: View {
                 .foregroundStyle(tipAccent)
             Text("Thank you")
                 .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(AppTheme.textPrimary)
             Text("Your tip supports continued development of Verceltics.")
                 .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.white.opacity(0.55))
+                .foregroundStyle(AppTheme.textSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 18)
             Button { store.didTip = false } label: {

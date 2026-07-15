@@ -3,6 +3,8 @@ import StoreKit
 
 struct AboutView: View {
     @Environment(AppUpdateChecker.self) private var appUpdateChecker
+    @Environment(AppAppearanceStore.self) private var appearanceStore
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.horizontalSizeClass) private var hSize
     @Environment(\.openURL) private var openURL
     @Environment(\.requestReview) private var requestReview
@@ -26,7 +28,6 @@ struct AboutView: View {
             .background(AppTheme.canvas)
             .navigationTitle("About")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarColorScheme(.dark, for: .navigationBar)
             .task {
                 await appUpdateChecker.checkForUpdates()
             }
@@ -39,6 +40,7 @@ struct AboutView: View {
             HStack(alignment: .top, spacing: 0) {
                 VStack(spacing: 24) {
                     appSection
+                    appearanceSection
                     linksSection
                     waysToHelpSection
                 }
@@ -52,6 +54,7 @@ struct AboutView: View {
         } else {
             VStack(spacing: 24) {
                 appSection
+                appearanceSection
                 linksSection
                 waysToHelpSection
                 TipSectionView(store: tipStore)
@@ -64,6 +67,66 @@ struct AboutView: View {
 
     private var appSection: some View {
         SectionCard(title: "App") { updateCheckRow }
+    }
+
+    private var appearanceSection: some View {
+        SectionCard(title: "Appearance") {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 12) {
+                    AppIconTile(
+                        icon: appearanceStore.selection.systemImage,
+                        tint: AppTheme.signal,
+                        size: 36
+                    )
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Color mode")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(AppTheme.textPrimary)
+                        Text(appearanceStore.selection.explanation)
+                            .font(.footnote)
+                            .foregroundStyle(AppTheme.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Spacer(minLength: 0)
+                }
+
+                appearancePicker
+            }
+            .padding(14)
+        }
+    }
+
+    @ViewBuilder
+    private var appearancePicker: some View {
+        let selection = Binding(
+            get: { appearanceStore.selection },
+            set: { appearanceStore.select($0) }
+        )
+
+        if dynamicTypeSize.isAccessibilitySize {
+            Picker("Appearance", selection: selection) {
+                ForEach(AppAppearance.allCases) { appearance in
+                    Label(appearance.title, systemImage: appearance.systemImage)
+                        .tag(appearance)
+                }
+            }
+            .pickerStyle(.menu)
+            .tint(AppTheme.signal)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .padding(.horizontal, 12)
+            .background(AppTheme.surfaceRaised)
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
+        } else {
+            Picker("Appearance", selection: selection) {
+                ForEach(AppAppearance.allCases) { appearance in
+                    Label(appearance.title, systemImage: appearance.systemImage)
+                        .tag(appearance)
+                }
+            }
+            .pickerStyle(.segmented)
+        }
     }
 
     private var linksSection: some View {
@@ -176,7 +239,7 @@ struct AboutView: View {
     private var updateIconColor: Color {
         if appUpdateChecker.isUpdateAvailable { return Color(red: 0.84, green: 1.0, blue: 0.36) }
         if appUpdateChecker.errorMessage != nil { return Color(red: 1.0, green: 0.72, blue: 0.35) }
-        return .white.opacity(0.55)
+        return AppTheme.textSecondary
     }
 
     private var updateTitle: String {

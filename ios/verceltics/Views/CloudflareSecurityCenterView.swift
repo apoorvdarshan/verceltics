@@ -3,6 +3,14 @@ import SwiftUI
 @Observable
 @MainActor
 final class CloudflareSecurityCenterViewModel {
+    private struct CacheEntry {
+        let snapshot: CloudflareSecuritySnapshot
+        let updatedAt: Date
+    }
+
+    private static var cache: [String: CacheEntry] = [:]
+    private static let cacheLifetime: TimeInterval = 180
+
     let api: CloudflareAPI
     let zone: CloudflareZone
 
@@ -11,26 +19,88 @@ final class CloudflareSecurityCenterViewModel {
     var workingAction: String?
     var actionMessage: String?
     var actionFailed = false
+    private var loadGeneration = 0
 
     init(api: CloudflareAPI, zone: CloudflareZone) {
         self.api = api
         self.zone = zone
+        let key = "\(api.cacheScope)|security|\(zone.id)"
+        if let cached = Self.cache[key] {
+            snapshot = cached.snapshot
+            isLoading = false
+        }
     }
 
-    func load() async {
-        isLoading = true
-        snapshot = CloudflareSecuritySnapshot()
+    private var cacheKey: String { "\(api.cacheScope)|security|\(zone.id)" }
 
-        do { snapshot.securityLevel = try await api.fetchZoneSecurityLevel(zoneID: zone.id) }
-        catch { addWarning("Security level", error) }
-        await load(.wafRulesets)
-        await load(.accessRules)
-        await load(.rateLimits)
-        await load(.certificates)
-        await load(.pageShield)
-        await load(.botManagement)
-        await load(.apiShield)
+    func load(forceRefresh: Bool = false) async {
+        var hydratedCache = false
+        if let cached = Self.cache[cacheKey] {
+            snapshot = cached.snapshot
+            hydratedCache = true
+            isLoading = false
+            if !forceRefresh,
+               Date.now.timeIntervalSince(cached.updatedAt) < Self.cacheLifetime {
+                return
+            }
+        }
 
+        loadGeneration += 1
+        let generation = loadGeneration
+        isLoading = !hydratedCache
+
+        async let securityLevelResult = capture { try await api.fetchZoneSecurityLevel(zoneID: zone.id) }
+        async let wafResult = capture { try await api.fetchZoneSecurityItems(zoneID: zone.id, category: .wafRulesets) }
+        async let accessResult = capture { try await api.fetchZoneSecurityItems(zoneID: zone.id, category: .accessRules) }
+        async let ratesResult = capture { try await api.fetchZoneSecurityItems(zoneID: zone.id, category: .rateLimits) }
+        async let certificatesResult = capture { try await api.fetchZoneSecurityItems(zoneID: zone.id, category: .certificates) }
+        async let pageShieldResult = capture { try await api.fetchZoneSecurityItems(zoneID: zone.id, category: .pageShield) }
+        async let botResult = capture { try await api.fetchZoneSecurityItems(zoneID: zone.id, category: .botManagement) }
+        async let apiShieldResult = capture { try await api.fetchZoneSecurityItems(zoneID: zone.id, category: .apiShield) }
+
+        let results = await (
+            securityLevelResult, wafResult, accessResult, ratesResult,
+            certificatesResult, pageShieldResult, botResult, apiShieldResult
+        )
+        if Task.isCancelled { return }
+        guard generation == loadGeneration else { return }
+
+        var refreshed = snapshot
+        refreshed.warnings = []
+        switch results.0 {
+        case .success(let value): refreshed.securityLevel = value
+        case .failure(let error): refreshed.warnings.append("Security level: \(error.localizedDescription)")
+        }
+        switch results.1 {
+        case .success(let value): refreshed.rulesets = value
+        case .failure(let error): refreshed.warnings.append("WAF rulesets: \(error.localizedDescription)")
+        }
+        switch results.2 {
+        case .success(let value): refreshed.accessRules = value
+        case .failure(let error): refreshed.warnings.append("IP access rules: \(error.localizedDescription)")
+        }
+        switch results.3 {
+        case .success(let value): refreshed.rateLimits = value
+        case .failure(let error): refreshed.warnings.append("Rate limits: \(error.localizedDescription)")
+        }
+        switch results.4 {
+        case .success(let value): refreshed.certificates = value
+        case .failure(let error): refreshed.warnings.append("Certificates: \(error.localizedDescription)")
+        }
+        switch results.5 {
+        case .success(let value): refreshed.pageShield = value
+        case .failure(let error): refreshed.warnings.append("Page Shield: \(error.localizedDescription)")
+        }
+        switch results.6 {
+        case .success(let value): refreshed.botManagement = value
+        case .failure(let error): refreshed.warnings.append("Bot management: \(error.localizedDescription)")
+        }
+        switch results.7 {
+        case .success(let value): refreshed.apiShield = value
+        case .failure(let error): refreshed.warnings.append("API Shield: \(error.localizedDescription)")
+        }
+        snapshot = refreshed
+        updateCache()
         isLoading = false
     }
 
@@ -75,6 +145,7 @@ final class CloudflareSecurityCenterViewModel {
                 confirmation: confirmation
             )
             snapshot.accessRules.removeAll { $0.id == rule.id }
+            updateCache()
         }
     }
 
@@ -90,6 +161,7 @@ final class CloudflareSecurityCenterViewModel {
             case .botManagement: snapshot.botManagement = values
             case .apiShield: snapshot.apiShield = values
             }
+            updateCache()
         } catch {
             addWarning(category.rawValue, error)
         }
@@ -102,6 +174,7 @@ final class CloudflareSecurityCenterViewModel {
             try await operation()
             actionMessage = success
             actionFailed = false
+            updateCache()
         } catch {
             actionMessage = error.localizedDescription
             actionFailed = true
@@ -111,6 +184,19 @@ final class CloudflareSecurityCenterViewModel {
 
     private func addWarning(_ section: String, _ error: Error) {
         snapshot.warnings.append("\(section): \(error.localizedDescription)")
+        updateCache()
+    }
+
+    private func capture<Value>(_ operation: () async throws -> Value) async -> Result<Value, Error> {
+        do { return .success(try await operation()) }
+        catch { return .failure(error) }
+    }
+
+    private func updateCache() {
+        Self.cache[cacheKey] = CacheEntry(
+            snapshot: snapshot,
+            updatedAt: snapshot.warnings.isEmpty ? .now : .distantPast
+        )
     }
 }
 
@@ -208,9 +294,8 @@ struct CloudflareSecurityCenterView: View {
         }
         .navigationTitle("Security")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .task { await viewModel.load() }
-        .refreshable { await viewModel.load() }
+        .refreshable { await viewModel.load(forceRefresh: true) }
         .sheet(isPresented: $showingAccessRuleEditor) {
             CloudflareAccessRuleEditor { target, value, mode, notes in
                 let path = "/zones/\(zone.id)/firewall/access_rules/rules"
@@ -280,7 +365,7 @@ struct CloudflareSecurityCenterView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(zone.name)
                         .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(AppTheme.textPrimary)
                     Text("SECURITY CONTROL PLANE")
                         .font(.system(size: 8, weight: .semibold, design: .monospaced))
                         .tracking(1.1)
@@ -308,15 +393,15 @@ struct CloudflareSecurityCenterView: View {
         VStack(spacing: 4) {
             Text(value.formatted())
                 .font(.system(size: 18, weight: .semibold, design: .default).monospacedDigit())
-                .foregroundStyle(.white)
+                .foregroundStyle(AppTheme.textPrimary)
             Text(title)
                 .font(.system(size: 7, weight: .semibold, design: .monospaced))
                 .tracking(0.7)
-                .foregroundStyle(.white.opacity(0.3))
+                .foregroundStyle(AppTheme.textTertiary)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 9)
-        .background(Color.white.opacity(0.035))
+        .background(AppTheme.strokeSoft)
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
@@ -331,10 +416,10 @@ struct CloudflareSecurityCenterView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text("Security level")
                     .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.86))
+                    .foregroundStyle(AppTheme.textPrimary)
                 Text((viewModel.snapshot.securityLevel ?? "Not returned").replacingOccurrences(of: "_", with: " ").capitalized)
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.38))
+                    .foregroundStyle(AppTheme.textTertiary)
             }
             Spacer()
             if viewModel.workingAction == "security-level" {
@@ -371,7 +456,7 @@ struct CloudflareSecurityCenterView: View {
             ) {
                 showingAccessRuleEditor = true
             }
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
             if viewModel.snapshot.accessRules.isEmpty {
                 CloudflareEmptySection(
                     icon: "hand.raised",
@@ -413,7 +498,7 @@ struct CloudflareSecurityCenterView: View {
     ) -> some View {
         VStack(spacing: 0) {
             CloudflareSectionHeader(title: title, icon: icon, count: items.count)
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
             if items.isEmpty {
                 CloudflareEmptySection(icon: icon, title: "Nothing returned", message: emptyMessage)
             } else {
@@ -465,29 +550,74 @@ struct CloudflareSecurityCenterView: View {
 @Observable
 @MainActor
 private final class CloudflareRulesetDetailViewModel {
+    private struct CacheEntry {
+        let rules: [CloudflareSecurityItem]
+        let updatedAt: Date
+    }
+
+    private static var cache: [String: CacheEntry] = [:]
+    private static let cacheLifetime: TimeInterval = 180
+
     let api: CloudflareAPI
     let zoneID: String
     let ruleset: CloudflareSecurityItem
 
     var rules: [CloudflareSecurityItem] = []
     var isLoading = true
+    var isRefreshing = false
     var error: String?
+    private var loadGeneration = 0
 
     init(api: CloudflareAPI, zoneID: String, ruleset: CloudflareSecurityItem) {
         self.api = api
         self.zoneID = zoneID
         self.ruleset = ruleset
+
+        if let cached = Self.cache[Self.cacheKey(api: api, zoneID: zoneID, rulesetID: ruleset.id)] {
+            rules = cached.rules
+            isLoading = false
+        }
     }
 
-    func load() async {
-        isLoading = true
-        error = nil
-        do {
-            rules = try await api.fetchZoneRulesetRules(zoneID: zoneID, rulesetID: ruleset.id)
-        } catch {
-            self.error = error.localizedDescription
+    func load(forceRefresh: Bool = false) async {
+        let key = Self.cacheKey(api: api, zoneID: zoneID, rulesetID: ruleset.id)
+        if let cached = Self.cache[key] {
+            rules = cached.rules
+            isLoading = false
+            if !forceRefresh, Date.now.timeIntervalSince(cached.updatedAt) < Self.cacheLifetime {
+                return
+            }
         }
-        isLoading = false
+
+        guard !isRefreshing else { return }
+        loadGeneration += 1
+        let generation = loadGeneration
+        isLoading = rules.isEmpty
+        isRefreshing = true
+        error = nil
+        defer {
+            if generation == loadGeneration {
+                isLoading = false
+                isRefreshing = false
+            }
+        }
+
+        do {
+            let refreshed = try await api.fetchZoneRulesetRules(zoneID: zoneID, rulesetID: ruleset.id)
+            guard !Task.isCancelled, generation == loadGeneration else { return }
+            rules = refreshed
+            Self.cache[key] = CacheEntry(rules: refreshed, updatedAt: .now)
+        } catch is CancellationError {
+            return
+        } catch {
+            guard generation == loadGeneration else { return }
+            if rules.isEmpty { self.error = error.localizedDescription }
+        }
+
+    }
+
+    private static func cacheKey(api: CloudflareAPI, zoneID: String, rulesetID: String) -> String {
+        "\(api.cacheScope)|waf-ruleset|\(zoneID)|\(rulesetID)"
     }
 }
 
@@ -513,10 +643,10 @@ private struct CloudflareRulesetDetailView: View {
                             icon: "list.bullet.rectangle.fill",
                             count: viewModel.rules.count
                         )
-                        Divider().overlay(Color.white.opacity(0.06))
-                        if viewModel.isLoading {
+                        Divider().overlay(AppTheme.divider)
+                        if viewModel.isLoading && viewModel.rules.isEmpty {
                             ProgressView().tint(CloudflareStyle.orange).padding(.vertical, 34)
-                        } else if let error = viewModel.error {
+                        } else if let error = viewModel.error, viewModel.rules.isEmpty {
                             CloudflareEmptySection(
                                 icon: "exclamationmark.triangle.fill",
                                 title: "Rules unavailable",
@@ -551,8 +681,8 @@ private struct CloudflareRulesetDetailView: View {
         }
         .navigationTitle("WAF ruleset")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .task { await viewModel.load() }
+        .refreshable { await viewModel.load(forceRefresh: true) }
     }
 }
 
@@ -573,7 +703,7 @@ private struct CloudflareSecurityItemDetailView: View {
                             .foregroundStyle(CloudflareStyle.orange)
                         Text(prettySecurityJSON(item.raw))
                             .font(.system(size: 9, weight: .medium, design: .monospaced))
-                            .foregroundStyle(.white.opacity(0.68))
+                            .foregroundStyle(AppTheme.textSecondary)
                             .textSelection(.enabled)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -585,7 +715,6 @@ private struct CloudflareSecurityItemDetailView: View {
         }
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
     }
 }
 
@@ -604,11 +733,11 @@ private struct CloudflareSecurityItemDetailCard: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(item.title)
                         .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(AppTheme.textPrimary)
                     if let subtitle = item.subtitle {
                         Text(subtitle)
                             .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.4))
+                            .foregroundStyle(AppTheme.textSecondary)
                     }
                 }
                 Spacer()
@@ -618,7 +747,7 @@ private struct CloudflareSecurityItemDetailCard: View {
             }
             Text(item.id)
                 .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.28))
+                .foregroundStyle(AppTheme.textTertiary)
                 .textSelection(.enabled)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -649,10 +778,10 @@ private struct CloudflareAccessRuleEditor: View {
                         VStack(alignment: .leading, spacing: 5) {
                             Text("Add IP access rule")
                                 .font(.system(size: 22, weight: .semibold))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(AppTheme.textPrimary)
                             Text("The action applies immediately to matching requests for this zone.")
                                 .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.4))
+                                .foregroundStyle(AppTheme.textSecondary)
                         }
 
                         pickerPanel("TARGET", values: targets, selection: $target)
@@ -664,7 +793,6 @@ private struct CloudflareAccessRuleEditor: View {
                     .padding()
                 }
             }
-            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -715,7 +843,7 @@ private struct CloudflareAccessRuleEditor: View {
             Text(title)
                 .font(.system(size: 8, weight: .semibold, design: .monospaced))
                 .tracking(0.8)
-                .foregroundStyle(.white.opacity(0.35))
+                .foregroundStyle(AppTheme.textTertiary)
             Picker(title, selection: selection) {
                 ForEach(values, id: \.self) { value in
                     Text(value.replacingOccurrences(of: "_", with: " ").capitalized).tag(value)
@@ -730,9 +858,9 @@ private struct CloudflareAccessRuleEditor: View {
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
             .font(.system(size: 13, weight: .semibold, design: .monospaced))
-            .foregroundStyle(.white)
+            .foregroundStyle(AppTheme.textPrimary)
             .padding(14)
-            .background(Color.white.opacity(0.055))
+            .background(AppTheme.divider)
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }

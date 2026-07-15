@@ -51,14 +51,14 @@ struct ProviderAccountMenu: View {
                 providerBadge(for: authManager.activeAccount)
                 Image(systemName: "chevron.down")
                     .font(.system(size: 8, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.45))
+                    .foregroundStyle(AppTheme.textTertiary)
             }
             .frame(width: 44, height: 44)
             .contentShape(Rectangle())
             .accessibilityLabel("Switch connected account")
             .accessibilityValue(authManager.activeAccount?.name ?? "No active account")
         }
-        .tint(.white)
+        .tint(AppTheme.textPrimary)
         .sheet(isPresented: $showingAddAccount) {
             LoginView(initialCategory: .hosting)
                 .presentationSizing(.page)
@@ -146,7 +146,7 @@ struct ProviderAccountMenu: View {
         } else {
             Image(systemName: "server.rack")
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(AppTheme.textPrimary)
         }
     }
 }

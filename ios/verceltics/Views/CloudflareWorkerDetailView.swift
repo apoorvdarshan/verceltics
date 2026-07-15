@@ -3,66 +3,167 @@ import SwiftUI
 @Observable
 @MainActor
 final class CloudflareWorkerDetailViewModel {
-    private static var deploymentCache: [String: [CloudflareWorkerDeployment]] = [:]
+    private struct WorkerCacheEntry {
+        let worker: CloudflareWorkerScript
+        let updatedAt: Date
+    }
+
+    private struct DeploymentCacheEntry {
+        let deployments: [CloudflareWorkerDeployment]
+        let updatedAt: Date
+    }
+
+    private static var workerCache: [String: WorkerCacheEntry] = [:]
+    private static var deploymentCache: [String: DeploymentCacheEntry] = [:]
+    private static let cacheLifetime: TimeInterval = 180
 
     let api: CloudflareAPI
     let accountID: String
-    let worker: CloudflareWorkerScript
+    let workerID: String
 
+    var worker: CloudflareWorkerScript
     var deployments: [CloudflareWorkerDeployment] = []
     var isLoading = true
+    var isRefreshing = false
     var workingID: String?
+    var workerError: String?
     var error: String?
     var actionMessage: String?
     var actionFailed = false
     var didDeleteWorker = false
-    private var hasLoaded = false
+    private var hasLoadedSnapshot = false
+    private var workerLoadGeneration = 0
+    private var loadGeneration = 0
+    private var isWorkerRefreshing = false
 
-    private var cacheKey: String { "\(api.cacheScope)|\(accountID)|\(worker.id)" }
+    private var cacheKey: String { "\(api.cacheScope)|\(accountID)|\(workerID)" }
 
     init(api: CloudflareAPI, accountID: String, worker: CloudflareWorkerScript) {
         self.api = api
         self.accountID = accountID
-        self.worker = worker
+        workerID = worker.id
+        if let cachedWorker = Self.workerCache["\(api.cacheScope)|\(accountID)|\(worker.id)"],
+           cachedWorker.worker == worker {
+            self.worker = cachedWorker.worker
+        } else {
+            self.worker = worker
+            Self.workerCache["\(api.cacheScope)|\(accountID)|\(worker.id)"] = WorkerCacheEntry(
+                worker: worker,
+                updatedAt: .now
+            )
+        }
         if let cached = Self.deploymentCache[cacheKey] {
-            deployments = cached
+            deployments = cached.deployments
             isLoading = false
-            hasLoaded = true
+            hasLoadedSnapshot = true
         }
     }
 
     func load(forceRefresh: Bool = false) async {
-        if hasLoaded && !forceRefresh { return }
-        isLoading = deployments.isEmpty
-        error = nil
+        async let workerLoad: Void = loadWorker(forceRefresh: forceRefresh)
+        async let deploymentLoad: Void = loadDeployments(forceRefresh: forceRefresh)
+        _ = await (workerLoad, deploymentLoad)
+    }
+
+    func refreshMetadata(forceRefresh: Bool = false) async {
+        await loadWorker(forceRefresh: forceRefresh)
+    }
+
+    private func loadWorker(forceRefresh: Bool) async {
+        if let cached = Self.workerCache[cacheKey] {
+            worker = cached.worker
+            workerError = nil
+            if !forceRefresh,
+               Date.now.timeIntervalSince(cached.updatedAt) < Self.cacheLifetime {
+                return
+            }
+        }
+        guard !isWorkerRefreshing else { return }
+
+        workerLoadGeneration += 1
+        let generation = workerLoadGeneration
+        isWorkerRefreshing = true
+        workerError = nil
+        defer {
+            if generation == workerLoadGeneration {
+                isWorkerRefreshing = false
+            }
+        }
         do {
-            deployments = try await api.fetchWorkerDeployments(accountID: accountID, scriptName: worker.id)
-            Self.deploymentCache[cacheKey] = deployments
-            hasLoaded = true
+            let scripts = try await api.fetchWorkerScripts(accountID: accountID)
+            guard let refreshed = scripts.first(where: { $0.id == workerID }) else {
+                throw CloudflareAPIError.requestFailed(
+                    statusCode: 404,
+                    message: "Cloudflare did not return Worker \(workerID)."
+                )
+            }
+            guard generation == workerLoadGeneration else { return }
+            worker = refreshed
+            Self.workerCache[cacheKey] = WorkerCacheEntry(worker: refreshed, updatedAt: .now)
         } catch is CancellationError {
             // Navigation can cancel an in-flight request.
         } catch let urlError as URLError where urlError.code == .cancelled {
             // Navigation can cancel an in-flight request.
         } catch {
+            guard generation == workerLoadGeneration else { return }
+            workerError = error.localizedDescription
+        }
+    }
+
+    private func loadDeployments(forceRefresh: Bool) async {
+        if let cached = Self.deploymentCache[cacheKey] {
+            deployments = cached.deployments
+            hasLoadedSnapshot = true
+            isLoading = false
+            if !forceRefresh,
+               Date.now.timeIntervalSince(cached.updatedAt) < Self.cacheLifetime {
+                return
+            }
+        }
+        guard !isRefreshing else { return }
+
+        loadGeneration += 1
+        let generation = loadGeneration
+        isLoading = !hasLoadedSnapshot
+        isRefreshing = hasLoadedSnapshot
+        error = nil
+        defer {
+            if generation == loadGeneration {
+                isLoading = false
+                isRefreshing = false
+            }
+        }
+        do {
+            let refreshed = try await api.fetchWorkerDeployments(accountID: accountID, scriptName: workerID)
+            guard generation == loadGeneration else { return }
+            deployments = refreshed
+            hasLoadedSnapshot = true
+            updateCache()
+        } catch is CancellationError {
+            // Navigation can cancel an in-flight request.
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            // Navigation can cancel an in-flight request.
+        } catch {
+            guard generation == loadGeneration else { return }
             self.error = error.localizedDescription
         }
-        isLoading = false
     }
 
     func deleteDeployment(_ deployment: CloudflareWorkerDeployment) async {
+        cancelLoad()
         workingID = deployment.id
         actionMessage = nil
         do {
             try await api.deleteWorkerDeployment(
                 accountID: accountID,
-                scriptName: worker.id,
+                scriptName: workerID,
                 deploymentID: deployment.id,
                 confirmation: CloudflareMutationConfirmation(confirmingResourceID: deployment.id)
             )
             actionMessage = "Worker deployment deleted."
             actionFailed = false
-            deployments = try await api.fetchWorkerDeployments(accountID: accountID, scriptName: worker.id)
-            Self.deploymentCache[cacheKey] = deployments
+            deployments.removeAll { $0.id == deployment.id }
+            updateCache()
         } catch {
             actionMessage = error.localizedDescription
             actionFailed = true
@@ -71,17 +172,19 @@ final class CloudflareWorkerDetailViewModel {
     }
 
     func deleteWorker() async {
-        workingID = worker.id
+        cancelLoad()
+        workingID = workerID
         actionMessage = nil
         do {
             try await api.deleteWorker(
                 accountID: accountID,
-                scriptName: worker.id,
-                confirmation: CloudflareMutationConfirmation(confirmingResourceID: worker.id)
+                scriptName: workerID,
+                confirmation: CloudflareMutationConfirmation(confirmingResourceID: workerID)
             )
             actionMessage = "Worker deleted."
             actionFailed = false
             didDeleteWorker = true
+            Self.workerCache[cacheKey] = nil
             Self.deploymentCache[cacheKey] = nil
         } catch {
             actionMessage = error.localizedDescription
@@ -89,22 +192,41 @@ final class CloudflareWorkerDetailViewModel {
         }
         workingID = nil
     }
+
+    private func updateCache() {
+        Self.deploymentCache[cacheKey] = DeploymentCacheEntry(deployments: deployments, updatedAt: .now)
+    }
+
+    private func cancelLoad() {
+        guard isLoading || isRefreshing || isWorkerRefreshing else { return }
+        workerLoadGeneration += 1
+        loadGeneration += 1
+        isWorkerRefreshing = false
+        isLoading = false
+        isRefreshing = false
+    }
 }
 
 struct CloudflareWorkerDetailView: View {
     let api: CloudflareAPI
     let accountID: String
-    let worker: CloudflareWorkerScript
+    let onWorkerChange: (CloudflareWorkerScript?) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.scenePhase) private var scenePhase
     @State private var viewModel: CloudflareWorkerDetailViewModel
     @State private var pendingAction: PendingWorkerAction?
 
-    init(api: CloudflareAPI, accountID: String, worker: CloudflareWorkerScript) {
+    init(
+        api: CloudflareAPI,
+        accountID: String,
+        worker: CloudflareWorkerScript,
+        onWorkerChange: @escaping (CloudflareWorkerScript?) -> Void = { _ in }
+    ) {
         self.api = api
         self.accountID = accountID
-        self.worker = worker
+        self.onWorkerChange = onWorkerChange
         _viewModel = State(
             wrappedValue: CloudflareWorkerDetailViewModel(api: api, accountID: accountID, worker: worker)
         )
@@ -117,6 +239,9 @@ struct CloudflareWorkerDetailView: View {
             ScrollView {
                 VStack(spacing: 16) {
                     workerHeader
+                    if let error = viewModel.workerError {
+                        CloudflareActionResultBanner(message: error, isError: true)
+                    }
                     metadataPanel
                     operationsLink
                     routesPanel
@@ -134,13 +259,28 @@ struct CloudflareWorkerDetailView: View {
                 .frame(maxWidth: .infinity)
             }
         }
-        .navigationTitle(worker.id)
+        .navigationTitle(viewModel.worker.id)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .task { await viewModel.load() }
         .refreshable { await viewModel.load(forceRefresh: true) }
+        .onChange(of: viewModel.worker) { _, updatedWorker in
+            onWorkerChange(updatedWorker)
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            Task { await viewModel.load() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .cloudflareDataDidChange)) { notification in
+            guard notification.object as? String == api.cacheScope,
+                  let path = notification.userInfo?["path"] as? String,
+                  path.hasPrefix("/accounts/\(accountID)/workers/scripts/\(viewModel.workerID)") else { return }
+            Task { await viewModel.refreshMetadata(forceRefresh: true) }
+        }
         .onChange(of: viewModel.didDeleteWorker) { _, deleted in
-            if deleted { dismiss() }
+            if deleted {
+                onWorkerChange(nil)
+                dismiss()
+            }
         }
         .confirmationDialog(
             pendingAction?.title ?? "Confirm action",
@@ -170,11 +310,11 @@ struct CloudflareWorkerDetailView: View {
                 AppIconTile(icon: "shippingbox.fill", tint: CloudflareStyle.orange, size: 46)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(worker.id)
+                    Text(viewModel.worker.id)
                         .font(.title3.weight(.semibold))
                         .foregroundStyle(AppTheme.textPrimary)
                         .lineLimit(1)
-                    Text(worker.hasModules == true ? "Modules Worker" : "Service Worker")
+                    Text(viewModel.worker.hasModules == true ? "Modules Worker" : "Service Worker")
                         .font(.footnote.weight(.medium))
                         .foregroundStyle(AppTheme.textSecondary)
                 }
@@ -184,11 +324,11 @@ struct CloudflareWorkerDetailView: View {
             }
 
             HStack(spacing: 9) {
-                if let route = worker.routes.first,
+                if let route = viewModel.worker.routes.first,
                    let url = workerURL(from: route.pattern) {
                     openButton("Open route", icon: "arrow.up.right", url: url)
                 }
-                if let url = URL(string: "https://dash.cloudflare.com/\(accountID)/workers/services/view/\(worker.id)/production") {
+                if let url = URL(string: "https://dash.cloudflare.com/\(accountID)/workers/services/view/\(viewModel.worker.id)/production") {
                     openButton("Dashboard", icon: "safari", url: url)
                 }
             }
@@ -200,39 +340,39 @@ struct CloudflareWorkerDetailView: View {
     private var metadataPanel: some View {
         VStack(spacing: 0) {
             CloudflareSectionHeader(title: "Runtime", icon: "cpu.fill")
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
             CloudflareDetailRow(
                 icon: "calendar",
                 title: "Compatibility date",
-                value: worker.compatibilityDate ?? "Default"
+                value: viewModel.worker.compatibilityDate ?? "Default"
             )
             CloudflareDetailRow(
                 icon: "shippingbox",
                 title: "Format",
-                value: worker.hasModules == true ? "ES modules" : "Service Worker"
+                value: viewModel.worker.hasModules == true ? "ES modules" : "Service Worker"
             )
             CloudflareDetailRow(
                 icon: "photo.on.rectangle",
                 title: "Static assets",
-                value: worker.hasAssets == true ? "Included" : "None detected"
+                value: viewModel.worker.hasAssets == true ? "Included" : "None detected"
             )
             CloudflareDetailRow(
                 icon: "gauge.with.dots.needle.67percent",
                 title: "Usage model",
-                value: worker.usageModel?.capitalized ?? "Account default"
+                value: viewModel.worker.usageModel?.capitalized ?? "Account default"
             )
-            if !worker.compatibilityFlags.isEmpty {
+            if !viewModel.worker.compatibilityFlags.isEmpty {
                 CloudflareDetailRow(
                     icon: "flag.fill",
                     title: "Compatibility flags",
-                    value: worker.compatibilityFlags.joined(separator: ", ")
+                    value: viewModel.worker.compatibilityFlags.joined(separator: ", ")
                 )
             }
-            if !worker.handlers.isEmpty {
+            if !viewModel.worker.handlers.isEmpty {
                 CloudflareDetailRow(
                     icon: "bolt.fill",
                     title: "Handlers",
-                    value: worker.handlers.joined(separator: ", ")
+                    value: viewModel.worker.handlers.joined(separator: ", ")
                 )
             }
         }
@@ -244,7 +384,7 @@ struct CloudflareWorkerDetailView: View {
             CloudflareWorkerOperationsView(
                 api: api,
                 accountID: accountID,
-                worker: worker
+                worker: viewModel.worker
             ) {
                 await viewModel.load(forceRefresh: true)
             }
@@ -265,17 +405,17 @@ struct CloudflareWorkerDetailView: View {
             CloudflareSectionHeader(
                 title: "Routes",
                 icon: "arrow.triangle.branch",
-                count: worker.routes.count
+                count: viewModel.worker.routes.count
             )
-            Divider().overlay(Color.white.opacity(0.06))
-            if worker.routes.isEmpty {
+            Divider().overlay(AppTheme.divider)
+            if viewModel.worker.routes.isEmpty {
                 CloudflareEmptySection(
                     icon: "point.3.connected.trianglepath.dotted",
                     title: "No routes returned",
                     message: "The Worker may use a workers.dev domain or custom domain instead."
                 )
             } else {
-                ForEach(worker.routes) { route in
+                ForEach(viewModel.worker.routes) { route in
                     CloudflareResourceRow(
                         icon: "point.3.filled.connected.trianglepath.dotted",
                         title: route.pattern,
@@ -293,8 +433,8 @@ struct CloudflareWorkerDetailView: View {
                             .buttonStyle(.plain)
                         }
                     }
-                    if route.id != worker.routes.last?.id {
-                        Divider().overlay(Color.white.opacity(0.055)).padding(.leading, 64)
+                    if route.id != viewModel.worker.routes.last?.id {
+                        Divider().overlay(AppTheme.divider).padding(.leading, 64)
                     }
                 }
             }
@@ -309,14 +449,14 @@ struct CloudflareWorkerDetailView: View {
                 icon: "square.stack.3d.up.fill",
                 count: viewModel.deployments.count
             )
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
 
             if viewModel.isLoading {
                 ProgressView()
                     .tint(CloudflareStyle.orange)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 34)
-            } else if let error = viewModel.error {
+            } else if let error = viewModel.error, viewModel.deployments.isEmpty {
                 CloudflareEmptySection(
                     icon: "exclamationmark.triangle.fill",
                     title: "Deployments unavailable",
@@ -332,7 +472,7 @@ struct CloudflareWorkerDetailView: View {
                 ForEach(viewModel.deployments, id: \.id) { deployment in
                     workerDeploymentRow(deployment)
                     if deployment.id != viewModel.deployments.last?.id {
-                        Divider().overlay(Color.white.opacity(0.055)).padding(.leading, 64)
+                        Divider().overlay(AppTheme.divider).padding(.leading, 64)
                     }
                 }
             }
@@ -399,7 +539,7 @@ struct CloudflareWorkerDetailView: View {
                 title: "Delete Worker",
                 icon: "trash.fill",
                 role: .destructive,
-                isWorking: viewModel.workingID == worker.id
+                isWorking: viewModel.workingID == viewModel.worker.id
             ) {
                 pendingAction = .deleteWorker
             }
@@ -437,9 +577,9 @@ struct CloudflareWorkerDetailView: View {
             .foregroundStyle(AppTheme.textPrimary)
             .padding(.horizontal, 12)
             .padding(.vertical, 9)
-            .background(Color.white.opacity(0.07))
+            .background(AppTheme.stroke)
             .clipShape(Capsule())
-            .overlay(Capsule().strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5))
+            .overlay(Capsule().strokeBorder(AppTheme.stroke, lineWidth: 0.5))
         }
         .buttonStyle(PressScaleButtonStyle())
     }

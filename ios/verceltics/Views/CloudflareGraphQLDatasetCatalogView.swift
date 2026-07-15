@@ -22,6 +22,14 @@ nonisolated struct CloudflareGraphQLDataset: Identifiable, Sendable, Equatable {
 @Observable
 @MainActor
 final class CloudflareGraphQLDatasetCatalogViewModel {
+    private struct CacheEntry {
+        let datasets: [CloudflareGraphQLDataset]
+        let updatedAt: Date
+    }
+
+    private static var datasetCache: [String: CacheEntry] = [:]
+    private static let cacheLifetime: TimeInterval = 300
+
     let api: CloudflareAPI
     let accountID: String
     let zones: [CloudflareZone]
@@ -32,7 +40,6 @@ final class CloudflareGraphQLDatasetCatalogViewModel {
     var isLoading = false
     var error: String?
     private var loadGeneration = 0
-    private var datasetCache: [String: [CloudflareGraphQLDataset]] = [:]
 
     init(api: CloudflareAPI, accountID: String, zones: [CloudflareZone]) {
         self.api = api
@@ -40,15 +47,30 @@ final class CloudflareGraphQLDatasetCatalogViewModel {
         self.zones = zones
         selectedZoneID = zones.first?.id
         if zones.isEmpty { scope = .account }
+        let key = "\(api.cacheScope)|\(accountID)|graphql|\(scope.rawValue)|\(selectedZoneID ?? accountID)"
+        if let cached = Self.datasetCache[key] {
+            datasets = cached.datasets
+            isLoading = false
+        }
     }
 
-    func load() async {
+    func load(forceRefresh: Bool = false) async {
         loadGeneration += 1
         let generation = loadGeneration
-        isLoading = true
-        error = nil
         let key = cacheKey
-        datasets = datasetCache[key] ?? []
+        var hydratedCache = false
+        if let cached = Self.datasetCache[key] {
+            datasets = cached.datasets
+            hydratedCache = true
+            isLoading = false
+            error = nil
+            if !forceRefresh,
+               Date.now.timeIntervalSince(cached.updatedAt) < Self.cacheLifetime {
+                return
+            }
+        }
+        isLoading = !hydratedCache
+        error = nil
 
         do {
             let rootType = scope.rawValue
@@ -76,7 +98,9 @@ final class CloudflareGraphQLDatasetCatalogViewModel {
                 if $0.enabled != $1.enabled { return $0.enabled == true }
                 return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
             }
-            datasetCache[key] = datasets
+            Self.datasetCache[key] = CacheEntry(datasets: datasets, updatedAt: .now)
+        } catch is CancellationError {
+            return
         } catch {
             guard generation == loadGeneration else { return }
             self.error = error.localizedDescription
@@ -103,7 +127,7 @@ final class CloudflareGraphQLDatasetCatalogViewModel {
     }
 
     private var cacheKey: String {
-        "\(scope.rawValue)|\(selectedZoneID ?? accountID)"
+        "\(api.cacheScope)|\(accountID)|graphql|\(scope.rawValue)|\(selectedZoneID ?? accountID)"
     }
 
     private func introspect(type: String) async throws -> [IntrospectionField] {
@@ -228,7 +252,7 @@ struct CloudflareGraphQLDatasetCatalogView: View {
                         CloudflareLoadingView()
                             .frame(minHeight: 220)
                     } else if let error = viewModel.error, viewModel.datasets.isEmpty {
-                        CloudflareErrorView(message: error) { Task { await viewModel.load() } }
+                        CloudflareErrorView(message: error) { Task { await viewModel.load(forceRefresh: true) } }
                             .frame(minHeight: 220)
                     } else {
                         if let error = viewModel.error {
@@ -238,7 +262,7 @@ struct CloudflareGraphQLDatasetCatalogView: View {
                                 tint: AppTheme.warning,
                                 actionTitle: "Retry"
                             ) {
-                                Task { await viewModel.load() }
+                                Task { await viewModel.load(forceRefresh: true) }
                             }
                         }
                         datasetDirectory
@@ -250,9 +274,9 @@ struct CloudflareGraphQLDatasetCatalogView: View {
         }
         .navigationTitle("GraphQL Datasets")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .searchable(text: $searchText, prompt: "Search datasets and fields")
         .task { await viewModel.load() }
+        .refreshable { await viewModel.load(forceRefresh: true) }
         .tint(CloudflareStyle.orange)
     }
 
@@ -266,7 +290,7 @@ struct CloudflareGraphQLDatasetCatalogView: View {
                         .foregroundStyle(CloudflareStyle.orange)
                     Text("Availability and limits come from your current Cloudflare plan.")
                         .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.34))
+                        .foregroundStyle(AppTheme.textTertiary)
                 }
                 Spacer()
                 CloudflareStatusPill(text: "\(viewModel.datasets.count) DATASETS", color: CloudflareStyle.green)
@@ -279,10 +303,10 @@ struct CloudflareGraphQLDatasetCatalogView: View {
                     } label: {
                         Text(scope.rawValue.uppercased())
                             .font(.system(size: 9, weight: .semibold))
-                            .foregroundStyle(viewModel.scope == scope ? .black : .white.opacity(0.44))
+                            .foregroundStyle(viewModel.scope == scope ? .black : AppTheme.textSecondary)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 10)
-                            .background(viewModel.scope == scope ? CloudflareStyle.orange : Color.white.opacity(0.05))
+                            .background(viewModel.scope == scope ? CloudflareStyle.orange : AppTheme.strokeSoft)
                             .clipShape(RoundedRectangle(cornerRadius: 10))
                     }
                     .buttonStyle(.plain)
@@ -303,9 +327,9 @@ struct CloudflareGraphQLDatasetCatalogView: View {
                         Image(systemName: "chevron.up.chevron.down")
                     }
                     .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.68))
+                    .foregroundStyle(AppTheme.textSecondary)
                     .padding(12)
-                    .background(Color.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 10))
+                    .background(AppTheme.strokeSoft, in: RoundedRectangle(cornerRadius: 10))
                 }
             }
         }
@@ -316,7 +340,7 @@ struct CloudflareGraphQLDatasetCatalogView: View {
     private var datasetDirectory: some View {
         VStack(spacing: 0) {
             CloudflareSectionHeader(title: "Available Datasets", icon: "chart.xyaxis.line", count: filteredDatasets.count)
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
             if horizontalSizeClass == .regular {
                 LazyVGrid(columns: datasetColumns, alignment: .leading, spacing: 10) {
                     ForEach(filteredDatasets) { dataset in
@@ -334,7 +358,7 @@ struct CloudflareGraphQLDatasetCatalogView: View {
                 ForEach(Array(filteredDatasets.enumerated()), id: \.element.id) { index, dataset in
                     datasetLink(dataset)
                     if index < filteredDatasets.count - 1 {
-                        Divider().overlay(Color.white.opacity(0.05)).padding(.leading, 61)
+                        Divider().overlay(AppTheme.strokeSoft).padding(.leading, 61)
                     }
                 }
             }
@@ -355,22 +379,22 @@ struct CloudflareGraphQLDatasetCatalogView: View {
             HStack(spacing: 11) {
                 Image(systemName: dataset.enabled == false ? "lock.fill" : "waveform.path.ecg")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(dataset.enabled == false ? .white.opacity(0.25) : CloudflareStyle.orange)
+                    .foregroundStyle(dataset.enabled == false ? AppTheme.textTertiary : CloudflareStyle.orange)
                     .frame(width: 36, height: 36)
-                    .background(Color.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 9))
+                    .background(AppTheme.strokeSoft, in: RoundedRectangle(cornerRadius: 9))
                 VStack(alignment: .leading, spacing: 3) {
                     Text(dataset.name)
                         .font(.system(size: 11, weight: .bold, design: .monospaced))
-                        .foregroundStyle(.white.opacity(dataset.enabled == false ? 0.36 : 0.76))
+                        .foregroundStyle(dataset.enabled == false ? AppTheme.textTertiary : AppTheme.textPrimary)
                         .lineLimit(2)
                     Text(dataset.enabled == false ? "Not enabled on this plan" : "\(dataset.availableFields.count) fields · \(durationLabel(dataset.maxDuration)) max window")
                         .font(.system(size: 9, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.28))
+                        .foregroundStyle(AppTheme.textTertiary)
                 }
                 Spacer()
                 Image(systemName: "chevron.right")
                     .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.22))
+                    .foregroundStyle(AppTheme.textTertiary)
             }
             .padding(13)
             .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
@@ -418,7 +442,7 @@ private struct CloudflareGraphQLDatasetDetailView: View {
                                 .foregroundStyle(CloudflareStyle.orange)
                             Text(dataset.name)
                                 .font(.system(size: 16, weight: .semibold, design: .monospaced))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(AppTheme.textPrimary)
                             Spacer()
                             CloudflareStatusPill(
                                 text: dataset.enabled == false ? "LOCKED" : "ENABLED",
@@ -428,7 +452,7 @@ private struct CloudflareGraphQLDatasetDetailView: View {
                         if !dataset.description.isEmpty {
                             Text(dataset.description)
                                 .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.38))
+                                .foregroundStyle(AppTheme.textTertiary)
                         }
                     }
                     .padding(16)
@@ -436,7 +460,7 @@ private struct CloudflareGraphQLDatasetDetailView: View {
 
                     VStack(spacing: 0) {
                         CloudflareSectionHeader(title: "Plan Limits", icon: "gauge.with.dots.needle.50percent")
-                        Divider().overlay(Color.white.opacity(0.06))
+                        Divider().overlay(AppTheme.divider)
                         CloudflareDetailRow(icon: "calendar", title: "Maximum window", value: durationLabel(dataset.maxDuration))
                         CloudflareDetailRow(icon: "clock.arrow.circlepath", title: "Retention", value: durationLabel(dataset.notOlderThan))
                         CloudflareDetailRow(icon: "list.number", title: "Maximum records", value: dataset.maxPageSize?.formatted() ?? "Not returned")
@@ -446,10 +470,10 @@ private struct CloudflareGraphQLDatasetDetailView: View {
 
                     VStack(spacing: 0) {
                         CloudflareSectionHeader(title: "Available Fields", icon: "list.bullet.rectangle", count: dataset.availableFields.count)
-                        Divider().overlay(Color.white.opacity(0.06))
+                        Divider().overlay(AppTheme.divider)
                         Text(dataset.availableFields.joined(separator: "\n"))
                             .font(.system(size: 10, weight: .medium, design: .monospaced))
-                            .foregroundStyle(.white.opacity(0.55))
+                            .foregroundStyle(AppTheme.textSecondary)
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(15)
@@ -475,7 +499,6 @@ private struct CloudflareGraphQLDatasetDetailView: View {
         }
         .navigationTitle("Dataset")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .tint(CloudflareStyle.orange)
     }
 

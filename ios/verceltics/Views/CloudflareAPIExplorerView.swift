@@ -167,12 +167,11 @@ struct CloudflareAPIExplorerView: View {
         }
         .navigationTitle(preset?.title ?? "API Explorer")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Clear") { viewModel.clearResponse() }
                     .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.55))
+                    .foregroundStyle(AppTheme.textSecondary)
                     .disabled(viewModel.response == nil && viewModel.error == nil)
             }
         }
@@ -203,7 +202,6 @@ struct CloudflareAPIExplorerView: View {
                     viewModel.clearResponse()
                 }
             }
-            .preferredColorScheme(.dark)
         }
         .tint(CloudflareStyle.orange)
     }
@@ -216,13 +214,13 @@ struct CloudflareAPIExplorerView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(preset?.title ?? "Direct access to Cloudflare’s v4 API")
                     .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.82))
+                    .foregroundStyle(AppTheme.textPrimary)
                 Text(
                     preset?.summary
                         ?? "Use a relative path. Authentication headers are added securely. Request bodies can be UTF-8 or Base64, including prebuilt multipart payloads; credentials are never shown in the editor."
                 )
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.36))
+                    .foregroundStyle(AppTheme.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
@@ -234,34 +232,34 @@ struct CloudflareAPIExplorerView: View {
     private var requestPanel: some View {
         VStack(spacing: 0) {
             CloudflareSectionHeader(title: "Request", icon: "paperplane.fill")
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
 
             methodPicker
                 .padding(14)
 
-            Divider().overlay(Color.white.opacity(0.055)).padding(.horizontal, 16)
+            Divider().overlay(AppTheme.divider).padding(.horizontal, 16)
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("RELATIVE PATH")
                     .font(.system(size: 9, weight: .semibold))
                     .tracking(0.8)
-                    .foregroundStyle(.white.opacity(0.34))
+                    .foregroundStyle(AppTheme.textTertiary)
                 HStack(spacing: 0) {
                     Text("/client/v4")
                         .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.28))
+                        .foregroundStyle(AppTheme.textTertiary)
                     TextField("/accounts", text: $viewModel.path)
                         .font(.system(size: 12, weight: .semibold, design: .monospaced))
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                        .foregroundStyle(.white.opacity(0.8))
+                        .foregroundStyle(AppTheme.textPrimary)
                 }
                 .padding(12)
-                .background(Color.black.opacity(0.3))
+                .background(AppTheme.surfaceRaised)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.07), lineWidth: 0.5)
+                        .strokeBorder(AppTheme.stroke, lineWidth: 0.5)
                 )
             }
             .padding(16)
@@ -270,11 +268,11 @@ struct CloudflareAPIExplorerView: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 14)
 
-            Divider().overlay(Color.white.opacity(0.055)).padding(.horizontal, 16)
+            Divider().overlay(AppTheme.divider).padding(.horizontal, 16)
 
             editor(label: "QUERY PARAMETERS", placeholder: "page=1\nper_page=50", text: $viewModel.queryText, minHeight: 74)
 
-            Divider().overlay(Color.white.opacity(0.055)).padding(.horizontal, 16)
+            Divider().overlay(AppTheme.divider).padding(.horizontal, 16)
             editor(
                 label: "OPTIONAL REQUEST HEADERS",
                 placeholder: "If-Match: etag\nAccept: application/json",
@@ -283,9 +281,9 @@ struct CloudflareAPIExplorerView: View {
             )
 
             if viewModel.method != .get {
-                Divider().overlay(Color.white.opacity(0.055)).padding(.horizontal, 16)
+                Divider().overlay(AppTheme.divider).padding(.horizontal, 16)
                 bodyOptions
-                Divider().overlay(Color.white.opacity(0.055)).padding(.horizontal, 16)
+                Divider().overlay(AppTheme.divider).padding(.horizontal, 16)
                 editor(
                     label: "REQUEST BODY · \(viewModel.bodyEncoding.rawValue)",
                     placeholder: viewModel.bodyEncoding == .base64
@@ -332,17 +330,17 @@ struct CloudflareAPIExplorerView: View {
                 Text("CONTENT TYPE")
                     .font(.system(size: 9, weight: .semibold))
                     .tracking(0.8)
-                    .foregroundStyle(.white.opacity(0.34))
+                    .foregroundStyle(AppTheme.textTertiary)
                 TextField("application/json", text: $viewModel.contentType)
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .padding(11)
-                    .background(Color.black.opacity(0.3))
+                    .background(AppTheme.surfaceRaised)
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .strokeBorder(Color.white.opacity(0.07), lineWidth: 0.5)
+                            .strokeBorder(AppTheme.stroke, lineWidth: 0.5)
                     )
             }
 
@@ -392,10 +390,10 @@ struct CloudflareAPIExplorerView: View {
                 } label: {
                     Text(method.rawValue)
                         .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(viewModel.method == method ? .black.opacity(0.82) : .white.opacity(0.42))
+                        .foregroundStyle(viewModel.method == method ? .black.opacity(0.82) : AppTheme.textSecondary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 9)
-                        .background(viewModel.method == method ? color(for: method) : Color.white.opacity(0.045))
+                        .background(viewModel.method == method ? color(for: method) : AppTheme.strokeSoft)
                         .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                 }
                 .buttonStyle(.plain)
@@ -434,12 +432,12 @@ struct CloudflareAPIExplorerView: View {
         } label: {
             Text(title)
                 .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(.white.opacity(0.52))
+                .foregroundStyle(AppTheme.textSecondary)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 7)
-                .background(Color.white.opacity(0.055))
+                .background(AppTheme.divider)
                 .clipShape(Capsule())
-                .overlay(Capsule().strokeBorder(Color.white.opacity(0.06), lineWidth: 0.5))
+                .overlay(Capsule().strokeBorder(AppTheme.divider, lineWidth: 0.5))
         }
         .buttonStyle(.plain)
     }
@@ -455,12 +453,12 @@ struct CloudflareAPIExplorerView: View {
                 Text(label)
                     .font(.system(size: 9, weight: .semibold))
                     .tracking(0.8)
-                    .foregroundStyle(.white.opacity(0.34))
+                    .foregroundStyle(AppTheme.textTertiary)
                 Spacer()
                 if !text.wrappedValue.isEmpty {
                     Button("Clear") { text.wrappedValue = "" }
                         .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.35))
+                        .foregroundStyle(AppTheme.textTertiary)
                 }
             }
 
@@ -468,23 +466,23 @@ struct CloudflareAPIExplorerView: View {
                 if text.wrappedValue.isEmpty {
                     Text(placeholder)
                         .font(.system(size: 11, weight: .medium, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.18))
+                        .foregroundStyle(AppTheme.textTertiary)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 16)
                         .allowsHitTesting(false)
                 }
                 TextEditor(text: text)
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.76))
+                    .foregroundStyle(AppTheme.textPrimary)
                     .scrollContentBackground(.hidden)
                     .frame(minHeight: minHeight)
                     .padding(7)
             }
-            .background(Color.black.opacity(0.3))
+            .background(AppTheme.surfaceRaised)
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.07), lineWidth: 0.5)
+                    .strokeBorder(AppTheme.stroke, lineWidth: 0.5)
             )
         }
         .padding(16)
@@ -497,11 +495,11 @@ struct CloudflareAPIExplorerView: View {
                     .foregroundStyle(responseColor(response))
                 Text("HTTP \(response.statusCode)")
                     .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.82))
+                    .foregroundStyle(AppTheme.textPrimary)
                 if let elapsedMilliseconds = viewModel.elapsedMilliseconds {
                     Text("\(elapsedMilliseconds) ms")
                         .font(.system(size: 10, weight: .semibold).monospacedDigit())
-                        .foregroundStyle(.white.opacity(0.3))
+                        .foregroundStyle(AppTheme.textTertiary)
                 }
                 Spacer()
                 Button {
@@ -520,19 +518,19 @@ struct CloudflareAPIExplorerView: View {
             }
             .padding(16)
 
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
 
             ScrollView([.horizontal, .vertical], showsIndicators: true) {
                 Text(response.prettyPrintedBody.isEmpty ? "<empty response body>" : response.prettyPrintedBody)
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.7))
+                    .foregroundStyle(AppTheme.textSecondary)
                     .textSelection(.enabled)
                     .padding(16)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .frame(minHeight: 120, maxHeight: 520)
 
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
 
             Button {
                 withAnimation(.easeInOut(duration: 0.18)) { showingHeaders.toggle() }
@@ -541,11 +539,11 @@ struct CloudflareAPIExplorerView: View {
                     Text("RESPONSE HEADERS · \(response.headers.count)")
                         .font(.system(size: 9, weight: .semibold))
                         .tracking(0.7)
-                        .foregroundStyle(.white.opacity(0.34))
+                        .foregroundStyle(AppTheme.textTertiary)
                     Spacer()
                     Image(systemName: "chevron.down")
                         .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.3))
+                        .foregroundStyle(AppTheme.textTertiary)
                         .rotationEffect(.degrees(showingHeaders ? 180 : 0))
                 }
                 .padding(16)
@@ -557,7 +555,7 @@ struct CloudflareAPIExplorerView: View {
                     ForEach(response.headers.sorted(by: { $0.key < $1.key }), id: \.key) { key, value in
                         Text("\(key): \(value)")
                             .font(.system(size: 9, weight: .medium, design: .monospaced))
-                            .foregroundStyle(.white.opacity(0.42))
+                            .foregroundStyle(AppTheme.textSecondary)
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }

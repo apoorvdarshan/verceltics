@@ -3,38 +3,111 @@ import SwiftUI
 @Observable
 @MainActor
 final class CloudflarePagesProjectDetailViewModel {
+    private struct CacheEntry {
+        let project: CloudflarePagesProject
+        let deployments: [CloudflarePagesDeployment]
+        let projectError: String?
+        let deploymentsError: String?
+        let updatedAt: Date
+    }
+
+    private static var cache: [String: CacheEntry] = [:]
+    private static let cacheLifetime: TimeInterval = 120
+
     let api: CloudflareAPI
     let accountID: String
-    let project: CloudflarePagesProject
 
+    var project: CloudflarePagesProject
     var deployments: [CloudflarePagesDeployment] = []
     var isLoading = true
     var workingDeploymentID: String?
     var error: String?
+    var projectError: String?
     var actionMessage: String?
     var actionFailed = false
+    private var hasLoadedSnapshot = false
+    private var loadGeneration = 0
 
     init(api: CloudflareAPI, accountID: String, project: CloudflarePagesProject) {
         self.api = api
         self.accountID = accountID
         self.project = project
+        let key = "\(api.cacheScope)|\(accountID)|pages-project|\(project.name)"
+        if let cached = Self.cache[key] {
+            self.project = cached.project
+            deployments = cached.deployments
+            projectError = cached.projectError
+            error = cached.deploymentsError
+            hasLoadedSnapshot = true
+            isLoading = false
+        }
     }
 
-    func load() async {
-        isLoading = true
+    private var cacheKey: String {
+        "\(api.cacheScope)|\(accountID)|pages-project|\(project.name)"
+    }
+
+    func load(forceRefresh: Bool = false) async {
+        if let cached = Self.cache[cacheKey] {
+            project = cached.project
+            deployments = cached.deployments
+            hasLoadedSnapshot = true
+            isLoading = false
+            projectError = cached.projectError
+            error = cached.deploymentsError
+            if !forceRefresh,
+               Date.now.timeIntervalSince(cached.updatedAt) < Self.cacheLifetime {
+                return
+            }
+        }
+
+        loadGeneration += 1
+        let generation = loadGeneration
+        isLoading = !hasLoadedSnapshot
+        projectError = nil
         error = nil
-        do {
-            deployments = try await api.fetchPagesDeployments(
+
+        async let projectResult = capture {
+            try await api.fetchPagesProject(accountID: accountID, projectName: project.name)
+        }
+        async let deploymentsResult = capture {
+            try await api.fetchPagesDeployments(
                 accountID: accountID,
                 projectName: project.name,
                 environment: nil
             )
-        } catch is CancellationError {
-            // Navigation can cancel a pending request.
-        } catch {
-            self.error = error.localizedDescription
         }
-        isLoading = false
+        let results = await (projectResult, deploymentsResult)
+        guard generation == loadGeneration else { return }
+        if isCancellation(results.0) || isCancellation(results.1) {
+            isLoading = false
+            return
+        }
+
+        var allSucceeded = true
+        switch results.0 {
+        case .success(let loadedProject):
+            project = loadedProject
+        case .failure(let loadError):
+            allSucceeded = false
+            projectError = loadError.localizedDescription
+        }
+        switch results.1 {
+        case .success(let loadedDeployments):
+            deployments = loadedDeployments
+            hasLoadedSnapshot = true
+        case .failure(let loadError):
+            allSucceeded = false
+            error = loadError.localizedDescription
+        }
+        Self.cache[cacheKey] = CacheEntry(
+            project: project,
+            deployments: deployments,
+            projectError: projectError,
+            deploymentsError: error,
+            updatedAt: allSucceeded ? .now : .distantPast
+        )
+        if generation == loadGeneration { isLoading = false }
     }
 
     func retry(_ deployment: CloudflarePagesDeployment) async {
@@ -81,32 +154,46 @@ final class CloudflarePagesProjectDetailViewModel {
             try await operation()
             actionMessage = success
             actionFailed = false
-            deployments = try await api.fetchPagesDeployments(
-                accountID: accountID,
-                projectName: project.name,
-                environment: nil
-            )
+            await load(forceRefresh: true)
         } catch {
             actionMessage = error.localizedDescription
             actionFailed = true
         }
         workingDeploymentID = nil
     }
+
+    private func capture<Value>(_ operation: () async throws -> Value) async -> Result<Value, Error> {
+        do { return .success(try await operation()) }
+        catch { return .failure(error) }
+    }
+
+    private func isCancellation<Value>(_ result: Result<Value, Error>) -> Bool {
+        guard case .failure(let error) = result else { return false }
+        return error is CancellationError || (error as? URLError)?.code == .cancelled
+    }
 }
 
 struct CloudflarePagesProjectDetailView: View {
     let api: CloudflareAPI
     let accountID: String
-    let project: CloudflarePagesProject
+    let onProjectChange: (CloudflarePagesProject?) -> Void
 
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var viewModel: CloudflarePagesProjectDetailViewModel
     @State private var pendingAction: PendingPagesAction?
 
-    init(api: CloudflareAPI, accountID: String, project: CloudflarePagesProject) {
+    @State private var didDeleteProject = false
+
+    init(
+        api: CloudflareAPI,
+        accountID: String,
+        project: CloudflarePagesProject,
+        onProjectChange: @escaping (CloudflarePagesProject?) -> Void = { _ in }
+    ) {
         self.api = api
         self.accountID = accountID
-        self.project = project
+        self.onProjectChange = onProjectChange
         _viewModel = State(
             wrappedValue: CloudflarePagesProjectDetailViewModel(
                 api: api,
@@ -123,6 +210,16 @@ struct CloudflarePagesProjectDetailView: View {
             ScrollView {
                 VStack(spacing: 16) {
                     projectHeader
+                    if let error = viewModel.projectError {
+                        AppFeedbackBanner(
+                            title: "Project refresh failed",
+                            message: "\(error) Showing the last successful project details.",
+                            tint: AppTheme.warning,
+                            actionTitle: "Retry"
+                        ) {
+                            Task { await viewModel.load(forceRefresh: true) }
+                        }
+                    }
                     projectDetails
                     operationsLink
                     CloudflareWriteNotice()
@@ -138,11 +235,23 @@ struct CloudflarePagesProjectDetailView: View {
                 .frame(maxWidth: .infinity)
             }
         }
-        .navigationTitle(project.name)
+        .navigationTitle(viewModel.project.name)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .task { await viewModel.load() }
-        .refreshable { await viewModel.load() }
+        .refreshable { await viewModel.load(forceRefresh: true) }
+        .onChange(of: viewModel.project) { _, updatedProject in
+            onProjectChange(updatedProject)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .cloudflareDataDidChange)) { notification in
+            let projectPath = "/accounts/\(accountID)/pages/projects/\(viewModel.project.name)"
+            guard notification.object as? String == api.cacheScope,
+                  let path = notification.userInfo?["path"] as? String,
+                  path == projectPath || path.hasPrefix(projectPath + "/") else { return }
+            Task {
+                guard !didDeleteProject else { return }
+                await viewModel.load(forceRefresh: true)
+            }
+        }
         .confirmationDialog(
             pendingAction?.title ?? "Confirm action",
             isPresented: Binding(
@@ -167,7 +276,15 @@ struct CloudflarePagesProjectDetailView: View {
 
     private var operationsLink: some View {
         NavigationLink {
-            CloudflarePagesOperationsView(api: api, accountID: accountID, project: project)
+            CloudflarePagesOperationsView(
+                api: api,
+                accountID: accountID,
+                project: viewModel.project
+            ) {
+                didDeleteProject = true
+                onProjectChange(nil)
+                dismiss()
+            }
         } label: {
             CloudflareResourceRow(
                 icon: "switch.2",
@@ -186,20 +303,20 @@ struct CloudflarePagesProjectDetailView: View {
                 AppIconTile(icon: "doc.badge.gearshape.fill", tint: CloudflareStyle.orange, size: 46)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(project.name)
+                    Text(viewModel.project.name)
                         .font(.system(size: 21, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(AppTheme.textPrimary)
                         .lineLimit(1)
-                    Text(project.domains.first ?? project.subdomain ?? "Cloudflare Pages")
+                    Text(viewModel.project.domains.first ?? viewModel.project.subdomain ?? "Cloudflare Pages")
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.38))
+                        .foregroundStyle(AppTheme.textTertiary)
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
 
                 Spacer(minLength: 8)
 
-                if let latest = project.latestDeployment,
+                if let latest = viewModel.project.latestDeployment,
                    let environment = latest.environment {
                     CloudflareStatusPill(
                         text: environment.rawValue.uppercased(),
@@ -211,11 +328,11 @@ struct CloudflarePagesProjectDetailView: View {
             }
 
             HStack(spacing: 9) {
-                if let host = project.domains.first ?? project.subdomain,
+                if let host = viewModel.project.domains.first ?? viewModel.project.subdomain,
                    let url = URL(string: host.hasPrefix("http") ? host : "https://\(host)") {
                     headerButton("Open site", icon: "arrow.up.right", url: url)
                 }
-                if let url = URL(string: "https://dash.cloudflare.com/\(accountID)/pages/view/\(project.name)") {
+                if let url = URL(string: "https://dash.cloudflare.com/\(accountID)/pages/view/\(viewModel.project.name)") {
                     headerButton("Dashboard", icon: "safari", url: url)
                 }
             }
@@ -227,29 +344,31 @@ struct CloudflarePagesProjectDetailView: View {
     private var projectDetails: some View {
         VStack(spacing: 0) {
             CloudflareSectionHeader(title: "Project", icon: "info.circle.fill")
-            Divider().overlay(Color.white.opacity(0.06))
-            CloudflareDetailRow(icon: "number", title: "Project ID", value: project.id)
+            Divider().overlay(AppTheme.divider)
+            CloudflareDetailRow(icon: "number", title: "Project ID", value: viewModel.project.id)
             CloudflareDetailRow(
                 icon: "arrow.triangle.branch",
                 title: "Production branch",
-                value: project.productionBranch ?? "Not set"
+                value: viewModel.project.productionBranch ?? "Not set"
             )
             CloudflareDetailRow(
                 icon: "function",
                 title: "Functions",
-                value: project.usesFunctions == true ? "Enabled" : "Not detected"
+                value: viewModel.project.usesFunctions == true ? "Enabled" : "Not detected"
             )
-            if let framework = project.framework, !framework.isEmpty {
+            if let framework = viewModel.project.framework, !framework.isEmpty {
                 CloudflareDetailRow(
                     icon: "shippingbox.fill",
                     title: "Framework",
-                    value: [framework, project.frameworkVersion].compactMap { $0 }.joined(separator: " ")
+                    value: [framework, viewModel.project.frameworkVersion].compactMap { $0 }.joined(separator: " ")
                 )
             }
             CloudflareDetailRow(
                 icon: "globe",
                 title: "Domains",
-                value: project.domains.isEmpty ? "None" : project.domains.joined(separator: ", ")
+                value: viewModel.project.domains.isEmpty
+                    ? "None"
+                    : viewModel.project.domains.joined(separator: ", ")
             )
         }
         .cloudflarePanel()
@@ -262,14 +381,14 @@ struct CloudflarePagesProjectDetailView: View {
                 icon: "square.stack.3d.up.fill",
                 count: viewModel.deployments.count
             )
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
 
             if viewModel.isLoading {
                 ProgressView()
                     .tint(CloudflareStyle.orange)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 34)
-            } else if let error = viewModel.error {
+            } else if let error = viewModel.error, viewModel.deployments.isEmpty {
                 CloudflareEmptySection(
                     icon: "exclamationmark.triangle.fill",
                     title: "Deployments unavailable",
@@ -282,10 +401,21 @@ struct CloudflarePagesProjectDetailView: View {
                     message: "This Pages project has no deployments."
                 )
             } else {
+                if let error = viewModel.error {
+                    AppFeedbackBanner(
+                        title: "Deployment refresh failed",
+                        message: "\(error) Showing the last successful result.",
+                        tint: AppTheme.warning,
+                        actionTitle: "Retry"
+                    ) {
+                        Task { await viewModel.load(forceRefresh: true) }
+                    }
+                    .padding(12)
+                }
                 ForEach(viewModel.deployments, id: \.id) { deployment in
                     deploymentRow(deployment)
                     if deployment.id != viewModel.deployments.last?.id {
-                        Divider().overlay(Color.white.opacity(0.055)).padding(.leading, 64)
+                        Divider().overlay(AppTheme.divider).padding(.leading, 64)
                     }
                 }
             }
@@ -299,7 +429,7 @@ struct CloudflarePagesProjectDetailView: View {
                 CloudflarePagesDeploymentDetailView(
                     api: api,
                     accountID: accountID,
-                    projectName: project.name,
+                    projectName: viewModel.project.name,
                     deployment: deployment
                 )
             } label: {
@@ -314,11 +444,11 @@ struct CloudflarePagesProjectDetailView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(deployment.shortID ?? String(deployment.id.prefix(12)))
                             .font(.system(size: 13, weight: .bold, design: .monospaced))
-                            .foregroundStyle(.white.opacity(0.84))
+                            .foregroundStyle(AppTheme.textPrimary)
                             .lineLimit(1)
                         Text(deployment.url ?? deployment.aliases.first ?? deployment.environment?.rawValue ?? "Deployment")
                             .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.34))
+                            .foregroundStyle(AppTheme.textTertiary)
                             .lineLimit(1)
                             .truncationMode(.middle)
                     }
@@ -361,7 +491,7 @@ struct CloudflarePagesProjectDetailView: View {
                 } label: {
                     Image(systemName: "ellipsis.circle")
                         .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.45))
+                        .foregroundStyle(AppTheme.textSecondary)
                         .frame(width: 44, height: 44)
                 }
             }
@@ -378,18 +508,18 @@ struct CloudflarePagesProjectDetailView: View {
                 Image(systemName: icon).font(.system(size: 9, weight: .semibold))
                 Text(title).font(.system(size: 12, weight: .bold))
             }
-            .foregroundStyle(.white.opacity(0.78))
+            .foregroundStyle(AppTheme.textPrimary)
             .padding(.horizontal, 12)
             .padding(.vertical, 9)
-            .background(Color.white.opacity(0.07))
+            .background(AppTheme.stroke)
             .clipShape(Capsule())
-            .overlay(Capsule().strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5))
+            .overlay(Capsule().strokeBorder(AppTheme.stroke, lineWidth: 0.5))
         }
         .buttonStyle(PressScaleButtonStyle())
     }
 
     private func deploymentColor(_ deployment: CloudflarePagesDeployment) -> Color {
-        if deployment.isSkipped == true { return .white.opacity(0.35) }
+        if deployment.isSkipped == true { return AppTheme.textTertiary }
         return switch deployment.environment {
         case .production: CloudflareStyle.green
         case .preview: CloudflareStyle.amber

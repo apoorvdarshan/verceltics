@@ -5,6 +5,7 @@ struct VercelticsApp: App {
     @State private var authManager = AuthManager()
     @State private var paywallManager = PaywallManager()
     @State private var appUpdateChecker = AppUpdateChecker()
+    @State private var appearanceStore = AppAppearanceStore()
     @State private var registrarStore = RegistrarStore()
     @State private var siteStore = SiteStore()
 
@@ -39,9 +40,10 @@ struct VercelticsApp: App {
             .environment(authManager)
             .environment(paywallManager)
             .environment(appUpdateChecker)
+            .environment(appearanceStore)
             .environment(registrarStore)
             .environment(siteStore)
-            .preferredColorScheme(.dark)
+            .preferredColorScheme(appearanceStore.selection.preferredColorScheme)
         }
     }
 }

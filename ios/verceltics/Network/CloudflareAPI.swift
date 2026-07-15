@@ -70,6 +70,12 @@ nonisolated enum CloudflareHTTPMethod: String, CaseIterable, Identifiable, Codab
     var isMutation: Bool { self != .get }
 }
 
+extension Notification.Name {
+    /// Emitted after a successful authenticated Cloudflare mutation so visible
+    /// dashboards can reconcile their summaries without waiting for a TTL.
+    static let cloudflareDataDidChange = Notification.Name("verceltics.cloudflareDataDidChange")
+}
+
 nonisolated enum CloudflareRequestBodyEncoding: String, CaseIterable, Identifiable, Sendable {
     case utf8 = "UTF-8"
     case base64 = "Base64"
@@ -599,6 +605,11 @@ actor CloudflareAPI {
             contentType: contentType,
             additionalHeaders: headers
         )
+        if method.isMutation,
+           !isVerifiedReadOnlyGraphQL,
+           (200...299).contains(response.statusCode) {
+            publishMutation(path: normalizedPath)
+        }
         let headers = response.allHeaderFields.reduce(into: [String: String]()) { result, entry in
             result[String(describing: entry.key)] = String(describing: entry.value)
         }
@@ -729,7 +740,18 @@ actor CloudflareAPI {
             }
             throw CloudflareAPIError.requestFailed(statusCode: response.statusCode, message: "Cloudflare reported an unsuccessful request.")
         }
+        if method.isMutation {
+            publishMutation(path: path)
+        }
         return envelope
+    }
+
+    private func publishMutation(path: String) {
+        NotificationCenter.default.post(
+            name: .cloudflareDataDidChange,
+            object: cacheScope,
+            userInfo: ["path": path]
+        )
     }
 
     private func execute(

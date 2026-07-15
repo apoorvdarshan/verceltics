@@ -142,9 +142,9 @@ struct AnalyticsChart: View {
                         .foregroundStyle(AppTheme.textSecondary)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
-                        .background(Color.white.opacity(0.06))
+                        .background(AppTheme.surfaceRaised)
                         .clipShape(Capsule())
-                        .overlay(Capsule().stroke(Color.white.opacity(0.06), lineWidth: 0.5))
+                        .overlay(Capsule().stroke(AppTheme.stroke, lineWidth: 0.5))
                     }
                 }
             }
@@ -178,7 +178,7 @@ struct AnalyticsChart: View {
             // Subtle average reference line
             if averageValue > 0 {
                 RuleMark(y: .value("Average", averageValue))
-                    .foregroundStyle(.white.opacity(0.08))
+                    .foregroundStyle(AppTheme.divider)
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 4]))
             }
 
@@ -217,7 +217,7 @@ struct AnalyticsChart: View {
                 RuleMark(x: .value("Selected", selectedPoint.date))
                     .foregroundStyle(
                         LinearGradient(
-                            colors: [.clear, Color.white.opacity(0.18), Color.white.opacity(0.06)],
+                            colors: [.clear, AppTheme.textPrimary.opacity(0.18), AppTheme.textPrimary.opacity(0.06)],
                             startPoint: .top, endPoint: .bottom
                         )
                     )
@@ -237,25 +237,25 @@ struct AnalyticsChart: View {
                     y: .value(selectedMetric.rawValue, selectedPoint.value)
                 )
                 .symbolSize(60)
-                .foregroundStyle(.white)
+                .foregroundStyle(AppTheme.textPrimary)
             }
         }
         .chartXAxis {
             AxisMarks(values: .automatic(desiredCount: 5)) {
                 AxisValueLabel()
-                    .foregroundStyle(.white.opacity(0.4))
+                    .foregroundStyle(AppTheme.textSecondary)
                     .font(.caption2.weight(.semibold))
                 AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
-                    .foregroundStyle(Color.white.opacity(0.04))
+                    .foregroundStyle(AppTheme.divider)
             }
         }
         .chartYAxis {
             AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) {
                 AxisValueLabel()
-                    .foregroundStyle(.white.opacity(0.4))
+                    .foregroundStyle(AppTheme.textSecondary)
                     .font(.caption2.weight(.semibold))
                 AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
-                    .foregroundStyle(Color.white.opacity(0.04))
+                    .foregroundStyle(AppTheme.divider)
             }
         }
         .chartOverlay { proxy in

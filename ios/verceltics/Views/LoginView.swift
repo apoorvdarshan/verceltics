@@ -216,7 +216,7 @@ struct LoginView: View {
             .frame(maxWidth: .infinity)
             .frame(minHeight: 64)
             .padding(.vertical, 8)
-            .foregroundStyle(.white)
+            .foregroundStyle(AppTheme.textPrimary)
             .contentShape(RoundedRectangle(cornerRadius: AppTheme.panelRadius, style: .continuous))
             .liquidGlassSurface(cornerRadius: AppTheme.panelRadius)
         }
@@ -254,7 +254,7 @@ struct LoginView: View {
             .frame(maxWidth: .infinity)
             .frame(minHeight: 64)
             .padding(.vertical, 8)
-            .foregroundStyle(.white)
+            .foregroundStyle(AppTheme.textPrimary)
             .contentShape(RoundedRectangle(cornerRadius: AppTheme.panelRadius, style: .continuous))
             .liquidGlassSurface(cornerRadius: AppTheme.panelRadius)
         }
@@ -287,7 +287,7 @@ struct LoginView: View {
             .frame(maxWidth: .infinity)
             .frame(minHeight: 64)
             .padding(.vertical, 8)
-            .foregroundStyle(.white)
+            .foregroundStyle(AppTheme.textPrimary)
             .contentShape(RoundedRectangle(cornerRadius: AppTheme.panelRadius, style: .continuous))
             .liquidGlassSurface(cornerRadius: AppTheme.panelRadius)
         }
@@ -341,11 +341,11 @@ struct LoginView: View {
                         .frame(maxWidth: .infinity)
                         .frame(minHeight: 46)
                         .background(AppTheme.surfaceRaised)
-                        .foregroundStyle(.white.opacity(0.75))
+                        .foregroundStyle(AppTheme.textPrimary)
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                         .overlay(
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5)
+                                .strokeBorder(AppTheme.stroke, lineWidth: 0.5)
                         )
                     }
                     .buttonStyle(PressScaleButtonStyle())
@@ -365,7 +365,7 @@ struct LoginView: View {
                                 RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous)
                                     .strokeBorder(isTokenFocused ? AppTheme.signal.opacity(0.7) : AppTheme.stroke, lineWidth: isTokenFocused ? 1.0 : 0.5)
                             )
-                            .foregroundStyle(.white)
+                            .foregroundStyle(AppTheme.textPrimary)
                             .focused($isTokenFocused)
                             .autocorrectionDisabled()
                             .textInputAutocapitalization(.never)
@@ -383,7 +383,7 @@ struct LoginView: View {
                     } label: {
                         HStack(spacing: 10) {
                             if authManager.isLoading {
-                                ProgressView().tint(.black)
+                                ProgressView().tint(.white)
                             } else {
                                 Text("Connect")
                                     .font(.headline)
@@ -398,7 +398,7 @@ struct LoginView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         .overlay(
                             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .strokeBorder(Color.white.opacity(0.1), lineWidth: 0.5)
+                                .strokeBorder(AppTheme.stroke, lineWidth: 0.5)
                         )
                     }
                     .buttonStyle(PressScaleButtonStyle())
@@ -481,8 +481,8 @@ struct LoginView: View {
                                 .font(.subheadline.weight(.semibold))
                                 .frame(maxWidth: .infinity)
                                 .frame(minHeight: 46)
-                                .foregroundStyle(.white.opacity(0.8))
-                                .background(Color.white.opacity(0.06))
+                                .foregroundStyle(AppTheme.textPrimary)
+                                .background(AppTheme.surfaceRaised)
                                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                         }
                         .buttonStyle(PressScaleButtonStyle())
@@ -598,7 +598,7 @@ struct LoginView: View {
                             lineWidth: focusedCloudflareField == field ? 1 : 0.5
                         )
                 )
-                .foregroundStyle(.white)
+                .foregroundStyle(AppTheme.textPrimary)
                 .focused($focusedCloudflareField, equals: field)
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
@@ -615,10 +615,10 @@ struct LoginView: View {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 15, weight: .semibold))
                         .frame(width: 44, height: 44)
-                        .background(Color.white.opacity(0.07))
+                        .background(AppTheme.surfaceRaised)
                         .clipShape(Circle())
                 }
-                .foregroundStyle(.white)
+                .foregroundStyle(AppTheme.textPrimary)
                 Spacer()
             }
 
@@ -677,11 +677,11 @@ struct StepRow: View {
         HStack(alignment: .center, spacing: 12) {
             Text("\(number)")
                 .font(.caption.weight(.semibold).monospacedDigit())
-                .foregroundStyle(.white)
+                .foregroundStyle(AppTheme.textPrimary)
                 .frame(width: 22, height: 22)
                 .background(AppTheme.surfaceRaised)
                 .clipShape(Circle())
-                .overlay(Circle().strokeBorder(Color.white.opacity(0.06), lineWidth: 0.5))
+                .overlay(Circle().strokeBorder(AppTheme.stroke, lineWidth: 0.5))
 
             Text(text)
                 .font(.footnote)

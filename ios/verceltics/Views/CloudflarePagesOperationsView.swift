@@ -4,6 +4,17 @@ import UIKit
 @Observable
 @MainActor
 final class CloudflarePagesOperationsViewModel {
+    private struct CacheEntry {
+        let project: CloudflarePagesOperationsProject?
+        let domains: [CloudflarePagesCustomDomain]
+        let loadError: String?
+        let domainsError: String?
+        let updatedAt: Date
+    }
+
+    private static var cache: [String: CacheEntry] = [:]
+    private static let cacheLifetime: TimeInterval = 180
+
     let api: CloudflareAPI
     let accountID: String
     let initialProject: CloudflarePagesProject
@@ -18,6 +29,7 @@ final class CloudflarePagesOperationsViewModel {
     var actionMessage: String?
     var actionFailed = false
     var didDeleteProject = false
+    private var loadGeneration = 0
 
     var projectName: String { project?.name ?? initialProject.name }
 
@@ -27,24 +39,62 @@ final class CloudflarePagesOperationsViewModel {
         self.initialProject = project
     }
 
-    func load() async {
-        isLoading = project == nil
-        loadError = nil
-        domainsError = nil
+    private var cacheKey: String {
+        "\(api.cacheScope)|\(accountID)|pages-operations|\(initialProject.name)"
+    }
 
-        do {
-            project = try await api.pagesOperationsFetchProject(
+    func load(forceRefresh: Bool = false) async {
+        var hydratedCache = false
+        if let cached = Self.cache[cacheKey] {
+            project = cached.project
+            domains = cached.domains
+            hydratedCache = true
+            isLoading = false
+            loadError = cached.loadError
+            domainsError = cached.domainsError
+            if !forceRefresh,
+               Date.now.timeIntervalSince(cached.updatedAt) < Self.cacheLifetime {
+                return
+            }
+        }
+
+        loadGeneration += 1
+        let generation = loadGeneration
+        isLoading = !hydratedCache && project == nil
+
+        async let projectResult = capture {
+            try await api.pagesOperationsFetchProject(
                 accountID: accountID,
                 projectName: projectName
             )
-        } catch is CancellationError {
-            isLoading = false
-            return
-        } catch {
+        }
+        async let domainsResult = capture {
+            try await api.pagesOperationsFetchDomains(
+                accountID: accountID,
+                projectName: projectName
+            )
+        }
+        let results = await (projectResult, domainsResult)
+        if Task.isCancelled { return }
+        guard generation == loadGeneration else { return }
+
+        loadError = nil
+        domainsError = nil
+        var allSucceeded = true
+        switch results.0 {
+        case .success(let value): project = value
+        case .failure(let error):
+            allSucceeded = false
             loadError = error.localizedDescription
         }
-
-        await refreshDomains()
+        switch results.1 {
+        case .success(let value):
+            domains = value.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        case .failure(let error):
+            allSucceeded = false
+            domainsError = error.localizedDescription
+        }
+        updateCache(updatedAt: allSucceeded ? .now : .distantPast)
         isLoading = false
     }
 
@@ -56,6 +106,7 @@ final class CloudflarePagesOperationsViewModel {
             )
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
             domainsError = nil
+            updateCache()
         } catch is CancellationError {
             return
         } catch {
@@ -76,6 +127,7 @@ final class CloudflarePagesOperationsViewModel {
                 update: draft.request,
                 confirmation: CloudflareMutationConfirmation(confirmingResourceID: projectPath)
             )
+            updateCache()
         }
     }
 
@@ -146,6 +198,7 @@ final class CloudflarePagesOperationsViewModel {
                 accountID: accountID,
                 projectName: projectName
             )
+            updateCache()
         }
     }
 
@@ -157,6 +210,7 @@ final class CloudflarePagesOperationsViewModel {
                 confirmation: CloudflareMutationConfirmation(confirmingResourceID: projectPath)
             )
             didDeleteProject = true
+            Self.cache.removeValue(forKey: cacheKey)
         }
     }
 
@@ -191,6 +245,22 @@ final class CloudflarePagesOperationsViewModel {
         actionFailed = true
     }
 
+    private func capture<Value>(_ operation: () async throws -> Value) async -> Result<Value, Error> {
+        do { return .success(try await operation()) }
+        catch { return .failure(error) }
+    }
+
+    private func updateCache(updatedAt: Date? = nil) {
+        let hasLoadError = loadError != nil || domainsError != nil || project == nil
+        Self.cache[cacheKey] = CacheEntry(
+            project: project,
+            domains: domains,
+            loadError: loadError,
+            domainsError: domainsError,
+            updatedAt: updatedAt ?? (hasLoadError ? .distantPast : .now)
+        )
+    }
+
     private var projectPath: String {
         "/accounts/\(accountID)/pages/projects/\(projectName)"
     }
@@ -203,6 +273,7 @@ struct CloudflarePagesOperationsView: View {
     let api: CloudflareAPI
     let accountID: String
     let project: CloudflarePagesProject
+    let onProjectDeleted: () -> Void
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -213,10 +284,16 @@ struct CloudflarePagesOperationsView: View {
     @State private var isAddingDomain = false
     @State private var pendingAction: CloudflarePagesOperationsPendingAction?
 
-    init(api: CloudflareAPI, accountID: String, project: CloudflarePagesProject) {
+    init(
+        api: CloudflareAPI,
+        accountID: String,
+        project: CloudflarePagesProject,
+        onProjectDeleted: @escaping () -> Void = {}
+    ) {
         self.api = api
         self.accountID = accountID
         self.project = project
+        self.onProjectDeleted = onProjectDeleted
         _viewModel = State(
             initialValue: CloudflarePagesOperationsViewModel(
                 api: api,
@@ -242,9 +319,8 @@ struct CloudflarePagesOperationsView: View {
         }
         .navigationTitle("Pages operations")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .task { await viewModel.load() }
-        .refreshable { await viewModel.load() }
+        .refreshable { await viewModel.load(forceRefresh: true) }
         .sheet(item: $selectedDomain) { domain in
             CloudflarePagesDomainDetailSheet(
                 api: api,
@@ -290,7 +366,10 @@ struct CloudflarePagesOperationsView: View {
             Text(pendingAction?.message ?? "")
         }
         .onChange(of: viewModel.didDeleteProject) { _, deleted in
-            if deleted { dismiss() }
+            if deleted {
+                onProjectDeleted()
+                dismiss()
+            }
         }
         .tint(CloudflareStyle.orange)
     }
@@ -333,11 +412,11 @@ struct CloudflarePagesOperationsView: View {
                 VStack(alignment: .leading, spacing: 5) {
                     Text(fullProject.name)
                         .font(.system(size: 22, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(AppTheme.textPrimary)
                         .lineLimit(1)
                     Text(fullProject.subdomain ?? "Cloudflare Pages")
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.4))
+                        .foregroundStyle(AppTheme.textSecondary)
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
@@ -408,7 +487,7 @@ struct CloudflarePagesOperationsView: View {
                     icon: "key.fill",
                     title: "Analytics token",
                     value: config.webAnalyticsTokenConfigured ? "Configured · value hidden" : "Not configured",
-                    valueColor: config.webAnalyticsTokenConfigured ? CloudflareStyle.green : .white.opacity(0.46)
+                    valueColor: config.webAnalyticsTokenConfigured ? CloudflareStyle.green : AppTheme.textSecondary
                 )
             } else {
                 CloudflareEmptySection(icon: "hammer", title: "No build configuration", message: "This project may use direct uploads.")
@@ -496,7 +575,7 @@ struct CloudflarePagesOperationsView: View {
         if config.environmentVariables.isEmpty {
             Text("No variables configured")
                 .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.white.opacity(0.32))
+                .foregroundStyle(AppTheme.textTertiary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 16)
                 .padding(.bottom, 14)
@@ -513,13 +592,13 @@ struct CloudflarePagesOperationsView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(key)
                                 .font(.system(size: 12, weight: .bold, design: .monospaced))
-                                .foregroundStyle(.white.opacity(0.82))
+                                .foregroundStyle(AppTheme.textPrimary)
                             Text(variable.isSecret ? "Secret · value hidden" : "Plain text · value hidden")
                                 .font(.system(size: 9, weight: .semibold))
-                                .foregroundStyle(.white.opacity(0.32))
+                                .foregroundStyle(AppTheme.textTertiary)
                         }
                         Spacer()
-                        CloudflareStatusPill(text: variable.valueConfigured ? "SET" : "EMPTY", color: variable.valueConfigured ? CloudflareStyle.green : .white.opacity(0.35))
+                        CloudflareStatusPill(text: variable.valueConfigured ? "SET" : "EMPTY", color: variable.valueConfigured ? CloudflareStyle.green : AppTheme.textTertiary)
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
@@ -535,7 +614,7 @@ struct CloudflarePagesOperationsView: View {
         if config.bindingGroups.isEmpty {
             Text("No resource bindings configured")
                 .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.white.opacity(0.32))
+                .foregroundStyle(AppTheme.textTertiary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 16)
                 .padding(.bottom, 14)
@@ -551,11 +630,11 @@ struct CloudflarePagesOperationsView: View {
                             HStack(alignment: .firstTextBaseline, spacing: 8) {
                                 Text(key)
                                     .font(.system(size: 11, weight: .bold, design: .monospaced))
-                                    .foregroundStyle(.white.opacity(0.76))
+                                    .foregroundStyle(AppTheme.textPrimary)
                                 Spacer(minLength: 8)
                                 Text(reference.summary.nilIfEmpty ?? "Configured")
                                     .font(.system(size: 10, weight: .medium))
-                                    .foregroundStyle(.white.opacity(0.34))
+                                    .foregroundStyle(AppTheme.textTertiary)
                                     .lineLimit(2)
                                     .multilineTextAlignment(.trailing)
                             }
@@ -609,11 +688,11 @@ struct CloudflarePagesOperationsView: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(domain.name)
                             .font(.system(size: 13, weight: .bold))
-                            .foregroundStyle(.white.opacity(0.86))
+                            .foregroundStyle(AppTheme.textPrimary)
                             .lineLimit(1)
                         Text(domain.validationData?.errorMessage ?? "Certificate: \(domain.certificateAuthority?.replacingOccurrences(of: "_", with: " ").capitalized ?? "pending")")
                             .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.34))
+                            .foregroundStyle(AppTheme.textTertiary)
                             .lineLimit(1)
                     }
                     Spacer(minLength: 6)
@@ -645,7 +724,7 @@ struct CloudflarePagesOperationsView: View {
                 } label: {
                     Image(systemName: "ellipsis.circle")
                         .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.44))
+                        .foregroundStyle(AppTheme.textSecondary)
                         .frame(width: 44, height: 44)
                 }
             }
@@ -683,14 +762,14 @@ struct CloudflarePagesOperationsView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Direct upload preparation")
                         .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.84))
+                        .foregroundStyle(AppTheme.textPrimary)
                     Text("Cloudflare requires a multipart manifest plus every hashed build file. The app prepares the exact endpoint; use Wrangler to package and upload the directory without corrupting binary assets.")
                         .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.36))
+                        .foregroundStyle(AppTheme.textTertiary)
                         .fixedSize(horizontal: false, vertical: true)
                     Text(preparation.endpointPath)
                         .font(.system(size: 9, weight: .medium, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.45))
+                        .foregroundStyle(AppTheme.textSecondary)
                         .lineLimit(2)
                         .textSelection(.enabled)
                 }
@@ -786,19 +865,19 @@ struct CloudflarePagesOperationsView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title)
                         .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.82))
+                        .foregroundStyle(AppTheme.textPrimary)
                     Text(message)
                         .font(.system(size: 9, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.32))
+                        .foregroundStyle(AppTheme.textTertiary)
                         .lineLimit(2)
                 }
                 Spacer(minLength: 8)
                 Image(systemName: "chevron.right")
                     .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.2))
+                    .foregroundStyle(AppTheme.textTertiary)
             }
             .padding(11)
-            .background(Color.white.opacity(0.035))
+            .background(AppTheme.strokeSoft)
             .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
         }
         .buttonStyle(PressScaleButtonStyle())
@@ -820,11 +899,11 @@ struct CloudflarePagesOperationsView: View {
     private func projectBadge(_ text: String, icon: String) -> some View {
         Label(text, systemImage: icon)
             .font(.system(size: 9, weight: .bold))
-            .foregroundStyle(.white.opacity(0.6))
+            .foregroundStyle(AppTheme.textSecondary)
             .lineLimit(1)
             .padding(.horizontal, 9)
             .padding(.vertical, 6)
-            .background(Color.white.opacity(0.06))
+            .background(AppTheme.divider)
             .clipShape(Capsule())
     }
 
@@ -858,7 +937,7 @@ struct CloudflarePagesOperationsView: View {
     }
 
     private var panelDivider: some View {
-        Divider().overlay(Color.white.opacity(0.06))
+        Divider().overlay(AppTheme.divider)
     }
 
     private func valueOrNotSet(_ value: String?) -> String {
@@ -1021,7 +1100,7 @@ private struct CloudflarePagesProjectEditorSheet: View {
                             editorField("Root directory", text: $draft.rootDirectory, icon: "folder.badge.gearshape")
                             Toggle("Build caching", isOn: $draft.buildCaching)
                                 .font(.system(size: 12, weight: .bold))
-                                .foregroundStyle(.white.opacity(0.78))
+                                .foregroundStyle(AppTheme.textPrimary)
                                 .tint(CloudflareStyle.orange)
                                 .padding(14)
                         }
@@ -1036,7 +1115,7 @@ private struct CloudflarePagesProjectEditorSheet: View {
                                     Text("Custom rules").tag("custom")
                                 }
                                 .font(.system(size: 12, weight: .bold))
-                                .foregroundStyle(.white.opacity(0.78))
+                                .foregroundStyle(AppTheme.textPrimary)
                                 .padding(14)
                                 Toggle("Pull request comments", isOn: $draft.pullRequestCommentsEnabled)
                                     .editorToggleStyle()
@@ -1052,7 +1131,7 @@ private struct CloudflarePagesProjectEditorSheet: View {
 
                         Text("Separate multiple branches or paths with commas. Secret variables and Analytics credentials are never sent by this editor, so existing sensitive values remain untouched.")
                             .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.34))
+                            .foregroundStyle(AppTheme.textTertiary)
                             .fixedSize(horizontal: false, vertical: true)
                             .padding(.horizontal, 4)
 
@@ -1065,7 +1144,6 @@ private struct CloudflarePagesProjectEditorSheet: View {
             }
             .navigationTitle("Project settings")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }.disabled(isSaving)
@@ -1095,7 +1173,7 @@ private struct CloudflarePagesProjectEditorSheet: View {
     ) -> some View {
         VStack(spacing: 0) {
             CloudflareSectionHeader(title: title, icon: icon)
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
             content()
         }
         .cloudflarePanel()
@@ -1105,11 +1183,11 @@ private struct CloudflarePagesProjectEditorSheet: View {
         HStack(spacing: 10) {
             Image(systemName: icon)
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.32))
+                .foregroundStyle(AppTheme.textTertiary)
                 .frame(width: 18)
             TextField(title, text: text, axis: .vertical)
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.82))
+                .foregroundStyle(AppTheme.textPrimary)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .lineLimit(1...3)
@@ -1121,7 +1199,7 @@ private struct CloudflarePagesProjectEditorSheet: View {
 private extension View {
     func editorToggleStyle() -> some View {
         font(.system(size: 12, weight: .bold))
-            .foregroundStyle(.white.opacity(0.78))
+            .foregroundStyle(AppTheme.textPrimary)
             .tint(CloudflareStyle.orange)
             .padding(14)
     }
@@ -1143,20 +1221,20 @@ private struct CloudflarePagesAddDomainSheet: View {
                 VStack(alignment: .leading, spacing: 16) {
                     Label("Connect a hostname", systemImage: "globe.badge.chevron.backward")
                         .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(AppTheme.textPrimary)
                     Text("Cloudflare will check DNS ownership, validate the hostname and provision its certificate.")
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.4))
+                        .foregroundStyle(AppTheme.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
 
                     TextField("www.example.com", text: $domain)
                         .font(.system(size: 14, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(AppTheme.textPrimary)
                         .textInputAutocapitalization(.never)
                         .keyboardType(.URL)
                         .autocorrectionDisabled()
                         .padding(14)
-                        .background(Color.white.opacity(0.06))
+                        .background(AppTheme.divider)
                         .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
 
                     if let errorMessage {
@@ -1190,7 +1268,6 @@ private struct CloudflarePagesAddDomainSheet: View {
             }
             .navigationTitle("Custom domain")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }.disabled(isAdding)
@@ -1201,24 +1278,118 @@ private struct CloudflarePagesAddDomainSheet: View {
     }
 }
 
-private struct CloudflarePagesDomainDetailSheet: View {
+@Observable
+@MainActor
+private final class CloudflarePagesDomainDetailViewModel {
+    private struct CacheEntry {
+        let domain: CloudflarePagesCustomDomain
+        let updatedAt: Date
+    }
+
+    private static var cache: [String: CacheEntry] = [:]
+    private static let cacheLifetime: TimeInterval = 120
+
     let api: CloudflareAPI
     let accountID: String
     let projectName: String
     let domain: CloudflarePagesCustomDomain
 
-    @State private var detail: CloudflarePagesCustomDomain?
-    @State private var error: String?
+    var detail: CloudflarePagesCustomDomain?
+    var error: String?
+    var isRefreshing = false
+    private var loadGeneration = 0
+
+    var current: CloudflarePagesCustomDomain { detail ?? domain }
+
+    init(api: CloudflareAPI, accountID: String, projectName: String, domain: CloudflarePagesCustomDomain) {
+        self.api = api
+        self.accountID = accountID
+        self.projectName = projectName
+        self.domain = domain
+
+        if let cached = Self.cache[Self.cacheKey(
+            api: api,
+            accountID: accountID,
+            projectName: projectName,
+            domainName: domain.name
+        )] {
+            detail = cached.domain
+        }
+    }
+
+    func load(forceRefresh: Bool = false) async {
+        let key = Self.cacheKey(
+            api: api,
+            accountID: accountID,
+            projectName: projectName,
+            domainName: domain.name
+        )
+        if let cached = Self.cache[key] {
+            detail = cached.domain
+            if !forceRefresh, Date.now.timeIntervalSince(cached.updatedAt) < Self.cacheLifetime {
+                return
+            }
+        }
+
+        guard !isRefreshing else { return }
+        loadGeneration += 1
+        let generation = loadGeneration
+        isRefreshing = true
+        error = nil
+        defer {
+            if generation == loadGeneration { isRefreshing = false }
+        }
+
+        do {
+            let refreshed = try await api.pagesOperationsFetchDomain(
+                accountID: accountID,
+                projectName: projectName,
+                domainName: domain.name
+            )
+            guard !Task.isCancelled, generation == loadGeneration else { return }
+            detail = refreshed
+            Self.cache[key] = CacheEntry(domain: refreshed, updatedAt: .now)
+        } catch is CancellationError {
+            return
+        } catch {
+            guard generation == loadGeneration else { return }
+            self.error = error.localizedDescription
+        }
+    }
+
+    private static func cacheKey(
+        api: CloudflareAPI,
+        accountID: String,
+        projectName: String,
+        domainName: String
+    ) -> String {
+        "\(api.cacheScope)|\(accountID)|pages-domain|\(projectName)|\(domainName.lowercased())"
+    }
+}
+
+private struct CloudflarePagesDomainDetailSheet: View {
+    @State private var viewModel: CloudflarePagesDomainDetailViewModel
+
+    init(api: CloudflareAPI, accountID: String, projectName: String, domain: CloudflarePagesCustomDomain) {
+        _viewModel = State(
+            wrappedValue: CloudflarePagesDomainDetailViewModel(
+                api: api,
+                accountID: accountID,
+                projectName: projectName,
+                domain: domain
+            )
+        )
+    }
 
     var body: some View {
         NavigationStack {
             ZStack {
                 AppTheme.canvas.ignoresSafeArea()
                 ScrollView {
-                    let current = detail ?? domain
+                    let current = viewModel.current
                     VStack(spacing: 16) {
                         domainHero(current)
-                        if let error {
+                        if let error = viewModel.error {
                             CloudflareActionResultBanner(message: error, isError: true)
                         }
                         domainMetadata(current)
@@ -1226,26 +1397,26 @@ private struct CloudflarePagesDomainDetailSheet: View {
                     }
                     .padding()
                 }
+                .refreshable { await viewModel.load(forceRefresh: true) }
             }
-            .navigationTitle(domain.name)
+            .navigationTitle(viewModel.domain.name)
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .task { await load() }
-        }
-    }
-
-    private func load() async {
-        do {
-            detail = try await api.pagesOperationsFetchDomain(
-                accountID: accountID,
-                projectName: projectName,
-                domainName: domain.name
-            )
-            error = nil
-        } catch is CancellationError {
-            return
-        } catch {
-            self.error = error.localizedDescription
+            .task { await viewModel.load() }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        Task { await viewModel.load(forceRefresh: true) }
+                    } label: {
+                        if viewModel.isRefreshing {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Image(systemName: "arrow.clockwise")
+                        }
+                    }
+                    .disabled(viewModel.isRefreshing)
+                    .accessibilityLabel("Refresh custom domain")
+                }
+            }
         }
     }
 
@@ -1260,10 +1431,10 @@ private struct CloudflarePagesDomainDetailSheet: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(current.name)
                     .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(AppTheme.textPrimary)
                 Text((current.status ?? "unknown").capitalized)
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.4))
+                    .foregroundStyle(AppTheme.textSecondary)
             }
             Spacer()
         }
@@ -1274,7 +1445,7 @@ private struct CloudflarePagesDomainDetailSheet: View {
     private func domainMetadata(_ current: CloudflarePagesCustomDomain) -> some View {
         VStack(spacing: 0) {
             CloudflareSectionHeader(title: "Domain", icon: "info.circle.fill")
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
             CloudflareDetailRow(icon: "number", title: "Domain ID", value: current.domainID ?? current.id)
             CloudflareDetailRow(icon: "number", title: "Zone tag", value: current.zoneTag ?? "Not linked")
             CloudflareDetailRow(icon: "checkmark.shield.fill", title: "Certificate authority", value: current.certificateAuthority?.replacingOccurrences(of: "_", with: " ").capitalized ?? "Pending")
@@ -1286,7 +1457,7 @@ private struct CloudflarePagesDomainDetailSheet: View {
     private func validationPanel(_ current: CloudflarePagesCustomDomain) -> some View {
         VStack(spacing: 0) {
             CloudflareSectionHeader(title: "Validation", icon: "checkmark.shield.fill")
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
             CloudflareDetailRow(icon: "network", title: "Method", value: current.validationData?.method?.uppercased() ?? "Not assigned")
             CloudflareDetailRow(icon: "checkmark.circle", title: "Validation status", value: current.validationData?.status?.capitalized ?? "Pending")
             CloudflareDetailRow(icon: "checkmark.seal", title: "Verification status", value: current.verificationData?.status?.capitalized ?? "Pending")

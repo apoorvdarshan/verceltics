@@ -36,7 +36,6 @@ struct CloudflareAccountDetailView: View {
         }
         .navigationTitle("Account")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .tint(CloudflareStyle.orange)
     }
 
@@ -58,7 +57,7 @@ struct CloudflareAccountDetailView: View {
     private var accountPanel: some View {
         VStack(spacing: 0) {
             CloudflareSectionHeader(title: "Identity", icon: "building.2.fill")
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
             CloudflareDetailRow(icon: "number", title: "Account ID", value: account.id)
             CloudflareDetailRow(icon: "building.2", title: "Name", value: account.name)
             CloudflareDetailRow(icon: "person.text.rectangle", title: "Type", value: account.type?.capitalized ?? "Standard")
@@ -77,14 +76,14 @@ struct CloudflareAccountDetailView: View {
     private var securityPanel: some View {
         VStack(spacing: 0) {
             CloudflareSectionHeader(title: "Security policy", icon: "lock.shield.fill")
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
             CloudflareDetailRow(
                 icon: "person.badge.shield.checkmark.fill",
                 title: "Enforce two-factor authentication",
                 value: twoFactorText,
                 valueColor: account.settings?.enforceTwoFactor == true
                     ? CloudflareStyle.green
-                    : .white.opacity(0.76)
+                    : AppTheme.textPrimary
             )
             CloudflareDetailRow(
                 icon: "exclamationmark.bubble.fill",
@@ -98,7 +97,7 @@ struct CloudflareAccountDetailView: View {
     private var resourcePanel: some View {
         VStack(spacing: 0) {
             CloudflareSectionHeader(title: "Resource inventory", icon: "square.grid.2x2.fill")
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
             CloudflareResourceRow(
                 icon: "globe.americas.fill",
                 title: "Zones",
@@ -107,7 +106,7 @@ struct CloudflareAccountDetailView: View {
             ) {
                 countPill(zoneCount)
             }
-            Divider().overlay(Color.white.opacity(0.055)).padding(.leading, 64)
+            Divider().overlay(AppTheme.divider).padding(.leading, 64)
             CloudflareResourceRow(
                 icon: "doc.badge.gearshape.fill",
                 title: "Pages projects",
@@ -116,7 +115,7 @@ struct CloudflareAccountDetailView: View {
             ) {
                 countPill(pagesCount)
             }
-            Divider().overlay(Color.white.opacity(0.055)).padding(.leading, 64)
+            Divider().overlay(AppTheme.divider).padding(.leading, 64)
             CloudflareResourceRow(
                 icon: "shippingbox.fill",
                 title: "Workers",
@@ -137,10 +136,10 @@ struct CloudflareAccountDetailView: View {
     private func countPill(_ value: Int) -> some View {
         Text(value.formatted())
             .font(.system(size: 11, weight: .semibold).monospacedDigit())
-            .foregroundStyle(.white.opacity(0.65))
+            .foregroundStyle(AppTheme.textSecondary)
             .padding(.horizontal, 9)
             .padding(.vertical, 5)
-            .background(Color.white.opacity(0.06))
+            .background(AppTheme.divider)
             .clipShape(Capsule())
     }
 }

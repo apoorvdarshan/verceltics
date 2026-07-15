@@ -88,7 +88,6 @@ struct CloudflareProductCenterView: View {
         }
         .navigationTitle("Product Operations")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .searchable(text: $searchText, prompt: "Search products and operations")
         .tint(CloudflareStyle.orange)
     }
@@ -101,10 +100,10 @@ struct CloudflareProductCenterView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Cloudflare control plane")
                         .font(.system(size: 21, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(AppTheme.textPrimary)
                     Text(accountName)
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.38))
+                        .foregroundStyle(AppTheme.textTertiary)
                         .lineLimit(1)
                 }
                 Spacer(minLength: 8)
@@ -132,14 +131,14 @@ struct CloudflareProductCenterView: View {
             Text(label)
                 .font(.system(size: 8, weight: .semibold))
                 .tracking(0.7)
-                .foregroundStyle(.white.opacity(0.3))
+                .foregroundStyle(AppTheme.textTertiary)
             Text(value.formatted())
                 .font(.system(size: 19, weight: .semibold, design: .default).monospacedDigit())
-                .foregroundStyle(.white)
+                .foregroundStyle(AppTheme.textPrimary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(11)
-        .background(Color.black.opacity(0.24), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+        .background(AppTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
     }
 
     private var contextPanel: some View {
@@ -147,7 +146,7 @@ struct CloudflareProductCenterView: View {
             Text("REQUEST CONTEXT")
                 .font(.system(size: 9, weight: .semibold))
                 .tracking(0.9)
-                .foregroundStyle(.white.opacity(0.34))
+                .foregroundStyle(AppTheme.textTertiary)
 
             contextRow(label: "Account", value: accountName, id: accountID)
 
@@ -168,24 +167,24 @@ struct CloudflareProductCenterView: View {
                             Text("ZONE")
                                 .font(.system(size: 8, weight: .semibold))
                                 .tracking(0.7)
-                                .foregroundStyle(.white.opacity(0.3))
+                                .foregroundStyle(AppTheme.textTertiary)
                             Text(selectedZone?.name ?? "Choose zone")
                                 .font(.system(size: 12, weight: .bold))
-                                .foregroundStyle(.white.opacity(0.78))
+                                .foregroundStyle(AppTheme.textPrimary)
                         }
                         Spacer()
                         Image(systemName: "chevron.up.chevron.down")
                             .font(.system(size: 9, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.3))
+                            .foregroundStyle(AppTheme.textTertiary)
                     }
                     .padding(12)
-                    .background(Color.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+                    .background(AppTheme.strokeSoft, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
                 }
             }
 
             Text("Every mutation opens an editable request and requires a final confirmation before it reaches Cloudflare.")
                 .font(.system(size: 9, weight: .medium))
-                .foregroundStyle(.white.opacity(0.26))
+                .foregroundStyle(AppTheme.textTertiary)
         }
         .padding(14)
         .cloudflarePanel()
@@ -199,18 +198,18 @@ struct CloudflareProductCenterView: View {
                 Text(label.uppercased())
                     .font(.system(size: 8, weight: .semibold))
                     .tracking(0.7)
-                    .foregroundStyle(.white.opacity(0.3))
+                    .foregroundStyle(AppTheme.textTertiary)
                 Text(value)
                     .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.78))
+                    .foregroundStyle(AppTheme.textPrimary)
             }
             Spacer()
             Text(String(id.prefix(8)))
                 .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.25))
+                .foregroundStyle(AppTheme.textTertiary)
         }
         .padding(12)
-        .background(Color.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+        .background(AppTheme.strokeSoft, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
     }
 
     private func productPanel(_ product: CloudflareProductDefinition) -> some View {
@@ -224,28 +223,28 @@ struct CloudflareProductCenterView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(product.title)
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.86))
+                        .foregroundStyle(AppTheme.textPrimary)
                     Text(product.summary)
                         .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.32))
+                        .foregroundStyle(AppTheme.textTertiary)
                         .lineLimit(2)
                 }
                 Spacer()
                 Text(product.operations.count.formatted())
                     .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.36))
+                    .foregroundStyle(AppTheme.textTertiary)
                     .padding(.horizontal, 9)
                     .padding(.vertical, 5)
-                    .background(Color.white.opacity(0.055), in: Capsule())
+                    .background(AppTheme.divider, in: Capsule())
             }
             .padding(14)
 
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
 
             ForEach(Array(product.operations.enumerated()), id: \.element.id) { index, operation in
                 operationRow(operation)
                 if index < product.operations.count - 1 {
-                    Divider().overlay(Color.white.opacity(0.05)).padding(.leading, 57)
+                    Divider().overlay(AppTheme.strokeSoft).padding(.leading, 57)
                 }
             }
         }
@@ -281,16 +280,16 @@ struct CloudflareProductCenterView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(operation.title)
                     .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.78))
+                    .foregroundStyle(AppTheme.textPrimary)
                 Text(locked ? "Scoped API token required" : operation.summary)
                     .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(locked ? CloudflareStyle.amber.opacity(0.7) : .white.opacity(0.29))
+                    .foregroundStyle(locked ? CloudflareStyle.amber.opacity(0.7) : AppTheme.textTertiary)
                     .lineLimit(2)
             }
             Spacer(minLength: 6)
             Image(systemName: locked ? "lock.fill" : "chevron.right")
                 .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.25))
+                .foregroundStyle(AppTheme.textTertiary)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 11)

@@ -60,14 +60,14 @@ struct RegistrarAccountMenu: View {
                 else { Image(systemName: "globe").font(.system(size: 16, weight: .bold)) }
                 Image(systemName: "chevron.down")
                     .font(.system(size: 8, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.45))
+                    .foregroundStyle(AppTheme.textTertiary)
             }
             .frame(width: 44, height: 44)
             .contentShape(Rectangle())
             .accessibilityLabel("Switch connected registrar")
             .accessibilityValue(store.activeAccount?.name ?? "No active registrar")
         }
-        .tint(.white)
+        .tint(AppTheme.textPrimary)
         .sheet(isPresented: $showingAddAccount) {
             LoginView(initialCategory: .registrars)
                 .presentationSizing(.page)

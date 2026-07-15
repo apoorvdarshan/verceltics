@@ -1,5 +1,29 @@
 import SwiftUI
 
+@MainActor
+private enum ProviderCatalogViewCache {
+    struct Entry {
+        let catalog: ProviderAPICatalog
+        let updatedAt: Date
+    }
+
+    static var entries: [String: Entry] = [:]
+    static let lifetime: TimeInterval = 300
+
+    static func catalog(for key: String) -> ProviderAPICatalog? {
+        entries[key]?.catalog
+    }
+
+    static func isFresh(_ key: String) -> Bool {
+        guard let entry = entries[key] else { return false }
+        return Date.now.timeIntervalSince(entry.updatedAt) < lifetime
+    }
+
+    static func store(_ catalog: ProviderAPICatalog, for key: String) {
+        entries[key] = Entry(catalog: catalog, updatedAt: .now)
+    }
+}
+
 struct ProviderFullAPICatalogView: View {
     private enum Context {
         case hosting(VercelAccount)
@@ -15,6 +39,7 @@ struct ProviderFullAPICatalogView: View {
 
     private let context: Context
     private let catalogID: String
+    private let cacheKey: String
     private let accent: Color
 
     @State private var catalog: ProviderAPICatalog?
@@ -22,18 +47,26 @@ struct ProviderFullAPICatalogView: View {
     @State private var selectedTag = "All"
     @State private var access: AccessFilter = .all
     @State private var error: String?
+    @State private var isRefreshing = false
+    @State private var loadGeneration = 0
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     init(account: VercelAccount) {
         context = .hosting(account)
         catalogID = account.provider.apiCatalogID
+        cacheKey = account.provider == .railway
+            ? "\(CredentialCacheScope.hostingAccount(account))|provider-api-catalog"
+            : "bundled|\(account.provider.apiCatalogID)"
         accent = account.provider.accentColor
+        _catalog = State(initialValue: ProviderCatalogViewCache.catalog(for: cacheKey))
     }
 
     init(account: RegistrarAccount) {
         context = .registrar(account)
         catalogID = account.provider.apiCatalogID
+        cacheKey = "bundled|\(account.provider.apiCatalogID)"
         accent = account.provider.accentColor
+        _catalog = State(initialValue: ProviderCatalogViewCache.catalog(for: cacheKey))
     }
 
     private var tags: [String] {
@@ -61,15 +94,14 @@ struct ProviderFullAPICatalogView: View {
                     title: "Catalog unavailable",
                     message: error,
                     actionTitle: "Try again"
-                ) { loadCatalog() }
+                ) { Task { await loadCatalog(forceRefresh: true) } }
             } else {
                 ProgressView("Loading operations").tint(accent).foregroundStyle(AppTheme.textSecondary)
             }
         }
         .navigationTitle("Complete API")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
-        .task { loadCatalog() }
+        .task { await loadCatalog() }
     }
 
     private func catalogBody(_ catalog: ProviderAPICatalog) -> some View {
@@ -81,7 +113,7 @@ struct ProviderFullAPICatalogView: View {
                 TextField("Search operations, paths and tags", text: $query)
                     .textFieldStyle(.plain)
                     .padding(14)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(AppTheme.textPrimary)
                     .providerPanel(accent: accent)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
@@ -137,6 +169,7 @@ struct ProviderFullAPICatalogView: View {
             .padding(.vertical, 16)
             .appContentWidth(AppLayout.catalogMaxWidth, horizontalSizeClass: horizontalSizeClass)
         }
+        .refreshable { await loadCatalog(forceRefresh: true) }
     }
 
     private var operationColumns: [GridItem] {
@@ -191,7 +224,7 @@ struct ProviderFullAPICatalogView: View {
                 Spacer()
                 Image(systemName: "chevron.right").foregroundStyle(AppTheme.textTertiary)
             }
-            .foregroundStyle(.white).padding(14).appSurface(raised: true)
+            .foregroundStyle(AppTheme.textPrimary).padding(14).appSurface(raised: true)
         }
         .buttonStyle(PressScaleButtonStyle())
     }
@@ -212,7 +245,7 @@ struct ProviderFullAPICatalogView: View {
             Spacer()
             Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(AppTheme.textTertiary)
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(AppTheme.textPrimary)
         .padding(14)
         .appSurface()
     }
@@ -224,16 +257,39 @@ struct ProviderFullAPICatalogView: View {
         }
     }
 
-    private func loadCatalog() {
-        Task {
-            do {
-                if case .hosting(let account) = context, account.provider == .railway {
-                    catalog = try await ProviderAPICatalogStore.shared.railwayCatalog(account: account)
-                } else {
-                    catalog = try await ProviderAPICatalogStore.shared.catalog(id: catalogID)
-                }
+    @MainActor
+    private func loadCatalog(forceRefresh: Bool = false) async {
+        if !forceRefresh, catalog != nil, ProviderCatalogViewCache.isFresh(cacheKey) {
+            return
+        }
+        guard !isRefreshing else { return }
+
+        loadGeneration += 1
+        let generation = loadGeneration
+        isRefreshing = true
+        error = nil
+        defer {
+            if generation == loadGeneration { isRefreshing = false }
+        }
+
+        do {
+            let loaded: ProviderAPICatalog
+            if case .hosting(let account) = context, account.provider == .railway {
+                loaded = try await ProviderAPICatalogStore.shared.railwayCatalog(
+                    account: account,
+                    forceRefresh: forceRefresh
+                )
+            } else {
+                loaded = try await ProviderAPICatalogStore.shared.catalog(id: catalogID)
             }
-            catch { self.error = error.localizedDescription }
+            guard !Task.isCancelled, generation == loadGeneration else { return }
+            catalog = loaded
+            ProviderCatalogViewCache.store(loaded, for: cacheKey)
+        } catch is CancellationError {
+            return
+        } catch {
+            guard generation == loadGeneration else { return }
+            if catalog == nil { self.error = error.localizedDescription }
         }
     }
 }
@@ -394,7 +450,6 @@ private struct ProviderAPIOperationView: View {
         }
         .navigationTitle(operation.summary)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
     }
 
     private var parameterColumns: [GridItem] {
@@ -442,7 +497,7 @@ private struct ProviderAPIOperationView: View {
                     ForEach(parameter.enumValues, id: \.self) { Text($0).tag($0) }
                 }
                 .pickerStyle(.menu)
-                .tint(.white)
+                .tint(AppTheme.textPrimary)
                 .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                 .padding(.horizontal, 12)
                 .background(AppTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))

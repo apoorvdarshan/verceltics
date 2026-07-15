@@ -84,7 +84,7 @@ struct CloudflareDNSRecordEditor: View {
                                 .foregroundStyle(CloudflareStyle.amber)
                             Text("Cloudflare manages this record. Its fields are shown for reference and cannot be changed here.")
                                 .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.45))
+                                .foregroundStyle(AppTheme.textSecondary)
                             Spacer(minLength: 0)
                         }
                         .padding(14)
@@ -111,11 +111,10 @@ struct CloudflareDNSRecordEditor: View {
         }
         .navigationTitle(record == nil ? "Add DNS Record" : "Edit DNS Record")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Cancel") { dismiss() }
-                    .foregroundStyle(.white.opacity(0.65))
+                    .foregroundStyle(AppTheme.textSecondary)
             }
             ToolbarItem(placement: .confirmationAction) {
                 Button(record == nil ? "Create" : "Save") {
@@ -167,7 +166,7 @@ struct CloudflareDNSRecordEditor: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .multilineTextAlignment(.trailing)
-                    .foregroundStyle(.white.opacity(0.82))
+                    .foregroundStyle(AppTheme.textPrimary)
             }
 
             editorDivider
@@ -176,18 +175,18 @@ struct CloudflareDNSRecordEditor: View {
                 Text("CONTENT")
                     .font(.system(size: 9, weight: .semibold))
                     .tracking(0.8)
-                    .foregroundStyle(.white.opacity(0.32))
+                    .foregroundStyle(AppTheme.textTertiary)
                 TextEditor(text: $content)
                     .font(.system(size: 12, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.8))
+                    .foregroundStyle(AppTheme.textPrimary)
                     .scrollContentBackground(.hidden)
                     .frame(minHeight: 72)
                     .padding(9)
-                    .background(Color.black.opacity(0.28))
+                    .background(AppTheme.surfaceRaised)
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .strokeBorder(Color.white.opacity(0.07), lineWidth: 0.5)
+                            .strokeBorder(AppTheme.stroke, lineWidth: 0.5)
                     )
             }
             .padding(16)
@@ -216,10 +215,10 @@ struct CloudflareDNSRecordEditor: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Proxy through Cloudflare")
                             .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.76))
+                            .foregroundStyle(AppTheme.textPrimary)
                         Text(proxied ? "Traffic uses Cloudflare’s edge" : "DNS only")
                             .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.32))
+                            .foregroundStyle(AppTheme.textTertiary)
                     }
                 }
                 .tint(CloudflareStyle.orange)
@@ -233,7 +232,7 @@ struct CloudflareDNSRecordEditor: View {
                     TextField("0", text: $priority)
                         .keyboardType(.numberPad)
                         .multilineTextAlignment(.trailing)
-                        .foregroundStyle(.white.opacity(0.82))
+                        .foregroundStyle(AppTheme.textPrimary)
                 }
             }
         }
@@ -244,7 +243,7 @@ struct CloudflareDNSRecordEditor: View {
             editorField(label: "Comment") {
                 TextField("Optional", text: $comment)
                     .multilineTextAlignment(.trailing)
-                    .foregroundStyle(.white.opacity(0.82))
+                    .foregroundStyle(AppTheme.textPrimary)
             }
             editorDivider
             editorField(label: "Tags") {
@@ -252,7 +251,7 @@ struct CloudflareDNSRecordEditor: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .multilineTextAlignment(.trailing)
-                    .foregroundStyle(.white.opacity(0.82))
+                    .foregroundStyle(AppTheme.textPrimary)
             }
         }
     }
@@ -262,7 +261,7 @@ struct CloudflareDNSRecordEditor: View {
         if let record {
             VStack(spacing: 0) {
                 CloudflareSectionHeader(title: "Returned metadata", icon: "list.bullet.rectangle.fill")
-                Divider().overlay(Color.white.opacity(0.06))
+                Divider().overlay(AppTheme.divider)
                 CloudflareDetailRow(icon: "number", title: "Record ID", value: record.id)
                 CloudflareDetailRow(icon: "icloud.fill", title: "Can be proxied", value: booleanText(record.proxiable))
                 CloudflareDetailRow(icon: "lock.fill", title: "Managed by Cloudflare", value: booleanText(record.locked))
@@ -309,11 +308,11 @@ struct CloudflareDNSRecordEditor: View {
                         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     Text("Advanced JSON")
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(AppTheme.textPrimary)
                     Spacer()
                     Image(systemName: "chevron.down")
                         .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.3))
+                        .foregroundStyle(AppTheme.textTertiary)
                         .rotationEffect(.degrees(showingAdvanced ? 180 : 0))
                 }
                 .padding(.horizontal, 16)
@@ -322,17 +321,17 @@ struct CloudflareDNSRecordEditor: View {
             .buttonStyle(.plain)
 
             if showingAdvanced {
-                Divider().overlay(Color.white.opacity(0.06))
+                Divider().overlay(AppTheme.divider)
                 if ["A", "AAAA"].contains(type) {
                     editorField(label: "Private routing") {
                         Toggle("", isOn: $privateRouting)
                             .labelsHidden()
                             .tint(CloudflareStyle.orange)
                     }
-                    Divider().overlay(Color.white.opacity(0.06)).padding(.horizontal, 16)
+                    Divider().overlay(AppTheme.divider).padding(.horizontal, 16)
                 }
                 jsonEditor(label: "STRUCTURED DATA", text: $dataJSON)
-                Divider().overlay(Color.white.opacity(0.06)).padding(.horizontal, 16)
+                Divider().overlay(AppTheme.divider).padding(.horizontal, 16)
                 jsonEditor(label: "SETTINGS", text: $settingsJSON)
             }
         }
@@ -346,7 +345,7 @@ struct CloudflareDNSRecordEditor: View {
     ) -> some View {
         VStack(spacing: 0) {
             CloudflareSectionHeader(title: title, icon: icon)
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
             content()
         }
         .cloudflarePanel()
@@ -360,7 +359,7 @@ struct CloudflareDNSRecordEditor: View {
             Text(label.uppercased())
                 .font(.system(size: 9, weight: .semibold))
                 .tracking(0.8)
-                .foregroundStyle(.white.opacity(0.32))
+                .foregroundStyle(AppTheme.textTertiary)
             Spacer(minLength: 8)
             content()
         }
@@ -369,17 +368,17 @@ struct CloudflareDNSRecordEditor: View {
     }
 
     private var editorDivider: some View {
-        Divider().overlay(Color.white.opacity(0.055)).padding(.leading, 16)
+        Divider().overlay(AppTheme.divider).padding(.leading, 16)
     }
 
     private func menuValue(_ value: String) -> some View {
         HStack(spacing: 6) {
             Text(value)
                 .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(.white.opacity(0.76))
+                .foregroundStyle(AppTheme.textPrimary)
             Image(systemName: "chevron.up.chevron.down")
                 .font(.system(size: 8, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.3))
+                .foregroundStyle(AppTheme.textTertiary)
         }
     }
 
@@ -388,18 +387,18 @@ struct CloudflareDNSRecordEditor: View {
             Text(label)
                 .font(.system(size: 9, weight: .semibold))
                 .tracking(0.8)
-                .foregroundStyle(.white.opacity(0.32))
+                .foregroundStyle(AppTheme.textTertiary)
             TextEditor(text: text)
                 .font(.system(size: 11, weight: .medium, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.75))
+                .foregroundStyle(AppTheme.textPrimary)
                 .scrollContentBackground(.hidden)
                 .frame(minHeight: 105)
                 .padding(9)
-                .background(Color.black.opacity(0.3))
+                .background(AppTheme.surfaceRaised)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.07), lineWidth: 0.5)
+                        .strokeBorder(AppTheme.stroke, lineWidth: 0.5)
                 )
         }
         .padding(16)
@@ -534,11 +533,10 @@ struct CloudflareCachePurgeView: View {
         }
         .navigationTitle("Purge Cache")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Cancel") { dismiss() }
-                    .foregroundStyle(.white.opacity(0.65))
+                    .foregroundStyle(AppTheme.textSecondary)
             }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Continue") { preparePurge() }
@@ -571,10 +569,10 @@ struct CloudflareCachePurgeView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Cached traffic may briefly increase origin load")
                     .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.82))
+                    .foregroundStyle(AppTheme.textPrimary)
                 Text("Purging removes matching objects from Cloudflare’s edge. New requests refill the cache from your origin.")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.36))
+                    .foregroundStyle(AppTheme.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
@@ -586,7 +584,7 @@ struct CloudflareCachePurgeView: View {
     private var purgeTypePanel: some View {
         VStack(spacing: 0) {
             CloudflareSectionHeader(title: "Purge scope", icon: "scope")
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
             ForEach(PurgeKind.allCases) { option in
                 Button {
                     kind = option
@@ -595,28 +593,28 @@ struct CloudflareCachePurgeView: View {
                     HStack(spacing: 11) {
                         Image(systemName: option.icon)
                             .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(kind == option ? CloudflareStyle.orange : .white.opacity(0.3))
+                            .foregroundStyle(kind == option ? CloudflareStyle.orange : AppTheme.textTertiary)
                             .frame(width: 28, height: 28)
-                            .background((kind == option ? CloudflareStyle.orange : .white).opacity(0.08))
+                            .background(kind == option ? CloudflareStyle.orange.opacity(0.08) : AppTheme.stroke)
                             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                         VStack(alignment: .leading, spacing: 2) {
                             Text(option.title)
                                 .font(.system(size: 13, weight: .bold))
-                                .foregroundStyle(.white.opacity(0.78))
+                                .foregroundStyle(AppTheme.textPrimary)
                             Text(option.subtitle)
                                 .font(.system(size: 10, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.32))
+                                .foregroundStyle(AppTheme.textTertiary)
                         }
                         Spacer()
                         Image(systemName: kind == option ? "checkmark.circle.fill" : "circle")
-                            .foregroundStyle(kind == option ? CloudflareStyle.orange : .white.opacity(0.18))
+                            .foregroundStyle(kind == option ? CloudflareStyle.orange : AppTheme.textTertiary)
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 11)
                 }
                 .buttonStyle(.plain)
                 if option != PurgeKind.allCases.last {
-                    Divider().overlay(Color.white.opacity(0.055)).padding(.leading, 54)
+                    Divider().overlay(AppTheme.divider).padding(.leading, 54)
                 }
             }
         }
@@ -628,22 +626,22 @@ struct CloudflareCachePurgeView: View {
             Text(kind.inputLabel)
                 .font(.system(size: 10, weight: .semibold))
                 .tracking(0.8)
-                .foregroundStyle(.white.opacity(0.36))
+                .foregroundStyle(AppTheme.textTertiary)
             TextEditor(text: $values)
                 .font(.system(size: 12, weight: .medium, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.78))
+                .foregroundStyle(AppTheme.textPrimary)
                 .scrollContentBackground(.hidden)
                 .frame(minHeight: 130)
                 .padding(10)
-                .background(Color.black.opacity(0.3))
+                .background(AppTheme.surfaceRaised)
                 .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 11, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.07), lineWidth: 0.5)
+                        .strokeBorder(AppTheme.stroke, lineWidth: 0.5)
                 )
             Text("Enter one value per line or separate values with commas.")
                 .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.white.opacity(0.28))
+                .foregroundStyle(AppTheme.textTertiary)
         }
         .padding(16)
         .cloudflarePanel()
@@ -657,19 +655,19 @@ struct CloudflareCachePurgeView: View {
                 .foregroundStyle(CloudflareStyle.red.opacity(0.85))
             Text(zone.name)
                 .font(.system(size: 12, weight: .bold, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.7))
+                .foregroundStyle(AppTheme.textSecondary)
                 .textSelection(.enabled)
             TextField(zone.name, text: $confirmationText)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .font(.system(size: 13, weight: .medium, design: .monospaced))
                 .padding(12)
-                .background(Color.black.opacity(0.3))
+                .background(AppTheme.surfaceRaised)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .strokeBorder(
-                            confirmationText == zone.name ? CloudflareStyle.green.opacity(0.4) : Color.white.opacity(0.08),
+                            confirmationText == zone.name ? CloudflareStyle.green.opacity(0.4) : AppTheme.stroke,
                             lineWidth: 0.7
                         )
                 )

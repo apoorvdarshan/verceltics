@@ -160,7 +160,8 @@ final class SiteStore {
     }
 
     func switchAccount(to id: UUID) {
-        guard accounts.contains(where: { $0.id == id }) else { return }
+        guard activeAccountID != id,
+              accounts.contains(where: { $0.id == id }) else { return }
         activeAccountID = id
         error = refreshErrors[id]
         KeychainHelper.saveActiveSiteIntegrationAccountID(id)

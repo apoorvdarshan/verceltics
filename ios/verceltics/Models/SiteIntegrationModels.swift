@@ -130,7 +130,7 @@ struct SiteProviderMark: View {
             .resizable()
             .renderingMode(monochrome || provider.logoNeedsTint ? .template : .original)
             .scaledToFit()
-            .foregroundStyle(monochrome ? Color.white : provider.accentColor)
+            .foregroundStyle(monochrome ? AppTheme.textPrimary : provider.accentColor)
             .frame(width: size, height: size)
             .accessibilityHidden(true)
     }

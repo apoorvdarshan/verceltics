@@ -36,8 +36,15 @@ private enum MainTabDestination: Hashable {
 struct MainTabView: View {
     @Environment(AppUpdateChecker.self) private var appUpdateChecker
     @Environment(AuthManager.self) private var authManager
+    @Environment(\.scenePhase) private var scenePhase
     @AppStorage(lastPrimaryWorkspaceKey) private var lastPrimaryWorkspace = PrimaryWorkspace.hosting.rawValue
     @State private var selectedTab: MainTabDestination
+    @State private var hostingSearchRequestID = 0
+    @State private var registrarSearchRequestID = 0
+    @State private var sitesSearchRequestID = 0
+    @State private var hostingRefreshRequestID = 0
+    @State private var registrarRefreshRequestID = 0
+    @State private var sitesRefreshRequestID = 0
 
     init() {
         let storedValue = UserDefaults.standard.string(forKey: lastPrimaryWorkspaceKey)
@@ -48,20 +55,33 @@ struct MainTabView: View {
     var body: some View {
         TabView(selection: $selectedTab) {
             Tab("Hosting", systemImage: "server.rack", value: MainTabDestination.hosting) {
-                providerHome()
+                providerHome(
+                    searchRequestID: hostingSearchRequestID,
+                    backgroundRefreshRequestID: hostingRefreshRequestID
+                )
                     .id(activeHostingViewIdentity)
             }
 
             Tab(value: MainTabDestination.search, role: .search) {
-                searchHome()
+                // Selecting the system search tab redirects to the last primary
+                // workspace and presents that workspace's existing search field.
+                // Keeping this destination inert prevents a second dashboard
+                // tree from issuing duplicate provider requests.
+                Color.clear
             }
 
             Tab("Registrars", systemImage: "globe.americas.fill", value: MainTabDestination.registrars) {
-                RegistrarsView()
+                RegistrarsView(
+                    searchRequestID: registrarSearchRequestID,
+                    backgroundRefreshRequestID: registrarRefreshRequestID
+                )
             }
 
             Tab("Sites", systemImage: "chart.xyaxis.line", value: MainTabDestination.sites) {
-                SitesView()
+                SitesView(
+                    searchRequestID: sitesSearchRequestID,
+                    backgroundRefreshRequestID: sitesRefreshRequestID
+                )
             }
 
             Tab("About", systemImage: "info.circle", value: MainTabDestination.about) {
@@ -70,45 +90,91 @@ struct MainTabView: View {
             .badge(appUpdateChecker.isUpdateAvailable ? Text("") : nil)
         }
         .tabViewStyle(.sidebarAdaptable)
-        .tint(.white)
+        .tint(AppTheme.textPrimary)
         .onChange(of: selectedTab) { _, newValue in
+            if newValue == .search {
+                let workspace = PrimaryWorkspace(rawValue: lastPrimaryWorkspace) ?? .hosting
+                selectedTab = workspace.destination
+                Task { @MainActor in
+                    await Task.yield()
+                    requestSearch(for: workspace)
+                }
+                return
+            }
             if let workspace = newValue.primaryWorkspace {
                 lastPrimaryWorkspace = workspace.rawValue
             }
         }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            requestBackgroundRefreshForCurrentWorkspace()
+        }
         .task {
             await appUpdateChecker.checkForUpdates()
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(for: .seconds(60))
+                } catch {
+                    return
+                }
+                requestBackgroundRefreshForCurrentWorkspace()
+            }
         }
     }
 
     @ViewBuilder
-    private func searchHome() -> some View {
-        switch PrimaryWorkspace(rawValue: lastPrimaryWorkspace) ?? .hosting {
-        case .hosting:
-            providerHome(startWithSearch: true)
-                .id(activeHostingViewIdentity)
-        case .registrars:
-            RegistrarsView(startWithSearch: true)
-        case .sites:
-            SitesView(startWithSearch: true)
-        }
-    }
-
-    @ViewBuilder
-    private func providerHome(startWithSearch: Bool = false) -> some View {
+    private func providerHome(
+        searchRequestID: Int,
+        backgroundRefreshRequestID: Int
+    ) -> some View {
         if let credentials = authManager.cloudflareCredentials {
             CloudflareDashboardView(
                 authenticationMode: credentials.mode,
                 email: credentials.email,
                 credential: credentials.credential,
-                startWithSearch: startWithSearch
+                searchRequestID: searchRequestID,
+                backgroundRefreshRequestID: backgroundRefreshRequestID
             )
         } else if let account = authManager.activeHostingAccount {
-            HostingDashboardView(account: account, startWithSearch: startWithSearch)
+            HostingDashboardView(
+                account: account,
+                searchRequestID: searchRequestID,
+                backgroundRefreshRequestID: backgroundRefreshRequestID
+            )
         } else if authManager.activeProvider == .vercel {
-            ProjectsView(startWithSearch: startWithSearch)
+            ProjectsView(
+                searchRequestID: searchRequestID,
+                backgroundRefreshRequestID: backgroundRefreshRequestID,
+                initialToken: authManager.token
+            )
         } else {
             HostingEmptyStateView()
+        }
+    }
+
+    private func requestBackgroundRefreshForCurrentWorkspace() {
+        guard scenePhase == .active else { return }
+        let workspace = selectedTab.primaryWorkspace
+            ?? PrimaryWorkspace(rawValue: lastPrimaryWorkspace)
+            ?? .hosting
+        switch workspace {
+        case .hosting:
+            hostingRefreshRequestID &+= 1
+        case .registrars:
+            registrarRefreshRequestID &+= 1
+        case .sites:
+            sitesRefreshRequestID &+= 1
+        }
+    }
+
+    private func requestSearch(for workspace: PrimaryWorkspace) {
+        switch workspace {
+        case .hosting:
+            hostingSearchRequestID &+= 1
+        case .registrars:
+            registrarSearchRequestID &+= 1
+        case .sites:
+            sitesSearchRequestID &+= 1
         }
     }
 
@@ -157,7 +223,6 @@ private struct HostingEmptyStateView: View {
             }
             .navigationTitle("Hosting")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     ProviderAccountMenu()

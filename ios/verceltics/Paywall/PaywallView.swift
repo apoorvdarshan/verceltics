@@ -87,7 +87,7 @@ struct PaywallView: View {
                     // Plans
                     if paywall.isLoading {
                         ProgressView()
-                            .tint(.white)
+                            .tint(AppTheme.signal)
                             .padding(.vertical, 20)
                     } else if paywall.yearlyPackage == nil,
                               paywall.monthlyPackage == nil,
@@ -155,7 +155,7 @@ struct PaywallView: View {
                     } label: {
                         HStack(spacing: 10) {
                             if isPurchasing {
-                                ProgressView().tint(.black)
+                                ProgressView().tint(.white)
                             } else {
                             Text(subscribeButtonLabel)
                                     .font(.headline)
@@ -171,7 +171,7 @@ struct PaywallView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         .overlay(
                             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .strokeBorder(Color.white.opacity(0.1), lineWidth: 0.5)
+                                .strokeBorder(AppTheme.stroke, lineWidth: 0.5)
                         )
                     }
                     .buttonStyle(PressScaleButtonStyle())
@@ -235,7 +235,7 @@ struct PaywallView: View {
 
                         Button("Sign Out") { authManager.logout() }
                             .font(.caption.weight(.semibold))
-                            .foregroundStyle(Color(red: 1.0, green: 0.42, blue: 0.42).opacity(0.6))
+                            .foregroundStyle(AppTheme.danger)
                             .frame(minHeight: 44)
                             .contentShape(Rectangle())
                             .padding(.top, 4)
@@ -371,7 +371,7 @@ struct PlanCard: View {
         HStack(spacing: 8) {
             Text(label)
                 .font(.headline)
-                .foregroundStyle(.white)
+                .foregroundStyle(AppTheme.textPrimary)
             if let badge {
                 HStack(spacing: 3) {
                     Image(systemName: "sparkles")

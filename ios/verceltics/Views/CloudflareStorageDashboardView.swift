@@ -3,6 +3,23 @@ import SwiftUI
 @Observable
 @MainActor
 final class CloudflareStorageDashboardViewModel {
+    private struct CacheEntry {
+        let databases: [CloudflareD1Database]
+        let namespaces: [CloudflareKVNamespace]
+        let buckets: [CloudflareR2Bucket]
+        let warnings: [String]
+        let updatedAt: Date
+    }
+
+    private struct LoadResult {
+        let databases: Result<[CloudflareD1Database], Error>
+        let namespaces: Result<[CloudflareKVNamespace], Error>
+        let buckets: Result<[CloudflareR2Bucket], Error>
+    }
+
+    private static var cache: [String: CacheEntry] = [:]
+    private static let cacheLifetime: TimeInterval = 180
+
     let api: CloudflareAPI
     let accountID: String
     let allowsR2: Bool
@@ -16,49 +33,74 @@ final class CloudflareStorageDashboardViewModel {
     var actionMessage: String?
     var actionFailed = false
 
-    private var hasLoaded = false
+    private var hasLoadedSnapshot = false
+    private var cacheUpdatedAt: Date?
     private var generation = 0
+    private var loadTask: Task<LoadResult, Never>?
+
+    private var cacheKey: String {
+        "\(api.cacheScope)|\(accountID)|storage|r2:\(allowsR2)"
+    }
 
     init(api: CloudflareAPI, accountID: String, allowsR2: Bool) {
         self.api = api
         self.accountID = accountID
         self.allowsR2 = allowsR2
+        let key = "\(api.cacheScope)|\(accountID)|storage|r2:\(allowsR2)"
+        if let cached = Self.cache[key] {
+            databases = cached.databases
+            namespaces = cached.namespaces
+            buckets = cached.buckets
+            warnings = cached.warnings
+            cacheUpdatedAt = cached.updatedAt
+            hasLoadedSnapshot = true
+            isLoading = false
+        }
     }
 
     func load(force: Bool = false) async {
-        guard force || !hasLoaded else { return }
-        generation += 1
-        let currentGeneration = generation
-        isLoading = !hasLoaded
-        isRefreshing = hasLoaded
-        warnings = []
-
-        async let d1Result = capture { try await api.fetchD1Databases(accountID: accountID) }
-        async let kvResult = capture { try await api.fetchKVNamespaces(accountID: accountID) }
-        let (d1, kv) = await (d1Result, kvResult)
-        let r2: Result<[CloudflareR2Bucket], Error>
-        if allowsR2 {
-            r2 = await capture { try await api.fetchR2Buckets(accountID: accountID) }
-        } else {
-            r2 = .success([])
+        if let cached = Self.cache[cacheKey] {
+            databases = cached.databases
+            namespaces = cached.namespaces
+            buckets = cached.buckets
+            warnings = cached.warnings
+            cacheUpdatedAt = cached.updatedAt
+            hasLoadedSnapshot = true
+            isLoading = false
+            if !force, Self.isFresh(cached.updatedAt) { return }
         }
 
-        guard generation == currentGeneration else { return }
-        if isCancellation(d1) || isCancellation(kv) || isCancellation(r2) {
-            isLoading = false
-            isRefreshing = false
+        if let task = loadTask {
+            let currentGeneration = generation
+            let result = await task.value
+            apply(result, generation: currentGeneration)
             return
         }
-        apply(d1, to: &databases, section: "D1")
-        apply(kv, to: &namespaces, section: "KV")
-        apply(r2, to: &buckets, section: "R2")
-        sortResources()
-        hasLoaded = true
-        isLoading = false
-        isRefreshing = false
+
+        generation += 1
+        let currentGeneration = generation
+        isLoading = !hasLoadedSnapshot
+        isRefreshing = hasLoadedSnapshot
+
+        let task = Task { [api, accountID, allowsR2] in
+            async let d1Result = Self.capture { try await api.fetchD1Databases(accountID: accountID) }
+            async let kvResult = Self.capture { try await api.fetchKVNamespaces(accountID: accountID) }
+            let (d1, kv) = await (d1Result, kvResult)
+            let r2: Result<[CloudflareR2Bucket], Error>
+            if allowsR2 {
+                r2 = await Self.capture { try await api.fetchR2Buckets(accountID: accountID) }
+            } else {
+                r2 = .success([])
+            }
+            return LoadResult(databases: d1, namespaces: kv, buckets: r2)
+        }
+        loadTask = task
+        let result = await task.value
+        apply(result, generation: currentGeneration)
     }
 
     func createD1(_ input: CloudflareD1CreateInput) async throws {
+        cancelLoad()
         do {
             let database = try await api.createD1Database(
                 accountID: accountID,
@@ -68,6 +110,7 @@ final class CloudflareStorageDashboardViewModel {
             databases.removeAll { $0.id == database.id }
             databases.append(database)
             sortResources()
+            updateCachePreservingFreshness()
             report("D1 database created.")
         } catch {
             report(error.localizedDescription, failed: true)
@@ -76,6 +119,7 @@ final class CloudflareStorageDashboardViewModel {
     }
 
     func createKV(title: String) async throws {
+        cancelLoad()
         do {
             let namespace = try await api.createKVNamespace(
                 accountID: accountID,
@@ -85,6 +129,7 @@ final class CloudflareStorageDashboardViewModel {
             namespaces.removeAll { $0.id == namespace.id }
             namespaces.append(namespace)
             sortResources()
+            updateCachePreservingFreshness()
             report("KV namespace created.")
         } catch {
             report(error.localizedDescription, failed: true)
@@ -93,6 +138,7 @@ final class CloudflareStorageDashboardViewModel {
     }
 
     func createR2(_ input: CloudflareR2CreateInput) async throws {
+        cancelLoad()
         do {
             let bucket = try await api.createR2Bucket(
                 accountID: accountID,
@@ -102,6 +148,7 @@ final class CloudflareStorageDashboardViewModel {
             buckets.removeAll { $0.id == bucket.id && $0.jurisdiction == bucket.jurisdiction }
             buckets.append(bucket)
             sortResources()
+            updateCachePreservingFreshness()
             report("R2 bucket created.")
         } catch {
             report(error.localizedDescription, failed: true)
@@ -109,7 +156,49 @@ final class CloudflareStorageDashboardViewModel {
         }
     }
 
-    private func capture<T>(_ operation: () async throws -> T) async -> Result<T, Error> {
+    func reconcileD1(_ database: CloudflareD1Database) {
+        cancelLoad()
+        databases.removeAll { $0.id == database.id }
+        databases.append(database)
+        sortResources()
+        updateCachePreservingFreshness()
+    }
+
+    func removeD1(id: String) {
+        cancelLoad()
+        databases.removeAll { $0.id == id }
+        updateCachePreservingFreshness()
+    }
+
+    func reconcileKV(_ namespace: CloudflareKVNamespace) {
+        cancelLoad()
+        namespaces.removeAll { $0.id == namespace.id }
+        namespaces.append(namespace)
+        sortResources()
+        updateCachePreservingFreshness()
+    }
+
+    func removeKV(id: String) {
+        cancelLoad()
+        namespaces.removeAll { $0.id == id }
+        updateCachePreservingFreshness()
+    }
+
+    func reconcileR2(_ bucket: CloudflareR2Bucket) {
+        cancelLoad()
+        buckets.removeAll { $0.id == bucket.id && $0.jurisdiction == bucket.jurisdiction }
+        buckets.append(bucket)
+        sortResources()
+        updateCachePreservingFreshness()
+    }
+
+    func removeR2(name: String, jurisdiction: String?) {
+        cancelLoad()
+        buckets.removeAll { $0.name == name && $0.jurisdiction == jurisdiction }
+        updateCachePreservingFreshness()
+    }
+
+    private static func capture<T>(_ operation: () async throws -> T) async -> Result<T, Error> {
         do { return .success(try await operation()) }
         catch { return .failure(error) }
     }
@@ -119,18 +208,77 @@ final class CloudflareStorageDashboardViewModel {
         return error is CancellationError || (error as? URLError)?.code == .cancelled
     }
 
-    private func apply<T>(_ result: Result<[T], Error>, to target: inout [T], section: String) {
-        switch result {
-        case .success(let values): target = values
-        case .failure(let error):
-            warnings.append("\(section): \(error.localizedDescription)")
+    private func apply(_ result: LoadResult, generation currentGeneration: Int) {
+        guard generation == currentGeneration else { return }
+        loadTask = nil
+        isLoading = false
+        isRefreshing = false
+        if isCancellation(result.databases)
+            || isCancellation(result.namespaces)
+            || isCancellation(result.buckets) {
+            return
         }
+
+        warnings = []
+        var allSucceeded = true
+        switch result.databases {
+        case .success(let values): databases = values
+        case .failure(let error):
+            warnings.append("D1: \(error.localizedDescription)")
+            allSucceeded = false
+        }
+        switch result.namespaces {
+        case .success(let values): namespaces = values
+        case .failure(let error):
+            warnings.append("KV: \(error.localizedDescription)")
+            allSucceeded = false
+        }
+        switch result.buckets {
+        case .success(let values): buckets = values
+        case .failure(let error):
+            warnings.append("R2: \(error.localizedDescription)")
+            allSucceeded = false
+        }
+        sortResources()
+        hasLoadedSnapshot = true
+        cacheUpdatedAt = allSucceeded ? .now : .distantPast
+        updateCache(updatedAt: cacheUpdatedAt ?? .distantPast)
     }
 
     private func sortResources() {
         databases.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         namespaces.sort { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
         buckets.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    private func updateCache(updatedAt: Date = .now) {
+        let resolvedUpdatedAt = warnings.isEmpty ? updatedAt : .distantPast
+        cacheUpdatedAt = resolvedUpdatedAt
+        hasLoadedSnapshot = true
+        Self.cache[cacheKey] = CacheEntry(
+            databases: databases,
+            namespaces: namespaces,
+            buckets: buckets,
+            warnings: warnings,
+            updatedAt: resolvedUpdatedAt
+        )
+    }
+
+    private func updateCachePreservingFreshness() {
+        updateCache(updatedAt: cacheUpdatedAt ?? .distantPast)
+    }
+
+    private func cancelLoad() {
+        guard loadTask != nil else { return }
+        loadTask?.cancel()
+        loadTask = nil
+        generation += 1
+        isLoading = false
+        isRefreshing = false
+    }
+
+    private static func isFresh(_ date: Date) -> Bool {
+        Date.now.timeIntervalSince(date) < cacheLifetime
     }
 
     private func report(_ message: String, failed: Bool = false) {
@@ -147,6 +295,7 @@ struct CloudflareStorageDashboardView: View {
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
     @State private var viewModel: CloudflareStorageDashboardViewModel
     @State private var searchText = ""
     @State private var creationSheet: CloudflareStorageCreationSheet?
@@ -209,7 +358,6 @@ struct CloudflareStorageDashboardView: View {
         }
         .navigationTitle("Developer Storage")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .searchable(text: $searchText, prompt: "Search storage")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -221,7 +369,7 @@ struct CloudflareStorageDashboardView: View {
                 } label: {
                     Image(systemName: "arrow.clockwise")
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.7))
+                        .foregroundStyle(AppTheme.textSecondary)
                         .rotationEffect(.degrees(refreshSpin))
                 }
                 .disabled(viewModel.isRefreshing)
@@ -229,6 +377,10 @@ struct CloudflareStorageDashboardView: View {
         }
         .task { await viewModel.load() }
         .refreshable { await viewModel.load(force: true) }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            Task { await viewModel.load() }
+        }
         .sheet(item: $creationSheet) { sheet in
             NavigationStack {
                 switch sheet {
@@ -240,7 +392,6 @@ struct CloudflareStorageDashboardView: View {
                     CloudflareR2CreateView { input in try await viewModel.createR2(input) }
                 }
             }
-            .preferredColorScheme(.dark)
         }
         .tint(CloudflareStyle.orange)
     }
@@ -294,10 +445,10 @@ struct CloudflareStorageDashboardView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Developer Storage")
                         .font(.system(size: 21, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(AppTheme.textPrimary)
                     Text(accountName)
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.38))
+                        .foregroundStyle(AppTheme.textTertiary)
                         .lineLimit(1)
                 }
                 Spacer(minLength: 8)
@@ -328,7 +479,7 @@ struct CloudflareStorageDashboardView: View {
                 Text(title)
                     .font(.system(size: 9, weight: .semibold))
                     .tracking(0.7)
-                    .foregroundStyle(.white.opacity(0.35))
+                    .foregroundStyle(AppTheme.textTertiary)
             }
             Text(value)
                 .font(.system(size: 12, weight: .semibold, design: .monospaced))
@@ -336,7 +487,7 @@ struct CloudflareStorageDashboardView: View {
         }
         .frame(maxWidth: .infinity, minHeight: 63, alignment: .leading)
         .padding(12)
-        .background(Color.black.opacity(0.24))
+        .background(AppTheme.surfaceRaised)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
@@ -350,15 +501,15 @@ struct CloudflareStorageDashboardView: View {
                 Text(title)
                     .font(.system(size: 9, weight: .semibold))
                     .tracking(0.7)
-                    .foregroundStyle(.white.opacity(0.35))
+                    .foregroundStyle(AppTheme.textTertiary)
             }
             Text(value.formatted())
                 .font(.system(size: 21, weight: .semibold, design: .default).monospacedDigit())
-                .foregroundStyle(.white)
+                .foregroundStyle(AppTheme.textPrimary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
-        .background(Color.black.opacity(0.24))
+        .background(AppTheme.surfaceRaised)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
@@ -371,7 +522,7 @@ struct CloudflareStorageDashboardView: View {
                         .foregroundStyle(CloudflareStyle.amber)
                     Text(warning)
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.48))
+                        .foregroundStyle(AppTheme.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -392,7 +543,17 @@ struct CloudflareStorageDashboardView: View {
         ) {
             ForEach(Array(filteredDatabases.enumerated()), id: \.element.id) { index, database in
                 NavigationLink {
-                    CloudflareD1DatabaseView(api: api, accountID: accountID, database: database)
+                    CloudflareD1DatabaseView(
+                        api: api,
+                        accountID: accountID,
+                        database: database
+                    ) { updated in
+                        if let updated {
+                            viewModel.reconcileD1(updated)
+                        } else {
+                            viewModel.removeD1(id: database.id)
+                        }
+                    }
                 } label: {
                     CloudflareResourceRow(
                         icon: "cylinder.split.1x2.fill",
@@ -418,7 +579,17 @@ struct CloudflareStorageDashboardView: View {
         ) {
             ForEach(Array(filteredNamespaces.enumerated()), id: \.element.id) { index, namespace in
                 NavigationLink {
-                    CloudflareKVNamespaceView(api: api, accountID: accountID, namespace: namespace)
+                    CloudflareKVNamespaceView(
+                        api: api,
+                        accountID: accountID,
+                        namespace: namespace
+                    ) { updated in
+                        if let updated {
+                            viewModel.reconcileKV(updated)
+                        } else {
+                            viewModel.removeKV(id: namespace.id)
+                        }
+                    }
                 } label: {
                     CloudflareResourceRow(
                         icon: "key.fill",
@@ -446,7 +617,17 @@ struct CloudflareStorageDashboardView: View {
                 ) {
                     ForEach(Array(filteredBuckets.enumerated()), id: \.element.id) { index, bucket in
                         NavigationLink {
-                            CloudflareR2BucketView(api: api, accountID: accountID, bucket: bucket)
+                            CloudflareR2BucketView(
+                                api: api,
+                                accountID: accountID,
+                                bucket: bucket
+                            ) { updated in
+                                if let updated {
+                                    viewModel.reconcileR2(updated)
+                                } else {
+                                    viewModel.removeR2(name: bucket.name, jurisdiction: bucket.jurisdiction)
+                                }
+                            }
                         } label: {
                             CloudflareResourceRow(
                                 icon: "shippingbox.fill",
@@ -462,7 +643,7 @@ struct CloudflareStorageDashboardView: View {
             } else {
                 VStack(spacing: 0) {
                     CloudflareSectionHeader(title: "R2 Buckets", icon: "shippingbox.fill")
-                    Divider().overlay(Color.white.opacity(0.06))
+                    Divider().overlay(AppTheme.divider)
                     CloudflareEmptySection(
                         icon: "key.horizontal.fill",
                         title: "Scoped API token required",
@@ -485,7 +666,7 @@ struct CloudflareStorageDashboardView: View {
     ) -> some View {
         VStack(spacing: 0) {
             CloudflareSectionHeader(title: title, icon: icon, count: count, actionTitle: "Create", action: action)
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
             if count == 0 {
                 CloudflareEmptySection(icon: icon, title: emptyTitle, message: emptyMessage)
             } else {
@@ -496,7 +677,7 @@ struct CloudflareStorageDashboardView: View {
     }
 
     private var sectionDivider: some View {
-        Divider().overlay(Color.white.opacity(0.055)).padding(.leading, 64)
+        Divider().overlay(AppTheme.divider).padding(.leading, 64)
     }
 
     private func d1Subtitle(_ database: CloudflareD1Database) -> String {
@@ -747,10 +928,9 @@ struct CloudflareStorageCreateScaffold<Content: View>: View {
         }
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button("Cancel") { dismiss() }.foregroundStyle(.white.opacity(0.65))
+                Button("Cancel") { dismiss() }.foregroundStyle(AppTheme.textSecondary)
             }
             ToolbarItem(placement: .confirmationAction) {
                 Button(actionTitle, action: confirm)
@@ -772,7 +952,7 @@ struct CloudflareStorageFormPanel<Content: View>: View {
     var body: some View {
         VStack(spacing: 0) {
             CloudflareSectionHeader(title: title, icon: icon)
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
             content()
         }
         .cloudflarePanel()
@@ -789,13 +969,13 @@ struct CloudflareStorageTextFieldRow: View {
             Text(label.uppercased())
                 .font(.system(size: 9, weight: .semibold))
                 .tracking(0.8)
-                .foregroundStyle(.white.opacity(0.32))
+                .foregroundStyle(AppTheme.textTertiary)
             Spacer(minLength: 12)
             TextField(placeholder, text: $text)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .multilineTextAlignment(.trailing)
-                .foregroundStyle(.white.opacity(0.82))
+                .foregroundStyle(AppTheme.textPrimary)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 13)
@@ -812,16 +992,16 @@ struct CloudflareStorageMenuRow<MenuContent: View>: View {
             Text(label.uppercased())
                 .font(.system(size: 9, weight: .semibold))
                 .tracking(0.8)
-                .foregroundStyle(.white.opacity(0.32))
+                .foregroundStyle(AppTheme.textTertiary)
             Spacer(minLength: 12)
             Menu(content: menuContent) {
                 HStack(spacing: 6) {
                     Text(value)
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.75))
+                        .foregroundStyle(AppTheme.textPrimary)
                     Image(systemName: "chevron.up.chevron.down")
                         .font(.system(size: 8, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.3))
+                        .foregroundStyle(AppTheme.textTertiary)
                 }
             }
         }
@@ -832,6 +1012,6 @@ struct CloudflareStorageMenuRow<MenuContent: View>: View {
 
 struct CloudflareStorageFormDivider: View {
     var body: some View {
-        Divider().overlay(Color.white.opacity(0.06)).padding(.horizontal, 16)
+        Divider().overlay(AppTheme.divider).padding(.horizontal, 16)
     }
 }

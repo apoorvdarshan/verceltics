@@ -3,7 +3,13 @@ import SwiftUI
 @Observable
 @MainActor
 final class CloudflareR2BucketViewModel {
-    private static var bucketCache: [String: CloudflareR2Bucket] = [:]
+    private struct CacheEntry {
+        let bucket: CloudflareR2Bucket
+        let updatedAt: Date
+    }
+
+    private static var bucketCache: [String: CacheEntry] = [:]
+    private static let cacheLifetime: TimeInterval = 180
 
     let api: CloudflareAPI
     let accountID: String
@@ -11,12 +17,14 @@ final class CloudflareR2BucketViewModel {
     let jurisdiction: String?
 
     var bucket: CloudflareR2Bucket
-    var isLoading = true
+    var isLoading = false
+    var isRefreshing = false
     var isDeleting = false
     var didDelete = false
     var actionMessage: String?
     var actionFailed = false
-    private var hasLoaded = false
+    private var hasLoadedSnapshot = true
+    private var loadGeneration = 0
 
     private var cacheKey: String { "\(api.cacheScope)|\(accountID)|\(bucketName)|\(jurisdiction ?? "")" }
 
@@ -26,23 +34,41 @@ final class CloudflareR2BucketViewModel {
         bucketName = bucket.name
         jurisdiction = bucket.jurisdiction
         let key = "\(api.cacheScope)|\(accountID)|\(bucket.name)|\(bucket.jurisdiction ?? "")"
-        self.bucket = Self.bucketCache[key] ?? bucket
-        hasLoaded = Self.bucketCache[key] != nil
-        isLoading = !hasLoaded
+        self.bucket = Self.bucketCache[key]?.bucket ?? bucket
     }
 
     func load(forceRefresh: Bool = false) async {
-        if hasLoaded && !forceRefresh { return }
-        isLoading = true
-        defer { isLoading = false }
+        if let cached = Self.bucketCache[cacheKey] {
+            bucket = cached.bucket
+            hasLoadedSnapshot = true
+            isLoading = false
+            if !forceRefresh,
+               Date.now.timeIntervalSince(cached.updatedAt) < Self.cacheLifetime {
+                return
+            }
+        }
+        guard !isRefreshing else { return }
+
+        loadGeneration += 1
+        let generation = loadGeneration
+        isLoading = !hasLoadedSnapshot
+        isRefreshing = hasLoadedSnapshot
+        defer {
+            if generation == loadGeneration {
+                isLoading = false
+                isRefreshing = false
+            }
+        }
         do {
-            bucket = try await api.fetchR2Bucket(
+            let refreshed = try await api.fetchR2Bucket(
                 accountID: accountID,
                 bucketName: bucketName,
                 jurisdiction: jurisdiction
             )
-            Self.bucketCache[cacheKey] = bucket
-            hasLoaded = true
+            guard generation == loadGeneration else { return }
+            bucket = refreshed
+            hasLoadedSnapshot = true
+            updateCache()
         } catch is CancellationError {
             // Navigation can cancel an in-flight request; retain prior state.
         } catch let urlError as URLError where urlError.code == .cancelled {
@@ -54,6 +80,7 @@ final class CloudflareR2BucketViewModel {
     }
 
     func delete() async {
+        cancelLoad()
         isDeleting = true
         defer { isDeleting = false }
         do {
@@ -70,20 +97,39 @@ final class CloudflareR2BucketViewModel {
             actionFailed = true
         }
     }
+
+    private func updateCache() {
+        Self.bucketCache[cacheKey] = CacheEntry(bucket: bucket, updatedAt: .now)
+    }
+
+    private func cancelLoad() {
+        guard isLoading || isRefreshing else { return }
+        loadGeneration += 1
+        isLoading = false
+        isRefreshing = false
+    }
 }
 
 struct CloudflareR2BucketView: View {
     let api: CloudflareAPI
     let accountID: String
+    let onChange: (CloudflareR2Bucket?) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.scenePhase) private var scenePhase
     @State private var viewModel: CloudflareR2BucketViewModel
     @State private var isConfirmingDelete = false
 
-    init(api: CloudflareAPI, accountID: String, bucket: CloudflareR2Bucket) {
+    init(
+        api: CloudflareAPI,
+        accountID: String,
+        bucket: CloudflareR2Bucket,
+        onChange: @escaping (CloudflareR2Bucket?) -> Void = { _ in }
+    ) {
         self.api = api
         self.accountID = accountID
+        self.onChange = onChange
         _viewModel = State(wrappedValue: CloudflareR2BucketViewModel(api: api, accountID: accountID, bucket: bucket))
     }
 
@@ -111,10 +157,19 @@ struct CloudflareR2BucketView: View {
         }
         .navigationTitle(viewModel.bucket.name)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .task { await viewModel.load() }
         .refreshable { await viewModel.load(forceRefresh: true) }
-        .onChange(of: viewModel.didDelete) { _, deleted in if deleted { dismiss() } }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            Task { await viewModel.load() }
+        }
+        .onChange(of: viewModel.bucket) { _, bucket in onChange(bucket) }
+        .onChange(of: viewModel.didDelete) { _, deleted in
+            if deleted {
+                onChange(nil)
+                dismiss()
+            }
+        }
         .confirmationDialog("Delete this R2 bucket?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
             Button("Delete Bucket", role: .destructive) { Task { await viewModel.delete() } }
             Button("Cancel", role: .cancel) {}
@@ -132,11 +187,11 @@ struct CloudflareR2BucketView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(viewModel.bucket.name)
                         .font(.system(size: 21, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(AppTheme.textPrimary)
                         .lineLimit(1)
                     Text("Cloudflare R2 bucket")
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.38))
+                        .foregroundStyle(AppTheme.textTertiary)
                 }
                 Spacer(minLength: 8)
                 CloudflareStatusPill(text: "AVAILABLE", color: CloudflareStyle.green)
@@ -166,7 +221,7 @@ struct CloudflareR2BucketView: View {
     private var metadata: some View {
         VStack(spacing: 0) {
             CloudflareSectionHeader(title: "Bucket Metadata", icon: "info.circle.fill")
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
             CloudflareDetailRow(icon: "shippingbox", title: "Name", value: viewModel.bucket.name)
             CloudflareDetailRow(
                 icon: "globe",
@@ -197,7 +252,7 @@ struct CloudflareR2BucketView: View {
     private var objectOperations: some View {
         VStack(spacing: 0) {
             CloudflareSectionHeader(title: "Objects & Configuration", icon: "doc.on.doc.fill")
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
             ForEach(Array(r2Operations.enumerated()), id: \.element.id) { index, operation in
                 NavigationLink {
                     CloudflareAPIExplorerView(api: api, accountID: accountID, preset: operation)
@@ -211,23 +266,23 @@ struct CloudflareR2BucketView: View {
                         VStack(alignment: .leading, spacing: 3) {
                             Text(operation.title)
                                 .font(.system(size: 12, weight: .bold))
-                                .foregroundStyle(.white.opacity(0.78))
+                                .foregroundStyle(AppTheme.textPrimary)
                             Text(operation.summary)
                                 .font(.system(size: 9, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.3))
+                                .foregroundStyle(AppTheme.textTertiary)
                                 .lineLimit(2)
                         }
                         Spacer()
                         Image(systemName: "chevron.right")
                             .font(.system(size: 9, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.24))
+                            .foregroundStyle(AppTheme.textTertiary)
                     }
                     .padding(14)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 if index < r2Operations.count - 1 {
-                    Divider().overlay(Color.white.opacity(0.05)).padding(.leading, 64)
+                    Divider().overlay(AppTheme.strokeSoft).padding(.leading, 64)
                 }
             }
         }
@@ -250,15 +305,15 @@ struct CloudflareR2BucketView: View {
     private var dangerZone: some View {
         VStack(spacing: 0) {
             CloudflareSectionHeader(title: "Danger Zone", icon: "exclamationmark.triangle.fill")
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Delete bucket")
                         .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.76))
+                        .foregroundStyle(AppTheme.textPrimary)
                     Text("The bucket must be empty before Cloudflare will delete it.")
                         .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.34))
+                        .foregroundStyle(AppTheme.textTertiary)
                 }
                 Spacer(minLength: 8)
                 CloudflareActionButton(

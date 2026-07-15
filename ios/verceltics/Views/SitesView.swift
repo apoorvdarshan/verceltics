@@ -6,6 +6,8 @@ struct SitesView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var startWithSearch = false
+    var searchRequestID = 0
+    var backgroundRefreshRequestID = 0
 
     @State private var searchText = ""
     @State private var isSearching = false
@@ -88,7 +90,6 @@ struct SitesView: View {
             }
             .navigationTitle("Sites")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarColorScheme(.dark, for: .navigationBar)
             .searchable(text: $searchText, isPresented: $isSearching, prompt: "Search sites and signals")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -98,18 +99,27 @@ struct SitesView: View {
                     Button(action: refreshAll) {
                         Image(systemName: "arrow.clockwise")
                             .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.72))
+                            .foregroundStyle(AppTheme.textSecondary)
                             .rotationEffect(.degrees(refreshSpin))
                     }
                     .disabled(store.isRefreshing || store.accounts.isEmpty)
                     .accessibilityLabel(store.isRefreshing ? "Refreshing site services" : "Refresh site services")
                 }
             }
-            .task(id: store.accounts.map(\.id)) {
+            .task {
                 await loadAll(force: false)
+            }
+            .onChange(of: siteAccountIdentity) { _, _ in
+                Task { await loadAll(force: false) }
+            }
+            .onChange(of: backgroundRefreshRequestID) { _, _ in
+                Task { await loadAll(force: false) }
             }
             .onAppear {
                 if startWithSearch { isSearching = true }
+            }
+            .onChange(of: searchRequestID) { _, _ in
+                isSearching = true
             }
             .sheet(isPresented: $showingConnection) {
                 LoginView(initialCategory: .sites)
@@ -514,6 +524,10 @@ struct SitesView: View {
         )
     }
 
+    private var siteAccountIdentity: String {
+        store.accounts.map(\.id.uuidString).sorted().joined(separator: ",")
+    }
+
     private func resourceHasIssue(_ resource: SiteIntegrationResource) -> Bool {
         guard let status = resource.status else { return false }
         switch statusTone(status) {
@@ -750,7 +764,6 @@ private struct SiteServiceDetailView: View {
         }
         .navigationTitle(account?.provider.displayName ?? "Site service")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .task { await store.refresh(accountID: accountID, force: false) }
         .refreshable { await store.refresh(accountID: accountID, force: true) }
     }
@@ -979,7 +992,6 @@ private struct AggregatedSiteDetailView: View {
         }
         .navigationTitle(site.name)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .refreshable {
             await refreshSiteAccounts(store, accountIDs: sourceAccountIDs, force: true)
         }

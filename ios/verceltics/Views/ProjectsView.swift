@@ -74,48 +74,92 @@ final class ProjectsViewModel {
     private struct CachedProjects {
         let projects: [Project]
         let warning: String?
+        let updatedAt: Date
     }
 
     private static var cachedProjects: [String: CachedProjects] = [:]
+    private static let cacheLifetime: TimeInterval = 3 * 60
 
     var projects: [Project] = []
     var isLoading = true
+    var isRefreshing = false
     var error: String?
     var warning: String?
 
     private var loadedCacheKey: String?
+    private var lastUpdatedAt: Date?
+    private var activeRequestKey: String?
     private var loadGeneration = 0
 
+    init(token: String? = nil) {
+        guard let token, !token.isEmpty else { return }
+        let cacheKey = Self.cacheKey(for: token)
+        guard let cached = Self.cachedProjects[cacheKey] else { return }
+
+        projects = cached.projects
+        warning = cached.warning
+        lastUpdatedAt = cached.updatedAt
+        loadedCacheKey = cacheKey
+        isLoading = false
+    }
+
     func load(token: String, forceRefresh: Bool = false) async {
-        let cacheKey = CredentialCacheScope.fingerprint(fields: ["vercel-projects", token])
-        if !forceRefresh, loadedCacheKey == cacheKey { return }
-        if !forceRefresh, let cached = Self.cachedProjects[cacheKey] {
-            projects = cached.projects
+        let cacheKey = Self.cacheKey(for: token)
+        guard activeRequestKey != cacheKey else { return }
+
+        if loadedCacheKey != cacheKey {
+            if let cached = Self.cachedProjects[cacheKey] {
+                projects = cached.projects
+                warning = cached.warning
+                lastUpdatedAt = cached.updatedAt
+                isLoading = false
+            } else {
+                // Never carry one credential's projects into another account.
+                projects = []
+                warning = nil
+                lastUpdatedAt = nil
+                isLoading = true
+            }
             loadedCacheKey = cacheKey
-            isLoading = false
             error = nil
-            warning = cached.warning
+        }
+
+        if !forceRefresh,
+           let lastUpdatedAt,
+           Date.now.timeIntervalSince(lastUpdatedAt) < Self.cacheLifetime {
             return
         }
 
         loadGeneration += 1
         let generation = loadGeneration
-        // Keep already loaded content visible while an explicit refresh runs.
-        isLoading = projects.isEmpty
+        activeRequestKey = cacheKey
+        // Cached and previously loaded content stays visible during stale or
+        // manual refreshes; only a first load presents a skeleton.
+        isLoading = lastUpdatedAt == nil
+        isRefreshing = !isLoading
         error = nil
-        warning = nil
+        defer {
+            if generation == loadGeneration {
+                activeRequestKey = nil
+                isLoading = false
+                isRefreshing = false
+            }
+        }
 
         do {
             let api = VercelAPI(token: token)
             let loadedProjects = try await api.fetchProjects()
             let loadWarning = await api.lastProjectLoadWarning
             guard generation == loadGeneration else { return }
+            let updatedAt = Date.now
             projects = loadedProjects
             warning = loadWarning
+            lastUpdatedAt = updatedAt
             loadedCacheKey = cacheKey
             Self.cachedProjects[cacheKey] = CachedProjects(
                 projects: loadedProjects,
-                warning: loadWarning
+                warning: loadWarning,
+                updatedAt: updatedAt
             )
         } catch is CancellationError {
             // Tab switch — ignore, don't show error
@@ -123,23 +167,40 @@ final class ProjectsViewModel {
             guard generation == loadGeneration else { return }
             self.error = error.localizedDescription
         }
-        if generation == loadGeneration { isLoading = false }
+    }
+
+    private static func cacheKey(for token: String) -> String {
+        CredentialCacheScope.fingerprint(fields: ["vercel-projects", token])
     }
 }
 
 struct ProjectsView: View {
     var startWithSearch = false
+    var searchRequestID = 0
+    var backgroundRefreshRequestID = 0
     @Environment(AuthManager.self) private var authManager
     @Environment(PaywallManager.self) private var paywallManager
     @Environment(\.horizontalSizeClass) private var hSize
     @Environment(\.requestReview) private var requestReview
     @AppStorage("hasShownOnboardingRatePrompt") private var hasShownOnboardingRatePrompt = false
-    @State private var vm = ProjectsViewModel()
+    @State private var vm: ProjectsViewModel
     @State private var searchText = ""
     @State private var isSearching = false
     @State private var showPaywall = false
     @State private var navigationProjectId: String?
     @State private var pendingProjectId: String?
+
+    init(
+        startWithSearch: Bool = false,
+        searchRequestID: Int = 0,
+        backgroundRefreshRequestID: Int = 0,
+        initialToken: String? = nil
+    ) {
+        self.startWithSearch = startWithSearch
+        self.searchRequestID = searchRequestID
+        self.backgroundRefreshRequestID = backgroundRefreshRequestID
+        _vm = State(initialValue: ProjectsViewModel(token: initialToken))
+    }
 
     private var filteredProjects: [Project] {
         let sorted = vm.projects.sorted {
@@ -199,20 +260,23 @@ struct ProjectsView: View {
                 }
             }
             .task { await loadProjects() }
+            .onChange(of: backgroundRefreshRequestID) { _, _ in
+                Task { await loadProjects() }
+            }
             .onAppear {
                 if startWithSearch { isSearching = true }
             }
+            .onChange(of: searchRequestID) { _, _ in
+                isSearching = true
+            }
             .navigationDestination(item: $navigationProjectId) { id in
                 if let project = vm.projects.first(where: { $0.id == id }) {
-                    AnalyticsView(project: project)
+                    AnalyticsView(project: project, initialToken: authManager.token)
                 }
             }
             .sheet(isPresented: $showPaywall, onDismiss: handlePaywallDismiss) {
                 PaywallView()
                     .presentationSizing(.form)
-            }
-            .onChange(of: authManager.activeAccountId) { _, _ in
-                Task { await refreshProjects() }
             }
         }
     }
@@ -358,8 +422,8 @@ struct ProjectCard: View {
     }
 
     private static let frameworkColors: [String: Color] = [
-        "nextjs": Color(white: 0.95),
-        "next.js": Color(white: 0.95),
+        "nextjs": AppTheme.textPrimary,
+        "next.js": AppTheme.textPrimary,
         "astro": Color(red: 1.00, green: 0.45, blue: 0.30),
         "vite": Color(red: 0.60, green: 0.50, blue: 0.95),
         "gatsby": Color(red: 0.85, green: 0.40, blue: 0.95),
@@ -407,7 +471,7 @@ struct ProjectCard: View {
 
                         if isFreshDeploy {
                             Circle()
-                                .fill(Color(red: 0.30, green: 0.85, blue: 0.55))
+                                .fill(AppTheme.success)
                                 .frame(width: 6, height: 6)
                                 .opacity(reduceMotion ? 1 : (pulse ? 0.45 : 1.0))
                                 .animation(reduceMotion ? nil : .easeInOut(duration: 1.2).repeatForever(autoreverses: true), value: pulse)
@@ -516,29 +580,29 @@ struct SkeletonCard: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(Color.white.opacity(0.06))
+                    .fill(AppTheme.skeletonStrong)
                     .frame(width: 40, height: 40)
 
                 VStack(alignment: .leading, spacing: 6) {
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.white.opacity(0.06))
+                        .fill(AppTheme.skeletonStrong)
                         .frame(width: 120, height: 14)
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.white.opacity(0.04))
+                        .fill(AppTheme.skeleton)
                         .frame(width: 180, height: 10)
                 }
             }
 
             RoundedRectangle(cornerRadius: 10)
-                .fill(Color.white.opacity(0.04))
+                .fill(AppTheme.skeleton)
                 .frame(width: 140, height: 20)
 
             RoundedRectangle(cornerRadius: 4)
-                .fill(Color.white.opacity(0.04))
+                .fill(AppTheme.skeleton)
                 .frame(width: 220, height: 10)
 
             RoundedRectangle(cornerRadius: 4)
-                .fill(Color.white.opacity(0.04))
+                .fill(AppTheme.skeleton)
                 .frame(width: 100, height: 10)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -578,7 +642,7 @@ struct ProjectIcon: View {
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .frame(width: 40, height: 40)
-                    .background(Color.white.opacity(0.04))
+                    .background(AppTheme.surfaceRaised)
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             } else if didFail {
                 letterFallback

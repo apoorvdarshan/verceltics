@@ -8,21 +8,26 @@ final class CloudflareDashboardViewModel {
         let pagesProjects: [CloudflarePagesProject]
         let workers: [CloudflareWorkerScript]
         let sectionWarnings: [String]
+        let updatedAt: Date
     }
 
     private struct CachedDashboard {
         let accounts: [CloudflareAccountSummary]
         let selectedAccountID: String?
         let resourcesByAccountID: [String: CachedResources]
+        let updatedAt: Date
     }
 
     private static var dashboards: [String: CachedDashboard] = [:]
+    private static let cacheLifetime: TimeInterval = 3 * 60
 
     private(set) var api: CloudflareAPI?
     private var loadedEmail: String?
     private var loadedCredential: String?
     private var loadedAuthenticationMode: CloudflareAuthenticationMode?
     private var loadedCacheKey: String?
+    private var dashboardUpdatedAt: Date?
+    private var inFlightCacheKey: String?
     private var dashboardLoadGeneration = 0
     private var resourceLoadGeneration = 0
     private var resourcesByAccountID: [String: CachedResources] = [:]
@@ -41,6 +46,32 @@ final class CloudflareDashboardViewModel {
         accounts.first { $0.id == selectedAccountID }
     }
 
+    init(
+        authenticationMode: CloudflareAuthenticationMode,
+        email: String?,
+        credential: String
+    ) {
+        let client = CloudflareAPI(
+            authenticationMode: authenticationMode,
+            email: email,
+            credential: credential
+        )
+        let cacheKey = client.cacheScope
+        api = client
+        loadedEmail = email
+        loadedCredential = credential
+        loadedAuthenticationMode = authenticationMode
+        loadedCacheKey = cacheKey
+
+        guard let cached = Self.dashboards[cacheKey] else { return }
+        accounts = cached.accounts
+        selectedAccountID = cached.selectedAccountID ?? cached.accounts.first?.id
+        resourcesByAccountID = cached.resourcesByAccountID
+        dashboardUpdatedAt = cached.updatedAt
+        _ = applyCachedResources(for: selectedAccountID)
+        isLoading = false
+    }
+
     func load(
         authenticationMode: CloudflareAuthenticationMode,
         email: String?,
@@ -54,18 +85,28 @@ final class CloudflareDashboardViewModel {
             credential: credential
         )
         let cacheKey = client.cacheScope
-
+        let sameCredential = cacheKey == loadedCacheKey
         if !forceRefresh,
-           email == loadedEmail,
-           credential == loadedCredential,
-           authenticationMode == loadedAuthenticationMode,
-           !accounts.isEmpty {
+           sameCredential,
+           isFresh(dashboardUpdatedAt),
+           isFresh(resourcesByAccountID[selectedAccountID ?? ""]?.updatedAt) {
             return
         }
+        guard inFlightCacheKey != cacheKey else { return }
 
         dashboardLoadGeneration += 1
         let dashboardGeneration = dashboardLoadGeneration
+        let previousCacheKey = loadedCacheKey
+        inFlightCacheKey = cacheKey
+        defer {
+            if dashboardGeneration == dashboardLoadGeneration {
+                inFlightCacheKey = nil
+                isLoading = false
+                isRefreshing = false
+            }
+        }
 
+        var restoredCachedDashboard = false
         if !forceRefresh, let cached = Self.dashboards[cacheKey] {
             api = client
             loadedEmail = email
@@ -81,51 +122,49 @@ final class CloudflareDashboardViewModel {
             }
             selectedAccountID = preferredSelection ?? cachedSelection ?? cached.accounts.first?.id
             resourcesByAccountID = cached.resourcesByAccountID
+            dashboardUpdatedAt = cached.updatedAt
             error = nil
             isLoading = false
-            guard let accountID = selectedAccountID else {
-                isRefreshing = false
-                return
-            }
-            if applyCachedResources(for: accountID) {
-                isRefreshing = false
+            restoredCachedDashboard = true
+            guard let accountID = selectedAccountID else { return }
+            let hasCachedResources = applyCachedResources(for: accountID)
+            if hasCachedResources,
+               isFresh(cached.updatedAt),
+               isFresh(cached.resourcesByAccountID[accountID]?.updatedAt) {
                 return
             }
 
-            // Account selection is persisted independently of the resource cache.
-            // If that nested account has not been cached yet, load it instead of
-            // rendering empty sections until the user manually refreshes.
-            zones = []
-            pagesProjects = []
-            workers = []
-            sectionWarnings = []
-            isRefreshing = true
-            do {
-                try await loadSelectedAccount(
-                    client: client,
-                    accountID: accountID,
-                    dashboardGeneration: dashboardGeneration
-                )
-                guard dashboardGeneration == dashboardLoadGeneration,
-                      selectedAccountID == accountID else { return }
-                saveCache(cacheKey: cacheKey)
-            } catch is CancellationError {
-                // A superseded credential or account selection owns the UI now.
-            } catch {
-                guard dashboardGeneration == dashboardLoadGeneration,
-                      selectedAccountID == accountID else { return }
-                self.error = error.localizedDescription
+            if !hasCachedResources {
+                // Account selection is persisted independently of the resource
+                // cache. Load only that account while retaining the cached
+                // account list instead of doing a second full dashboard fetch.
+                zones = []
+                pagesProjects = []
+                workers = []
+                sectionWarnings = []
+                isRefreshing = true
+                do {
+                    try await loadSelectedAccount(
+                        client: client,
+                        accountID: accountID,
+                        dashboardGeneration: dashboardGeneration
+                    )
+                    guard dashboardGeneration == dashboardLoadGeneration,
+                          selectedAccountID == accountID else { return }
+                    saveCache(cacheKey: cacheKey)
+                } catch is CancellationError {
+                    // A superseded credential or account selection owns the UI.
+                } catch {
+                    guard dashboardGeneration == dashboardLoadGeneration,
+                          selectedAccountID == accountID else { return }
+                    self.error = error.localizedDescription
+                }
+                return
             }
-            if dashboardGeneration == dashboardLoadGeneration,
-               selectedAccountID == accountID {
-                isRefreshing = false
-            }
-            return
         }
 
-        let credentialChanged = email != loadedEmail || credential != loadedCredential
-            || authenticationMode != loadedAuthenticationMode
-        if credentialChanged {
+        let credentialChanged = previousCacheKey != nil && previousCacheKey != cacheKey
+        if credentialChanged && !restoredCachedDashboard {
             accounts = []
             selectedAccountID = nil
             zones = []
@@ -133,15 +172,15 @@ final class CloudflareDashboardViewModel {
             workers = []
             sectionWarnings = []
             resourcesByAccountID = [:]
+            dashboardUpdatedAt = nil
         }
-        let isInitialLoad = accounts.isEmpty || credentialChanged
+        let isInitialLoad = accounts.isEmpty
         if isInitialLoad {
             isLoading = true
         } else {
             isRefreshing = true
         }
         error = nil
-        sectionWarnings = []
 
         api = client
         loadedEmail = email
@@ -172,12 +211,21 @@ final class CloudflareDashboardViewModel {
                 selectedAccountID = accounts.first?.id
             }
             guard let accountID = selectedAccountID else { return }
+            if resourcesByAccountID[accountID] == nil {
+                zones = []
+                pagesProjects = []
+                workers = []
+                sectionWarnings = []
+            } else {
+                _ = applyCachedResources(for: accountID)
+            }
             try await loadSelectedAccount(
                 client: client,
                 accountID: accountID,
                 dashboardGeneration: dashboardGeneration
             )
             guard dashboardGeneration == dashboardLoadGeneration else { return }
+            dashboardUpdatedAt = Date.now
             saveCache(cacheKey: cacheKey)
         } catch is CancellationError {
             // Account switching can cancel an in-flight refresh.
@@ -185,24 +233,25 @@ final class CloudflareDashboardViewModel {
             guard dashboardGeneration == dashboardLoadGeneration else { return }
             self.error = error.localizedDescription
         }
-
-        if dashboardGeneration == dashboardLoadGeneration {
-            isLoading = false
-            isRefreshing = false
-        }
     }
 
     func selectAccount(_ id: String) async {
         guard selectedAccountID != id else { return }
         selectedAccountID = id
-        if !applyCachedResources(for: id) {
+        let hasCachedResources = applyCachedResources(for: id)
+        if !hasCachedResources {
             zones = []
             pagesProjects = []
             workers = []
             sectionWarnings = []
         }
-        isRefreshing = true
         error = nil
+        if hasCachedResources,
+           isFresh(resourcesByAccountID[id]?.updatedAt) {
+            if let loadedCacheKey { saveCache(cacheKey: loadedCacheKey) }
+            return
+        }
+        isRefreshing = true
         guard let client = api else {
             isRefreshing = false
             return
@@ -220,6 +269,8 @@ final class CloudflareDashboardViewModel {
         } catch is CancellationError {
             // A superseded account selection must not replace a valid cache.
         } catch {
+            guard dashboardGeneration == dashboardLoadGeneration,
+                  selectedAccountID == id else { return }
             self.error = error.localizedDescription
         }
         if dashboardGeneration == dashboardLoadGeneration,
@@ -236,6 +287,60 @@ final class CloudflareDashboardViewModel {
             credential: loadedCredential,
             forceRefresh: true
         )
+    }
+
+    func invalidateForExternalMutation() {
+        guard let loadedCacheKey else { return }
+        Self.dashboards.removeValue(forKey: loadedCacheKey)
+        dashboardUpdatedAt = nil
+        if let selectedAccountID,
+           let resources = resourcesByAccountID[selectedAccountID] {
+            resourcesByAccountID[selectedAccountID] = CachedResources(
+                zones: resources.zones,
+                pagesProjects: resources.pagesProjects,
+                workers: resources.workers,
+                sectionWarnings: resources.sectionWarnings,
+                updatedAt: .distantPast
+            )
+        }
+    }
+
+    func reconcileZone(_ updatedZone: CloudflareZone) {
+        guard let accountID = selectedAccountID,
+              let index = zones.firstIndex(where: { $0.id == updatedZone.id }) else { return }
+        zones[index] = updatedZone
+        zones.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        persistCurrentResources(for: accountID)
+    }
+
+    func reconcileWorker(_ updatedWorker: CloudflareWorkerScript?, workerID: String) {
+        guard let accountID = selectedAccountID else { return }
+        if let updatedWorker {
+            if let index = workers.firstIndex(where: { $0.id == workerID }) {
+                workers[index] = updatedWorker
+            } else {
+                workers.append(updatedWorker)
+            }
+        } else {
+            workers.removeAll { $0.id == workerID }
+        }
+        workers.sort { $0.id.localizedCaseInsensitiveCompare($1.id) == .orderedAscending }
+        persistCurrentResources(for: accountID)
+    }
+
+    func reconcilePagesProject(_ updatedProject: CloudflarePagesProject?, projectID: String) {
+        guard let accountID = selectedAccountID else { return }
+        if let updatedProject {
+            if let index = pagesProjects.firstIndex(where: { $0.id == projectID }) {
+                pagesProjects[index] = updatedProject
+            } else {
+                pagesProjects.append(updatedProject)
+            }
+        } else {
+            pagesProjects.removeAll { $0.id == projectID }
+        }
+        pagesProjects.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        persistCurrentResources(for: accountID)
     }
 
     private func loadSelectedAccount(
@@ -268,11 +373,18 @@ final class CloudflareDashboardViewModel {
         zones.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         pagesProjects.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         workers.sort { $0.id.localizedCaseInsensitiveCompare($1.id) == .orderedAscending }
+        let allSectionsSucceeded = succeeded(zoneResponse)
+            && succeeded(pagesResponse)
+            && succeeded(workerResponse)
         resourcesByAccountID[accountID] = CachedResources(
             zones: zones,
             pagesProjects: pagesProjects,
             workers: workers,
-            sectionWarnings: sectionWarnings
+            sectionWarnings: sectionWarnings,
+            // A partial response remains visible, but is immediately stale so
+            // the next quiet background pass retries only after navigation has
+            // settled instead of hiding the failure for the full TTL.
+            updatedAt: allSectionsSucceeded ? Date.now : .distantPast
         )
     }
 
@@ -280,8 +392,23 @@ final class CloudflareDashboardViewModel {
         Self.dashboards[cacheKey] = CachedDashboard(
             accounts: accounts,
             selectedAccountID: selectedAccountID,
-            resourcesByAccountID: resourcesByAccountID
+            resourcesByAccountID: resourcesByAccountID,
+            updatedAt: dashboardUpdatedAt ?? .distantPast
         )
+    }
+
+    private func persistCurrentResources(for accountID: String) {
+        let previousUpdate = resourcesByAccountID[accountID]?.updatedAt ?? .distantPast
+        resourcesByAccountID[accountID] = CachedResources(
+            zones: zones,
+            pagesProjects: pagesProjects,
+            workers: workers,
+            sectionWarnings: sectionWarnings,
+            // Updating one child must not extend the TTL for unrelated
+            // dashboard sections that were fetched earlier.
+            updatedAt: previousUpdate
+        )
+        if let loadedCacheKey { saveCache(cacheKey: loadedCacheKey) }
     }
 
     @discardableResult
@@ -292,6 +419,11 @@ final class CloudflareDashboardViewModel {
         workers = cached.workers
         sectionWarnings = cached.sectionWarnings
         return true
+    }
+
+    private func isFresh(_ date: Date?) -> Bool {
+        guard let date else { return false }
+        return Date.now.timeIntervalSince(date) < Self.cacheLifetime
     }
 
     private func capture<T>(_ operation: () async throws -> T) async -> Result<T, Error> {
@@ -305,6 +437,11 @@ final class CloudflareDashboardViewModel {
     private func isCancellation<T>(_ result: Result<T, Error>) -> Bool {
         guard case .failure(let error) = result else { return false }
         return error is CancellationError || (error as? URLError)?.code == .cancelled
+    }
+
+    private func succeeded<T>(_ result: Result<T, Error>) -> Bool {
+        if case .success = result { return true }
+        return false
     }
 
     private func apply<T>(_ result: Result<[T], Error>, to value: inout [T], section: String) {
@@ -326,15 +463,46 @@ struct CloudflareDashboardView: View {
     let email: String?
     let credential: String
     var startWithSearch = false
+    var searchRequestID = 0
+    var backgroundRefreshRequestID = 0
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(AuthManager.self) private var authManager
-    @State private var viewModel = CloudflareDashboardViewModel()
+    @State private var viewModel: CloudflareDashboardViewModel
     @State private var searchText = ""
     @State private var isSearching = false
     @State private var refreshSpin = 0.0
     @AppStorage("cloudflare.selectedNestedAccountID") private var persistedAccountID = ""
+
+    init(
+        authenticationMode: CloudflareAuthenticationMode,
+        email: String?,
+        credential: String,
+        startWithSearch: Bool = false,
+        searchRequestID: Int = 0,
+        backgroundRefreshRequestID: Int = 0
+    ) {
+        self.authenticationMode = authenticationMode
+        self.email = email
+        self.credential = credential
+        self.startWithSearch = startWithSearch
+        self.searchRequestID = searchRequestID
+        self.backgroundRefreshRequestID = backgroundRefreshRequestID
+        _viewModel = State(initialValue: CloudflareDashboardViewModel(
+            authenticationMode: authenticationMode,
+            email: email,
+            credential: credential
+        ))
+    }
+
+    private var credentialCacheScope: String {
+        CredentialCacheScope.cloudflare(
+            authenticationMode: authenticationMode,
+            email: email,
+            credential: credential
+        )
+    }
 
     private var filteredZones: [CloudflareZone] {
         guard !searchText.isEmpty else { return viewModel.zones }
@@ -370,14 +538,6 @@ struct CloudflareDashboardView: View {
         email ?? "Scoped API token"
     }
 
-    private var cacheScope: String {
-        CredentialCacheScope.cloudflare(
-            authenticationMode: authenticationMode,
-            email: email,
-            credential: credential
-        )
-    }
-
     var body: some View {
         NavigationStack {
             ZStack {
@@ -395,7 +555,6 @@ struct CloudflareDashboardView: View {
             }
             .navigationTitle("Cloudflare")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarColorScheme(.dark, for: .navigationBar)
             .searchable(text: $searchText, isPresented: $isSearching, prompt: "Search Cloudflare")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -410,7 +569,7 @@ struct CloudflareDashboardView: View {
                     } label: {
                         Image(systemName: "arrow.clockwise")
                             .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.7))
+                            .foregroundStyle(AppTheme.textSecondary)
                             .rotationEffect(.degrees(refreshSpin))
                     }
                     .disabled(viewModel.isRefreshing)
@@ -418,7 +577,7 @@ struct CloudflareDashboardView: View {
                     .sensoryFeedback(.impact(weight: .light), trigger: refreshSpin)
                 }
             }
-            .task(id: cacheScope) {
+            .task {
                 await viewModel.load(
                     authenticationMode: authenticationMode,
                     email: email,
@@ -426,14 +585,58 @@ struct CloudflareDashboardView: View {
                     preferredAccountID: persistedAccountID.isEmpty ? nil : persistedAccountID
                 )
             }
+            .onChange(of: backgroundRefreshRequestID) { _, _ in
+                Task {
+                    await viewModel.load(
+                        authenticationMode: authenticationMode,
+                        email: email,
+                        credential: credential,
+                        preferredAccountID: persistedAccountID.isEmpty ? nil : persistedAccountID
+                    )
+                }
+            }
             .onChange(of: viewModel.selectedAccountID) { _, selectedID in
                 if let selectedID { persistedAccountID = selectedID }
             }
             .onAppear {
                 if startWithSearch { isSearching = true }
             }
+            .onChange(of: searchRequestID) { _, _ in
+                isSearching = true
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .cloudflareDataDidChange)) { notification in
+                guard notification.object as? String == credentialCacheScope,
+                      let path = notification.userInfo?["path"] as? String,
+                      mutationAffectsDashboardSummary(path) else { return }
+                viewModel.invalidateForExternalMutation()
+                Task { await viewModel.refresh() }
+            }
         }
         .tint(CloudflareStyle.orange)
+    }
+
+    private func mutationAffectsDashboardSummary(_ path: String) -> Bool {
+        let segments = path.split(separator: "/").map(String.init)
+        guard let root = segments.first else { return false }
+
+        if root == "zones" {
+            // Zone create/update/delete affects the dashboard; nested DNS,
+            // analytics, settings, and security mutations do not.
+            return segments.count <= 2
+        }
+        guard root == "accounts" else { return false }
+        if segments.count <= 2 { return true }
+        guard segments.count >= 4 else { return false }
+
+        let product = segments[2]
+        let collection = segments[3]
+        if product == "pages", collection == "projects" {
+            return segments.count <= 5
+        }
+        if product == "workers", collection == "scripts" {
+            return segments.count <= 5
+        }
+        return false
     }
 
     private var dashboardContent: some View {
@@ -546,23 +749,23 @@ struct CloudflareDashboardView: View {
                             .foregroundStyle(CloudflareStyle.orange)
                         Text("Cloudflare account")
                             .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.4))
+                            .foregroundStyle(AppTheme.textSecondary)
                         Spacer()
                         Text(account.name)
                             .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(.white.opacity(0.76))
+                            .foregroundStyle(AppTheme.textPrimary)
                             .lineLimit(1)
                         Image(systemName: "chevron.up.chevron.down")
                             .font(.system(size: 8, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.3))
+                            .foregroundStyle(AppTheme.textTertiary)
                     }
                     .padding(.horizontal, 14)
                     .padding(.vertical, 11)
-                    .background(Color.white.opacity(0.045))
+                    .background(AppTheme.surfaceRaised)
                     .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 13, style: .continuous)
-                            .strokeBorder(Color.white.opacity(0.07), lineWidth: 0.5)
+                            .strokeBorder(AppTheme.stroke, lineWidth: 0.5)
                     )
                 }
             }
@@ -582,7 +785,9 @@ struct CloudflareDashboardView: View {
             ForEach(filteredZones, id: \.id) { zone in
                 NavigationLink {
                     if let api = viewModel.api {
-                        CloudflareZoneDetailView(api: api, zone: zone)
+                        CloudflareZoneDetailView(api: api, zone: zone) { updatedZone in
+                            viewModel.reconcileZone(updatedZone)
+                        }
                     }
                 } label: {
                     CloudflareResourceRow(
@@ -597,7 +802,7 @@ struct CloudflareDashboardView: View {
                             }
                             Image(systemName: "chevron.right")
                                 .font(.system(size: 10, weight: .semibold))
-                                .foregroundStyle(.white.opacity(0.2))
+                                .foregroundStyle(AppTheme.textTertiary)
                         }
                     }
                 }
@@ -620,7 +825,13 @@ struct CloudflareDashboardView: View {
             ForEach(filteredPagesProjects, id: \.id) { project in
                 NavigationLink {
                     if let api = viewModel.api, let accountID = viewModel.selectedAccountID {
-                        CloudflarePagesProjectDetailView(api: api, accountID: accountID, project: project)
+                        CloudflarePagesProjectDetailView(
+                            api: api,
+                            accountID: accountID,
+                            project: project
+                        ) { updatedProject in
+                            viewModel.reconcilePagesProject(updatedProject, projectID: project.id)
+                        }
                     }
                 } label: {
                     CloudflareResourceRow(
@@ -648,7 +859,13 @@ struct CloudflareDashboardView: View {
             ForEach(filteredWorkers, id: \.id) { worker in
                 NavigationLink {
                     if let api = viewModel.api, let accountID = viewModel.selectedAccountID {
-                        CloudflareWorkerDetailView(api: api, accountID: accountID, worker: worker)
+                        CloudflareWorkerDetailView(
+                            api: api,
+                            accountID: accountID,
+                            worker: worker
+                        ) { updatedWorker in
+                            viewModel.reconcileWorker(updatedWorker, workerID: worker.id)
+                        }
                     }
                 } label: {
                     CloudflareResourceRow(
@@ -674,7 +891,7 @@ struct CloudflareDashboardView: View {
     ) -> some View {
         VStack(spacing: 0) {
             CloudflareSectionHeader(title: title, icon: icon, count: count)
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
             if count == 0 {
                 CloudflareEmptySection(icon: icon, title: emptyTitle, message: emptyMessage)
             } else {
@@ -710,7 +927,7 @@ struct CloudflareDashboardView: View {
     private var advancedTools: some View {
         VStack(spacing: 0) {
             CloudflareSectionHeader(title: "Advanced", icon: "terminal.fill")
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
 
             if let api = viewModel.api {
                 if let accountID = viewModel.selectedAccountID,
@@ -732,7 +949,7 @@ struct CloudflareDashboardView: View {
                     }
                     .buttonStyle(.plain)
 
-                    Divider().overlay(Color.white.opacity(0.055)).padding(.leading, 64)
+                    Divider().overlay(AppTheme.divider).padding(.leading, 64)
 
                     NavigationLink {
                         CloudflareGraphQLDatasetCatalogView(
@@ -750,7 +967,7 @@ struct CloudflareDashboardView: View {
                     }
                     .buttonStyle(.plain)
 
-                    Divider().overlay(Color.white.opacity(0.055)).padding(.leading, 64)
+                    Divider().overlay(AppTheme.divider).padding(.leading, 64)
 
                     NavigationLink {
                         CloudflareProductCenterView(
@@ -770,7 +987,7 @@ struct CloudflareDashboardView: View {
                     }
                     .buttonStyle(.plain)
 
-                    Divider().overlay(Color.white.opacity(0.055)).padding(.leading, 64)
+                    Divider().overlay(AppTheme.divider).padding(.leading, 64)
 
                     NavigationLink {
                         CloudflareStorageDashboardView(
@@ -791,7 +1008,7 @@ struct CloudflareDashboardView: View {
                     }
                     .buttonStyle(.plain)
 
-                    Divider().overlay(Color.white.opacity(0.055)).padding(.leading, 64)
+                    Divider().overlay(AppTheme.divider).padding(.leading, 64)
                 }
 
                 NavigationLink {
@@ -814,7 +1031,7 @@ struct CloudflareDashboardView: View {
     private func rowDivider(unlessLast: Bool) -> some View {
         if unlessLast {
             Divider()
-                .overlay(Color.white.opacity(0.055))
+                .overlay(AppTheme.divider)
                 .padding(.leading, 64)
         }
     }

@@ -3,7 +3,13 @@ import SwiftUI
 @Observable
 @MainActor
 final class HostingResourceDetailViewModel {
-    private static var cachedDeployments: [String: [HostingDeployment]] = [:]
+    private struct CacheEntry {
+        let deployments: [HostingDeployment]
+        let updatedAt: Date
+    }
+
+    private static var cachedDeployments: [String: CacheEntry] = [:]
+    private static let cacheLifetime: TimeInterval = 180
 
     let api: HostingProviderAPI
     private let cacheScope: String
@@ -12,32 +18,52 @@ final class HostingResourceDetailViewModel {
     var isActing = false
     var error: String?
     var successMessage: String?
+    private var loadGeneration = 0
+    private var hasLoadedSnapshot = false
 
-    init(account: VercelAccount) {
+    init(account: VercelAccount, resource: HostingResource? = nil) {
         cacheScope = CredentialCacheScope.hostingAccount(account)
         api = HostingProviderAPI(account: account)
+        if let resource,
+           let cached = Self.cachedDeployments["\(cacheScope)|\(resource.id)"] {
+            deployments = cached.deployments
+            hasLoadedSnapshot = true
+            isLoading = false
+        }
     }
 
     func load(resource: HostingResource, forceRefresh: Bool = false) async {
         let cacheKey = "\(cacheScope)|\(resource.id)"
-        if !forceRefresh, let cached = Self.cachedDeployments[cacheKey] {
-            deployments = cached
+        if let cached = Self.cachedDeployments[cacheKey] {
+            deployments = cached.deployments
+            hasLoadedSnapshot = true
             isLoading = false
             error = nil
-            return
+            if !forceRefresh,
+               Date.now.timeIntervalSince(cached.updatedAt) < Self.cacheLifetime {
+                return
+            }
         }
 
-        isLoading = deployments.isEmpty
+        loadGeneration += 1
+        let generation = loadGeneration
+        isLoading = !hasLoadedSnapshot
         error = nil
         do {
-            deployments = try await api.fetchDeployments(for: resource)
-            Self.cachedDeployments[cacheKey] = deployments
+            let loaded = try await api.fetchDeployments(for: resource)
+            guard generation == loadGeneration else { return }
+            deployments = loaded
+            hasLoadedSnapshot = true
+            Self.cachedDeployments[cacheKey] = CacheEntry(deployments: loaded, updatedAt: .now)
         }
         catch is CancellationError {
             // Going back can cancel a request; keep cached data intact.
         }
-        catch { self.error = error.localizedDescription }
-        isLoading = false
+        catch {
+            guard generation == loadGeneration else { return }
+            self.error = error.localizedDescription
+        }
+        if generation == loadGeneration { isLoading = false }
     }
 
     func act(resource: HostingResource, label: String) async {
@@ -64,7 +90,7 @@ struct HostingResourceDetailView: View {
     init(account: VercelAccount, resource: HostingResource) {
         self.account = account
         self.resource = resource
-        _viewModel = State(initialValue: HostingResourceDetailViewModel(account: account))
+        _viewModel = State(initialValue: HostingResourceDetailViewModel(account: account, resource: resource))
     }
 
     private var provider: AccountProvider { account.provider }
@@ -129,7 +155,6 @@ struct HostingResourceDetailView: View {
         }
         .navigationTitle(resource.name)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .task { await viewModel.load(resource: resource) }
         .refreshable { await viewModel.load(resource: resource, forceRefresh: true) }
         .confirmationDialog(

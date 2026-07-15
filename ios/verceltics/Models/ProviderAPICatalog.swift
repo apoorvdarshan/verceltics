@@ -115,9 +115,17 @@ nonisolated enum ProviderAPIRequestEncoding {
 }
 
 actor ProviderAPICatalogStore {
+    private struct RailwayCacheEntry {
+        let catalog: ProviderAPICatalog
+        let updatedAt: Date
+    }
+
     static let shared = ProviderAPICatalogStore()
 
     private var cached: ProviderAPICatalogBundle?
+    private var railwayCache: [String: RailwayCacheEntry] = [:]
+    private var railwayLoads: [String: Task<ProviderAPICatalog, Error>] = [:]
+    private let railwayCacheLifetime: TimeInterval = 300
 
     func catalog(id: String) throws -> ProviderAPICatalog {
         let bundle = try load()
@@ -127,16 +135,37 @@ actor ProviderAPICatalogStore {
         return catalog
     }
 
-    func railwayCatalog(account: VercelAccount) async throws -> ProviderAPICatalog {
+    func railwayCatalog(account: VercelAccount, forceRefresh: Bool = false) async throws -> ProviderAPICatalog {
+        let cacheKey = CredentialCacheScope.hostingAccount(account)
+        let cachedEntry = railwayCache[cacheKey]
+        if !forceRefresh,
+           let cachedEntry,
+           Date.now.timeIntervalSince(cachedEntry.updatedAt) < railwayCacheLifetime {
+            return cachedEntry.catalog
+        }
+
+        if let existingLoad = railwayLoads[cacheKey] {
+            return try await existingLoad.value
+        }
+
+        let load = Task { try await liveRailwayCatalog(account: account) }
+        railwayLoads[cacheKey] = load
         do {
-            return try await liveRailwayCatalog(account: account)
+            let discovered = try await load.value
+            railwayLoads[cacheKey] = nil
+            railwayCache[cacheKey] = RailwayCacheEntry(catalog: discovered, updatedAt: .now)
+            return discovered
         } catch is CancellationError {
+            railwayLoads[cacheKey] = nil
             throw CancellationError()
         } catch let error as URLError where error.code == .cancelled && Task.isCancelled {
+            railwayLoads[cacheKey] = nil
             throw CancellationError()
         } catch {
+            railwayLoads[cacheKey] = nil
+            if let cachedEntry { return cachedEntry.catalog }
             let fallback = try catalog(id: "hosting.railway")
-            return ProviderAPICatalog(
+            let value = ProviderAPICatalog(
                 id: fallback.id,
                 title: fallback.title,
                 apiVersion: "\(fallback.apiVersion) · Bundled fallback",
@@ -144,6 +173,8 @@ actor ProviderAPICatalogStore {
                 sourceDescription: "Live schema discovery was unavailable. The bundled manual GraphQL request remains usable. \(error.localizedDescription)",
                 operations: fallback.operations
             )
+            railwayCache[cacheKey] = RailwayCacheEntry(catalog: value, updatedAt: .now)
+            return value
         }
     }
 

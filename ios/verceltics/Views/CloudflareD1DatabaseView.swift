@@ -3,7 +3,13 @@ import SwiftUI
 @Observable
 @MainActor
 final class CloudflareD1DatabaseViewModel {
-    private static var databaseCache: [String: CloudflareD1Database] = [:]
+    private struct CacheEntry {
+        let database: CloudflareD1Database
+        let updatedAt: Date
+    }
+
+    private static var databaseCache: [String: CacheEntry] = [:]
+    private static let cacheLifetime: TimeInterval = 180
 
     let api: CloudflareAPI
     let accountID: String
@@ -11,13 +17,15 @@ final class CloudflareD1DatabaseViewModel {
 
     var database: CloudflareD1Database
     var queryResults: [CloudflareD1QueryResult] = []
-    var isLoading = true
+    var isLoading = false
+    var isRefreshing = false
     var isRunningQuery = false
     var isDeleting = false
     var didDelete = false
     var actionMessage: String?
     var actionFailed = false
-    private var hasLoaded = false
+    private var hasLoadedSnapshot = true
+    private var loadGeneration = 0
 
     private var cacheKey: String { "\(api.cacheScope)|\(accountID)|\(databaseID)" }
 
@@ -26,19 +34,37 @@ final class CloudflareD1DatabaseViewModel {
         self.accountID = accountID
         databaseID = database.id
         let key = "\(api.cacheScope)|\(accountID)|\(database.id)"
-        self.database = Self.databaseCache[key] ?? database
-        hasLoaded = Self.databaseCache[key] != nil
-        isLoading = !hasLoaded
+        self.database = Self.databaseCache[key]?.database ?? database
     }
 
     func load(forceRefresh: Bool = false) async {
-        if hasLoaded && !forceRefresh { return }
-        isLoading = true
-        defer { isLoading = false }
+        if let cached = Self.databaseCache[cacheKey] {
+            database = cached.database
+            hasLoadedSnapshot = true
+            isLoading = false
+            if !forceRefresh,
+               Date.now.timeIntervalSince(cached.updatedAt) < Self.cacheLifetime {
+                return
+            }
+        }
+        guard !isRefreshing else { return }
+
+        loadGeneration += 1
+        let generation = loadGeneration
+        isLoading = !hasLoadedSnapshot
+        isRefreshing = hasLoadedSnapshot
+        defer {
+            if generation == loadGeneration {
+                isLoading = false
+                isRefreshing = false
+            }
+        }
         do {
-            database = try await api.fetchD1Database(accountID: accountID, databaseID: databaseID)
-            Self.databaseCache[cacheKey] = database
-            hasLoaded = true
+            let refreshed = try await api.fetchD1Database(accountID: accountID, databaseID: databaseID)
+            guard generation == loadGeneration else { return }
+            database = refreshed
+            hasLoadedSnapshot = true
+            updateCache()
         } catch is CancellationError {
             // Navigation can cancel an in-flight request; retain prior state.
         } catch let urlError as URLError where urlError.code == .cancelled {
@@ -49,28 +75,43 @@ final class CloudflareD1DatabaseViewModel {
     }
 
     func run(sql: String) async {
+        cancelLoad()
         isRunningQuery = true
         defer { isRunningQuery = false }
+
+        let results: [CloudflareD1QueryResult]
         do {
-            queryResults = try await api.queryD1Database(
+            results = try await api.queryD1Database(
                 accountID: accountID,
                 databaseID: databaseID,
                 sql: sql,
                 confirmation: CloudflareMutationConfirmation(confirmingResourceID: databaseID)
             )
-            let rows = queryResults.reduce(0) { $0 + $1.rows.count }
-            report(rows == 1 ? "Query returned 1 row." : "Query returned \(rows) rows.")
-            if queryResults.contains(where: { $0.meta?.changedDatabase == true }) {
-                database = try await api.fetchD1Database(accountID: accountID, databaseID: databaseID)
-                Self.databaseCache[cacheKey] = database
-            }
         } catch {
             queryResults = []
             report(error.localizedDescription, failed: true)
+            return
+        }
+
+        queryResults = results
+        let rows = results.reduce(0) { $0 + $1.rows.count }
+        report(rows == 1 ? "Query returned 1 row." : "Query returned \(rows) rows.")
+
+        guard results.contains(where: { $0.meta?.changedDatabase == true }) else { return }
+        do {
+            database = try await api.fetchD1Database(accountID: accountID, databaseID: databaseID)
+            updateCache()
+        } catch {
+            // The SQL statement has already committed. Keep its result visible
+            // and expire metadata so a later lifecycle refresh can reconcile it
+            // without inviting the user to run a non-idempotent query twice.
+            Self.databaseCache[cacheKey] = nil
+            report("Query succeeded, but database metadata could not refresh: \(error.localizedDescription)")
         }
     }
 
     func delete() async {
+        cancelLoad()
         isDeleting = true
         defer { isDeleting = false }
         do {
@@ -90,24 +131,43 @@ final class CloudflareD1DatabaseViewModel {
         actionMessage = message
         actionFailed = failed
     }
+
+    private func updateCache() {
+        Self.databaseCache[cacheKey] = CacheEntry(database: database, updatedAt: .now)
+    }
+
+    private func cancelLoad() {
+        guard isLoading || isRefreshing else { return }
+        loadGeneration += 1
+        isLoading = false
+        isRefreshing = false
+    }
 }
 
 struct CloudflareD1DatabaseView: View {
     let api: CloudflareAPI
     let accountID: String
     let initialDatabase: CloudflareD1Database
+    let onChange: (CloudflareD1Database?) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.scenePhase) private var scenePhase
     @State private var viewModel: CloudflareD1DatabaseViewModel
     @State private var sql = "SELECT name, type FROM sqlite_schema WHERE type IN ('table', 'view') ORDER BY name;"
     @State private var isConfirmingQuery = false
     @State private var isConfirmingDelete = false
 
-    init(api: CloudflareAPI, accountID: String, database: CloudflareD1Database) {
+    init(
+        api: CloudflareAPI,
+        accountID: String,
+        database: CloudflareD1Database,
+        onChange: @escaping (CloudflareD1Database?) -> Void = { _ in }
+    ) {
         self.api = api
         self.accountID = accountID
         initialDatabase = database
+        self.onChange = onChange
         _viewModel = State(wrappedValue: CloudflareD1DatabaseViewModel(api: api, accountID: accountID, database: database))
     }
 
@@ -136,10 +196,19 @@ struct CloudflareD1DatabaseView: View {
         }
         .navigationTitle(viewModel.database.name)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .task { await viewModel.load() }
         .refreshable { await viewModel.load(forceRefresh: true) }
-        .onChange(of: viewModel.didDelete) { _, deleted in if deleted { dismiss() } }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            Task { await viewModel.load() }
+        }
+        .onChange(of: viewModel.database) { _, database in onChange(database) }
+        .onChange(of: viewModel.didDelete) { _, deleted in
+            if deleted {
+                onChange(nil)
+                dismiss()
+            }
+        }
         .confirmationDialog("Run this SQL statement?", isPresented: $isConfirmingQuery, titleVisibility: .visible) {
             Button("Run SQL") { Task { await viewModel.run(sql: sql) } }
             Button("Cancel", role: .cancel) {}
@@ -162,11 +231,11 @@ struct CloudflareD1DatabaseView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(viewModel.database.name)
                     .font(.system(size: 21, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(AppTheme.textPrimary)
                     .lineLimit(1)
                 Text("Cloudflare D1 · SQLite")
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.38))
+                    .foregroundStyle(AppTheme.textTertiary)
             }
             Spacer(minLength: 8)
             CloudflareStatusPill(text: "READY", color: CloudflareStyle.green)
@@ -178,7 +247,7 @@ struct CloudflareD1DatabaseView: View {
     private var metadata: some View {
         VStack(spacing: 0) {
             CloudflareSectionHeader(title: "Database", icon: "info.circle.fill")
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
             CloudflareDetailRow(icon: "number", title: "Database ID", value: viewModel.database.uuid)
             CloudflareDetailRow(icon: "tablecells.fill", title: "Tables", value: viewModel.database.numberOfTables?.formatted() ?? "Not returned")
             CloudflareDetailRow(icon: "internaldrive.fill", title: "File size", value: storageByteCount(viewModel.database.fileSize))
@@ -197,27 +266,27 @@ struct CloudflareD1DatabaseView: View {
     private var queryPanel: some View {
         VStack(spacing: 0) {
             CloudflareSectionHeader(title: "SQL Console", icon: "terminal.fill")
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
 
             TextEditor(text: $sql)
                 .font(.system(size: 12, weight: .medium, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.82))
+                .foregroundStyle(AppTheme.textPrimary)
                 .scrollContentBackground(.hidden)
                 .frame(minHeight: 128)
                 .padding(12)
-                .background(Color.black.opacity(0.28))
+                .background(AppTheme.surfaceRaised)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.07), lineWidth: 0.5)
+                        .strokeBorder(AppTheme.stroke, lineWidth: 0.5)
                 )
                 .padding(14)
 
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
             HStack {
                 Text("Queries run directly against this live database.")
                     .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.32))
+                    .foregroundStyle(AppTheme.textTertiary)
                 Spacer()
                 CloudflareActionButton(
                     title: "Run SQL",
@@ -242,7 +311,7 @@ struct CloudflareD1DatabaseView: View {
                         icon: "tablecells.fill",
                         count: result.rows.count
                     )
-                    Divider().overlay(Color.white.opacity(0.06))
+                    Divider().overlay(AppTheme.divider)
                     if result.rows.isEmpty {
                         CloudflareEmptySection(
                             icon: result.success ? "checkmark.circle.fill" : "xmark.circle.fill",
@@ -253,10 +322,10 @@ struct CloudflareD1DatabaseView: View {
                         CloudflareD1ResultTable(rows: result.rows)
                     }
                     if result.meta != nil {
-                        Divider().overlay(Color.white.opacity(0.06))
+                        Divider().overlay(AppTheme.divider)
                         Text(queryMetaSummary(result.meta))
                             .font(.system(size: 10, weight: .medium, design: .monospaced))
-                            .foregroundStyle(.white.opacity(0.38))
+                            .foregroundStyle(AppTheme.textTertiary)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(14)
                     }
@@ -269,15 +338,15 @@ struct CloudflareD1DatabaseView: View {
     private var dangerZone: some View {
         VStack(spacing: 0) {
             CloudflareSectionHeader(title: "Danger Zone", icon: "exclamationmark.triangle.fill")
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Delete database")
                         .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.76))
+                        .foregroundStyle(AppTheme.textPrimary)
                     Text("This permanently removes its schema and every row.")
                         .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.34))
+                        .foregroundStyle(AppTheme.textTertiary)
                 }
                 Spacer(minLength: 8)
                 CloudflareActionButton(
@@ -328,12 +397,12 @@ private struct CloudflareD1ResultTable: View {
                 }
 
                 ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-                    Divider().overlay(Color.white.opacity(0.055)).gridCellColumns(max(columns.count, 1))
+                    Divider().overlay(AppTheme.divider).gridCellColumns(max(columns.count, 1))
                     GridRow {
                         ForEach(columns, id: \.self) { column in
                             Text(cloudflareStorageDisplayValue(row[column]))
                                 .font(.system(size: 11, weight: .medium, design: .monospaced))
-                                .foregroundStyle(.white.opacity(0.7))
+                                .foregroundStyle(AppTheme.textSecondary)
                                 .lineLimit(4)
                                 .textSelection(.enabled)
                                 .frame(minWidth: 100, maxWidth: 260, alignment: .leading)

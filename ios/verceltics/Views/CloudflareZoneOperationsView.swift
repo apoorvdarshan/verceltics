@@ -3,6 +3,25 @@ import SwiftUI
 @Observable
 @MainActor
 final class CloudflareZoneOperationsViewModel {
+    private struct CacheEntry {
+        let zone: CloudflareZone
+        let dnssec: CloudflareDNSSECStatus?
+        let settings: [CloudflareZoneSetting]
+        let dnsSettings: CloudflareZoneDNSSettings?
+        let dnsUsage: CloudflareDNSUsage?
+        let dnsAnalytics: CloudflareDNSAnalyticsReport?
+        let zoneError: String?
+        let dnssecError: String?
+        let settingsError: String?
+        let dnsSettingsError: String?
+        let dnsUsageError: String?
+        let dnsAnalyticsError: String?
+        let updatedAt: Date
+    }
+
+    private static var cache: [String: CacheEntry] = [:]
+    private static let cacheLifetime: TimeInterval = 180
+
     let api: CloudflareAPI
     var zone: CloudflareZone
 
@@ -16,6 +35,7 @@ final class CloudflareZoneOperationsViewModel {
     var dnsSettingsError: String?
     var dnsUsageError: String?
     var dnsAnalyticsError: String?
+    var zoneError: String?
     var isLoading = true
     var workingAction: String?
     var actionMessage: String?
@@ -25,17 +45,52 @@ final class CloudflareZoneOperationsViewModel {
     init(api: CloudflareAPI, zone: CloudflareZone) {
         self.api = api
         self.zone = zone
+        let key = "\(api.cacheScope)|zone-operations|\(zone.id)"
+        if let cached = Self.cache[key] {
+            self.zone = cached.zone
+            dnssec = cached.dnssec
+            settings = cached.settings
+            dnsSettings = cached.dnsSettings
+            dnsUsage = cached.dnsUsage
+            dnsAnalytics = cached.dnsAnalytics
+            zoneError = cached.zoneError
+            dnssecError = cached.dnssecError
+            settingsError = cached.settingsError
+            dnsSettingsError = cached.dnsSettingsError
+            dnsUsageError = cached.dnsUsageError
+            dnsAnalyticsError = cached.dnsAnalyticsError
+            isLoading = false
+        }
     }
 
-    func load() async {
+    private var cacheKey: String { "\(api.cacheScope)|zone-operations|\(zone.id)" }
+
+    func load(forceRefresh: Bool = false) async {
+        var hydratedCache = false
+        if let cached = Self.cache[cacheKey] {
+            zone = cached.zone
+            dnssec = cached.dnssec
+            settings = cached.settings
+            dnsSettings = cached.dnsSettings
+            dnsUsage = cached.dnsUsage
+            dnsAnalytics = cached.dnsAnalytics
+            hydratedCache = true
+            isLoading = false
+            zoneError = cached.zoneError
+            dnssecError = cached.dnssecError
+            settingsError = cached.settingsError
+            dnsSettingsError = cached.dnsSettingsError
+            dnsUsageError = cached.dnsUsageError
+            dnsAnalyticsError = cached.dnsAnalyticsError
+            if !forceRefresh,
+               Date.now.timeIntervalSince(cached.updatedAt) < Self.cacheLifetime {
+                return
+            }
+        }
+
         loadGeneration += 1
         let generation = loadGeneration
-        isLoading = true
-        dnssecError = nil
-        settingsError = nil
-        dnsSettingsError = nil
-        dnsUsageError = nil
-        dnsAnalyticsError = nil
+        isLoading = !hydratedCache
 
         let until = Date()
         let since = until.addingTimeInterval(-86_400)
@@ -47,30 +102,54 @@ final class CloudflareZoneOperationsViewModel {
         async let analyticsResult = capture { try await api.fetchZoneDNSAnalytics(zoneID: zone.id, since: since, until: until) }
 
         let results = await (zoneResult, dnssecResult, settingsResult, dnsSettingsResult, usageResult, analyticsResult)
+        if Task.isCancelled { return }
         guard generation == loadGeneration else { return }
 
-        if case .success(let value) = results.0 { zone = value }
+        zoneError = nil
+        dnssecError = nil
+        settingsError = nil
+        dnsSettingsError = nil
+        dnsUsageError = nil
+        dnsAnalyticsError = nil
+        var allSucceeded = true
+        switch results.0 {
+        case .success(let value): zone = value
+        case .failure(let error):
+            allSucceeded = false
+            zoneError = error.localizedDescription
+        }
         switch results.1 {
         case .success(let value): dnssec = value
-        case .failure(let error): dnssecError = error.localizedDescription
+        case .failure(let error):
+            allSucceeded = false
+            dnssecError = error.localizedDescription
         }
         switch results.2 {
         case .success(let value): settings = value.sorted(by: settingSort)
-        case .failure(let error): settingsError = error.localizedDescription
+        case .failure(let error):
+            allSucceeded = false
+            settingsError = error.localizedDescription
         }
         switch results.3 {
         case .success(let value): dnsSettings = value
-        case .failure(let error): dnsSettingsError = error.localizedDescription
+        case .failure(let error):
+            allSucceeded = false
+            dnsSettingsError = error.localizedDescription
         }
         switch results.4 {
         case .success(let value): dnsUsage = value
-        case .failure(let error): dnsUsageError = error.localizedDescription
+        case .failure(let error):
+            allSucceeded = false
+            dnsUsageError = error.localizedDescription
         }
         switch results.5 {
         case .success(let value): dnsAnalytics = value
-        case .failure(let error): dnsAnalyticsError = error.localizedDescription
+        case .failure(let error):
+            allSucceeded = false
+            dnsAnalyticsError = error.localizedDescription
         }
 
+        updateCache(updatedAt: allSucceeded ? .now : .distantPast)
         isLoading = false
     }
 
@@ -96,6 +175,7 @@ final class CloudflareZoneOperationsViewModel {
             }
             dnssecError = nil
             actionFailed = false
+            updateCache()
         } catch {
             actionMessage = error.localizedDescription
             actionFailed = true
@@ -119,6 +199,7 @@ final class CloudflareZoneOperationsViewModel {
             }
             actionMessage = "\(settingDisplayName(setting.id)) updated."
             actionFailed = false
+            updateCache()
         } catch {
             actionMessage = error.localizedDescription
             actionFailed = true
@@ -139,6 +220,7 @@ final class CloudflareZoneOperationsViewModel {
             )
             actionMessage = "DNS settings updated."
             actionFailed = false
+            updateCache()
         } catch {
             actionMessage = error.localizedDescription
             actionFailed = true
@@ -161,6 +243,7 @@ final class CloudflareZoneOperationsViewModel {
             }
             actionMessage = "Cloudflare accepted the activation check."
             actionFailed = false
+            updateCache()
         } catch {
             actionMessage = error.localizedDescription
             actionFailed = true
@@ -187,6 +270,30 @@ final class CloudflareZoneOperationsViewModel {
     private func capture<Value>(_ operation: () async throws -> Value) async -> Result<Value, Error> {
         do { return .success(try await operation()) }
         catch { return .failure(error) }
+    }
+
+    private func updateCache(updatedAt: Date? = nil) {
+        let hasLoadError = zoneError != nil
+            || dnssecError != nil
+            || settingsError != nil
+            || dnsSettingsError != nil
+            || dnsUsageError != nil
+            || dnsAnalyticsError != nil
+        Self.cache[cacheKey] = CacheEntry(
+            zone: zone,
+            dnssec: dnssec,
+            settings: settings,
+            dnsSettings: dnsSettings,
+            dnsUsage: dnsUsage,
+            dnsAnalytics: dnsAnalytics,
+            zoneError: zoneError,
+            dnssecError: dnssecError,
+            settingsError: settingsError,
+            dnsSettingsError: dnsSettingsError,
+            dnsUsageError: dnsUsageError,
+            dnsAnalyticsError: dnsAnalyticsError,
+            updatedAt: updatedAt ?? (hasLoadError ? .distantPast : .now)
+        )
     }
 
     nonisolated static let commonSettingIDs = [
@@ -220,6 +327,10 @@ struct CloudflareZoneOperationsView: View {
                 VStack(spacing: 16) {
                     zoneHeader
 
+                    if let error = viewModel.zoneError {
+                        CloudflareActionResultBanner(message: "Zone refresh: \(error)", isError: true)
+                    }
+
                     if let message = viewModel.actionMessage {
                         CloudflareActionResultBanner(message: message, isError: viewModel.actionFailed)
                     }
@@ -242,16 +353,14 @@ struct CloudflareZoneOperationsView: View {
         }
         .navigationTitle("Zone operations")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .task { await viewModel.load() }
-        .refreshable { await viewModel.load() }
+        .refreshable { await viewModel.load(forceRefresh: true) }
         .sheet(item: $editingSetting) { setting in
             NavigationStack {
                 CloudflareZoneSettingEditor(setting: setting) { value in
                     try await viewModel.updateSetting(setting, value: value)
                 }
             }
-            .preferredColorScheme(.dark)
         }
         .sheet(isPresented: $showingDNSSettingsEditor) {
             if let settings = viewModel.dnsSettings {
@@ -260,7 +369,6 @@ struct CloudflareZoneOperationsView: View {
                         try await viewModel.updateDNSSettings(changes)
                     }
                 }
-                .preferredColorScheme(.dark)
             }
         }
         .confirmationDialog(
@@ -304,11 +412,11 @@ struct CloudflareZoneOperationsView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(viewModel.zone.name)
                         .font(.system(size: 21, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(AppTheme.textPrimary)
                         .lineLimit(2)
                     Text(viewModel.zone.account?.name ?? "Cloudflare zone")
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.38))
+                        .foregroundStyle(AppTheme.textTertiary)
                     Text("DNS & EDGE CONTROL")
                         .font(.system(size: 9, weight: .semibold))
                         .tracking(1.0)
@@ -331,7 +439,7 @@ struct CloudflareZoneOperationsView: View {
                 if let date = viewModel.zone.modifiedDate {
                     Text("Updated \(date.formatted(.relative(presentation: .named)))")
                         .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.34))
+                        .foregroundStyle(AppTheme.textTertiary)
                         .lineLimit(1)
                 }
             }
@@ -346,12 +454,12 @@ struct CloudflareZoneOperationsView: View {
                 Text("DNS · LAST 24 HOURS")
                     .font(.system(size: 10, weight: .semibold))
                     .tracking(1.0)
-                    .foregroundStyle(.white.opacity(0.44))
+                    .foregroundStyle(AppTheme.textSecondary)
                 Spacer()
                 if let analytics = viewModel.dnsAnalytics {
                     Text("lag \(Int(analytics.dataLag))s")
                         .font(.system(size: 9, weight: .semibold).monospacedDigit())
-                        .foregroundStyle(.white.opacity(0.28))
+                        .foregroundStyle(AppTheme.textTertiary)
                 }
             }
             .padding(.horizontal, 4)
@@ -395,7 +503,7 @@ struct CloudflareZoneOperationsView: View {
                     Text(usage.recordQuota.map { "\($0.formatted()) quota" } ?? "Account-level quota")
                 }
                 .font(.system(size: 10, weight: .bold).monospacedDigit())
-                .foregroundStyle(.white.opacity(0.48))
+                .foregroundStyle(AppTheme.textSecondary)
                 .padding(13)
                 .cloudflarePanel()
             } else if let error = viewModel.dnsUsageError {
@@ -413,10 +521,10 @@ struct CloudflareZoneOperationsView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(dnssec.isActive ? "Zone signing is active" : "Zone signing is disabled")
                             .font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(.white.opacity(0.86))
+                            .foregroundStyle(AppTheme.textPrimary)
                         Text(dnssec.isActive ? "Verify the DS record remains published at your registrar." : "Enable DNSSEC to protect DNS responses from tampering.")
                             .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.36))
+                            .foregroundStyle(AppTheme.textTertiary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     Spacer(minLength: 8)
@@ -512,17 +620,17 @@ struct CloudflareZoneOperationsView: View {
                         HStack(spacing: 11) {
                             Image(systemName: settingIcon(setting.id))
                                 .font(.system(size: 11, weight: .semibold))
-                                .foregroundStyle(setting.editable ? CloudflareStyle.orange : .white.opacity(0.28))
+                                .foregroundStyle(setting.editable ? CloudflareStyle.orange : AppTheme.textTertiary)
                                 .frame(width: 34, height: 34)
-                                .background(Color.white.opacity(0.045))
+                                .background(AppTheme.strokeSoft)
                                 .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(viewModel.settingDisplayName(setting.id))
                                     .font(.system(size: 13, weight: .bold))
-                                    .foregroundStyle(.white.opacity(0.84))
+                                    .foregroundStyle(AppTheme.textPrimary)
                                 Text(setting.value.operationsDisplayText)
                                     .font(.system(size: 10, weight: .medium))
-                                    .foregroundStyle(.white.opacity(0.38))
+                                    .foregroundStyle(AppTheme.textTertiary)
                                     .lineLimit(2)
                             }
                             Spacer(minLength: 8)
@@ -531,7 +639,7 @@ struct CloudflareZoneOperationsView: View {
                             } else if setting.editable && isScalar(setting.value) {
                                 CloudflareChevron()
                             } else {
-                                CloudflareStatusPill(text: setting.editable ? "ADVANCED" : "READ ONLY", color: .white.opacity(0.36))
+                                CloudflareStatusPill(text: setting.editable ? "ADVANCED" : "READ ONLY", color: AppTheme.textTertiary)
                             }
                         }
                         .padding(.horizontal, 16)
@@ -631,8 +739,8 @@ struct CloudflareZoneOperationsView: View {
         .cloudflarePanel()
     }
 
-    private var panelDivider: some View { Divider().overlay(Color.white.opacity(0.06)) }
-    private var insetDivider: some View { Divider().overlay(Color.white.opacity(0.055)).padding(.leading, 61) }
+    private var panelDivider: some View { Divider().overlay(AppTheme.divider) }
+    private var insetDivider: some View { Divider().overlay(AppTheme.divider).padding(.leading, 61) }
     private var sectionLoading: some View {
         ProgressView().tint(CloudflareStyle.orange).frame(maxWidth: .infinity).padding(.vertical, 28)
     }
@@ -742,7 +850,7 @@ private struct CloudflareZoneSettingEditor: View {
                             .foregroundStyle(CloudflareStyle.orange)
                         Text("Current value: \(setting.value.operationsDisplayText)")
                             .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.46))
+                            .foregroundStyle(AppTheme.textSecondary)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(16)
@@ -777,7 +885,6 @@ private struct CloudflareZoneSettingEditor: View {
         }
         .navigationTitle(displayName)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
         }
@@ -796,11 +903,11 @@ private struct CloudflareZoneSettingEditor: View {
             if isOnOffString {
                 Toggle("Enabled", isOn: $toggleValue)
                     .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.82))
+                    .foregroundStyle(AppTheme.textPrimary)
             } else if case .bool = setting.value {
                 Toggle("Enabled", isOn: $toggleValue)
                     .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.82))
+                    .foregroundStyle(AppTheme.textPrimary)
             } else if !options.isEmpty {
                 Picker("Value", selection: $textValue) {
                     ForEach(options, id: \.self) { option in
@@ -812,18 +919,18 @@ private struct CloudflareZoneSettingEditor: View {
             } else {
                 TextField("Value", text: $textValue)
                     .font(.system(size: 13, weight: .semibold, design: isNumeric ? .monospaced : .default))
-                    .foregroundStyle(.white.opacity(0.84))
+                    .foregroundStyle(AppTheme.textPrimary)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .keyboardType(isNumeric ? .decimalPad : .default)
                     .padding(13)
-                    .background(Color.black.opacity(0.3))
+                    .background(AppTheme.surfaceRaised)
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
 
             Text("Cloudflare validates plan availability and allowed values when you save.")
                 .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.white.opacity(0.34))
+                .foregroundStyle(AppTheme.textTertiary)
         }
         .padding(16)
         .cloudflarePanel()
@@ -921,7 +1028,7 @@ private struct CloudflareZoneDNSSettingsEditor: View {
                     CloudflareWriteNotice()
                     VStack(spacing: 0) {
                         CloudflareSectionHeader(title: "Resolution", icon: "server.rack")
-                        Divider().overlay(Color.white.opacity(0.06))
+                        Divider().overlay(AppTheme.divider)
                         toggleRow("Flatten all CNAMEs", detail: "Flatten CNAME records throughout this zone.", value: $flattenAllCNAMEs)
                         toggleRow("Multi-provider DNS", detail: "Respect other providers’ apex NS records.", value: $multiProvider)
                         toggleRow("Secondary overrides", detail: "Allow proxied overrides for Secondary DNS.", value: $secondaryOverrides)
@@ -931,12 +1038,12 @@ private struct CloudflareZoneDNSSettingsEditor: View {
 
                     VStack(spacing: 0) {
                         CloudflareSectionHeader(title: "Zone mode & TTL", icon: "timer")
-                        Divider().overlay(Color.white.opacity(0.06))
+                        Divider().overlay(AppTheme.divider)
                         VStack(alignment: .leading, spacing: 9) {
                             Text("ZONE MODE")
                                 .font(.system(size: 9, weight: .semibold))
                                 .tracking(0.8)
-                                .foregroundStyle(.white.opacity(0.34))
+                                .foregroundStyle(AppTheme.textTertiary)
                             Picker("Zone mode", selection: $zoneMode) {
                                 Text("Standard").tag("standard")
                                 Text("CDN only").tag("cdn_only")
@@ -945,18 +1052,18 @@ private struct CloudflareZoneDNSSettingsEditor: View {
                             .pickerStyle(.segmented)
                         }
                         .padding(16)
-                        Divider().overlay(Color.white.opacity(0.055)).padding(.horizontal, 16)
+                        Divider().overlay(AppTheme.divider).padding(.horizontal, 16)
                         VStack(alignment: .leading, spacing: 8) {
                             Text("NAMESERVER TTL · 30–86,400 SECONDS")
                                 .font(.system(size: 9, weight: .semibold))
                                 .tracking(0.8)
-                                .foregroundStyle(.white.opacity(0.34))
+                                .foregroundStyle(AppTheme.textTertiary)
                             TextField("86400", text: $nameServerTTL)
                                 .font(.system(size: 13, weight: .semibold, design: .monospaced))
                                 .keyboardType(.numberPad)
-                                .foregroundStyle(.white.opacity(0.84))
+                                .foregroundStyle(AppTheme.textPrimary)
                                 .padding(12)
-                                .background(Color.black.opacity(0.3))
+                                .background(AppTheme.surfaceRaised)
                                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                         }
                         .padding(16)
@@ -996,7 +1103,6 @@ private struct CloudflareZoneDNSSettingsEditor: View {
         }
         .navigationTitle("DNS settings")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
         .confirmationDialog("Save DNS settings?", isPresented: $showingConfirmation, titleVisibility: .visible) {
             Button("Save changes") { Task { await save() } }
@@ -1012,10 +1118,10 @@ private struct CloudflareZoneDNSSettingsEditor: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.82))
+                    .foregroundStyle(AppTheme.textPrimary)
                 Text(detail)
                     .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.34))
+                    .foregroundStyle(AppTheme.textTertiary)
             }
         }
         .tint(CloudflareStyle.orange)

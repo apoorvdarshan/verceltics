@@ -3,7 +3,13 @@ import SwiftUI
 @Observable
 @MainActor
 final class HostingDashboardViewModel {
-    private static var cachedResources: [String: [HostingResource]] = [:]
+    private struct CachedResources {
+        let resources: [HostingResource]
+        let updatedAt: Date
+    }
+
+    private static var cachedResources: [String: CachedResources] = [:]
+    private static let cacheLifetime: TimeInterval = 3 * 60
 
     let account: VercelAccount
     let api: HostingProviderAPI
@@ -12,6 +18,9 @@ final class HostingDashboardViewModel {
     var isRefreshing = false
     var error: String?
     private var hasLoaded = false
+    private var lastUpdatedAt: Date?
+    private var loadGeneration = 0
+    private var isRequestInFlight = false
     private let cacheKey: String
 
     init(account: VercelAccount) {
@@ -19,35 +28,60 @@ final class HostingDashboardViewModel {
         self.api = HostingProviderAPI(account: account)
         cacheKey = CredentialCacheScope.hostingAccount(account)
         if let cached = Self.cachedResources[cacheKey] {
-            resources = cached
+            resources = cached.resources
+            lastUpdatedAt = cached.updatedAt
             isLoading = false
             hasLoaded = true
         }
     }
 
     func load(refresh: Bool = false) async {
-        if hasLoaded && !refresh { return }
-        if refresh { isRefreshing = true } else { isLoading = true }
+        if !refresh,
+           let lastUpdatedAt,
+           Date.now.timeIntervalSince(lastUpdatedAt) < Self.cacheLifetime {
+            return
+        }
+        guard !isRequestInFlight else { return }
+        isRequestInFlight = true
+        loadGeneration += 1
+        let generation = loadGeneration
+        isLoading = !hasLoaded
+        isRefreshing = hasLoaded
         error = nil
+        defer {
+            if generation == loadGeneration {
+                isRequestInFlight = false
+                isLoading = false
+                isRefreshing = false
+            }
+        }
         do {
-            resources = try await api.fetchResources().sorted {
+            let loadedResources = try await api.fetchResources().sorted {
                 $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
             }
+            guard generation == loadGeneration else { return }
+            let updatedAt = Date.now
+            resources = loadedResources
             hasLoaded = true
-            Self.cachedResources[cacheKey] = resources
+            lastUpdatedAt = updatedAt
+            Self.cachedResources[cacheKey] = CachedResources(
+                resources: loadedResources,
+                updatedAt: updatedAt
+            )
         } catch is CancellationError {
             // Switching tabs can cancel a request; keep any cached content.
         } catch {
+            guard generation == loadGeneration else { return }
             self.error = error.localizedDescription
         }
-        isLoading = false
-        isRefreshing = false
     }
 }
 
 struct HostingDashboardView: View {
     let account: VercelAccount
     var startWithSearch = false
+    var searchRequestID = 0
+    var backgroundRefreshRequestID = 0
 
     @State private var viewModel: HostingDashboardViewModel
     @State private var searchText = ""
@@ -57,9 +91,16 @@ struct HostingDashboardView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(AuthManager.self) private var authManager
 
-    init(account: VercelAccount, startWithSearch: Bool = false) {
+    init(
+        account: VercelAccount,
+        startWithSearch: Bool = false,
+        searchRequestID: Int = 0,
+        backgroundRefreshRequestID: Int = 0
+    ) {
         self.account = account
         self.startWithSearch = startWithSearch
+        self.searchRequestID = searchRequestID
+        self.backgroundRefreshRequestID = backgroundRefreshRequestID
         _viewModel = State(initialValue: HostingDashboardViewModel(account: account))
     }
 
@@ -89,7 +130,6 @@ struct HostingDashboardView: View {
             }
             .navigationTitle(provider.displayName)
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarColorScheme(.dark, for: .navigationBar)
             .searchable(text: $searchText, isPresented: $isSearching, prompt: "Search \(provider.displayName)")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { ProviderAccountMenu() }
@@ -102,18 +142,24 @@ struct HostingDashboardView: View {
                     } label: {
                         Image(systemName: "arrow.clockwise")
                             .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.72))
+                            .foregroundStyle(AppTheme.textSecondary)
                             .rotationEffect(.degrees(refreshSpin))
                     }
                     .disabled(viewModel.isRefreshing)
                     .accessibilityLabel(viewModel.isRefreshing ? "Refreshing \(provider.displayName)" : "Refresh \(provider.displayName)")
                 }
             }
-            .task(id: account.id) { await viewModel.load() }
+            .task { await viewModel.load() }
+            .onChange(of: backgroundRefreshRequestID) { _, _ in
+                Task { await viewModel.load() }
+            }
             .onAppear {
                 if startWithSearch {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { isSearching = true }
                 }
+            }
+            .onChange(of: searchRequestID) { _, _ in
+                isSearching = true
             }
         }
     }

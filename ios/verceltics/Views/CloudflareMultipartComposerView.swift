@@ -83,7 +83,6 @@ struct CloudflareMultipartComposerView: View {
         }
         .navigationTitle("Multipart Body")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Cancel") { dismiss() }
@@ -111,10 +110,10 @@ struct CloudflareMultipartComposerView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Build the upload on-device")
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(AppTheme.textPrimary)
                 Text("Files are read locally, encoded into the request, and never stored by the app.")
                     .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.36))
+                    .foregroundStyle(AppTheme.textTertiary)
             }
             Spacer()
         }
@@ -125,11 +124,11 @@ struct CloudflareMultipartComposerView: View {
     private var fieldsPanel: some View {
         VStack(spacing: 0) {
             CloudflareSectionHeader(title: "Form Fields", icon: "list.bullet.rectangle.fill", count: parts.count)
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
             ForEach(Array(parts.enumerated()), id: \.element.id) { index, part in
                 partEditor(part)
                 if index < parts.count - 1 {
-                    Divider().overlay(Color.white.opacity(0.05)).padding(.leading, 16)
+                    Divider().overlay(AppTheme.strokeSoft).padding(.leading, 16)
                 }
             }
         }
@@ -172,7 +171,7 @@ struct CloudflareMultipartComposerView: View {
                             if let data = part.fileData {
                                 Text(ByteCountFormatter.string(fromByteCount: Int64(data.count), countStyle: .file))
                                     .font(.system(size: 9, weight: .medium))
-                                    .foregroundStyle(.white.opacity(0.32))
+                                    .foregroundStyle(AppTheme.textTertiary)
                             }
                         }
                         Spacer()
@@ -181,7 +180,7 @@ struct CloudflareMultipartComposerView: View {
                     .foregroundStyle(part.fileData == nil ? CloudflareStyle.orange : CloudflareStyle.green)
                     .padding(12)
                     .frame(minHeight: 44)
-                    .background(Color.black.opacity(0.3), in: RoundedRectangle(cornerRadius: 10))
+                    .background(AppTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: 10))
                 }
                 .buttonStyle(.plain)
             } else {
@@ -191,7 +190,7 @@ struct CloudflareMultipartComposerView: View {
                     .autocorrectionDisabled()
                     .lineLimit(1...6)
                     .padding(11)
-                    .background(Color.black.opacity(0.3), in: RoundedRectangle(cornerRadius: 10))
+                    .background(AppTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: 10))
             }
         }
         .padding(14)

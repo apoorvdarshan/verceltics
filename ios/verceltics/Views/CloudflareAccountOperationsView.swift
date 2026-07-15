@@ -3,6 +3,21 @@ import SwiftUI
 @Observable
 @MainActor
 final class CloudflareAccountOperationsViewModel {
+    private struct CacheEntry {
+        let account: CloudflareAccountSummary
+        let members: [CloudflareAccountMember]
+        let roles: [CloudflareAccountRole]
+        let auditEvents: [CloudflareAccountAuditEvent]
+        let membersError: String?
+        let rolesError: String?
+        let auditError: String?
+        let accountError: String?
+        let updatedAt: Date
+    }
+
+    private static var cache: [String: CacheEntry] = [:]
+    private static let cacheLifetime: TimeInterval = 300
+
     let api: CloudflareAPI
     var account: CloudflareAccountSummary
 
@@ -19,16 +34,44 @@ final class CloudflareAccountOperationsViewModel {
     init(api: CloudflareAPI, account: CloudflareAccountSummary) {
         self.api = api
         self.account = account
+        let key = "\(api.cacheScope)|account-operations|\(account.id)"
+        if let cached = Self.cache[key] {
+            self.account = cached.account
+            members = cached.members
+            roles = cached.roles
+            auditEvents = cached.auditEvents
+            membersError = cached.membersError
+            rolesError = cached.rolesError
+            auditError = cached.auditError
+            accountError = cached.accountError
+            isLoading = false
+        }
     }
 
-    func load() async {
+    private var cacheKey: String { "\(api.cacheScope)|account-operations|\(account.id)" }
+
+    func load(forceRefresh: Bool = false) async {
+        var hydratedCache = false
+        if let cached = Self.cache[cacheKey] {
+            account = cached.account
+            members = cached.members
+            roles = cached.roles
+            auditEvents = cached.auditEvents
+            hydratedCache = true
+            isLoading = false
+            membersError = cached.membersError
+            rolesError = cached.rolesError
+            auditError = cached.auditError
+            accountError = cached.accountError
+            if !forceRefresh,
+               Date.now.timeIntervalSince(cached.updatedAt) < Self.cacheLifetime {
+                return
+            }
+        }
+
         loadGeneration += 1
         let generation = loadGeneration
-        isLoading = true
-        membersError = nil
-        rolesError = nil
-        auditError = nil
-        accountError = nil
+        isLoading = !hydratedCache
 
         let before = Date()
         let since = Calendar.current.date(byAdding: .day, value: -7, to: before) ?? before.addingTimeInterval(-604_800)
@@ -40,25 +83,55 @@ final class CloudflareAccountOperationsViewModel {
         }
 
         let results = await (accountResult, memberResult, roleResult, auditResult)
+        if Task.isCancelled { return }
         guard generation == loadGeneration else { return }
 
+        membersError = nil
+        rolesError = nil
+        auditError = nil
+        accountError = nil
+        var allSucceeded = true
+
         switch results.0 {
-        case .success(let refreshed): account = refreshed
-        case .failure(let error): accountError = error.localizedDescription
+        case .success(let refreshed):
+            account = refreshed
+        case .failure(let error):
+            allSucceeded = false
+            accountError = error.localizedDescription
         }
         switch results.1 {
-        case .success(let value): members = value.sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
-        case .failure(let error): membersError = error.localizedDescription
+        case .success(let value):
+            members = value.sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
+        case .failure(let error):
+            allSucceeded = false
+            membersError = error.localizedDescription
         }
         switch results.2 {
-        case .success(let value): roles = value.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-        case .failure(let error): rolesError = error.localizedDescription
+        case .success(let value):
+            roles = value.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        case .failure(let error):
+            allSucceeded = false
+            rolesError = error.localizedDescription
         }
         switch results.3 {
-        case .success(let value): auditEvents = value
-        case .failure(let error): auditError = error.localizedDescription
+        case .success(let value):
+            auditEvents = value
+        case .failure(let error):
+            allSucceeded = false
+            auditError = error.localizedDescription
         }
 
+        Self.cache[cacheKey] = CacheEntry(
+            account: account,
+            members: members,
+            roles: roles,
+            auditEvents: auditEvents,
+            membersError: membersError,
+            rolesError: rolesError,
+            auditError: auditError,
+            accountError: accountError,
+            updatedAt: allSucceeded ? .now : .distantPast
+        )
         isLoading = false
     }
 
@@ -109,26 +182,22 @@ struct CloudflareAccountOperationsView: View {
         }
         .navigationTitle("Account operations")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .task { await viewModel.load() }
-        .refreshable { await viewModel.load() }
+        .refreshable { await viewModel.load(forceRefresh: true) }
         .sheet(item: $selectedAuditEvent) { event in
             NavigationStack {
                 CloudflareAuditEventDetailView(event: event)
             }
-            .preferredColorScheme(.dark)
         }
         .sheet(item: $selectedMember) { member in
             NavigationStack {
                 CloudflareAccountMemberDetailView(member: member)
             }
-            .preferredColorScheme(.dark)
         }
         .sheet(item: $selectedRole) { role in
             NavigationStack {
                 CloudflareAccountRoleDetailView(role: role)
             }
-            .preferredColorScheme(.dark)
         }
         .tint(CloudflareStyle.orange)
     }
@@ -140,11 +209,11 @@ struct CloudflareAccountOperationsView: View {
             VStack(alignment: .leading, spacing: 5) {
                 Text(viewModel.account.name)
                     .font(.system(size: 21, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(AppTheme.textPrimary)
                     .lineLimit(2)
                 Text(email)
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.38))
+                    .foregroundStyle(AppTheme.textTertiary)
                     .lineLimit(1)
                     .truncationMode(.middle)
                 Text("ACCESS & AUDIT")
@@ -179,7 +248,7 @@ struct CloudflareAccountOperationsView: View {
                 icon: "lock.shield.fill",
                 title: "Two-factor requirement",
                 value: booleanText(viewModel.account.settings?.enforceTwoFactor, trueText: "Required", falseText: "Not required"),
-                valueColor: viewModel.account.settings?.enforceTwoFactor == true ? CloudflareStyle.green : .white.opacity(0.76)
+                valueColor: viewModel.account.settings?.enforceTwoFactor == true ? CloudflareStyle.green : AppTheme.textPrimary
             )
             CloudflareDetailRow(
                 icon: "exclamationmark.bubble.fill",
@@ -230,19 +299,19 @@ struct CloudflareAccountOperationsView: View {
                                     .font(.system(size: 13, weight: .bold))
                                     .foregroundStyle(member.user?.twoFactorAuthenticationEnabled == true ? CloudflareStyle.green : CloudflareStyle.orange)
                                     .frame(width: 36, height: 36)
-                                    .background(Color.white.opacity(0.045))
+                                    .background(AppTheme.strokeSoft)
                                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(member.displayName)
                                         .font(.system(size: 14, weight: .bold))
-                                        .foregroundStyle(.white.opacity(0.88))
+                                        .foregroundStyle(AppTheme.textPrimary)
                                     Text(member.resolvedEmail)
                                         .font(.system(size: 11, weight: .medium))
-                                        .foregroundStyle(.white.opacity(0.38))
+                                        .foregroundStyle(AppTheme.textTertiary)
                                     Text(member.roles.isEmpty ? "Policy-based access" : member.roles.map(\.name).joined(separator: ", "))
                                         .font(.system(size: 10, weight: .semibold))
-                                        .foregroundStyle(.white.opacity(0.46))
+                                        .foregroundStyle(AppTheme.textSecondary)
                                         .lineLimit(2)
                                 }
                                 Spacer(minLength: 6)
@@ -289,7 +358,7 @@ struct CloudflareAccountOperationsView: View {
                             HStack {
                                 Text(role.name)
                                     .font(.system(size: 13, weight: .bold))
-                                    .foregroundStyle(.white.opacity(0.86))
+                                    .foregroundStyle(AppTheme.textPrimary)
                                 Spacer()
                                 Text("\(role.permissions.count) grants")
                                     .font(.system(size: 9, weight: .semibold).monospacedDigit())
@@ -299,13 +368,13 @@ struct CloudflareAccountOperationsView: View {
                             if let description = role.description, !description.isEmpty {
                                 Text(description)
                                     .font(.system(size: 11, weight: .medium))
-                                    .foregroundStyle(.white.opacity(0.36))
+                                    .foregroundStyle(AppTheme.textTertiary)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
                             if !role.permissions.isEmpty {
                                 Text(permissionSummary(role))
                                     .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                                    .foregroundStyle(.white.opacity(0.42))
+                                    .foregroundStyle(AppTheme.textSecondary)
                                     .lineLimit(3)
                             }
                         }
@@ -344,11 +413,11 @@ struct CloudflareAccountOperationsView: View {
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(event.action?.description ?? event.action?.type?.capitalized ?? "Cloudflare activity")
                                     .font(.system(size: 13, weight: .bold))
-                                    .foregroundStyle(.white.opacity(0.84))
+                                    .foregroundStyle(AppTheme.textPrimary)
                                     .lineLimit(2)
                                 Text(auditSubtitle(event))
                                     .font(.system(size: 10, weight: .medium))
-                                    .foregroundStyle(.white.opacity(0.36))
+                                    .foregroundStyle(AppTheme.textTertiary)
                                     .lineLimit(1)
                             }
                             Spacer(minLength: 7)
@@ -367,11 +436,11 @@ struct CloudflareAccountOperationsView: View {
     }
 
     private var panelDivider: some View {
-        Divider().overlay(Color.white.opacity(0.06))
+        Divider().overlay(AppTheme.divider)
     }
 
     private var insetDivider: some View {
-        Divider().overlay(Color.white.opacity(0.055)).padding(.leading, 63)
+        Divider().overlay(AppTheme.divider).padding(.leading, 63)
     }
 
     private var sectionLoading: some View {
@@ -388,10 +457,10 @@ struct CloudflareAccountOperationsView: View {
     private func accessPill(_ text: String, icon: String) -> some View {
         Label(text, systemImage: icon)
             .font(.system(size: 9, weight: .bold))
-            .foregroundStyle(.white.opacity(0.42))
+            .foregroundStyle(AppTheme.textSecondary)
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
-            .background(Color.white.opacity(0.045), in: Capsule())
+            .background(AppTheme.strokeSoft, in: Capsule())
     }
 
     private func booleanText(_ value: Bool?, trueText: String = "On", falseText: String = "Off") -> String {
@@ -441,7 +510,7 @@ private struct CloudflareAccountMemberDetailView: View {
                 VStack(spacing: 16) {
                     VStack(spacing: 0) {
                         CloudflareSectionHeader(title: "Member", icon: "person.crop.circle.fill")
-                        Divider().overlay(Color.white.opacity(0.06))
+                        Divider().overlay(AppTheme.divider)
                         CloudflareDetailRow(icon: "person.fill", title: "Name", value: member.displayName)
                         CloudflareDetailRow(icon: "envelope.fill", title: "Email", value: member.resolvedEmail)
                         CloudflareDetailRow(icon: "number", title: "Membership ID", value: member.id)
@@ -469,7 +538,7 @@ private struct CloudflareAccountMemberDetailView: View {
 
                     VStack(spacing: 0) {
                         CloudflareSectionHeader(title: "Policies", icon: "checklist.checked", count: member.policies.count)
-                        Divider().overlay(Color.white.opacity(0.06))
+                        Divider().overlay(AppTheme.divider)
                         if member.policies.isEmpty {
                             CloudflareEmptySection(icon: "checklist", title: "No policies returned", message: "This membership may use legacy account roles instead.")
                         } else {
@@ -482,7 +551,7 @@ private struct CloudflareAccountMemberDetailView: View {
                                         Spacer()
                                         Text(policy.id)
                                             .font(.system(size: 8, weight: .semibold, design: .monospaced))
-                                            .foregroundStyle(.white.opacity(0.28))
+                                            .foregroundStyle(AppTheme.textTertiary)
                                             .lineLimit(1)
                                             .truncationMode(.middle)
                                     }
@@ -496,7 +565,7 @@ private struct CloudflareAccountMemberDetailView: View {
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 12)
                                 if index < member.policies.count - 1 {
-                                    Divider().overlay(Color.white.opacity(0.055)).padding(.leading, 16)
+                                    Divider().overlay(AppTheme.divider).padding(.leading, 16)
                                 }
                             }
                         }
@@ -510,7 +579,6 @@ private struct CloudflareAccountMemberDetailView: View {
         }
         .navigationTitle("Member access")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }
         .tint(CloudflareStyle.orange)
     }
@@ -523,7 +591,7 @@ private struct CloudflareAccountMemberDetailView: View {
     ) -> some View {
         VStack(spacing: 0) {
             CloudflareSectionHeader(title: title, icon: icon, count: values.count)
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
             if values.isEmpty {
                 CloudflareEmptySection(icon: icon, title: "None returned", message: emptyMessage)
             } else {
@@ -540,10 +608,10 @@ private struct CloudflareAccountMemberDetailView: View {
             Text(title.uppercased())
                 .font(.system(size: 8, weight: .semibold))
                 .tracking(0.7)
-                .foregroundStyle(.white.opacity(0.3))
+                .foregroundStyle(AppTheme.textTertiary)
             Text(value.operationsDisplayText)
                 .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.white.opacity(0.52))
+                .foregroundStyle(AppTheme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
         }
@@ -562,7 +630,7 @@ private struct CloudflareAccountRoleDetailView: View {
                 VStack(spacing: 16) {
                     VStack(spacing: 0) {
                         CloudflareSectionHeader(title: "Role", icon: "person.badge.key.fill")
-                        Divider().overlay(Color.white.opacity(0.06))
+                        Divider().overlay(AppTheme.divider)
                         CloudflareDetailRow(icon: "tag.fill", title: "Name", value: role.name)
                         CloudflareDetailRow(icon: "number", title: "Role ID", value: role.id)
                         if let description = role.description {
@@ -573,7 +641,7 @@ private struct CloudflareAccountRoleDetailView: View {
 
                     VStack(spacing: 0) {
                         CloudflareSectionHeader(title: "Permission grants", icon: "checkmark.shield.fill", count: role.permissions.count)
-                        Divider().overlay(Color.white.opacity(0.06))
+                        Divider().overlay(AppTheme.divider)
                         if role.permissions.isEmpty {
                             CloudflareEmptySection(icon: "lock.slash", title: "No grants returned", message: "Cloudflare did not include permission grants for this role.")
                         } else {
@@ -583,21 +651,21 @@ private struct CloudflareAccountRoleDetailView: View {
                                         .font(.system(size: 11, weight: .bold))
                                         .foregroundStyle(entry.value.write == true ? CloudflareStyle.orange : CloudflareStyle.green)
                                         .frame(width: 34, height: 34)
-                                        .background(Color.white.opacity(0.045))
+                                        .background(AppTheme.strokeSoft)
                                         .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                                     Text(entry.key.replacingOccurrences(of: "_", with: " ").capitalized)
                                         .font(.system(size: 13, weight: .bold))
-                                        .foregroundStyle(.white.opacity(0.82))
+                                        .foregroundStyle(AppTheme.textPrimary)
                                     Spacer()
                                     CloudflareStatusPill(
                                         text: entry.value.write == true ? "READ / WRITE" : entry.value.read == true ? "READ" : "NONE",
-                                        color: entry.value.write == true ? CloudflareStyle.orange : entry.value.read == true ? CloudflareStyle.green : .white.opacity(0.32)
+                                        color: entry.value.write == true ? CloudflareStyle.orange : entry.value.read == true ? CloudflareStyle.green : AppTheme.textTertiary
                                     )
                                 }
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 10)
                                 if index < role.permissions.count - 1 {
-                                    Divider().overlay(Color.white.opacity(0.055)).padding(.leading, 61)
+                                    Divider().overlay(AppTheme.divider).padding(.leading, 61)
                                 }
                             }
                         }
@@ -611,7 +679,6 @@ private struct CloudflareAccountRoleDetailView: View {
         }
         .navigationTitle("Role details")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }
         .tint(CloudflareStyle.orange)
     }
@@ -666,7 +733,6 @@ private struct CloudflareAuditEventDetailView: View {
         }
         .navigationTitle("Audit event")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Done") { dismiss() }
@@ -680,7 +746,7 @@ private struct CloudflareAuditEventDetailView: View {
         let populated = rows.filter { $0.1?.isEmpty == false }
         return VStack(spacing: 0) {
             CloudflareSectionHeader(title: title, icon: icon)
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
             ForEach(Array(populated.enumerated()), id: \.offset) { _, row in
                 CloudflareDetailRow(icon: "circle.fill", title: row.0, value: row.1 ?? "")
             }

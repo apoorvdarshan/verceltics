@@ -3,6 +3,23 @@ import SwiftUI
 @Observable
 @MainActor
 final class CloudflareWorkerOperationsViewModel {
+    private struct CacheEntry {
+        let versions: [CloudflareWorkerVersion]
+        let secrets: [CloudflareWorkerSecretMetadata]
+        let schedules: [CloudflareWorkerSchedule]
+        let domains: [CloudflareWorkerDomain]
+        let tails: [CloudflareWorkerTail]
+        let settings: CloudflareWorkerScriptSettings?
+        let scriptLevelSettings: CloudflareWorkerScriptLevelSettings?
+        let subdomain: CloudflareWorkerSubdomain?
+        let accountSubdomain: String?
+        let warnings: [String]
+        let updatedAt: Date
+    }
+
+    private static var cache: [String: CacheEntry] = [:]
+    private static let cacheLifetime: TimeInterval = 180
+
     let api: CloudflareAPI
     let accountID: String
     let worker: CloudflareWorkerScript
@@ -21,6 +38,7 @@ final class CloudflareWorkerOperationsViewModel {
     var warnings: [String] = []
     var actionMessage: String?
     var actionFailed = false
+    private var loadGeneration = 0
 
     init(api: CloudflareAPI, accountID: String, worker: CloudflareWorkerScript) {
         self.api = api
@@ -28,19 +46,112 @@ final class CloudflareWorkerOperationsViewModel {
         self.worker = worker
     }
 
-    func load() async {
-        isLoading = true
+    private var cacheKey: String {
+        "\(api.cacheScope)|\(accountID)|worker-operations|\(worker.id)"
+    }
+
+    func load(forceRefresh: Bool = false) async {
+        var hydratedCache = false
+        if let cached = Self.cache[cacheKey] {
+            versions = cached.versions
+            secrets = cached.secrets
+            schedules = cached.schedules
+            domains = cached.domains
+            tails = cached.tails
+            settings = cached.settings
+            scriptLevelSettings = cached.scriptLevelSettings
+            subdomain = cached.subdomain
+            accountSubdomain = cached.accountSubdomain
+            warnings = cached.warnings
+            hydratedCache = true
+            isLoading = false
+            if !forceRefresh,
+               Date.now.timeIntervalSince(cached.updatedAt) < Self.cacheLifetime {
+                return
+            }
+        }
+
+        loadGeneration += 1
+        let generation = loadGeneration
+        isLoading = !hydratedCache
+
+        async let versionsResult = capture {
+            try await api.fetchWorkerVersions(accountID: accountID, scriptName: worker.id)
+        }
+        async let secretsResult = capture {
+            try await api.fetchWorkerSecrets(accountID: accountID, scriptName: worker.id)
+        }
+        async let schedulesResult = capture {
+            try await api.fetchWorkerSchedules(accountID: accountID, scriptName: worker.id)
+        }
+        async let domainsResult = capture {
+            try await api.fetchWorkerDomains(accountID: accountID)
+                .filter { $0.service.caseInsensitiveCompare(worker.id) == .orderedSame }
+        }
+        async let settingsResult = capture {
+            try await api.fetchWorkerScriptSettings(accountID: accountID, scriptName: worker.id)
+        }
+        async let scriptSettingsResult = capture {
+            try await api.fetchWorkerScriptLevelSettings(accountID: accountID, scriptName: worker.id)
+        }
+        async let accountSubdomainResult = capture {
+            try await api.fetchWorkersAccountSubdomain(accountID: accountID).subdomain
+        }
+        async let subdomainResult = capture {
+            try await api.fetchWorkerSubdomain(accountID: accountID, scriptName: worker.id)
+        }
+        async let tailsResult = capture {
+            try await api.fetchWorkerTails(accountID: accountID, scriptName: worker.id)
+        }
+
+        let results = await (
+            versionsResult, secretsResult, schedulesResult, domainsResult,
+            settingsResult, scriptSettingsResult, accountSubdomainResult,
+            subdomainResult, tailsResult
+        )
+        if Task.isCancelled { return }
+        guard generation == loadGeneration else { return }
+
         warnings = []
-        actionMessage = nil
+        var allSucceeded = true
+        switch results.0 {
+        case .success(let value): versions = value
+        case .failure(let error): allSucceeded = false; addWarning("Versions", error)
+        }
+        switch results.1 {
+        case .success(let value): secrets = value
+        case .failure(let error): allSucceeded = false; addWarning("Secrets", error)
+        }
+        switch results.2 {
+        case .success(let value): schedules = value
+        case .failure(let error): allSucceeded = false; addWarning("Cron triggers", error)
+        }
+        switch results.3 {
+        case .success(let value): domains = value
+        case .failure(let error): allSucceeded = false; addWarning("Domains", error)
+        }
+        switch results.4 {
+        case .success(let value): settings = value
+        case .failure(let error): allSucceeded = false; addWarning("Settings", error)
+        }
+        switch results.5 {
+        case .success(let value): scriptLevelSettings = value
+        case .failure(let error): allSucceeded = false; addWarning("Script settings", error)
+        }
+        switch results.6 {
+        case .success(let value): accountSubdomain = value
+        case .failure(let error): allSucceeded = false; addWarning("Account workers.dev", error)
+        }
+        switch results.7 {
+        case .success(let value): subdomain = value
+        case .failure(let error): allSucceeded = false; addWarning("Worker subdomain", error)
+        }
+        switch results.8 {
+        case .success(let value): tails = value
+        case .failure(let error): allSucceeded = false; addWarning("Live tails", error)
+        }
 
-        await loadVersions()
-        await loadSecrets()
-        await loadSchedules()
-        await loadDomains()
-        await loadSettings()
-        await loadSubdomains()
-        await loadTails()
-
+        updateCache(updatedAt: allSucceeded ? .now : .distantPast)
         isLoading = false
     }
 
@@ -142,6 +253,7 @@ final class CloudflareWorkerOperationsViewModel {
             try await operation()
             actionMessage = success
             actionFailed = false
+            updateCache()
         } catch {
             actionMessage = error.localizedDescription
             actionFailed = true
@@ -195,6 +307,28 @@ final class CloudflareWorkerOperationsViewModel {
 
     private func addWarning(_ section: String, _ error: Error) {
         warnings.append("\(section): \(error.localizedDescription)")
+    }
+
+    private func capture<Value>(_ operation: () async throws -> Value) async -> Result<Value, Error> {
+        do { return .success(try await operation()) }
+        catch { return .failure(error) }
+    }
+
+    private func updateCache(updatedAt: Date? = nil) {
+        let resolvedUpdatedAt = updatedAt ?? (warnings.isEmpty ? .now : .distantPast)
+        Self.cache[cacheKey] = CacheEntry(
+            versions: versions,
+            secrets: secrets,
+            schedules: schedules,
+            domains: domains,
+            tails: tails,
+            settings: settings,
+            scriptLevelSettings: scriptLevelSettings,
+            subdomain: subdomain,
+            accountSubdomain: accountSubdomain,
+            warnings: warnings,
+            updatedAt: resolvedUpdatedAt
+        )
     }
 }
 
@@ -261,9 +395,8 @@ struct CloudflareWorkerOperationsView: View {
         }
         .navigationTitle("Worker operations")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .task { await viewModel.load() }
-        .refreshable { await viewModel.load() }
+        .refreshable { await viewModel.load(forceRefresh: true) }
         .sheet(isPresented: $showingSecretEditor) {
             CloudflareWorkerSecretEditor { name, value in
                 Task { await viewModel.saveSecret(name: name, value: value) }
@@ -346,7 +479,7 @@ struct CloudflareWorkerOperationsView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(worker.id)
                         .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(AppTheme.textPrimary)
                         .lineLimit(1)
                     Text("CONTROL PLANE")
                         .font(.system(size: 9, weight: .semibold, design: .monospaced))
@@ -376,16 +509,16 @@ struct CloudflareWorkerOperationsView: View {
         VStack(spacing: 5) {
             Text(value.formatted())
                 .font(.system(size: 18, weight: .semibold, design: .default).monospacedDigit())
-                .foregroundStyle(.white)
+                .foregroundStyle(AppTheme.textPrimary)
             Text(label)
                 .font(.system(size: 7, weight: .semibold, design: .monospaced))
                 .tracking(0.8)
-                .foregroundStyle(.white.opacity(0.32))
+                .foregroundStyle(AppTheme.textTertiary)
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 10)
-        .background(Color.white.opacity(0.035))
+        .background(AppTheme.strokeSoft)
         .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
     }
 
@@ -414,7 +547,7 @@ struct CloudflareWorkerOperationsView: View {
                 .foregroundStyle(CloudflareStyle.orange)
             Text(title)
                 .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(.white.opacity(0.82))
+                .foregroundStyle(AppTheme.textPrimary)
             Spacer()
             CloudflareChevron()
         }
@@ -426,7 +559,7 @@ struct CloudflareWorkerOperationsView: View {
     private var metadataPanel: some View {
         VStack(spacing: 0) {
             CloudflareSectionHeader(title: "Returned metadata", icon: "list.bullet.rectangle.fill")
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
             detailRow("Created", worker.createdDate?.formatted(date: .abbreviated, time: .shortened))
             detailRow("Modified", worker.modifiedDate?.formatted(date: .abbreviated, time: .shortened))
             detailRow("Last deployed from", worker.lastDeployedFrom)
@@ -448,7 +581,7 @@ struct CloudflareWorkerOperationsView: View {
         if let settings = viewModel.settings {
             VStack(spacing: 0) {
                 CloudflareSectionHeader(title: "Script settings response", icon: "curlybraces.square.fill")
-                Divider().overlay(Color.white.opacity(0.06))
+                Divider().overlay(AppTheme.divider)
                 detailRow("Compatibility date", settings.compatibilityDate)
                 detailRow("Compatibility flags", settings.compatibilityFlags.isEmpty ? nil : settings.compatibilityFlags.joined(separator: ", "))
                 detailRow("Usage model", settings.usageModel)
@@ -472,17 +605,17 @@ struct CloudflareWorkerOperationsView: View {
                 Text(title.uppercased())
                     .font(.system(size: 8, weight: .semibold, design: .monospaced))
                     .tracking(0.7)
-                    .foregroundStyle(.white.opacity(0.3))
+                    .foregroundStyle(AppTheme.textTertiary)
                     .frame(width: 105, alignment: .leading)
                 Text(value)
                     .font(.system(size: 11, weight: .semibold, design: monospaced ? .monospaced : .default))
-                    .foregroundStyle(.white.opacity(0.72))
+                    .foregroundStyle(AppTheme.textSecondary)
                     .textSelection(.enabled)
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 11)
-            Divider().overlay(Color.white.opacity(0.05)).padding(.leading, 16)
+            Divider().overlay(AppTheme.strokeSoft).padding(.leading, 16)
         }
     }
 
@@ -540,7 +673,7 @@ private extension CloudflareWorkerOperationsView {
             ) {
                 if viewModel.scriptLevelSettings != nil { showingObservabilityEditor = true }
             }
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
 
             if let observability = viewModel.scriptLevelSettings?.observability {
                 statusRow(
@@ -578,7 +711,7 @@ private extension CloudflareWorkerOperationsView {
             ) {
                 if viewModel.subdomain != nil { showingSubdomainEditor = true }
             }
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
 
             if let subdomain = viewModel.subdomain {
                 statusRow(
@@ -609,7 +742,7 @@ private extension CloudflareWorkerOperationsView {
                 icon: "clock.arrow.trianglehead.counterclockwise.rotate.90",
                 count: viewModel.versions.count
             )
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
 
             if viewModel.versions.isEmpty {
                 CloudflareEmptySection(
@@ -630,10 +763,10 @@ private extension CloudflareWorkerOperationsView {
                         VStack(alignment: .leading, spacing: 3) {
                             Text(version.number.map { "Version \($0)" } ?? String(version.id.prefix(14)))
                                 .font(.system(size: 13, weight: .bold))
-                                .foregroundStyle(.white.opacity(0.86))
+                                .foregroundStyle(AppTheme.textPrimary)
                             Text(versionSubtitle(version))
                                 .font(.system(size: 10, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.36))
+                                .foregroundStyle(AppTheme.textTertiary)
                                 .lineLimit(1)
                         }
                         Spacer(minLength: 8)
@@ -648,7 +781,7 @@ private extension CloudflareWorkerOperationsView {
                         } label: {
                             Image(systemName: "info.circle")
                                 .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(.white.opacity(0.4))
+                                .foregroundStyle(AppTheme.textSecondary)
                                 .frame(width: 44, height: 44)
                         }
                         .buttonStyle(.plain)
@@ -673,7 +806,7 @@ private extension CloudflareWorkerOperationsView {
                     .padding(.vertical, 11)
 
                     if version.id != viewModel.versions.last?.id {
-                        Divider().overlay(Color.white.opacity(0.05)).padding(.leading, 64)
+                        Divider().overlay(AppTheme.strokeSoft).padding(.leading, 64)
                     }
                 }
             }
@@ -691,7 +824,7 @@ private extension CloudflareWorkerOperationsView {
             ) {
                 showingSecretEditor = true
             }
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
 
             if viewModel.secrets.isEmpty {
                 CloudflareEmptySection(
@@ -710,7 +843,7 @@ private extension CloudflareWorkerOperationsView {
                         pendingDelete = .secret(secret)
                     }
                     if secret.id != viewModel.secrets.last?.id {
-                        Divider().overlay(Color.white.opacity(0.05)).padding(.leading, 64)
+                        Divider().overlay(AppTheme.strokeSoft).padding(.leading, 64)
                     }
                 }
             }
@@ -728,7 +861,7 @@ private extension CloudflareWorkerOperationsView {
             ) {
                 showingScheduleEditor = true
             }
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
 
             if viewModel.schedules.isEmpty {
                 CloudflareEmptySection(
@@ -747,7 +880,7 @@ private extension CloudflareWorkerOperationsView {
                         pendingDelete = .schedule(schedule)
                     }
                     if schedule.id != viewModel.schedules.last?.id {
-                        Divider().overlay(Color.white.opacity(0.05)).padding(.leading, 64)
+                        Divider().overlay(AppTheme.strokeSoft).padding(.leading, 64)
                     }
                 }
             }
@@ -765,7 +898,7 @@ private extension CloudflareWorkerOperationsView {
             ) {
                 showingDomainEditor = true
             }
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
 
             if viewModel.domains.isEmpty {
                 CloudflareEmptySection(
@@ -786,7 +919,7 @@ private extension CloudflareWorkerOperationsView {
                         pendingDelete = .domain(domain)
                     }
                     if domain.id != viewModel.domains.last?.id {
-                        Divider().overlay(Color.white.opacity(0.05)).padding(.leading, 64)
+                        Divider().overlay(AppTheme.strokeSoft).padding(.leading, 64)
                     }
                 }
             }
@@ -798,25 +931,25 @@ private extension CloudflareWorkerOperationsView {
         HStack(spacing: 12) {
             Image(systemName: enabled ? "checkmark.circle.fill" : "minus.circle.fill")
                 .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(enabled ? CloudflareStyle.green : .white.opacity(0.25))
+                .foregroundStyle(enabled ? CloudflareStyle.green : AppTheme.textTertiary)
                 .frame(width: 34, height: 34)
-                .background((enabled ? CloudflareStyle.green : Color.white).opacity(0.08))
+                .background(enabled ? CloudflareStyle.green.opacity(0.08) : AppTheme.stroke)
                 .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.82))
+                    .foregroundStyle(AppTheme.textPrimary)
                 if let subtitle, !subtitle.isEmpty {
                     Text(subtitle)
                         .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.35))
+                        .foregroundStyle(AppTheme.textTertiary)
                         .lineLimit(1)
                 }
             }
             Spacer()
             CloudflareStatusPill(
                 text: enabled ? "ON" : "OFF",
-                color: enabled ? CloudflareStyle.green : .white.opacity(0.35)
+                color: enabled ? CloudflareStyle.green : AppTheme.textTertiary
             )
         }
         .padding(.horizontal, 16)
@@ -881,9 +1014,9 @@ private struct CloudflareWorkerSecretEditor: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(AppTheme.textPrimary)
                     .padding(14)
-                    .background(Color.white.opacity(0.055))
+                    .background(AppTheme.divider)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
         } save: {
@@ -959,10 +1092,10 @@ private struct CloudflareWorkerObservabilityEditor: View {
         ) {
             VStack(spacing: 0) {
                 workerToggle("Collect events", isOn: $enabled)
-                Divider().overlay(Color.white.opacity(0.06))
+                Divider().overlay(AppTheme.divider)
                 workerToggle("Invocation logs", isOn: $logsEnabled)
                     .disabled(!enabled)
-                Divider().overlay(Color.white.opacity(0.06))
+                Divider().overlay(AppTheme.divider)
                 workerToggle("Traces", isOn: $tracesEnabled)
                     .disabled(!enabled)
             }
@@ -995,7 +1128,7 @@ private struct CloudflareWorkerSubdomainEditor: View {
         ) {
             VStack(spacing: 0) {
                 workerToggle("Production URL", isOn: $enabled)
-                Divider().overlay(Color.white.opacity(0.06))
+                Divider().overlay(AppTheme.divider)
                 workerToggle("Version preview URLs", isOn: $previewsEnabled)
             }
             .cloudflarePanel()
@@ -1021,10 +1154,10 @@ private func workerEditorShell<Content: View>(
                     VStack(alignment: .leading, spacing: 6) {
                         Text(title)
                             .font(.system(size: 22, weight: .semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(AppTheme.textPrimary)
                         Text(subtitle)
                             .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.4))
+                            .foregroundStyle(AppTheme.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     content()
@@ -1032,7 +1165,6 @@ private func workerEditorShell<Content: View>(
                 .padding()
             }
         }
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Save", action: save)
@@ -1050,13 +1182,13 @@ private func workerField(_ placeholder: String, text: Binding<String>, monospace
         .textInputAutocapitalization(.never)
         .autocorrectionDisabled()
         .font(.system(size: 13, weight: .semibold, design: monospaced ? .monospaced : .default))
-        .foregroundStyle(.white)
+        .foregroundStyle(AppTheme.textPrimary)
         .padding(14)
-        .background(Color.white.opacity(0.055))
+        .background(AppTheme.divider)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5)
+                .strokeBorder(AppTheme.stroke, lineWidth: 0.5)
         )
 }
 
@@ -1064,7 +1196,7 @@ private func workerToggle(_ title: String, isOn: Binding<Bool>) -> some View {
     Toggle(isOn: isOn) {
         Text(title)
             .font(.system(size: 13, weight: .bold))
-            .foregroundStyle(.white.opacity(0.8))
+            .foregroundStyle(AppTheme.textPrimary)
     }
     .padding(16)
     .tint(CloudflareStyle.orange)
@@ -1075,6 +1207,14 @@ private func workerToggle(_ title: String, isOn: Binding<Bool>) -> some View {
 @Observable
 @MainActor
 private final class CloudflareWorkerVersionDetailViewModel {
+    private struct CacheEntry {
+        let detail: CloudflareWorkerVersionDetail
+        let updatedAt: Date
+    }
+
+    private static var cache: [String: CacheEntry] = [:]
+    private static let cacheLifetime: TimeInterval = 180
+
     let api: CloudflareAPI
     let accountID: String
     let scriptName: String
@@ -1082,28 +1222,79 @@ private final class CloudflareWorkerVersionDetailViewModel {
 
     var detail: CloudflareWorkerVersionDetail?
     var isLoading = true
+    var isRefreshing = false
     var error: String?
+    private var loadGeneration = 0
 
     init(api: CloudflareAPI, accountID: String, scriptName: String, version: CloudflareWorkerVersion) {
         self.api = api
         self.accountID = accountID
         self.scriptName = scriptName
         self.version = version
+
+        if let cached = Self.cache[Self.cacheKey(
+            api: api,
+            accountID: accountID,
+            scriptName: scriptName,
+            versionID: version.id
+        )] {
+            detail = cached.detail
+            isLoading = false
+        }
     }
 
-    func load() async {
-        isLoading = true
+    func load(forceRefresh: Bool = false) async {
+        let key = Self.cacheKey(
+            api: api,
+            accountID: accountID,
+            scriptName: scriptName,
+            versionID: version.id
+        )
+        if let cached = Self.cache[key] {
+            detail = cached.detail
+            isLoading = false
+            if !forceRefresh, Date.now.timeIntervalSince(cached.updatedAt) < Self.cacheLifetime {
+                return
+            }
+        }
+
+        guard !isRefreshing else { return }
+        loadGeneration += 1
+        let generation = loadGeneration
+        isLoading = detail == nil
+        isRefreshing = true
         error = nil
+        defer {
+            if generation == loadGeneration {
+                isLoading = false
+                isRefreshing = false
+            }
+        }
+
         do {
-            detail = try await api.fetchWorkerVersion(
+            let refreshed = try await api.fetchWorkerVersion(
                 accountID: accountID,
                 scriptName: scriptName,
                 versionID: version.id
             )
+            guard !Task.isCancelled, generation == loadGeneration else { return }
+            detail = refreshed
+            Self.cache[key] = CacheEntry(detail: refreshed, updatedAt: .now)
+        } catch is CancellationError {
+            return
         } catch {
-            self.error = error.localizedDescription
+            guard generation == loadGeneration else { return }
+            if detail == nil { self.error = error.localizedDescription }
         }
-        isLoading = false
+    }
+
+    private static func cacheKey(
+        api: CloudflareAPI,
+        accountID: String,
+        scriptName: String,
+        versionID: String
+    ) -> String {
+        "\(api.cacheScope)|\(accountID)|worker-version|\(scriptName)|\(versionID)"
     }
 }
 
@@ -1124,10 +1315,10 @@ private struct CloudflareWorkerVersionDetailView: View {
     var body: some View {
         ZStack {
             AppTheme.canvas.ignoresSafeArea()
-            if viewModel.isLoading {
+            if viewModel.isLoading && viewModel.detail == nil {
                 ProgressView().tint(CloudflareStyle.orange)
-            } else if let error = viewModel.error {
-                CloudflareErrorView(message: error) { Task { await viewModel.load() } }
+            } else if let error = viewModel.error, viewModel.detail == nil {
+                CloudflareErrorView(message: error) { Task { await viewModel.load(forceRefresh: true) } }
             } else if let detail = viewModel.detail {
                 ScrollView {
                     VStack(spacing: 16) {
@@ -1138,11 +1329,11 @@ private struct CloudflareWorkerVersionDetailView: View {
                                 .foregroundStyle(CloudflareStyle.orange)
                             Text(detail.id)
                                 .font(.system(size: 14, weight: .bold, design: .monospaced))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(AppTheme.textPrimary)
                                 .textSelection(.enabled)
                             Text(versionDetailSubtitle(detail))
                                 .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.4))
+                                .foregroundStyle(AppTheme.textSecondary)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(18)
@@ -1152,18 +1343,18 @@ private struct CloudflareWorkerVersionDetailView: View {
                     }
                     .padding()
                 }
+                .refreshable { await viewModel.load(forceRefresh: true) }
             }
         }
         .navigationTitle("Version detail")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .task { await viewModel.load() }
     }
 
     private func bindingsPanel(_ bindings: [CloudflareJSONValue]) -> some View {
         VStack(spacing: 0) {
             CloudflareSectionHeader(title: "Bindings", icon: "link", count: bindings.count)
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
             if bindings.isEmpty {
                 CloudflareEmptySection(
                     icon: "link",
@@ -1207,6 +1398,18 @@ private struct CloudflareWorkerVersionDetailView: View {
 @Observable
 @MainActor
 private final class CloudflareWorkerContentViewModel {
+    /// Worker source can contain secrets. This cache intentionally lives only in
+    /// process memory and is never written to UserDefaults, files, or Keychain.
+    private struct CacheEntry {
+        let content: String
+        let contentType: String?
+        let byteCount: Int
+        let updatedAt: Date
+    }
+
+    private static var cache: [String: CacheEntry] = [:]
+    private static let cacheLifetime: TimeInterval = 120
+
     let api: CloudflareAPI
     let accountID: String
     let scriptName: String
@@ -1215,31 +1418,91 @@ private final class CloudflareWorkerContentViewModel {
     var contentType: String?
     var byteCount = 0
     var isLoading = true
+    var isRefreshing = false
     var error: String?
+    private var loadGeneration = 0
 
     init(api: CloudflareAPI, accountID: String, scriptName: String) {
         self.api = api
         self.accountID = accountID
         self.scriptName = scriptName
+
+        if let cached = Self.cache[Self.cacheKey(api: api, accountID: accountID, scriptName: scriptName)] {
+            content = cached.content
+            contentType = cached.contentType
+            byteCount = cached.byteCount
+            isLoading = false
+        }
     }
 
-    func load() async {
-        isLoading = true
+    func load(forceRefresh: Bool = false) async {
+        let key = Self.cacheKey(api: api, accountID: accountID, scriptName: scriptName)
+        if let cached = Self.cache[key] {
+            content = cached.content
+            contentType = cached.contentType
+            byteCount = cached.byteCount
+            isLoading = false
+            if !forceRefresh, Date.now.timeIntervalSince(cached.updatedAt) < Self.cacheLifetime {
+                return
+            }
+        }
+
+        guard !isRefreshing else { return }
+        loadGeneration += 1
+        let generation = loadGeneration
+        isLoading = content.isEmpty
+        isRefreshing = true
         error = nil
+        defer {
+            if generation == loadGeneration {
+                isLoading = false
+                isRefreshing = false
+            }
+        }
+
         do {
             let response = try await api.fetchWorkerContent(accountID: accountID, scriptName: scriptName)
             guard (200...299).contains(response.statusCode) else {
                 throw CloudflareAPIError.requestFailed(statusCode: response.statusCode, message: response.text)
             }
-            byteCount = response.data.count
-            contentType = response.headers.first { $0.key.caseInsensitiveCompare("Content-Type") == .orderedSame }?.value
-            content = response.prettyPrintedBody.isEmpty
+            let refreshedByteCount = response.data.count
+            let refreshedContentType = response.headers.first {
+                $0.key.caseInsensitiveCompare("Content-Type") == .orderedSame
+            }?.value
+            let refreshedContent = response.prettyPrintedBody.isEmpty
                 ? "Binary or multipart Worker content (\(response.data.count.formatted()) bytes)."
                 : response.prettyPrintedBody
+            guard !Task.isCancelled, generation == loadGeneration else { return }
+            byteCount = refreshedByteCount
+            contentType = refreshedContentType
+            content = refreshedContent
+            Self.store(
+                CacheEntry(
+                    content: refreshedContent,
+                    contentType: refreshedContentType,
+                    byteCount: refreshedByteCount,
+                    updatedAt: .now
+                ),
+                for: key
+            )
+        } catch is CancellationError {
+            return
         } catch {
-            self.error = error.localizedDescription
+            guard generation == loadGeneration else { return }
+            if content.isEmpty { self.error = error.localizedDescription }
         }
-        isLoading = false
+    }
+
+    private static func cacheKey(api: CloudflareAPI, accountID: String, scriptName: String) -> String {
+        "\(api.cacheScope)|\(accountID)|worker-content|\(scriptName)"
+    }
+
+    private static func store(_ entry: CacheEntry, for key: String) {
+        cache[key] = entry
+        guard cache.count > 8,
+              let oldestKey = cache.min(by: { $0.value.updatedAt < $1.value.updatedAt })?.key,
+              oldestKey != key else { return }
+        cache.removeValue(forKey: oldestKey)
     }
 }
 
@@ -1255,23 +1518,23 @@ private struct CloudflareWorkerContentView: View {
     var body: some View {
         ZStack {
             AppTheme.canvas.ignoresSafeArea()
-            if viewModel.isLoading {
+            if viewModel.isLoading && viewModel.content.isEmpty {
                 ProgressView().tint(CloudflareStyle.orange)
-            } else if let error = viewModel.error {
-                CloudflareErrorView(message: error) { Task { await viewModel.load() } }
+            } else if let error = viewModel.error, viewModel.content.isEmpty {
+                CloudflareErrorView(message: error) { Task { await viewModel.load(forceRefresh: true) } }
             } else {
                 ScrollView([.vertical, .horizontal]) {
                     Text(viewModel.content)
                         .font(.system(size: 10, weight: .medium, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.76))
+                        .foregroundStyle(AppTheme.textPrimary)
                         .textSelection(.enabled)
                         .padding()
                 }
+                .refreshable { await viewModel.load(forceRefresh: true) }
             }
         }
         .navigationTitle("Worker content")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .task { await viewModel.load() }
     }
 }
@@ -1403,16 +1666,16 @@ private struct CloudflareWorkerLiveTailView: View {
                         .frame(width: 8, height: 8)
                     Text(viewModel.status)
                         .font(.system(size: 11, weight: .bold, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.58))
+                        .foregroundStyle(AppTheme.textSecondary)
                     Spacer()
                     Text("\(viewModel.lines.count) EVENTS")
                         .font(.system(size: 8, weight: .semibold, design: .monospaced))
                         .tracking(0.7)
-                        .foregroundStyle(.white.opacity(0.3))
+                        .foregroundStyle(AppTheme.textTertiary)
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
-                .background(Color.white.opacity(0.035))
+                .background(AppTheme.strokeSoft)
 
                 if let error = viewModel.error, viewModel.lines.isEmpty {
                     CloudflareEmptySection(
@@ -1439,12 +1702,12 @@ private struct CloudflareWorkerLiveTailView: View {
                                             .foregroundStyle(CloudflareStyle.orange.opacity(0.7))
                                         Text(line.text)
                                             .font(.system(size: 9, weight: .medium, design: .monospaced))
-                                            .foregroundStyle(.white.opacity(0.72))
+                                            .foregroundStyle(AppTheme.textSecondary)
                                             .textSelection(.enabled)
                                     }
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .padding(12)
-                                    .background(Color.white.opacity(0.035))
+                                    .background(AppTheme.strokeSoft)
                                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                                     .id(line.id)
                                 }
@@ -1473,7 +1736,6 @@ private struct CloudflareWorkerLiveTailView: View {
         }
         .navigationTitle("Live Worker logs")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .task { await viewModel.start() }
         .onDisappear { Task { await viewModel.stop() } }
     }

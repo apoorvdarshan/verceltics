@@ -84,7 +84,8 @@ final class RegistrarStore {
     }
 
     func switchAccount(to id: UUID) {
-        guard accounts.contains(where: { $0.id == id }) else { return }
+        guard activeAccountID != id,
+              accounts.contains(where: { $0.id == id }) else { return }
         activeAccountID = id
         KeychainHelper.saveActiveRegistrarAccountID(id)
     }

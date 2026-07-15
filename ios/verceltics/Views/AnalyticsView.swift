@@ -5,14 +5,39 @@ import SwiftUI
 final class AnalyticsViewModel {
     private struct CachedAnalytics {
         let data: AnalyticsData
+        let hasLongAnalyticsHistory: Bool
+        let analyticsUnavailableMessage: String?
+        let updatedAt: Date
+    }
+
+    private struct CachedProjectContext {
         let projectDetails: Project
         let domains: [String]
         let recentDeployments: [RecentDeployment]
-        let hasLongAnalyticsHistory: Bool
-        let analyticsUnavailableMessage: String?
+        let updatedAt: Date
     }
 
-    private static var cache: [String: CachedAnalytics] = [:]
+    private struct LoadedAnalytics {
+        let data: AnalyticsData
+        let didUnlockLongAnalyticsHistory: Bool
+        let error: String?
+        let unavailableMessage: String?
+    }
+
+    private struct LoadedProjectContext {
+        let projectDetails: Project?
+        let domains: [String]?
+        let recentDeployments: [RecentDeployment]?
+
+        var hasCompleteResponse: Bool {
+            projectDetails != nil && domains != nil && recentDeployments != nil
+        }
+    }
+
+    private static var analyticsCache: [String: CachedAnalytics] = [:]
+    private static var projectContextCache: [String: CachedProjectContext] = [:]
+    private static let analyticsCacheLifetime: TimeInterval = 180
+    private static let projectContextCacheLifetime: TimeInterval = 300
 
     let project: Project
 
@@ -28,12 +53,37 @@ final class AnalyticsViewModel {
     var isLoading = true
     var error: String?
     var analyticsUnavailableMessage: String?
+    private(set) var lastUpdated: Date?
     private var loadGeneration = 0
 
-    init(project: Project) {
+    init(project: Project, token: String? = nil) {
         self.project = project
         self.projectDetails = project
         self.domains = project.primaryDomain.map { [$0] } ?? []
+
+        guard let token, !token.isEmpty else { return }
+        let analyticsKey = Self.analyticsCacheKey(
+            token: token,
+            project: project,
+            range: selectedRange,
+            environment: selectedEnvironment
+        )
+        if let cached = Self.analyticsCache[analyticsKey] {
+            data = cached.data
+            hasLongAnalyticsHistory = cached.hasLongAnalyticsHistory
+            analyticsUnavailableMessage = cached.analyticsUnavailableMessage
+            displayedRange = selectedRange
+            displayedEnvironment = selectedEnvironment
+            lastUpdated = cached.updatedAt
+            isLoading = false
+        }
+
+        let contextKey = Self.projectContextCacheKey(token: token, project: project)
+        if let cached = Self.projectContextCache[contextKey] {
+            projectDetails = cached.projectDetails
+            domains = cached.domains
+            recentDeployments = cached.recentDeployments
+        }
     }
 
     func load(
@@ -41,25 +91,44 @@ final class AnalyticsViewModel {
         hasLongAnalyticsHistory: Bool,
         forceRefresh: Bool = false
     ) async -> (didUnlock: Bool, applied: Bool, succeeded: Bool) {
-        let cacheKey = [
-            token.hashValue.description,
-            project.id,
-            project.teamId ?? "",
-            selectedRange.rawValue,
-            selectedEnvironment.rawValue
-        ].joined(separator: "|")
+        let range = selectedRange
+        let environment = selectedEnvironment
+        let projectContextCacheKey = Self.projectContextCacheKey(token: token, project: project)
+        let analyticsCacheKey = Self.analyticsCacheKey(
+            token: token,
+            project: project,
+            range: range,
+            environment: environment
+        )
+        let now = Date.now
+        self.hasLongAnalyticsHistory = hasLongAnalyticsHistory || self.hasLongAnalyticsHistory
 
-        if !forceRefresh, let cached = Self.cache[cacheKey] {
+        var analyticsCacheIsFresh = false
+        if let cached = Self.analyticsCache[analyticsCacheKey] {
             data = cached.data
+            self.hasLongAnalyticsHistory = hasLongAnalyticsHistory || cached.hasLongAnalyticsHistory
+            analyticsUnavailableMessage = cached.analyticsUnavailableMessage
+            displayedRange = range
+            displayedEnvironment = environment
+            lastUpdated = cached.updatedAt
+            error = nil
+            isLoading = false
+            analyticsCacheIsFresh = now.timeIntervalSince(cached.updatedAt) < Self.analyticsCacheLifetime
+        }
+
+        var projectContextCacheIsFresh = false
+        if let cached = Self.projectContextCache[projectContextCacheKey] {
             projectDetails = cached.projectDetails
             domains = cached.domains
             recentDeployments = cached.recentDeployments
-            self.hasLongAnalyticsHistory = hasLongAnalyticsHistory || cached.hasLongAnalyticsHistory
-            analyticsUnavailableMessage = cached.analyticsUnavailableMessage
-            displayedRange = selectedRange
-            displayedEnvironment = selectedEnvironment
-            error = nil
+            projectContextCacheIsFresh = now.timeIntervalSince(cached.updatedAt) < Self.projectContextCacheLifetime
+        }
+
+        let shouldFetchAnalytics = forceRefresh || !analyticsCacheIsFresh
+        let shouldFetchProjectContext = forceRefresh || !projectContextCacheIsFresh
+        guard shouldFetchAnalytics || shouldFetchProjectContext else {
             isLoading = false
+            error = nil
             return (false, true, true)
         }
 
@@ -67,44 +136,171 @@ final class AnalyticsViewModel {
         let generation = loadGeneration
         isLoading = true
         error = nil
-        analyticsUnavailableMessage = nil
-        var didUnlockLongAnalyticsHistory = false
+        if displayedRange == nil { analyticsUnavailableMessage = nil }
+
         var loadedData = AnalyticsData()
         var loadedError: String?
         var loadedUnavailableMessage: String?
         let api = VercelAPI(token: token)
         let pid = project.id
         let tid = project.teamId
-        
-        let range = selectedRange
-        
         let from = range.fromDate
         let to = range.toDate
         let prevFrom = range.previousFromDate
         let prevTo = range.previousToDate
-        
-        let env = selectedEnvironment.queryValue
+        let env = environment.queryValue
 
-        async let fetchedProject: Project? = try? await api.fetchProject(id: pid, teamId: tid)
-        async let fetchedDomains: [String] = (try? await api.fetchProjectDomains(projectId: pid, teamId: tid)) ?? []
-        async let fetchedDeployments: [RecentDeployment] = (try? await api.fetchDeployments(projectId: pid, teamId: tid)) ?? []
+        async let fetchedAnalytics = Self.fetchAnalyticsIfNeeded(
+            shouldFetchAnalytics,
+            api: api,
+            projectID: pid,
+            teamID: tid,
+            range: range,
+            environment: env,
+            from: from,
+            to: to,
+            previousFrom: prevFrom,
+            previousTo: prevTo
+        )
+        async let fetchedProjectContext = Self.fetchProjectContextIfNeeded(
+            shouldFetchProjectContext,
+            api: api,
+            projectID: pid,
+            teamID: tid
+        )
+
+        let analyticsResult: LoadedAnalytics?
+        let projectContextResult: LoadedProjectContext?
+        do {
+            (analyticsResult, projectContextResult) = try await (fetchedAnalytics, fetchedProjectContext)
+        } catch is CancellationError {
+            guard generation == loadGeneration else { return (false, false, false) }
+            isLoading = false
+            return (false, false, false)
+        } catch {
+            guard generation == loadGeneration else { return (false, false, false) }
+            isLoading = false
+            self.error = error.localizedDescription
+            return (false, true, false)
+        }
+
+        guard !Task.isCancelled, generation == loadGeneration else {
+            return (false, false, false)
+        }
+
+        if let projectContextResult {
+            if let loadedProject = projectContextResult.projectDetails {
+                projectDetails = loadedProject
+            }
+            if let loadedDomains = projectContextResult.domains {
+                domains = loadedDomains.isEmpty ? project.primaryDomain.map { [$0] } ?? [] : loadedDomains
+            }
+            if let loadedDeployments = projectContextResult.recentDeployments {
+                recentDeployments = loadedDeployments
+            }
+            if projectContextResult.hasCompleteResponse {
+                Self.projectContextCache[projectContextCacheKey] = CachedProjectContext(
+                    projectDetails: projectDetails,
+                    domains: domains,
+                    recentDeployments: recentDeployments,
+                    updatedAt: .now
+                )
+            }
+        }
+
+        let didUnlockLongAnalyticsHistory = analyticsResult?.didUnlockLongAnalyticsHistory ?? false
+        if let analyticsResult {
+            loadedData = analyticsResult.data
+            loadedError = analyticsResult.error
+            loadedUnavailableMessage = analyticsResult.unavailableMessage
+
+            if loadedError == nil {
+                data = loadedData
+                displayedRange = range
+                displayedEnvironment = environment
+                analyticsUnavailableMessage = loadedUnavailableMessage
+                self.hasLongAnalyticsHistory = hasLongAnalyticsHistory
+                    || didUnlockLongAnalyticsHistory
+                    || self.hasLongAnalyticsHistory
+
+                let updatedAt = Date.now
+                lastUpdated = updatedAt
+                Self.analyticsCache[analyticsCacheKey] = CachedAnalytics(
+                    data: data,
+                    hasLongAnalyticsHistory: self.hasLongAnalyticsHistory,
+                    analyticsUnavailableMessage: analyticsUnavailableMessage,
+                    updatedAt: updatedAt
+                )
+            }
+            error = loadedError
+        } else {
+            error = nil
+        }
+
+        isLoading = false
+        return (didUnlockLongAnalyticsHistory, true, loadedError == nil)
+    }
+
+    private static func projectContextCacheKey(token: String, project: Project) -> String {
+        CredentialCacheScope.fingerprint(fields: [
+            "vercel-analytics-project-context",
+            token,
+            project.id,
+            project.teamId ?? ""
+        ])
+    }
+
+    private static func analyticsCacheKey(
+        token: String,
+        project: Project,
+        range: TimeRange,
+        environment: VercelEnvironment
+    ) -> String {
+        CredentialCacheScope.fingerprint(fields: [
+            "vercel-analytics",
+            token,
+            project.id,
+            project.teamId ?? "",
+            range.rawValue,
+            environment.rawValue
+        ])
+    }
+
+    private static func fetchAnalyticsIfNeeded(
+        _ shouldFetch: Bool,
+        api: VercelAPI,
+        projectID: String,
+        teamID: String?,
+        range: TimeRange,
+        environment: String?,
+        from: String,
+        to: String,
+        previousFrom: String,
+        previousTo: String
+    ) async throws -> LoadedAnalytics? {
+        guard shouldFetch else { return nil }
+        try Task.checkCancellation()
+
+        var loadedData = AnalyticsData()
+        var loadedError: String?
+        var unavailableMessage: String?
 
         do {
-            async let overview = api.fetchOverview(projectId: pid, teamId: tid, from: from, to: to, environment: env)
-            async let previous = api.fetchPreviousOverview(projectId: pid, teamId: tid, from: prevFrom, to: prevTo, environment: env)
-            async let timeseries = api.fetchTimeseries(projectId: pid, teamId: tid, from: from, to: to, environment: env)
-            async let pages = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "path", environment: env)
-            async let referrers = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "referrer", environment: env)
-            async let countries = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "country", environment: env)
-            async let devices = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "device_type", environment: env)
-            async let browsers = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "client_name", environment: env)
-            async let os = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "os_name", environment: env)
-            async let utmSources = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "utm", environment: env)
-            async let routes = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "route", environment: env)
-            async let hostnames = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "hostname", environment: env)
-            async let events = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "event_name", environment: env)
-            async let flags = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "flags", environment: env)
-            async let queryParams = api.fetchBreakdown(projectId: pid, teamId: tid, from: from, to: to, groupBy: "query_params", environment: env)
+            async let overview = api.fetchOverview(projectId: projectID, teamId: teamID, from: from, to: to, environment: environment)
+            async let previous = api.fetchPreviousOverview(projectId: projectID, teamId: teamID, from: previousFrom, to: previousTo, environment: environment)
+            async let timeseries = api.fetchTimeseries(projectId: projectID, teamId: teamID, from: from, to: to, environment: environment)
+            async let pages = api.fetchBreakdown(projectId: projectID, teamId: teamID, from: from, to: to, groupBy: "path", environment: environment)
+            async let referrers = api.fetchBreakdown(projectId: projectID, teamId: teamID, from: from, to: to, groupBy: "referrer", environment: environment)
+            async let countries = api.fetchBreakdown(projectId: projectID, teamId: teamID, from: from, to: to, groupBy: "country", environment: environment)
+            async let devices = api.fetchBreakdown(projectId: projectID, teamId: teamID, from: from, to: to, groupBy: "device_type", environment: environment)
+            async let browsers = api.fetchBreakdown(projectId: projectID, teamId: teamID, from: from, to: to, groupBy: "client_name", environment: environment)
+            async let os = api.fetchBreakdown(projectId: projectID, teamId: teamID, from: from, to: to, groupBy: "os_name", environment: environment)
+            async let utmSources = api.fetchBreakdown(projectId: projectID, teamId: teamID, from: from, to: to, groupBy: "utm", environment: environment)
+            async let routes = api.fetchBreakdown(projectId: projectID, teamId: teamID, from: from, to: to, groupBy: "route", environment: environment)
+            async let hostnames = api.fetchBreakdown(projectId: projectID, teamId: teamID, from: from, to: to, groupBy: "hostname", environment: environment)
+            async let events = api.fetchBreakdown(projectId: projectID, teamId: teamID, from: from, to: to, groupBy: "event_name", environment: environment)
+            async let flags = api.fetchBreakdown(projectId: projectID, teamId: teamID, from: from, to: to, groupBy: "flags", environment: environment)
+            async let queryParams = api.fetchBreakdown(projectId: projectID, teamId: teamID, from: from, to: to, groupBy: "query_params", environment: environment)
 
             loadedData.overview = try await overview
             loadedData.previousOverview = try? await previous
@@ -121,18 +317,17 @@ final class AnalyticsViewModel {
             loadedData.events = (try? await events) ?? []
             loadedData.flags = (try? await flags) ?? []
             loadedData.queryParams = (try? await queryParams) ?? []
-            if range.isPro {
-                didUnlockLongAnalyticsHistory = true
-            }
-
+            try Task.checkCancellation()
+        } catch is CancellationError {
+            throw CancellationError()
         } catch let apiError as APIError {
             switch apiError {
             case .unauthorized:
                 loadedError = apiError.localizedDescription
             case .serverError(let code) where code == 400 || code == 404:
-                loadedUnavailableMessage = "Vercel Web Analytics is not available through token access right now. Project details, domains, and deployments are still shown below."
+                unavailableMessage = "Vercel Web Analytics is not available through token access right now. Project details, domains, and deployments are still shown below."
             case .serverError(let code):
-                loadedUnavailableMessage = "Vercel Web Analytics returned HTTP \(code). Project details, domains, and deployments are still shown below."
+                unavailableMessage = "Vercel Web Analytics returned HTTP \(code). Project details, domains, and deployments are still shown below."
             default:
                 loadedError = apiError.localizedDescription
             }
@@ -140,37 +335,42 @@ final class AnalyticsViewModel {
             loadedError = error.localizedDescription
         }
 
-        let loadedProject = await fetchedProject
-        let domains = await fetchedDomains
-        let deployments = await fetchedDeployments
+        try Task.checkCancellation()
+        return LoadedAnalytics(
+            data: loadedData,
+            didUnlockLongAnalyticsHistory: range.isPro
+                && loadedError == nil
+                && unavailableMessage == nil,
+            error: loadedError,
+            unavailableMessage: unavailableMessage
+        )
+    }
 
-        guard generation == loadGeneration else { return (false, false, false) }
-        if loadedError == nil || data.overview == nil {
-            data = loadedData
-        }
-        if loadedError == nil {
-            displayedRange = range
-            displayedEnvironment = selectedEnvironment
-        }
-        error = loadedError
-        analyticsUnavailableMessage = loadedUnavailableMessage
-        self.hasLongAnalyticsHistory = hasLongAnalyticsHistory || didUnlockLongAnalyticsHistory
-        if let loadedProject { projectDetails = loadedProject }
-        self.domains = domains.isEmpty ? project.primaryDomain.map { [$0] } ?? [] : domains
-        recentDeployments = deployments
+    private static func fetchProjectContextIfNeeded(
+        _ shouldFetch: Bool,
+        api: VercelAPI,
+        projectID: String,
+        teamID: String?
+    ) async throws -> LoadedProjectContext? {
+        guard shouldFetch else { return nil }
+        try Task.checkCancellation()
 
-        isLoading = false
-        if loadedError == nil {
-            Self.cache[cacheKey] = CachedAnalytics(
-                data: data,
-                projectDetails: projectDetails,
-                domains: self.domains,
-                recentDeployments: recentDeployments,
-                hasLongAnalyticsHistory: self.hasLongAnalyticsHistory,
-                analyticsUnavailableMessage: analyticsUnavailableMessage
-            )
-        }
-        return (didUnlockLongAnalyticsHistory, true, loadedError == nil)
+        async let fetchedProject: Project? = try? await api.fetchProject(id: projectID, teamId: teamID)
+        async let fetchedDomains: [String]? = try? await api.fetchProjectDomains(projectId: projectID, teamId: teamID)
+        async let fetchedDeployments: [RecentDeployment]? = try? await api.fetchDeployments(projectId: projectID, teamId: teamID)
+
+        let (projectDetails, domains, recentDeployments) = await (
+            fetchedProject,
+            fetchedDomains,
+            fetchedDeployments
+        )
+        let result = LoadedProjectContext(
+            projectDetails: projectDetails,
+            domains: domains,
+            recentDeployments: recentDeployments
+        )
+        try Task.checkCancellation()
+        return result
     }
 }
 
@@ -183,11 +383,11 @@ struct AnalyticsView: View {
     @State private var vm: AnalyticsViewModel
     @State private var lastUpdated: Date?
     @State private var refreshSpin: Double = 0
-    @State private var hasLoadedInitialData = false
+    @State private var loadTask: Task<Void, Never>?
 
-    init(project: Project) {
+    init(project: Project, initialToken: String? = nil) {
         self.project = project
-        _vm = State(wrappedValue: AnalyticsViewModel(project: project))
+        _vm = State(wrappedValue: AnalyticsViewModel(project: project, token: initialToken))
     }
 
     var body: some View {
@@ -198,7 +398,7 @@ struct AnalyticsView: View {
                 AnalyticsSkeletonView()
             } else if let error = vm.error, !hasVisibleContent {
                 ErrorStateView(message: error) {
-                    Task { await loadData(forceRefresh: true) }
+                    startLoad(forceRefresh: true)
                 }
             } else {
                 analyticsContent
@@ -206,35 +406,36 @@ struct AnalyticsView: View {
         }
         .navigationTitle(project.name)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     if !reduceMotion {
                         withAnimation(.easeInOut(duration: 0.45)) { refreshSpin += 360 }
                     }
-                    Task { await loadData(forceRefresh: true) }
+                    startLoad(forceRefresh: true)
                 } label: {
                     Image(systemName: "arrow.clockwise")
                         .font(.system(size: 14, weight: .semibold))
                         .rotationEffect(.degrees(refreshSpin))
-                        .foregroundStyle(.white.opacity(0.7))
+                        .foregroundStyle(AppTheme.textSecondary)
                 }
                 .disabled(vm.isLoading)
                 .accessibilityLabel(vm.isLoading ? "Refreshing analytics" : "Refresh analytics")
                 .sensoryFeedback(.impact(weight: .light), trigger: refreshSpin)
             }
         }
-        .task {
-            guard !hasLoadedInitialData else { return }
-            hasLoadedInitialData = true
-            await loadData()
+        .onAppear {
+            startLoad()
         }
         .onChange(of: vm.selectedRange) {
-            Task { await loadData() }
+            startLoad(debounce: true)
         }
         .onChange(of: vm.selectedEnvironment) {
-            Task { await loadData() }
+            startLoad(debounce: true)
+        }
+        .onDisappear {
+            loadTask?.cancel()
+            loadTask = nil
         }
         .sensoryFeedback(.selection, trigger: vm.selectedRange)
         .sensoryFeedback(.selection, trigger: vm.selectedEnvironment)
@@ -277,7 +478,7 @@ struct AnalyticsView: View {
                         tint: AppTheme.warning,
                         actionTitle: "Retry"
                     ) {
-                        Task { await loadData(forceRefresh: true) }
+                        startLoad(forceRefresh: true)
                     }
                 }
 
@@ -298,7 +499,10 @@ struct AnalyticsView: View {
             .frame(maxWidth: hSize == .regular ? 1100 : .infinity)
             .frame(maxWidth: .infinity)
         }
-        .refreshable { await loadData(forceRefresh: true) }
+        .refreshable {
+            let task = startLoad(forceRefresh: true)
+            await task.value
+        }
     }
 
     private func analyticsUnavailableCard(_ message: String) -> some View {
@@ -363,22 +567,22 @@ struct AnalyticsView: View {
                         HStack(spacing: 7) {
                             Text(domain)
                                 .font(.system(size: 12, weight: .bold))
-                                .foregroundStyle(.white.opacity(0.72))
+                                .foregroundStyle(AppTheme.textPrimary)
                                 .lineLimit(1)
                                 .truncationMode(.middle)
 
                             Image(systemName: "arrow.up.right")
                                 .font(.system(size: 8, weight: .semibold))
-                                .foregroundStyle(Color.blue.opacity(0.75))
+                                .foregroundStyle(AppTheme.signal)
                                 .frame(width: 17, height: 17)
-                                .background(Color.blue.opacity(0.12))
+                                .background(AppTheme.signal.opacity(0.12))
                                 .clipShape(Circle())
                         }
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
                         .background(AppTheme.surfaceRaised)
                         .clipShape(Capsule())
-                        .overlay(Capsule().strokeBorder(Color.white.opacity(0.09), lineWidth: 0.5))
+                        .overlay(Capsule().strokeBorder(AppTheme.stroke, lineWidth: 0.5))
                     }
                     .buttonStyle(PressScaleButtonStyle())
                     .accessibilityLabel("Open \(domain)")
@@ -440,18 +644,18 @@ struct AnalyticsView: View {
                     HStack(spacing: 6) {
                         Image(systemName: "calendar")
                             .font(.caption.weight(.bold))
-                            .foregroundStyle(.white.opacity(0.5))
+                            .foregroundStyle(AppTheme.textSecondary)
                         Text(vm.selectedRange.controlLabel)
                             .font(.subheadline.weight(.semibold))
                             .lineLimit(1)
                         Image(systemName: "chevron.down")
                             .font(.caption2.weight(.semibold))
-                            .foregroundStyle(.white.opacity(0.4))
+                            .foregroundStyle(AppTheme.textTertiary)
                     }
                     .padding(.horizontal, 11)
                     .padding(.vertical, 9)
                     .background(AppTheme.surfaceRaised)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(AppTheme.textPrimary)
                     .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous).strokeBorder(AppTheme.stroke, lineWidth: 0.5))
                 }
@@ -478,18 +682,18 @@ struct AnalyticsView: View {
                     HStack(spacing: 6) {
                         Image(systemName: "shippingbox")
                             .font(.caption.weight(.bold))
-                            .foregroundStyle(.white.opacity(0.5))
+                            .foregroundStyle(AppTheme.textSecondary)
                         Text(vm.selectedEnvironment.controlLabel)
                             .font(.subheadline.weight(.semibold))
                             .lineLimit(1)
                         Image(systemName: "chevron.down")
                             .font(.caption2.weight(.semibold))
-                            .foregroundStyle(.white.opacity(0.4))
+                            .foregroundStyle(AppTheme.textTertiary)
                     }
                     .padding(.horizontal, 11)
                     .padding(.vertical, 9)
                     .background(AppTheme.surfaceRaised)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(AppTheme.textPrimary)
                     .clipShape(RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous).strokeBorder(AppTheme.stroke, lineWidth: 0.5))
                 }
@@ -633,7 +837,7 @@ struct AnalyticsView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
 
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
 
             content()
         }
@@ -688,7 +892,11 @@ struct AnalyticsView: View {
 
     private func deploymentRow(_ deployment: RecentDeployment) -> some View {
         NavigationLink {
-            DeploymentDetailView(project: project, deployment: deployment)
+            DeploymentDetailView(
+                project: project,
+                deployment: deployment,
+                initialToken: authManager.token
+            )
         } label: {
             deploymentRowContent(deployment)
         }
@@ -711,7 +919,7 @@ struct AnalyticsView: View {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(title)
                         .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.82))
+                        .foregroundStyle(AppTheme.textPrimary)
                         .lineLimit(1)
 
                     AppStatusBadge(text: deployment.displayState.capitalized, tone: .status(deployment.displayState))
@@ -734,7 +942,7 @@ struct AnalyticsView: View {
                     }
                 }
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.38))
+                .foregroundStyle(AppTheme.textSecondary)
                 .lineLimit(1)
             }
 
@@ -797,7 +1005,7 @@ struct AnalyticsView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
 
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
 
             if items.isEmpty {
                 let lockTitle = lockedTitle ?? proHint.map { "Requires \($0)" }
@@ -864,6 +1072,28 @@ struct AnalyticsView: View {
 
     // MARK: - Helpers
 
+    @discardableResult
+    private func startLoad(
+        forceRefresh: Bool = false,
+        debounce: Bool = false
+    ) -> Task<Void, Never> {
+        loadTask?.cancel()
+
+        let task = Task { @MainActor in
+            if debounce {
+                do {
+                    try await Task.sleep(for: .milliseconds(250))
+                } catch {
+                    return
+                }
+            }
+            guard !Task.isCancelled else { return }
+            await loadData(forceRefresh: forceRefresh)
+        }
+        loadTask = task
+        return task
+    }
+
     private func loadData(forceRefresh: Bool = false) async {
         guard let token = authManager.token else { return }
         let accountId = authManager.activeAccountId
@@ -877,7 +1107,9 @@ struct AnalyticsView: View {
             authManager.markLongAnalyticsHistoryAvailable(for: accountId)
         }
         if result.succeeded {
-            lastUpdated = Date()
+            lastUpdated = vm.lastUpdated ?? Date()
+        } else if let cachedDate = vm.lastUpdated {
+            lastUpdated = cachedDate
         }
     }
 
@@ -931,10 +1163,10 @@ struct AnalyticsSkeletonView: View {
             VStack(spacing: 14) {
                 HStack(spacing: 8) {
                     RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.white.opacity(0.06))
+                        .fill(AppTheme.skeletonStrong)
                         .frame(width: 100, height: 34)
                     RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.white.opacity(0.06))
+                        .fill(AppTheme.skeletonStrong)
                         .frame(width: 120, height: 34)
                     Spacer()
                 }
@@ -943,10 +1175,10 @@ struct AnalyticsSkeletonView: View {
                     ForEach(0..<3, id: \.self) { _ in
                         VStack(alignment: .leading, spacing: 8) {
                             RoundedRectangle(cornerRadius: 4)
-                                .fill(Color.white.opacity(0.06))
+                                .fill(AppTheme.skeletonStrong)
                                 .frame(width: 60, height: 12)
                             RoundedRectangle(cornerRadius: 4)
-                                .fill(Color.white.opacity(0.08))
+                                .fill(AppTheme.skeletonStrong)
                                 .frame(width: 44, height: 24)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -963,11 +1195,11 @@ struct AnalyticsSkeletonView: View {
                     ForEach(0..<6, id: \.self) { _ in
                         VStack(alignment: .leading, spacing: 8) {
                             RoundedRectangle(cornerRadius: 4)
-                                .fill(Color.white.opacity(0.06))
+                                .fill(AppTheme.skeletonStrong)
                                 .frame(width: 80, height: 14)
                             ForEach(0..<4, id: \.self) { _ in
                                 RoundedRectangle(cornerRadius: 4)
-                                    .fill(Color.white.opacity(0.04))
+                                    .fill(AppTheme.skeleton)
                                     .frame(height: 36)
                             }
                         }

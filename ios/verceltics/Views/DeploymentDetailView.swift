@@ -3,28 +3,86 @@ import SwiftUI
 @Observable
 @MainActor
 final class DeploymentDetailViewModel {
+    private struct CacheEntry {
+        let events: [DeploymentEvent]
+        let updatedAt: Date
+    }
+
+    private static var cache: [String: CacheEntry] = [:]
+    private static let cacheLifetime: TimeInterval = 120
+
     var events: [DeploymentEvent] = []
     var isLoadingEvents = true
     var error: String?
+    private(set) var hasLoadedEvents = false
+    private var loadGeneration = 0
 
-    func load(token: String, deployment: RecentDeployment, teamId: String?) async {
+    init(
+        token: String? = nil,
+        deployment: RecentDeployment? = nil,
+        teamId: String? = nil
+    ) {
+        guard let token,
+              let deployment,
+              let idOrUrl = deployment.uid ?? deployment.url,
+              let cached = Self.cache[Self.cacheKey(token: token, teamId: teamId, idOrUrl: idOrUrl)] else {
+            return
+        }
+        events = cached.events
+        hasLoadedEvents = true
+        isLoadingEvents = false
+    }
+
+    func load(
+        token: String,
+        deployment: RecentDeployment,
+        teamId: String?,
+        forceRefresh: Bool = false
+    ) async {
         guard let idOrUrl = deployment.uid ?? deployment.url else {
             isLoadingEvents = false
             error = "This deployment does not include an event identifier."
             return
         }
 
-        isLoadingEvents = true
+        let cacheKey = Self.cacheKey(token: token, teamId: teamId, idOrUrl: idOrUrl)
+        if let cached = Self.cache[cacheKey] {
+            events = cached.events
+            hasLoadedEvents = true
+            isLoadingEvents = false
+            error = nil
+            if !forceRefresh,
+               Date.now.timeIntervalSince(cached.updatedAt) < Self.cacheLifetime {
+                return
+            }
+        }
+
+        loadGeneration += 1
+        let generation = loadGeneration
+        isLoadingEvents = !hasLoadedEvents
         error = nil
 
         do {
-            events = try await VercelAPI(token: token)
+            let loaded = try await VercelAPI(token: token)
                 .fetchDeploymentEvents(idOrUrl: idOrUrl, teamId: teamId)
+            guard generation == loadGeneration else { return }
+            events = loaded
+            hasLoadedEvents = true
+            Self.cache[cacheKey] = CacheEntry(events: loaded, updatedAt: .now)
+        } catch is CancellationError {
+            return
         } catch {
+            guard generation == loadGeneration else { return }
             self.error = error.localizedDescription
         }
 
-        isLoadingEvents = false
+        if generation == loadGeneration { isLoadingEvents = false }
+    }
+
+    private static func cacheKey(token: String, teamId: String?, idOrUrl: String) -> String {
+        CredentialCacheScope.fingerprint(fields: [
+            "vercel-deployment-events", token, teamId ?? "", idOrUrl
+        ])
     }
 }
 
@@ -34,7 +92,17 @@ struct DeploymentDetailView: View {
 
     @Environment(AuthManager.self) private var authManager
     @Environment(\.horizontalSizeClass) private var hSize
-    @State private var vm = DeploymentDetailViewModel()
+    @State private var vm: DeploymentDetailViewModel
+
+    init(project: Project, deployment: RecentDeployment, initialToken: String? = nil) {
+        self.project = project
+        self.deployment = deployment
+        _vm = State(initialValue: DeploymentDetailViewModel(
+            token: initialToken,
+            deployment: deployment,
+            teamId: project.teamId
+        ))
+    }
 
     var body: some View {
         ZStack {
@@ -52,12 +120,11 @@ struct DeploymentDetailView: View {
         }
         .navigationTitle("Deployment")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .task {
             await loadEvents()
         }
         .refreshable {
-            await loadEvents()
+            await loadEvents(forceRefresh: true)
         }
     }
 
@@ -159,7 +226,7 @@ struct DeploymentDetailView: View {
 
     private var eventsCard: some View {
         infoPanel(title: "Build Events", icon: "terminal.fill") {
-            if vm.isLoadingEvents {
+            if vm.isLoadingEvents && !vm.hasLoadedEvents {
                 VStack(spacing: 12) {
                     ProgressView()
                         .tint(AppTheme.textSecondary)
@@ -169,7 +236,7 @@ struct DeploymentDetailView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 32)
-            } else if let error = vm.error {
+            } else if let error = vm.error, !vm.hasLoadedEvents {
                 VStack(spacing: 10) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 18, weight: .bold))
@@ -183,15 +250,39 @@ struct DeploymentDetailView: View {
                 .padding(.horizontal, 22)
                 .padding(.vertical, 28)
             } else if vm.events.isEmpty {
+                if let error = vm.error {
+                    AppFeedbackBanner(
+                        title: "Event refresh failed",
+                        message: "\(error) Showing the last successful result.",
+                        tint: AppTheme.warning,
+                        actionTitle: "Retry"
+                    ) {
+                        Task { await loadEvents(forceRefresh: true) }
+                    }
+                    .padding(12)
+                }
                 Text("No build events returned")
                     .font(.footnote)
                     .foregroundStyle(AppTheme.textSecondary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 30)
             } else {
-                LazyVStack(spacing: 0) {
-                    ForEach(vm.events.prefix(80)) { event in
-                        eventRow(event)
+                VStack(spacing: 0) {
+                    if let error = vm.error {
+                        AppFeedbackBanner(
+                            title: "Event refresh failed",
+                            message: "\(error) Showing the last successful result.",
+                            tint: AppTheme.warning,
+                            actionTitle: "Retry"
+                        ) {
+                            Task { await loadEvents(forceRefresh: true) }
+                        }
+                        .padding(12)
+                    }
+                    LazyVStack(spacing: 0) {
+                        ForEach(vm.events.prefix(80)) { event in
+                            eventRow(event)
+                        }
                     }
                 }
             }
@@ -204,9 +295,14 @@ struct DeploymentDetailView: View {
         return "\(org)/\(repo)"
     }
 
-    private func loadEvents() async {
+    private func loadEvents(forceRefresh: Bool = false) async {
         guard let token = authManager.token else { return }
-        await vm.load(token: token, deployment: deployment, teamId: project.teamId)
+        await vm.load(
+            token: token,
+            deployment: deployment,
+            teamId: project.teamId,
+            forceRefresh: forceRefresh
+        )
     }
 
     private func infoPanel<Content: View>(
@@ -227,7 +323,7 @@ struct DeploymentDetailView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
 
-            Divider().overlay(Color.white.opacity(0.06))
+            Divider().overlay(AppTheme.divider)
 
             content()
         }
@@ -304,12 +400,12 @@ struct DeploymentDetailView: View {
                 Text(title)
                     .font(.system(size: 13, weight: .bold))
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(AppTheme.textPrimary)
             .padding(.horizontal, 13)
             .padding(.vertical, 9)
             .background(AppTheme.surfaceRaised)
             .clipShape(Capsule())
-            .overlay(Capsule().strokeBorder(Color.white.opacity(0.10), lineWidth: 0.5))
+            .overlay(Capsule().strokeBorder(AppTheme.stroke, lineWidth: 0.5))
         }
         .buttonStyle(PressScaleButtonStyle())
     }

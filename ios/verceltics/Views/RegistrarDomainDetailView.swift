@@ -48,7 +48,6 @@ struct RegistrarDomainDetailView: View {
         }
         .navigationTitle(domain.name)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
     }
 
     private var detailColumns: [GridItem] {
@@ -109,12 +108,12 @@ struct RegistrarDomainDetailView: View {
     private var properties: some View {
         VStack(spacing: 0) {
             property("Auto renewal", value: booleanText(domain.autoRenew), icon: "arrow.triangle.2.circlepath")
-            Divider().overlay(Color.white.opacity(0.08)).padding(.leading, 48)
+            Divider().overlay(AppTheme.divider).padding(.leading, 48)
             property("Transfer lock", value: booleanText(domain.locked), icon: "lock.fill")
-            Divider().overlay(Color.white.opacity(0.08)).padding(.leading, 48)
+            Divider().overlay(AppTheme.divider).padding(.leading, 48)
             property("WHOIS privacy", value: booleanText(domain.privacyEnabled), icon: "eye.slash.fill")
             if let date = domain.createdAt {
-                Divider().overlay(Color.white.opacity(0.08)).padding(.leading, 48)
+                Divider().overlay(AppTheme.divider).padding(.leading, 48)
                 property("Registered", value: date.formatted(date: .abbreviated, time: .omitted), icon: "calendar.badge.checkmark")
             }
         }

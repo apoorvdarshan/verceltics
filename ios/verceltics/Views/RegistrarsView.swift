@@ -3,7 +3,13 @@ import SwiftUI
 @Observable
 @MainActor
 final class RegistrarDashboardViewModel {
-    private static var cachedDomains: [String: [RegistrarDomain]] = [:]
+    private struct CachedDomains {
+        let domains: [RegistrarDomain]
+        let updatedAt: Date
+    }
+
+    private static var cachedDomains: [String: CachedDomains] = [:]
+    private static let cacheLifetime: TimeInterval = 3 * 60
 
     let account: RegistrarAccount
     let api: RegistrarAPI
@@ -12,6 +18,9 @@ final class RegistrarDashboardViewModel {
     var isRefreshing = false
     var error: String?
     private var hasLoaded = false
+    private var lastUpdatedAt: Date?
+    private var loadGeneration = 0
+    private var isRequestInFlight = false
     private let cacheKey: String
 
     init(account: RegistrarAccount) {
@@ -19,27 +28,52 @@ final class RegistrarDashboardViewModel {
         api = RegistrarAPI(account: account)
         cacheKey = CredentialCacheScope.registrarAccount(account)
         if let cached = Self.cachedDomains[cacheKey] {
-            domains = cached
+            domains = cached.domains
+            lastUpdatedAt = cached.updatedAt
             isLoading = false
             hasLoaded = true
         }
     }
 
     func load(refresh: Bool = false) async {
-        if hasLoaded && !refresh { return }
-        if refresh { isRefreshing = true } else { isLoading = true }
+        if !refresh,
+           let lastUpdatedAt,
+           Date.now.timeIntervalSince(lastUpdatedAt) < Self.cacheLifetime {
+            return
+        }
+        guard !isRequestInFlight else { return }
+        isRequestInFlight = true
+        loadGeneration += 1
+        let generation = loadGeneration
+        isLoading = !hasLoaded
+        isRefreshing = hasLoaded
         error = nil
+        defer {
+            if generation == loadGeneration {
+                isRequestInFlight = false
+                isLoading = false
+                isRefreshing = false
+            }
+        }
         do {
-            domains = try await api.fetchDomains().sorted {
+            let loadedDomains = try await api.fetchDomains().sorted {
                 $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
             }
+            guard generation == loadGeneration else { return }
+            let updatedAt = Date.now
+            domains = loadedDomains
             hasLoaded = true
-            Self.cachedDomains[cacheKey] = domains
+            lastUpdatedAt = updatedAt
+            Self.cachedDomains[cacheKey] = CachedDomains(
+                domains: loadedDomains,
+                updatedAt: updatedAt
+            )
         } catch is CancellationError {
             // Switching tabs can cancel a request; keep any cached content.
-        } catch { self.error = error.localizedDescription }
-        isLoading = false
-        isRefreshing = false
+        } catch {
+            guard generation == loadGeneration else { return }
+            self.error = error.localizedDescription
+        }
     }
 }
 
@@ -47,11 +81,18 @@ struct RegistrarsView: View {
     @Environment(RegistrarStore.self) private var store
     @State private var showConnection = false
     var startWithSearch = false
+    var searchRequestID = 0
+    var backgroundRefreshRequestID = 0
 
     var body: some View {
         Group {
             if let account = store.activeAccount {
-                RegistrarDashboardView(account: account, startWithSearch: startWithSearch)
+                RegistrarDashboardView(
+                    account: account,
+                    startWithSearch: startWithSearch,
+                    searchRequestID: searchRequestID,
+                    backgroundRefreshRequestID: backgroundRefreshRequestID
+                )
                     .id(account.dashboardViewIdentity)
             } else {
                 NavigationStack {
@@ -80,7 +121,6 @@ struct RegistrarsView: View {
                     }
                     .navigationTitle("Registrars")
                     .navigationBarTitleDisplayMode(.inline)
-                    .toolbarColorScheme(.dark, for: .navigationBar)
                     .toolbar {
                         ToolbarItem(placement: .topBarLeading) {
                             RegistrarAccountMenu()
@@ -100,6 +140,8 @@ struct RegistrarsView: View {
 struct RegistrarDashboardView: View {
     let account: RegistrarAccount
     var startWithSearch = false
+    var searchRequestID = 0
+    var backgroundRefreshRequestID = 0
     @State private var viewModel: RegistrarDashboardViewModel
     @State private var searchText = ""
     @State private var isSearching = false
@@ -108,9 +150,16 @@ struct RegistrarDashboardView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(RegistrarStore.self) private var store
 
-    init(account: RegistrarAccount, startWithSearch: Bool = false) {
+    init(
+        account: RegistrarAccount,
+        startWithSearch: Bool = false,
+        searchRequestID: Int = 0,
+        backgroundRefreshRequestID: Int = 0
+    ) {
         self.account = account
         self.startWithSearch = startWithSearch
+        self.searchRequestID = searchRequestID
+        self.backgroundRefreshRequestID = backgroundRefreshRequestID
         _viewModel = State(initialValue: RegistrarDashboardViewModel(account: account))
     }
 
@@ -139,7 +188,6 @@ struct RegistrarDashboardView: View {
             }
             .navigationTitle("Registrars")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarColorScheme(.dark, for: .navigationBar)
             .searchable(text: $searchText, isPresented: $isSearching, prompt: "Search domains")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { RegistrarAccountMenu() }
@@ -152,16 +200,22 @@ struct RegistrarDashboardView: View {
                     } label: {
                         Image(systemName: "arrow.clockwise")
                             .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.72))
+                            .foregroundStyle(AppTheme.textSecondary)
                             .rotationEffect(.degrees(refreshSpin))
                     }
                     .disabled(viewModel.isRefreshing)
                     .accessibilityLabel(viewModel.isRefreshing ? "Refreshing domains" : "Refresh domains")
                 }
             }
-            .task(id: account.id) { await viewModel.load() }
+            .task { await viewModel.load() }
+            .onChange(of: backgroundRefreshRequestID) { _, _ in
+                Task { await viewModel.load() }
+            }
             .onAppear {
                 if startWithSearch { isSearching = true }
+            }
+            .onChange(of: searchRequestID) { _, _ in
+                isSearching = true
             }
         }
     }
@@ -263,7 +317,7 @@ struct RegistrarDashboardView: View {
                 }
                 GeometryReader { geometry in
                     ZStack(alignment: .leading) {
-                        Capsule().fill(Color.white.opacity(0.07))
+                        Capsule().fill(AppTheme.skeletonStrong)
                         Capsule()
                             .fill(expiryHealthColor)
                             .frame(width: geometry.size.width * healthFraction)
@@ -320,7 +374,7 @@ struct RegistrarDashboardView: View {
     private func actionLabel(_ title: String, icon: String) -> some View {
         Label(title, systemImage: icon)
             .font(.system(size: 12, weight: .bold))
-            .foregroundStyle(.white)
+            .foregroundStyle(AppTheme.textPrimary)
             .frame(maxWidth: .infinity).frame(height: 47)
             .appSurface(raised: true)
     }
