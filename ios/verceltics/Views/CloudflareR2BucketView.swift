@@ -3,6 +3,8 @@ import SwiftUI
 @Observable
 @MainActor
 final class CloudflareR2BucketViewModel {
+    private static var bucketCache: [String: CloudflareR2Bucket] = [:]
+
     let api: CloudflareAPI
     let accountID: String
     let bucketName: String
@@ -14,16 +16,23 @@ final class CloudflareR2BucketViewModel {
     var didDelete = false
     var actionMessage: String?
     var actionFailed = false
+    private var hasLoaded = false
+
+    private var cacheKey: String { "\(api.cacheScope)|\(accountID)|\(bucketName)|\(jurisdiction ?? "")" }
 
     init(api: CloudflareAPI, accountID: String, bucket: CloudflareR2Bucket) {
         self.api = api
         self.accountID = accountID
         bucketName = bucket.name
         jurisdiction = bucket.jurisdiction
-        self.bucket = bucket
+        let key = "\(api.cacheScope)|\(accountID)|\(bucket.name)|\(bucket.jurisdiction ?? "")"
+        self.bucket = Self.bucketCache[key] ?? bucket
+        hasLoaded = Self.bucketCache[key] != nil
+        isLoading = !hasLoaded
     }
 
-    func load() async {
+    func load(forceRefresh: Bool = false) async {
+        if hasLoaded && !forceRefresh { return }
         isLoading = true
         defer { isLoading = false }
         do {
@@ -32,6 +41,12 @@ final class CloudflareR2BucketViewModel {
                 bucketName: bucketName,
                 jurisdiction: jurisdiction
             )
+            Self.bucketCache[cacheKey] = bucket
+            hasLoaded = true
+        } catch is CancellationError {
+            // Navigation can cancel an in-flight request; retain prior state.
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            // Navigation can cancel an in-flight request; retain prior state.
         } catch {
             actionMessage = error.localizedDescription
             actionFailed = true
@@ -49,6 +64,7 @@ final class CloudflareR2BucketViewModel {
                 confirmation: CloudflareMutationConfirmation(confirmingResourceID: bucketName)
             )
             didDelete = true
+            Self.bucketCache[cacheKey] = nil
         } catch {
             actionMessage = error.localizedDescription
             actionFailed = true
@@ -97,7 +113,7 @@ struct CloudflareR2BucketView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .task { await viewModel.load() }
-        .refreshable { await viewModel.load() }
+        .refreshable { await viewModel.load(forceRefresh: true) }
         .onChange(of: viewModel.didDelete) { _, deleted in if deleted { dismiss() } }
         .confirmationDialog("Delete this R2 bucket?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
             Button("Delete Bucket", role: .destructive) { Task { await viewModel.delete() } }

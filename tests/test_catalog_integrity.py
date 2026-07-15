@@ -102,10 +102,11 @@ class AppComplianceTests(unittest.TestCase):
         self.assertIn("CA92.1", user_defaults["NSPrivacyAccessedAPITypeReasons"])
 
     def test_hosting_logout_does_not_clear_registrars(self):
-        helper = (ROOT / "ios/verceltics/Auth/KeychainHelper.swift").read_text()
-        hosting_delete = helper.split("static func deleteHostingAccounts()", 1)[1].split("private static", 1)[0]
-        self.assertNotIn("registrarAccountsKey", hosting_delete)
-        self.assertNotIn("activeRegistrarAccountIdKey", hosting_delete)
+        manager = (ROOT / "ios/verceltics/Auth/AuthManager.swift").read_text()
+        hosting_logout = manager.split("func logoutAll()", 1)[1].split("private func", 1)[0]
+        self.assertIn("persistAccounts([], activeAccountID: nil)", hosting_logout)
+        self.assertNotIn("Registrar", hosting_logout)
+        self.assertNotIn("saveRegistrarAccounts", hosting_logout)
 
 
 if __name__ == "__main__":

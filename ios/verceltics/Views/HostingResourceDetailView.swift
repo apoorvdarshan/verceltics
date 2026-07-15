@@ -6,7 +6,7 @@ final class HostingResourceDetailViewModel {
     private static var cachedDeployments: [String: [HostingDeployment]] = [:]
 
     let api: HostingProviderAPI
-    private let accountID: String
+    private let cacheScope: String
     var deployments: [HostingDeployment] = []
     var isLoading = true
     var isActing = false
@@ -14,12 +14,12 @@ final class HostingResourceDetailViewModel {
     var successMessage: String?
 
     init(account: VercelAccount) {
-        accountID = account.id.uuidString
+        cacheScope = CredentialCacheScope.hostingAccount(account)
         api = HostingProviderAPI(account: account)
     }
 
     func load(resource: HostingResource, forceRefresh: Bool = false) async {
-        let cacheKey = "\(accountID)|\(resource.id)"
+        let cacheKey = "\(cacheScope)|\(resource.id)"
         if !forceRefresh, let cached = Self.cachedDeployments[cacheKey] {
             deployments = cached
             isLoading = false

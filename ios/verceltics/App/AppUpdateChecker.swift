@@ -51,7 +51,10 @@ final class AppUpdateChecker {
             ]
 
             guard let lookupURL = components.url else { throw URLError(.badURL) }
-            let (data, response) = try await URLSession.shared.data(from: lookupURL)
+            let (data, response) = try await ProviderRequestSecurity.data(
+                for: URLRequest(url: lookupURL),
+                maximumResponseBytes: 1_000_000
+            )
             guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
                 throw URLError(.badServerResponse)
             }

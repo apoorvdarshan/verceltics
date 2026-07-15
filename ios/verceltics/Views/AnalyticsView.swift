@@ -179,6 +179,7 @@ struct AnalyticsView: View {
     @Environment(AuthManager.self) private var authManager
     @Environment(\.horizontalSizeClass) private var hSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var vm: AnalyticsViewModel
     @State private var lastUpdated: Date?
     @State private var refreshSpin: Double = 0
@@ -220,6 +221,7 @@ struct AnalyticsView: View {
                         .foregroundStyle(.white.opacity(0.7))
                 }
                 .disabled(vm.isLoading)
+                .accessibilityLabel(vm.isLoading ? "Refreshing analytics" : "Refresh analytics")
                 .sensoryFeedback(.impact(weight: .light), trigger: refreshSpin)
             }
         }
@@ -249,14 +251,18 @@ struct AnalyticsView: View {
     }
 
     private var statsColumns: [GridItem] {
-        Array(
+        if dynamicTypeSize.isAccessibilitySize {
+            return [GridItem(.flexible(minimum: 0), alignment: .top)]
+        }
+        return Array(
             repeating: GridItem(.flexible(minimum: 0), spacing: 10, alignment: .top),
             count: 3
         )
     }
 
     private var chartHeight: CGFloat {
-        hSize == .regular ? 340 : 260
+        if dynamicTypeSize.isAccessibilitySize { return 340 }
+        return hSize == .regular ? 340 : 260
     }
 
     private var analyticsContent: some View {
@@ -380,7 +386,40 @@ struct AnalyticsView: View {
                 Spacer()
             }
 
-            HStack(spacing: 8) {
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: 8) {
+                        rangeMenu
+                        environmentMenu
+                        if vm.isLoading {
+                            ProgressView().controlSize(.small).tint(AppTheme.textSecondary)
+                                .accessibilityLabel("Refreshing analytics")
+                        }
+                    }
+                } else {
+                    HStack(spacing: 8) {
+                        rangeMenu
+                        environmentMenu
+                        Spacer()
+                        if vm.isLoading {
+                            ProgressView().controlSize(.small).tint(AppTheme.textSecondary)
+                                .accessibilityLabel("Refreshing analytics")
+                        }
+                    }
+                }
+            }
+
+            if let lastUpdated {
+                Label("Updated \(lastUpdated.formatted(.relative(presentation: .named)))", systemImage: "checkmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .transition(.opacity)
+            }
+        }
+        .padding(.bottom, 2)
+    }
+
+    private var rangeMenu: some View {
                 Menu {
                     ForEach(TimeRange.allCases) { range in
                         Button {
@@ -400,13 +439,13 @@ struct AnalyticsView: View {
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "calendar")
-                            .font(.system(size: 10, weight: .bold))
+                            .font(.caption.weight(.bold))
                             .foregroundStyle(.white.opacity(0.5))
                         Text(vm.selectedRange.controlLabel)
-                            .font(.system(size: 13, weight: .bold))
+                            .font(.subheadline.weight(.semibold))
                             .lineLimit(1)
                         Image(systemName: "chevron.down")
-                            .font(.system(size: 9, weight: .semibold))
+                            .font(.caption2.weight(.semibold))
                             .foregroundStyle(.white.opacity(0.4))
                     }
                     .padding(.horizontal, 11)
@@ -417,7 +456,11 @@ struct AnalyticsView: View {
                     .overlay(RoundedRectangle(cornerRadius: AppTheme.controlRadius, style: .continuous).strokeBorder(AppTheme.stroke, lineWidth: 0.5))
                 }
                 .buttonStyle(PressScaleButtonStyle())
+                .accessibilityLabel("Analytics range")
+                .accessibilityValue(vm.selectedRange.controlLabel)
+    }
 
+    private var environmentMenu: some View {
                 Menu {
                     ForEach(VercelEnvironment.allCases) { environment in
                         Button {
@@ -434,13 +477,13 @@ struct AnalyticsView: View {
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "shippingbox")
-                            .font(.system(size: 10, weight: .bold))
+                            .font(.caption.weight(.bold))
                             .foregroundStyle(.white.opacity(0.5))
                         Text(vm.selectedEnvironment.controlLabel)
-                            .font(.system(size: 13, weight: .bold))
+                            .font(.subheadline.weight(.semibold))
                             .lineLimit(1)
                         Image(systemName: "chevron.down")
-                            .font(.system(size: 9, weight: .semibold))
+                            .font(.caption2.weight(.semibold))
                             .foregroundStyle(.white.opacity(0.4))
                     }
                     .padding(.horizontal, 11)
@@ -452,21 +495,8 @@ struct AnalyticsView: View {
                 }
                 .buttonStyle(PressScaleButtonStyle())
                 .layoutPriority(1)
-
-                Spacer()
-                if vm.isLoading {
-                    ProgressView().controlSize(.small).tint(AppTheme.textSecondary)
-                }
-            }
-
-            if let lastUpdated {
-                Label("Updated \(lastUpdated.formatted(.relative(presentation: .named)))", systemImage: "checkmark.circle.fill")
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .transition(.opacity)
-            }
-        }
-        .padding(.bottom, 2)
+                .accessibilityLabel("Deployment environment")
+                .accessibilityValue(vm.selectedEnvironment.controlLabel)
     }
 
     // MARK: - Stats Cards

@@ -5,6 +5,7 @@ enum APIError: LocalizedError {
     case serverError(Int)
     case decodingError(Error)
     case networkError(Error)
+    case incompleteResponse(String)
 
     var errorDescription: String? {
         switch self {
@@ -19,6 +20,8 @@ enum APIError: LocalizedError {
             return "Failed to parse response."
         case .networkError(let err): 
             return err.localizedDescription
+        case .incompleteResponse(let message):
+            return "Vercel returned incomplete data: \(message)"
         }
     }
 }
@@ -26,6 +29,13 @@ enum APIError: LocalizedError {
 actor VercelAPI {
     private let token: String
     private let decoder = JSONDecoder()
+    private(set) var lastProjectLoadWarning: String?
+
+    private enum TeamProjectsLoadResult: @unchecked Sendable {
+        case success([Project])
+        case failure(team: String)
+        case cancelled
+    }
 
     init(token: String) {
         self.token = token
@@ -34,6 +44,7 @@ actor VercelAPI {
     // MARK: - Projects
 
     func fetchProjects() async throws -> [Project] {
+        lastProjectLoadWarning = nil
         let personalScope = ProjectSourceScope(
             id: nil,
             name: "Personal",
@@ -41,21 +52,23 @@ actor VercelAPI {
             isTeam: false
         )
 
-        let personalProjects: [Project]
+        let personalProjects = try await fetchProjectList(teamId: nil)
+            .map { $0.withSourceScope(personalScope) }
+        let teams: [VercelTeam]
         do {
-            let projects = try await fetchProjectList(teamId: nil)
-            personalProjects = projects.map { $0.withSourceScope(personalScope) }
+            teams = try await fetchTeams().filter(\.isConfirmedMember)
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
-            personalProjects = []
+            lastProjectLoadWarning = "Personal projects loaded, but the Vercel team list could not be refreshed."
+            return try await enrichProjectsNeedingDomainRefresh(personalProjects)
         }
 
-        let teams = (try? await fetchTeams()).map { teams in
-            teams.filter(\.isConfirmedMember)
-        } ?? []
-
         var allProjects = personalProjects
+        var failedTeams: [String] = []
+        var wasCancelled = false
 
-        await withTaskGroup(of: [Project].self) { group in
+        await withTaskGroup(of: TeamProjectsLoadResult.self) { group in
             for team in teams {
                 group.addTask {
                     let scope = ProjectSourceScope(
@@ -64,32 +77,49 @@ actor VercelAPI {
                         slug: team.slug,
                         isTeam: true
                     )
-                    return ((try? await self.fetchProjectList(teamId: team.id)) ?? [])
-                        .map { $0.withSourceScope(scope) }
+                    do {
+                        return .success(
+                            try await self.fetchProjectList(teamId: team.id)
+                                .map { $0.withSourceScope(scope) }
+                        )
+                    } catch is CancellationError {
+                        return .cancelled
+                    } catch {
+                        return .failure(team: team.displayName)
+                    }
                 }
             }
 
-            for await teamProjects in group {
-                allProjects.append(contentsOf: teamProjects)
+            for await result in group {
+                switch result {
+                case .success(let projects):
+                    allProjects.append(contentsOf: projects)
+                case .failure(let team):
+                    failedTeams.append(team)
+                case .cancelled:
+                    wasCancelled = true
+                    group.cancelAll()
+                }
             }
         }
-
-        if allProjects.isEmpty {
-            let fallbackProjects = try await fetchProjectList(teamId: nil)
-            return await enrichProjectsNeedingDomainRefresh(
-                fallbackProjects.map { $0.withSourceScope(personalScope) }
-            )
+        if wasCancelled || Task.isCancelled { throw CancellationError() }
+        if !failedTeams.isEmpty {
+            let names = failedTeams.sorted().prefix(3).joined(separator: ", ")
+            let remainder = failedTeams.count > 3 ? " and \(failedTeams.count - 3) more" : ""
+            lastProjectLoadWarning = "Some Vercel teams could not be refreshed: \(names)\(remainder)."
         }
-
-        return await enrichProjectsNeedingDomainRefresh(deduplicatedProjects(allProjects))
+        return try await enrichProjectsNeedingDomainRefresh(deduplicatedProjects(allProjects))
     }
 
     private func fetchProjectList(teamId: String?) async throws -> [Project] {
         var projects: [Project] = []
         var cursor: Int64?
         var seenCursors = Set<Int64>()
+        var pageCount = 0
+        let maximumPages = 200
 
         repeat {
+            try Task.checkCancellation()
             var queryItems = projectQueryItems(teamId: teamId)
             queryItems.append(URLQueryItem(name: "limit", value: "100"))
             if let cursor {
@@ -101,19 +131,28 @@ actor VercelAPI {
                 queryItems: queryItems
             )
             projects.append(contentsOf: response.projects)
+            pageCount += 1
             cursor = response.pagination?.next
-            if let nextCursor = cursor, !seenCursors.insert(nextCursor).inserted { cursor = nil }
+            if let nextCursor = cursor, !seenCursors.insert(nextCursor).inserted {
+                throw APIError.incompleteResponse("project pagination repeated a cursor")
+            }
+            if cursor != nil, pageCount >= maximumPages {
+                throw APIError.incompleteResponse("project pagination exceeded \(maximumPages) pages")
+            }
         } while cursor != nil
 
-        return projects
+        return deduplicatedProjects(projects)
     }
 
     func fetchTeams() async throws -> [VercelTeam] {
         var teams: [VercelTeam] = []
         var cursor: Int64?
         var seenCursors = Set<Int64>()
+        var pageCount = 0
+        let maximumPages = 200
 
         repeat {
+            try Task.checkCancellation()
             var queryItems = [URLQueryItem(name: "limit", value: "100")]
             if let cursor {
                 queryItems.append(URLQueryItem(name: "until", value: String(cursor)))
@@ -124,11 +163,18 @@ actor VercelAPI {
                 queryItems: queryItems
             )
             teams.append(contentsOf: response.teams)
+            pageCount += 1
             cursor = response.pagination?.next
-            if let nextCursor = cursor, !seenCursors.insert(nextCursor).inserted { cursor = nil }
+            if let nextCursor = cursor, !seenCursors.insert(nextCursor).inserted {
+                throw APIError.incompleteResponse("team pagination repeated a cursor")
+            }
+            if cursor != nil, pageCount >= maximumPages {
+                throw APIError.incompleteResponse("team pagination exceeded \(maximumPages) pages")
+            }
         } while cursor != nil
 
-        return teams
+        var seenIDs = Set<String>()
+        return teams.filter { seenIDs.insert($0.id).inserted }
     }
 
     func fetchProject(id: String, teamId: String?) async throws -> Project {
@@ -227,7 +273,8 @@ actor VercelAPI {
 
     // MARK: - Helpers
 
-    private func enrichProjectsNeedingDomainRefresh(_ projects: [Project]) async -> [Project] {
+    private func enrichProjectsNeedingDomainRefresh(_ projects: [Project]) async throws -> [Project] {
+        try Task.checkCancellation()
         let candidates = projects.filter(\.needsPrimaryDomainRefresh)
         guard !candidates.isEmpty else { return projects }
 
@@ -258,6 +305,7 @@ actor VercelAPI {
             }
         }
 
+        try Task.checkCancellation()
         return projects.map { refreshedByID[$0.id] ?? $0 }
     }
 
@@ -309,7 +357,11 @@ actor VercelAPI {
 
         let (data, response): (Data, URLResponse)
         do {
-            (data, response) = try await URLSession.shared.data(for: request)
+            (data, response) = try await ProviderRequestSecurity.data(for: request)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as URLError where error.code == .cancelled && Task.isCancelled {
+            throw CancellationError()
         } catch {
             throw APIError.networkError(error)
         }

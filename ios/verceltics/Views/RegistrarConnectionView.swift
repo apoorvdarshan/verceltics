@@ -3,6 +3,7 @@ import SwiftUI
 struct RegistrarConnectionView: View {
     @Environment(RegistrarStore.self) private var store
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var selectedProvider: RegistrarProvider?
     private let onBack: (() -> Void)?
@@ -56,7 +57,8 @@ struct RegistrarConnectionView: View {
                     ForEach(RegistrarProvider.allCases) { provider in
                         Button {
                             store.error = nil
-                            withAnimation(.spring(duration: 0.35)) { selectedProvider = provider }
+                            if reduceMotion { selectedProvider = provider }
+                            else { withAnimation(.spring(duration: 0.35)) { selectedProvider = provider } }
                         } label: {
                             HStack(spacing: 13) {
                                 RegistrarMark(provider: provider, size: 42)
@@ -66,7 +68,7 @@ struct RegistrarConnectionView: View {
                                     Text(provider.apiDescription)
                                         .font(.footnote)
                                         .foregroundStyle(AppTheme.textSecondary)
-                                        .lineLimit(2)
+                                        .fixedSize(horizontal: false, vertical: true)
                                 }
                                 Spacer()
                                 Image(systemName: "arrow.right")
@@ -104,6 +106,8 @@ struct RegistrarConnectionView: View {
                                 store.error = nil
                                 if let onBack {
                                     onBack()
+                                } else if reduceMotion {
+                                    selectedProvider = nil
                                 } else {
                                     withAnimation(.spring(duration: 0.35)) { selectedProvider = nil }
                                 }
@@ -163,18 +167,20 @@ struct RegistrarConnectionView: View {
                             HStack(spacing: 9) {
                                 if store.isConnecting { ProgressView().tint(.white) }
                                 else {
-                                    Text("Connect \(provider.displayName)").font(.system(size: 15, weight: .semibold))
-                                    Image(systemName: "arrow.right").font(.system(size: 13, weight: .semibold))
+                                    Text("Connect \(provider.displayName)").font(.headline)
+                                    Image(systemName: "arrow.right").font(.callout.weight(.semibold))
                                 }
                             }
                             .frame(maxWidth: .infinity)
-                            .frame(height: 54)
+                            .frame(minHeight: 54)
+                            .padding(.vertical, 4)
                             .background(canConnect(provider) ? AppTheme.signal : AppTheme.surfaceRaised)
                             .foregroundStyle(canConnect(provider) ? .white : AppTheme.textTertiary)
                             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         }
                         .buttonStyle(PressScaleButtonStyle())
                         .disabled(!canConnect(provider) || store.isConnecting)
+                        .accessibilityLabel(store.isConnecting ? "Connecting \(provider.displayName)" : "Connect \(provider.displayName)")
                         .id("registrar-connect")
                     }
                     .padding(.horizontal, 20)

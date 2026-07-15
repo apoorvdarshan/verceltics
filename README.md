@@ -5,7 +5,7 @@
 <h1 align="center">Verceltics</h1>
 
 <p align="center">
-  Hosting, analytics, deployments, and domains on your iPhone.<br>
+  Hosting, domains, analytics, and site health on your iPhone.<br>
   <a href="https://apps.apple.com/us/app/verceltics/id6761645656">App Store</a> · <a href="https://verceltics.com">Website</a>
 </p>
 
@@ -32,10 +32,11 @@
 ## Features
 
 - **Projects Dashboard** — Personal and team Vercel projects with favicons, git repo, last commit, framework
-- **Multi-provider accounts** — Connect and switch between 10 hosting platforms and 8 domain registrars
+- **Multi-provider accounts** — Connect and switch between 10 hosting platforms, 8 domain registrars, and 9 site-intelligence services
 - **Cloudflare Control** — Accounts, zones, DNS CRUD, analytics, Pages deployments/logs/actions, Workers deployments/actions, cache purge, and a guarded advanced API explorer
 - **Hosting dashboards** — Netlify, Railway, Render, DigitalOcean, Heroku, Fly.io, Firebase, and AWS Amplify resources, deployments, logs, actions, and provider API operation catalogs
 - **Registrar dashboards** — Name.com, Namecheap, Porkbun, Spaceship, Dynadot, NameSilo, Gandi, and GoDaddy domains with provider API catalogs
+- **Sites dashboard** — Combine Google Search Console, Google Analytics, PageSpeed & CrUX, Bing Webmaster, Microsoft Clarity, Plausible, Umami, UptimeRobot, and Better Stack signals by site
 - **Live Deploy Indicator** — Pulsing green dot when a deployment is < 30 minutes old
 - **Project Details** — Scope, framework, connected repository, verified domains, and recent deployments
 - **Deployment Details** — Open deployments to inspect target, branch, commit, creator, live URL, and build events
@@ -44,12 +45,11 @@
 - **Interactive Chart** — Peak indicator, average reference line, drag-to-inspect with haptic feedback
 - **Full Breakdowns** — Pages, routes, hostnames, referrers, UTM, countries, devices, browsers, OS, events, flags, query params
 - **Soft Paywall** — Browse projects free; analytics gated per project tap
-- **Robust Favicons** — Multi-source race (apple-touch-icon, scrape, weserv.nl SVG rasterise, DuckDuckGo, Google s2, icon.horse)
+- **Private Favicons** — Bounded direct and same-origin icon discovery with a local letter fallback; project domains are never sent to third-party favicon services
 - **Search** — Filter projects by name, domain, or framework
 - **Pull to Refresh** — Live data from Vercel API
 - **Update Checks** — About tab shows when a newer App Store version is available
-- **Support Tab** — Optional in-app tips (Coffee, Lunch, Big Tip, Huge Supporter) plus rate, share, star on GitHub, and Product Hunt
-- **About Tab** — Links (GitHub, LinkedIn, X), contact, legal, and subscription management
+- **About Tab** — Optional tips, rate/share links, contact, legal, update checks, and subscription management in one place
 - **iPad** — Adaptive grid + sidebar tab style on regular size class
 - **Dark Mode** — Pure black (#000000) Vercel-style design
 - **Secure** — Every credential uses device-only iOS Keychain storage; cross-host redirects are blocked and detected writes require confirmation
@@ -156,6 +156,7 @@ The app communicates directly with these provider API hosts:
 | `api.cloudflare.com` | `/client/v4/*`, including GraphQL analytics | Global key or scoped API token |
 | Hosting provider APIs | Netlify, Railway, Render, DigitalOcean, Heroku, Fly.io, Firebase, and AWS Amplify | Provider token/key |
 | Registrar provider APIs | Name.com, Namecheap, Porkbun, Spaceship, Dynadot, NameSilo, Gandi, and GoDaddy | Provider key/token |
+| Site-intelligence APIs | Google Search Console, Google Analytics, PageSpeed & CrUX, Bing Webmaster, Microsoft Clarity, Plausible, Umami, UptimeRobot, and Better Stack | Google OAuth or provider API key/token |
 
 Analytics endpoints use `groupBy` parameter: `path`, `route`, `hostname`, `referrer`, `utm`, `country`, `device_type`, `client_name`, `os_name`, `event_name`, `flags`, `query_params`
 
@@ -166,7 +167,8 @@ ios/verceltics/
 ├── App/VercelticsApp.swift          # Entry point, soft paywall routing
 ├── Auth/
 │   ├── AuthManager.swift            # Multi-account auth, token validation, profile refresh
-│   └── KeychainHelper.swift         # Secure token storage
+│   ├── KeychainHelper.swift         # Secure token storage
+│   └── SiteStore.swift              # Sites accounts, protected snapshots, OAuth refresh
 ├── Network/VercelAPI.swift          # All API calls (actor-based)
 ├── Models/
 │   ├── VercelAccount.swift          # Saved Vercel account metadata
@@ -174,9 +176,10 @@ ios/verceltics/
 │   └── Analytics.swift              # Analytics data models, time ranges
 ├── Views/
 │   ├── LoginView.swift              # Token login with animated demo chart
-│   ├── MainTabView.swift            # Tab bar (Projects, About, Search)
+│   ├── MainTabView.swift            # Tab bar (Projects, Registrars, Sites, About, Search)
 │   ├── ProjectsView.swift           # Project list, search, account switcher, favicons, paywall sheet
 │   ├── AnalyticsView.swift          # Full analytics dashboard
+│   ├── SitesView.swift              # Cross-provider site intelligence dashboard
 │   └── AboutView.swift              # Support, links, legal, update checks, sign out
 ├── Components/
 │   ├── StatCard.swift               # Metric card with change badge
@@ -190,7 +193,7 @@ ios/verceltics/
 
 ## Disclaimer
 
-Verceltics is **not** affiliated with, endorsed by, or sponsored by any supported hosting platform or registrar. Their names and marks belong to their respective owners. This independent, open-source project communicates directly with provider APIs using user-provided credentials.
+Verceltics is **not** affiliated with, endorsed by, or sponsored by any supported hosting platform, registrar, or site-intelligence service. Their names and marks belong to their respective owners. This independent, open-source project communicates directly with provider APIs using user-provided credentials.
 
 ## Contributing
 

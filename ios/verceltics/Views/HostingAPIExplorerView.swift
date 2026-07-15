@@ -75,6 +75,10 @@ struct HostingAPIExplorerView: View {
                 let url = try result.get()
                 let access = url.startAccessingSecurityScopedResource()
                 defer { if access { url.stopAccessingSecurityScopedResource() } }
+                if let fileSize = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+                   fileSize > 25 * 1_024 * 1_024 {
+                    throw HostingProviderAPIError.invalidConfiguration("Choose a file smaller than 25 MB.")
+                }
                 let data = try Data(contentsOf: url, options: [.mappedIfSafe])
                 guard data.count <= 25 * 1_024 * 1_024 else {
                     throw HostingProviderAPIError.invalidConfiguration("Choose a file smaller than 25 MB.")

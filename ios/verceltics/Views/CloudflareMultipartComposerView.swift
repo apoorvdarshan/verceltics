@@ -1,6 +1,9 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+private let cloudflareMultipartUploadLimit = 25 * 1_024 * 1_024
+private let cloudflareMultipartPartLimit = 100
+
 private struct CloudflareMultipartPart: Identifiable, Equatable {
     let id: UUID
     var name: String
@@ -196,6 +199,10 @@ struct CloudflareMultipartComposerView: View {
 
     private var addFieldButton: some View {
         Button {
+            guard parts.count < cloudflareMultipartPartLimit else {
+                error = "Multipart requests support up to \(cloudflareMultipartPartLimit) fields."
+                return
+            }
             parts.append(.init(name: "", isRequired: false))
         } label: {
             Label("Add custom field", systemImage: "plus.circle.fill")
@@ -206,6 +213,8 @@ struct CloudflareMultipartComposerView: View {
                 .background(CloudflareStyle.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 11))
         }
         .buttonStyle(.plain)
+        .disabled(parts.count >= cloudflareMultipartPartLimit)
+        .opacity(parts.count >= cloudflareMultipartPartLimit ? 0.45 : 1)
     }
 
     private var composeButton: some View {
@@ -245,7 +254,19 @@ struct CloudflareMultipartComposerView: View {
             let url = try result.get()
             let access = url.startAccessingSecurityScopedResource()
             defer { if access { url.stopAccessingSecurityScopedResource() } }
-            let data = try Data(contentsOf: url)
+            let existingPayloadBytes = parts.reduce(0) { partial, part in
+                guard part.id != id else { return partial }
+                return partial + (part.fileData?.count ?? part.value.lengthOfBytes(using: .utf8))
+            }
+            let remainingBytes = max(0, cloudflareMultipartUploadLimit - existingPayloadBytes)
+            if let fileSize = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+               fileSize > remainingBytes {
+                throw CloudflareMultipartError.payloadTooLarge
+            }
+            let data = try Data(contentsOf: url, options: [.mappedIfSafe])
+            guard data.count <= remainingBytes else {
+                throw CloudflareMultipartError.payloadTooLarge
+            }
             guard let index = parts.firstIndex(where: { $0.id == id }) else { return }
             parts[index].fileData = data
             parts[index].fileName = url.lastPathComponent
@@ -272,6 +293,20 @@ struct CloudflareMultipartComposerView: View {
             error = "Add at least one form field or file."
             return
         }
+        guard usedParts.count <= cloudflareMultipartPartLimit else {
+            error = "Multipart requests support up to \(cloudflareMultipartPartLimit) fields."
+            return
+        }
+
+        var payloadBytes = 0
+        for part in usedParts {
+            let partBytes = part.fileData?.count ?? part.value.lengthOfBytes(using: .utf8)
+            guard partBytes <= cloudflareMultipartUploadLimit - payloadBytes else {
+                error = "The combined multipart body must be 25 MB or smaller."
+                return
+            }
+            payloadBytes += partBytes
+        }
 
         let boundary = "Verceltics-\(UUID().uuidString)"
         var data = Data()
@@ -290,12 +325,24 @@ struct CloudflareMultipartComposerView: View {
             }
         }
         data.appendUTF8("--\(boundary)--\r\n")
+        guard data.count <= cloudflareMultipartUploadLimit else {
+            error = "The combined multipart body must be 25 MB or smaller."
+            return
+        }
         onCompose(data.base64EncodedString(), "multipart/form-data; boundary=\(boundary)")
         dismiss()
     }
 
     private func safeHeaderValue(_ value: String) -> String {
         value.replacingOccurrences(of: "\r", with: "").replacingOccurrences(of: "\n", with: "")
+    }
+}
+
+private enum CloudflareMultipartError: LocalizedError {
+    case payloadTooLarge
+
+    var errorDescription: String? {
+        "The combined multipart body must be 25 MB or smaller."
     }
 }
 

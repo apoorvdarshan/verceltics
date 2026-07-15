@@ -23,6 +23,7 @@ final class CloudflareDashboardViewModel {
     private var loadedCredential: String?
     private var loadedAuthenticationMode: CloudflareAuthenticationMode?
     private var loadedCacheKey: String?
+    private var dashboardLoadGeneration = 0
     private var resourceLoadGeneration = 0
     private var resourcesByAccountID: [String: CachedResources] = [:]
 
@@ -44,6 +45,7 @@ final class CloudflareDashboardViewModel {
         authenticationMode: CloudflareAuthenticationMode,
         email: String?,
         credential: String,
+        preferredAccountID: String? = nil,
         forceRefresh: Bool = false
     ) async {
         let client = CloudflareAPI(
@@ -51,7 +53,18 @@ final class CloudflareDashboardViewModel {
             email: email,
             credential: credential
         )
-        let cacheKey = "\(authenticationMode.rawValue)|\(email ?? "")|\(credential.hashValue)"
+        let cacheKey = client.cacheScope
+
+        if !forceRefresh,
+           email == loadedEmail,
+           credential == loadedCredential,
+           authenticationMode == loadedAuthenticationMode,
+           !accounts.isEmpty {
+            return
+        }
+
+        dashboardLoadGeneration += 1
+        let dashboardGeneration = dashboardLoadGeneration
 
         if !forceRefresh, let cached = Self.dashboards[cacheKey] {
             api = client
@@ -60,20 +73,53 @@ final class CloudflareDashboardViewModel {
             loadedAuthenticationMode = authenticationMode
             loadedCacheKey = cacheKey
             accounts = cached.accounts
-            selectedAccountID = cached.selectedAccountID
+            let preferredSelection = preferredAccountID.flatMap { preferred in
+                cached.accounts.contains(where: { $0.id == preferred }) ? preferred : nil
+            }
+            let cachedSelection = cached.selectedAccountID.flatMap { selected in
+                cached.accounts.contains(where: { $0.id == selected }) ? selected : nil
+            }
+            selectedAccountID = preferredSelection ?? cachedSelection ?? cached.accounts.first?.id
             resourcesByAccountID = cached.resourcesByAccountID
-            applyCachedResources(for: cached.selectedAccountID)
             error = nil
             isLoading = false
-            isRefreshing = false
-            return
-        }
+            guard let accountID = selectedAccountID else {
+                isRefreshing = false
+                return
+            }
+            if applyCachedResources(for: accountID) {
+                isRefreshing = false
+                return
+            }
 
-        if !forceRefresh,
-           email == loadedEmail,
-           credential == loadedCredential,
-           authenticationMode == loadedAuthenticationMode,
-           !accounts.isEmpty {
+            // Account selection is persisted independently of the resource cache.
+            // If that nested account has not been cached yet, load it instead of
+            // rendering empty sections until the user manually refreshes.
+            zones = []
+            pagesProjects = []
+            workers = []
+            sectionWarnings = []
+            isRefreshing = true
+            do {
+                try await loadSelectedAccount(
+                    client: client,
+                    accountID: accountID,
+                    dashboardGeneration: dashboardGeneration
+                )
+                guard dashboardGeneration == dashboardLoadGeneration,
+                      selectedAccountID == accountID else { return }
+                saveCache(cacheKey: cacheKey)
+            } catch is CancellationError {
+                // A superseded credential or account selection owns the UI now.
+            } catch {
+                guard dashboardGeneration == dashboardLoadGeneration,
+                      selectedAccountID == accountID else { return }
+                self.error = error.localizedDescription
+            }
+            if dashboardGeneration == dashboardLoadGeneration,
+               selectedAccountID == accountID {
+                isRefreshing = false
+            }
             return
         }
 
@@ -105,6 +151,7 @@ final class CloudflareDashboardViewModel {
 
         do {
             let fetchedAccounts = try await client.fetchAccounts()
+            guard dashboardGeneration == dashboardLoadGeneration else { return }
             guard !fetchedAccounts.isEmpty else {
                 accounts = []
                 zones = []
@@ -117,19 +164,32 @@ final class CloudflareDashboardViewModel {
             }
 
             accounts = fetchedAccounts.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            if let preferredAccountID,
+               accounts.contains(where: { $0.id == preferredAccountID }) {
+                selectedAccountID = preferredAccountID
+            }
             if selectedAccountID == nil || !accounts.contains(where: { $0.id == selectedAccountID }) {
                 selectedAccountID = accounts.first?.id
             }
-            await loadSelectedAccount()
-            saveCache()
+            guard let accountID = selectedAccountID else { return }
+            try await loadSelectedAccount(
+                client: client,
+                accountID: accountID,
+                dashboardGeneration: dashboardGeneration
+            )
+            guard dashboardGeneration == dashboardLoadGeneration else { return }
+            saveCache(cacheKey: cacheKey)
         } catch is CancellationError {
             // Account switching can cancel an in-flight refresh.
         } catch {
+            guard dashboardGeneration == dashboardLoadGeneration else { return }
             self.error = error.localizedDescription
         }
 
-        isLoading = false
-        isRefreshing = false
+        if dashboardGeneration == dashboardLoadGeneration {
+            isLoading = false
+            isRefreshing = false
+        }
     }
 
     func selectAccount(_ id: String) async {
@@ -143,9 +203,29 @@ final class CloudflareDashboardViewModel {
         }
         isRefreshing = true
         error = nil
-        await loadSelectedAccount()
-        saveCache()
-        isRefreshing = false
+        guard let client = api else {
+            isRefreshing = false
+            return
+        }
+        let dashboardGeneration = dashboardLoadGeneration
+        do {
+            try await loadSelectedAccount(
+                client: client,
+                accountID: id,
+                dashboardGeneration: dashboardGeneration
+            )
+            guard dashboardGeneration == dashboardLoadGeneration,
+                  selectedAccountID == id else { return }
+            if let loadedCacheKey { saveCache(cacheKey: loadedCacheKey) }
+        } catch is CancellationError {
+            // A superseded account selection must not replace a valid cache.
+        } catch {
+            self.error = error.localizedDescription
+        }
+        if dashboardGeneration == dashboardLoadGeneration,
+           selectedAccountID == id {
+            isRefreshing = false
+        }
     }
 
     func refresh() async {
@@ -158,19 +238,28 @@ final class CloudflareDashboardViewModel {
         )
     }
 
-    private func loadSelectedAccount() async {
-        guard let api, let accountID = selectedAccountID else { return }
-
+    private func loadSelectedAccount(
+        client: CloudflareAPI,
+        accountID: String,
+        dashboardGeneration: Int
+    ) async throws {
         resourceLoadGeneration += 1
         let generation = resourceLoadGeneration
         sectionWarnings = []
-        async let zoneResult = capture { try await api.fetchZones(accountID: accountID) }
-        async let pagesResult = capture { try await api.fetchPagesProjects(accountID: accountID) }
-        async let workersResult = capture { try await api.fetchWorkerScripts(accountID: accountID) }
+        async let zoneResult = capture { try await client.fetchZones(accountID: accountID) }
+        async let pagesResult = capture { try await client.fetchPagesProjects(accountID: accountID) }
+        async let workersResult = capture { try await client.fetchWorkerScripts(accountID: accountID) }
 
         let (zoneResponse, pagesResponse, workerResponse) = await (zoneResult, pagesResult, workersResult)
-        guard selectedAccountID == accountID, resourceLoadGeneration == generation else {
-            return
+        guard dashboardGeneration == dashboardLoadGeneration,
+              selectedAccountID == accountID,
+              resourceLoadGeneration == generation else {
+            throw CancellationError()
+        }
+        if isCancellation(zoneResponse)
+            || isCancellation(pagesResponse)
+            || isCancellation(workerResponse) {
+            throw CancellationError()
         }
         apply(zoneResponse, to: &zones, section: "Zones")
         apply(pagesResponse, to: &pagesProjects, section: "Pages")
@@ -187,9 +276,8 @@ final class CloudflareDashboardViewModel {
         )
     }
 
-    private func saveCache() {
-        guard let loadedCacheKey else { return }
-        Self.dashboards[loadedCacheKey] = CachedDashboard(
+    private func saveCache(cacheKey: String) {
+        Self.dashboards[cacheKey] = CachedDashboard(
             accounts: accounts,
             selectedAccountID: selectedAccountID,
             resourcesByAccountID: resourcesByAccountID
@@ -214,11 +302,20 @@ final class CloudflareDashboardViewModel {
         }
     }
 
+    private func isCancellation<T>(_ result: Result<T, Error>) -> Bool {
+        guard case .failure(let error) = result else { return false }
+        return error is CancellationError || (error as? URLError)?.code == .cancelled
+    }
+
     private func apply<T>(_ result: Result<[T], Error>, to value: inout [T], section: String) {
         switch result {
         case .success(let items):
             value = items
         case .failure(let error):
+            if error is CancellationError
+                || (error as? URLError)?.code == .cancelled {
+                return
+            }
             sectionWarnings.append("\(section): \(error.localizedDescription)")
         }
     }
@@ -232,10 +329,12 @@ struct CloudflareDashboardView: View {
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(AuthManager.self) private var authManager
     @State private var viewModel = CloudflareDashboardViewModel()
     @State private var searchText = ""
     @State private var isSearching = false
     @State private var refreshSpin = 0.0
+    @AppStorage("cloudflare.selectedNestedAccountID") private var persistedAccountID = ""
 
     private var filteredZones: [CloudflareZone] {
         guard !searchText.isEmpty else { return viewModel.zones }
@@ -269,6 +368,14 @@ struct CloudflareDashboardView: View {
 
     private var credentialLabel: String {
         email ?? "Scoped API token"
+    }
+
+    private var cacheScope: String {
+        CredentialCacheScope.cloudflare(
+            authenticationMode: authenticationMode,
+            email: email,
+            credential: credential
+        )
     }
 
     var body: some View {
@@ -307,15 +414,20 @@ struct CloudflareDashboardView: View {
                             .rotationEffect(.degrees(refreshSpin))
                     }
                     .disabled(viewModel.isRefreshing)
+                    .accessibilityLabel(viewModel.isRefreshing ? "Refreshing Cloudflare" : "Refresh Cloudflare")
                     .sensoryFeedback(.impact(weight: .light), trigger: refreshSpin)
                 }
             }
-            .task(id: "\(authenticationMode.rawValue)|\(email ?? "")|\(credential.hashValue)") {
+            .task(id: cacheScope) {
                 await viewModel.load(
                     authenticationMode: authenticationMode,
                     email: email,
-                    credential: credential
+                    credential: credential,
+                    preferredAccountID: persistedAccountID.isEmpty ? nil : persistedAccountID
                 )
+            }
+            .onChange(of: viewModel.selectedAccountID) { _, selectedID in
+                if let selectedID { persistedAccountID = selectedID }
             }
             .onAppear {
                 if startWithSearch { isSearching = true }
@@ -329,6 +441,15 @@ struct CloudflareDashboardView: View {
             VStack(spacing: 16) {
                 if let account = viewModel.selectedAccount {
                     accountHeader(account)
+                }
+
+                if let error = authManager.error {
+                    AppFeedbackBanner(
+                        title: "Saved account change failed",
+                        message: error,
+                        icon: "lock.trianglebadge.exclamationmark.fill",
+                        tint: AppTheme.danger
+                    )
                 }
 
                 if let error = viewModel.error {

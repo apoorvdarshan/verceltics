@@ -172,6 +172,7 @@ extension CloudflareAPI {
     ) async throws -> [Item] {
         var page = 1
         var items: [Item] = []
+        var paginationGuard = CloudflarePaginationGuard()
 
         while true {
             let response = try await rawRequest(
@@ -180,7 +181,9 @@ extension CloudflareAPI {
                 query: ["page": String(page), "per_page": String(perPage)]
             )
             let envelope: CloudflareOperationsEnvelope<[Item]> = try cloudflareOperationsDecode(response)
-            items.append(contentsOf: envelope.result ?? [])
+            let batch = envelope.result ?? []
+            try paginationGuard.record(batchCount: batch.count, signature: response.data.hashValue)
+            items.append(contentsOf: batch)
 
             guard let totalPages = envelope.resultInfo?.totalPages, page < totalPages else { break }
             page += 1

@@ -9,6 +9,7 @@ final class AuthManager {
     var accountsWithLongAnalyticsHistory: Set<UUID> = []
     var isLoading = false
     var error: String?
+    private var accountPersistenceFailure: String?
 
     var isAuthenticated: Bool {
         activeAccount != nil
@@ -47,14 +48,25 @@ final class AuthManager {
     }
 
     init() {
-        self.accounts = KeychainHelper.getAccounts()
+        do {
+            self.accounts = try KeychainHelper.getAccounts()
+        } catch {
+            self.accounts = []
+            self.accountPersistenceFailure = error.localizedDescription
+            self.error = error.localizedDescription
+        }
         self.activeAccountId = KeychainHelper.getActiveAccountId()
         self.accountsWithLongAnalyticsHistory = KeychainHelper.getLongAnalyticsHistoryAccountIds()
 
         // Re-save legacy Vercel-only records using the current schema and
         // device-only Keychain accessibility without changing their UUIDs.
         if !accounts.isEmpty {
-            KeychainHelper.saveAccounts(accounts)
+            do {
+                try KeychainHelper.saveAccounts(accounts)
+            } catch {
+                accountPersistenceFailure = error.localizedDescription
+                self.error = error.localizedDescription
+            }
         }
         
         // Default to first account if active one is missing
@@ -69,15 +81,16 @@ final class AuthManager {
     }
 
     func login(token: String) async {
+        guard ensureAccountPersistenceIsAvailable() else { return }
         isLoading = true
         error = nil
+        defer { isLoading = false }
 
         do {
             let result = try await fetchAccountProfile(token: token)
 
             guard result.isValid else {
                 self.error = "Network error. Please try again."
-                isLoading = false
                 return
             }
             
@@ -85,36 +98,37 @@ final class AuthManager {
             case 200...299:
                 let name = result.profile?.name ?? "Account \(accounts.count + 1)"
                 
-                // Check if account already exists
-                if let existingIndex = accounts.firstIndex(where: {
+                var updatedAccounts = accounts
+                let updatedActiveID: UUID
+                if let existingIndex = updatedAccounts.firstIndex(where: {
                     $0.provider == .vercel && $0.token == token
                 }) {
-                    accounts[existingIndex].name = name
-                    accounts[existingIndex].avatarURL = result.profile?.avatarURL
-                    activeAccountId = accounts[existingIndex].id
+                    updatedAccounts[existingIndex].name = name
+                    updatedAccounts[existingIndex].avatarURL = result.profile?.avatarURL
+                    updatedActiveID = updatedAccounts[existingIndex].id
                 } else {
                     let newAccount = VercelAccount(name: name, token: token, avatarURL: result.profile?.avatarURL)
-                    accounts.append(newAccount)
-                    activeAccountId = newAccount.id
+                    updatedAccounts.append(newAccount)
+                    updatedActiveID = newAccount.id
                 }
-                
-                KeychainHelper.saveAccounts(accounts)
-                KeychainHelper.saveActiveAccountId(activeAccountId)
+                try persistAccounts(updatedAccounts, activeAccountID: updatedActiveID)
             case 401, 403:
                 self.error = "Invalid token. Please check and try again."
             default:
                 self.error = "Unexpected error (\(result.statusCode))."
             }
+        } catch let persistenceError as ConnectedAccountPersistenceError {
+            self.error = persistenceError.localizedDescription
         } catch {
             self.error = "Network error. Check your connection."
         }
-
-        isLoading = false
     }
 
     func loginCloudflare(email: String, globalAPIKey: String) async {
+        guard ensureAccountPersistenceIsAvailable() else { return }
         isLoading = true
         error = nil
+        defer { isLoading = false }
 
         do {
             let profile = try await CloudflareAPI(
@@ -122,19 +136,21 @@ final class AuthManager {
                 globalAPIKey: globalAPIKey
             ).validateCredentials()
             let normalizedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            if let existingIndex = accounts.firstIndex(where: {
+            var updatedAccounts = accounts
+            let updatedActiveID: UUID
+            if let existingIndex = updatedAccounts.firstIndex(where: {
                 guard $0.provider == .cloudflare else { return false }
                 if let savedUserID = $0.providerUserId {
                     return savedUserID == profile.id
                 }
                 return $0.email?.caseInsensitiveCompare(normalizedEmail) == .orderedSame
             }) {
-                accounts[existingIndex].name = profile.displayName
-                accounts[existingIndex].email = normalizedEmail
-                accounts[existingIndex].token = globalAPIKey
-                accounts[existingIndex].providerUserId = profile.id
-                accounts[existingIndex].cloudflareAuthenticationMode = .globalAPIKey
-                activeAccountId = accounts[existingIndex].id
+                updatedAccounts[existingIndex].name = profile.displayName
+                updatedAccounts[existingIndex].email = normalizedEmail
+                updatedAccounts[existingIndex].token = globalAPIKey
+                updatedAccounts[existingIndex].providerUserId = profile.id
+                updatedAccounts[existingIndex].cloudflareAuthenticationMode = .globalAPIKey
+                updatedActiveID = updatedAccounts[existingIndex].id
             } else {
                 let account = VercelAccount(
                     name: profile.displayName,
@@ -144,23 +160,22 @@ final class AuthManager {
                     providerUserId: profile.id,
                     cloudflareAuthenticationMode: .globalAPIKey
                 )
-                accounts.append(account)
-                activeAccountId = account.id
+                updatedAccounts.append(account)
+                updatedActiveID = account.id
             }
-            KeychainHelper.saveAccounts(accounts)
-            KeychainHelper.saveActiveAccountId(activeAccountId)
+            try persistAccounts(updatedAccounts, activeAccountID: updatedActiveID)
         } catch let error as LocalizedError {
             self.error = error.errorDescription ?? "Cloudflare rejected these credentials."
         } catch {
             self.error = "Could not connect to Cloudflare. Check your connection."
         }
-
-        isLoading = false
     }
 
     func loginCloudflare(apiToken: String) async {
+        guard ensureAccountPersistenceIsAvailable() else { return }
         isLoading = true
         error = nil
+        defer { isLoading = false }
         let normalizedToken = apiToken.trimmingCharacters(in: .whitespacesAndNewlines)
 
         do {
@@ -168,13 +183,14 @@ final class AuthManager {
             let verification = try await client.validateAPIToken()
             guard verification.status?.lowercased() == "active" else {
                 self.error = "This Cloudflare API token is not active."
-                isLoading = false
                 return
             }
             let accessibleAccounts = try await client.fetchAccounts()
             let displayName = accessibleAccounts.first?.name ?? "Cloudflare API Token"
 
-            if let existingIndex = accounts.firstIndex(where: {
+            var updatedAccounts = accounts
+            let updatedActiveID: UUID
+            if let existingIndex = updatedAccounts.firstIndex(where: {
                 guard $0.provider == .cloudflare,
                       $0.cloudflareAuthenticationMode == .apiToken else { return false }
                 if let verificationID = verification.id,
@@ -183,11 +199,11 @@ final class AuthManager {
                 }
                 return $0.token == normalizedToken
             }) {
-                accounts[existingIndex].name = displayName
-                accounts[existingIndex].token = normalizedToken
-                accounts[existingIndex].providerUserId = verification.id
-                accounts[existingIndex].cloudflareAuthenticationMode = .apiToken
-                activeAccountId = accounts[existingIndex].id
+                updatedAccounts[existingIndex].name = displayName
+                updatedAccounts[existingIndex].token = normalizedToken
+                updatedAccounts[existingIndex].providerUserId = verification.id
+                updatedAccounts[existingIndex].cloudflareAuthenticationMode = .apiToken
+                updatedActiveID = updatedAccounts[existingIndex].id
             } else {
                 let account = VercelAccount(
                     name: displayName,
@@ -196,18 +212,15 @@ final class AuthManager {
                     providerUserId: verification.id,
                     cloudflareAuthenticationMode: .apiToken
                 )
-                accounts.append(account)
-                activeAccountId = account.id
+                updatedAccounts.append(account)
+                updatedActiveID = account.id
             }
-            KeychainHelper.saveAccounts(accounts)
-            KeychainHelper.saveActiveAccountId(activeAccountId)
+            try persistAccounts(updatedAccounts, activeAccountID: updatedActiveID)
         } catch let error as LocalizedError {
             self.error = error.errorDescription ?? "Cloudflare rejected this API token."
         } catch {
             self.error = "Could not connect to Cloudflare. Check the token permissions and connection."
         }
-
-        isLoading = false
     }
 
     func loginHostingProvider(
@@ -219,9 +232,11 @@ final class AuthManager {
             error = "Use the dedicated \(provider.displayName) connection flow."
             return
         }
+        guard ensureAccountPersistenceIsAvailable() else { return }
 
         isLoading = true
         error = nil
+        defer { isLoading = false }
         let normalizedCredential = credential.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalizedMetadata = metadata.reduce(into: [String: String]()) { result, pair in
             result[pair.key] = pair.value.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -234,16 +249,18 @@ final class AuthManager {
                 metadata: normalizedMetadata
             ).validateProfile()
 
-            if let existingIndex = accounts.firstIndex(where: {
+            var updatedAccounts = accounts
+            let updatedActiveID: UUID
+            if let existingIndex = updatedAccounts.firstIndex(where: {
                 $0.provider == provider && ($0.providerUserId == profile.id || $0.token == normalizedCredential)
             }) {
-                accounts[existingIndex].name = profile.name
-                accounts[existingIndex].token = normalizedCredential
-                accounts[existingIndex].email = profile.email
-                accounts[existingIndex].avatarURL = profile.avatarURL
-                accounts[existingIndex].providerUserId = profile.id
-                accounts[existingIndex].providerMetadata = normalizedMetadata
-                activeAccountId = accounts[existingIndex].id
+                updatedAccounts[existingIndex].name = profile.name
+                updatedAccounts[existingIndex].token = normalizedCredential
+                updatedAccounts[existingIndex].email = profile.email
+                updatedAccounts[existingIndex].avatarURL = profile.avatarURL
+                updatedAccounts[existingIndex].providerUserId = profile.id
+                updatedAccounts[existingIndex].providerMetadata = normalizedMetadata
+                updatedActiveID = updatedAccounts[existingIndex].id
             } else {
                 let account = VercelAccount(
                     name: profile.name,
@@ -254,93 +271,78 @@ final class AuthManager {
                     providerUserId: profile.id,
                     providerMetadata: normalizedMetadata
                 )
-                accounts.append(account)
-                activeAccountId = account.id
+                updatedAccounts.append(account)
+                updatedActiveID = account.id
             }
-
-            KeychainHelper.saveAccounts(accounts)
-            KeychainHelper.saveActiveAccountId(activeAccountId)
+            try persistAccounts(updatedAccounts, activeAccountID: updatedActiveID)
         } catch let localized as LocalizedError {
             error = localized.errorDescription ?? "\(provider.displayName) rejected these credentials."
         } catch {
             self.error = "Could not connect to \(provider.displayName). Check the credentials and connection."
         }
-
-        isLoading = false
     }
 
     func refreshAccountProfiles() async {
+        guard ensureAccountPersistenceIsAvailable() else { return }
         let savedAccounts = accounts
         guard !savedAccounts.isEmpty else { return }
 
-        var didUpdate = false
+        var profileUpdates: [UUID: AccountProfileUpdate] = [:]
 
         for account in savedAccounts {
             switch account.provider {
             case .vercel:
                 guard let result = try? await fetchAccountProfile(token: account.token),
                       result.statusCode == 200,
-                      let profile = result.profile,
-                      let index = accounts.firstIndex(where: { $0.id == account.id }) else { continue }
-
-                if accounts[index].name != profile.name {
-                    accounts[index].name = profile.name
-                    didUpdate = true
-                }
-
-                if accounts[index].avatarURL != profile.avatarURL {
-                    accounts[index].avatarURL = profile.avatarURL
-                    didUpdate = true
-                }
+                      let profile = result.profile else { continue }
+                profileUpdates[account.id] = .vercel(
+                    name: profile.name,
+                    avatarURL: profile.avatarURL
+                )
             case .cloudflare:
                 let mode = account.cloudflareAuthenticationMode ?? .globalAPIKey
                 switch mode {
                 case .globalAPIKey:
                     guard let email = account.email,
-                          let profile = try? await CloudflareAPI(email: email, globalAPIKey: account.token).validateCredentials(),
-                          let index = accounts.firstIndex(where: { $0.id == account.id }) else { continue }
-                    if accounts[index].name != profile.displayName {
-                        accounts[index].name = profile.displayName
-                        didUpdate = true
-                    }
-                    if accounts[index].providerUserId != profile.id {
-                        accounts[index].providerUserId = profile.id
-                        didUpdate = true
-                    }
+                          let profile = try? await CloudflareAPI(
+                            email: email,
+                            globalAPIKey: account.token
+                          ).validateCredentials() else { continue }
+                    profileUpdates[account.id] = .cloudflare(
+                        name: profile.displayName,
+                        providerUserID: profile.id
+                    )
                 case .apiToken:
                     let client = CloudflareAPI(apiToken: account.token)
                     guard let verification = try? await client.validateAPIToken(),
-                          verification.status?.lowercased() == "active",
-                          let index = accounts.firstIndex(where: { $0.id == account.id }) else { continue }
-                    if accounts[index].providerUserId != verification.id {
-                        accounts[index].providerUserId = verification.id
-                        didUpdate = true
-                    }
+                          verification.status?.lowercased() == "active" else { continue }
+                    profileUpdates[account.id] = .cloudflareToken(providerUserID: verification.id)
                 }
             case .netlify, .railway, .render, .digitalOcean, .heroku, .fly, .firebase, .awsAmplify:
-                guard let profile = try? await HostingProviderAPI(account: account).validateProfile(),
-                      let index = accounts.firstIndex(where: { $0.id == account.id }) else { continue }
-                if accounts[index].name != profile.name {
-                    accounts[index].name = profile.name
-                    didUpdate = true
-                }
-                if accounts[index].email != profile.email {
-                    accounts[index].email = profile.email
-                    didUpdate = true
-                }
-                if accounts[index].avatarURL != profile.avatarURL {
-                    accounts[index].avatarURL = profile.avatarURL
-                    didUpdate = true
-                }
-                if accounts[index].providerUserId != profile.id {
-                    accounts[index].providerUserId = profile.id
-                    didUpdate = true
-                }
+                guard let profile = try? await HostingProviderAPI(account: account).validateProfile() else { continue }
+                profileUpdates[account.id] = .hosting(
+                    name: profile.name,
+                    email: profile.email,
+                    avatarURL: profile.avatarURL,
+                    providerUserID: profile.id
+                )
             }
         }
 
-        if didUpdate {
-            KeychainHelper.saveAccounts(accounts)
+        var updatedAccounts = accounts
+        for (id, update) in profileUpdates {
+            guard let index = updatedAccounts.firstIndex(where: { $0.id == id }),
+                  let savedAccount = savedAccounts.first(where: { $0.id == id }),
+                  updatedAccounts[index].provider == savedAccount.provider,
+                  updatedAccounts[index].token == savedAccount.token else { continue }
+            update.apply(to: &updatedAccounts[index])
+        }
+        guard updatedAccounts != accounts else { return }
+        do {
+            try KeychainHelper.saveAccounts(updatedAccounts)
+            accounts = updatedAccounts
+        } catch {
+            self.error = error.localizedDescription
         }
     }
 
@@ -363,14 +365,16 @@ final class AuthManager {
     }
 
     func removeAccount(id: UUID) {
-        accounts.removeAll { $0.id == id }
-        accountsWithLongAnalyticsHistory.remove(id)
-        KeychainHelper.saveAccounts(accounts)
-        KeychainHelper.saveLongAnalyticsHistoryAccountIds(accountsWithLongAnalyticsHistory)
-        
-        if activeAccountId == id {
-            activeAccountId = accounts.first?.id
-            KeychainHelper.saveActiveAccountId(activeAccountId)
+        guard ensureAccountPersistenceIsAvailable() else { return }
+        let updatedAccounts = accounts.filter { $0.id != id }
+        guard updatedAccounts.count != accounts.count else { return }
+        let updatedActiveID = activeAccountId == id ? updatedAccounts.first?.id : activeAccountId
+        do {
+            try persistAccounts(updatedAccounts, activeAccountID: updatedActiveID)
+            accountsWithLongAnalyticsHistory.remove(id)
+            KeychainHelper.saveLongAnalyticsHistoryAccountIds(accountsWithLongAnalyticsHistory)
+        } catch {
+            self.error = error.localizedDescription
         }
     }
 
@@ -381,10 +385,55 @@ final class AuthManager {
     }
     
     func logoutAll() {
-        accounts = []
-        activeAccountId = nil
-        accountsWithLongAnalyticsHistory.removeAll()
-        KeychainHelper.deleteHostingAccounts()
+        guard ensureAccountPersistenceIsAvailable() else { return }
+        do {
+            try persistAccounts([], activeAccountID: nil)
+            accountsWithLongAnalyticsHistory.removeAll()
+            KeychainHelper.saveLongAnalyticsHistoryAccountIds([])
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    private func ensureAccountPersistenceIsAvailable() -> Bool {
+        guard let accountPersistenceFailure else { return true }
+        error = accountPersistenceFailure
+        return false
+    }
+
+    private func persistAccounts(
+        _ updatedAccounts: [VercelAccount],
+        activeAccountID updatedActiveID: UUID?
+    ) throws {
+        try KeychainHelper.saveAccounts(updatedAccounts)
+        accounts = updatedAccounts
+        activeAccountId = updatedActiveID
+        KeychainHelper.saveActiveAccountId(updatedActiveID)
+    }
+
+    private enum AccountProfileUpdate {
+        case vercel(name: String, avatarURL: String?)
+        case cloudflare(name: String, providerUserID: String)
+        case cloudflareToken(providerUserID: String?)
+        case hosting(name: String, email: String?, avatarURL: String?, providerUserID: String)
+
+        func apply(to account: inout VercelAccount) {
+            switch self {
+            case .vercel(let name, let avatarURL):
+                account.name = name
+                account.avatarURL = avatarURL
+            case .cloudflare(let name, let providerUserID):
+                account.name = name
+                account.providerUserId = providerUserID
+            case .cloudflareToken(let providerUserID):
+                account.providerUserId = providerUserID
+            case .hosting(let name, let email, let avatarURL, let providerUserID):
+                account.name = name
+                account.email = email
+                account.avatarURL = avatarURL
+                account.providerUserId = providerUserID
+            }
+        }
     }
 
     private struct AccountProfile {
@@ -408,7 +457,7 @@ final class AuthManager {
         var request = URLRequest(url: profileURL)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await ProviderRequestSecurity.data(for: request)
         guard let http = response as? HTTPURLResponse else {
             return ProfileResult(statusCode: 0, profile: nil)
         }

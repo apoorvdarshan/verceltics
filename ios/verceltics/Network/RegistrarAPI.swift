@@ -6,6 +6,7 @@ struct RegistrarAPI {
     let primaryCredential: String
     let secondaryCredential: String?
     let metadata: [String: String]
+    private static let maximumPaginationPages = 200
 
     init(
         provider: RegistrarProvider,
@@ -209,19 +210,29 @@ struct RegistrarAPI {
     private func fetchNameDotComDomains() async throws -> [RegistrarDomain] {
         var domains: [RegistrarDomain] = []
         var page = 1
+        var seenPages = Set<Int>()
+        var pageCount = 0
         while true {
+            try Task.checkCancellation()
+            guard seenPages.insert(page).inserted else {
+                throw RegistrarAPIError.decoding("Name.com pagination repeated page \(page).")
+            }
             let root = object(try await jsonRequest(method: "GET", path: "/core/v1/domains?perPage=250&page=\(page)", body: nil))
             domains += array(root["domains"]).compactMap { normalizeNameDotCom(object($0)) }
+            pageCount += 1
             guard let nextPage = int(root["nextPage"]), nextPage > page else { break }
+            guard pageCount < Self.maximumPaginationPages else { throw paginationLimitError() }
             page = nextPage
         }
-        return domains
+        return deduplicatedDomains(domains)
     }
 
     private func fetchNamecheapDomains() async throws -> [RegistrarDomain] {
         var domains: [RegistrarDomain] = []
         var page = 1
+        var pageCount = 0
         while true {
+            try Task.checkCancellation()
             let response = try await rawRequest(
                 method: "GET",
                 path: "/xml.response?Command=namecheap.domains.getList&ListType=ALL&PageSize=100&Page=\(page)",
@@ -229,33 +240,49 @@ struct RegistrarAPI {
             )
             let result = try parseNamecheapDomains(response.body)
             domains += result.domains
+            pageCount += 1
             guard result.totalItems > page * max(result.pageSize, 1) else { break }
+            guard !result.domains.isEmpty else {
+                throw RegistrarAPIError.decoding("Namecheap pagination returned no domains before reaching the reported total.")
+            }
+            guard pageCount < Self.maximumPaginationPages else { throw paginationLimitError() }
             page += 1
         }
-        return domains
+        return deduplicatedDomains(domains)
     }
 
     private func fetchSpaceshipDomains() async throws -> [RegistrarDomain] {
         var domains: [RegistrarDomain] = []
         var skip = 0
         let pageSize = 100
+        var seenOffsets = Set<Int>()
+        var pageCount = 0
         while true {
+            try Task.checkCancellation()
+            guard seenOffsets.insert(skip).inserted else {
+                throw RegistrarAPIError.decoding("Spaceship pagination repeated offset \(skip).")
+            }
             let value = try await jsonRequest(method: "GET", path: "/v1/domains?take=\(pageSize)&skip=\(skip)", body: nil)
             let root = object(value)
             let items = array(root["items"] ?? root["domains"] ?? value)
             domains += items.compactMap { normalizeSpaceship(object($0)) }
             let total = int(root["total"]) ?? items.count
             skip += items.count
+            pageCount += 1
             guard !items.isEmpty, skip < total else { break }
+            guard pageCount < Self.maximumPaginationPages else { throw paginationLimitError() }
         }
-        return domains
+        return deduplicatedDomains(domains)
     }
 
     private func fetchDynadotDomains() async throws -> [RegistrarDomain] {
         var domains: [RegistrarDomain] = []
         var page = 0
         let pageSize = 100
+        var seenPageSignatures = Set<String>()
+        var pageCount = 0
         while true {
+            try Task.checkCancellation()
             let value = try await jsonRequest(
                 method: "GET",
                 path: "/api3.json?command=list_domain&count_per_page=\(pageSize)&page_index=\(page)",
@@ -267,35 +294,60 @@ struct RegistrarAPI {
                 throw RegistrarAPIError.requestFailed(int(response["ResponseCode"]) ?? 400, string(response, "Error") ?? status)
             }
             let items = findArray(in: value, keys: ["MainDomains", "domains", "domain", "Domain"])
-            domains += items.compactMap { item in
+            let pageDomains = items.compactMap { item in
                 if let name = item as? String { return emptyDomain(name: name) }
                 return normalizeDynadot(object(item))
             }
+            let signature = pageDomains.map { $0.name.lowercased() }.sorted().joined(separator: "|")
+            if !signature.isEmpty, !seenPageSignatures.insert(signature).inserted {
+                throw RegistrarAPIError.decoding("Dynadot pagination repeated a results page.")
+            }
+            domains += pageDomains
+            pageCount += 1
             guard items.count == pageSize else { break }
+            guard !pageDomains.isEmpty else {
+                throw RegistrarAPIError.decoding("Dynadot pagination returned no usable domains for a full page.")
+            }
+            guard pageCount < Self.maximumPaginationPages else { throw paginationLimitError() }
             page += 1
         }
-        return domains
+        return deduplicatedDomains(domains)
     }
 
     private func fetchGandiDomains() async throws -> [RegistrarDomain] {
         var domains: [RegistrarDomain] = []
         var page = 1
         let pageSize = 100
+        var seenPageSignatures = Set<String>()
+        var pageCount = 0
         while true {
+            try Task.checkCancellation()
             let value = try await jsonRequest(method: "GET", path: "/v5/domain/domains?per_page=\(pageSize)&page=\(page)", body: nil)
             let items = array(value)
-            domains += items.compactMap { normalizeGandi(object($0)) }
+            let pageDomains = items.compactMap { normalizeGandi(object($0)) }
+            let signature = pageDomains.map { $0.name.lowercased() }.sorted().joined(separator: "|")
+            if !signature.isEmpty, !seenPageSignatures.insert(signature).inserted {
+                throw RegistrarAPIError.decoding("Gandi pagination repeated a results page.")
+            }
+            domains += pageDomains
+            pageCount += 1
             guard items.count == pageSize else { break }
+            guard !pageDomains.isEmpty else {
+                throw RegistrarAPIError.decoding("Gandi pagination returned no usable domains for a full page.")
+            }
+            guard pageCount < Self.maximumPaginationPages else { throw paginationLimitError() }
             page += 1
         }
-        return domains
+        return deduplicatedDomains(domains)
     }
 
     private func fetchNameSiloDomains() async throws -> [RegistrarDomain] {
         var domains: [RegistrarDomain] = []
         var page = 1
         let pageSize = 100
+        var pageCount = 0
         while true {
+            try Task.checkCancellation()
             let root = object(try await jsonRequest(method: "GET", path: "/api/listDomains?pageSize=\(pageSize)&page=\(page)", body: nil))
             let reply = object(root["reply"])
             if let code = string(reply, "code"), code != "300" {
@@ -320,18 +372,23 @@ struct RegistrarAPI {
             }
             let pager = object(reply["pager"])
             let total = int(pager["total"]) ?? domains.count
+            pageCount += 1
             guard domains.count < total, !items.isEmpty else { break }
+            guard pageCount < Self.maximumPaginationPages else { throw paginationLimitError() }
             page += 1
         }
-        return domains
+        return deduplicatedDomains(domains)
     }
 
     private func fetchGoDaddyDomains() async throws -> [RegistrarDomain] {
         var domains: [RegistrarDomain] = []
         var marker: String?
         let pageSize = 1_000
+        var seenMarkers = Set<String>()
+        var pageCount = 0
         while true {
-            let markerQuery = marker.map { "&marker=\($0)" } ?? ""
+            try Task.checkCancellation()
+            let markerQuery = marker.map { "&marker=\(queryComponent($0))" } ?? ""
             let value = try await jsonRequest(
                 method: "GET",
                 path: "/v1/domains?limit=\(pageSize)&includes=nameServers\(markerQuery)",
@@ -339,12 +396,16 @@ struct RegistrarAPI {
             )
             let items = array(value)
             domains += items.compactMap { normalizeGoDaddy(object($0)) }
+            pageCount += 1
             guard items.count == pageSize,
-                  let nextMarker = items.last.flatMap({ string(object($0), "domain") }),
-                  nextMarker != marker else { break }
+                  let nextMarker = items.last.flatMap({ string(object($0), "domain") }) else { break }
+            guard seenMarkers.insert(nextMarker).inserted, nextMarker != marker else {
+                throw RegistrarAPIError.decoding("GoDaddy pagination repeated a marker.")
+            }
+            guard pageCount < Self.maximumPaginationPages else { throw paginationLimitError() }
             marker = nextMarker
         }
-        return domains
+        return deduplicatedDomains(domains)
     }
 
     private func normalizeNameDotCom(_ value: [String: Any]) -> RegistrarDomain? {
@@ -586,6 +647,25 @@ struct RegistrarAPI {
 
     private func emptyDomain(name: String) -> RegistrarDomain {
         RegistrarDomain(name: name, status: nil, createdAt: nil, expiresAt: nil, autoRenew: nil, locked: nil, privacyEnabled: nil, nameservers: [], metadata: [:])
+    }
+
+    private func deduplicatedDomains(_ domains: [RegistrarDomain]) -> [RegistrarDomain] {
+        var seenNames = Set<String>()
+        return domains.filter { domain in
+            let key = domain.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard !key.isEmpty else { return false }
+            return seenNames.insert(key).inserted
+        }
+    }
+
+    private func paginationLimitError() -> RegistrarAPIError {
+        .decoding("Pagination exceeded \(Self.maximumPaginationPages) pages.")
+    }
+
+    private func queryComponent(_ value: String) -> String {
+        var allowed = CharacterSet.urlQueryAllowed
+        allowed.remove(charactersIn: "+&=?#")
+        return value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value
     }
 
     private func findArray(in value: Any, keys: Set<String>) -> [Any] {

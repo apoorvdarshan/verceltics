@@ -77,6 +77,38 @@ nonisolated enum CloudflareRequestBodyEncoding: String, CaseIterable, Identifiab
     var id: Self { self }
 }
 
+/// Bounds every Cloudflare collection walk so a malformed or repeating API
+/// response cannot keep the device issuing requests or growing an array
+/// indefinitely. Callers still receive a visible error instead of a silently
+/// truncated collection.
+nonisolated struct CloudflarePaginationGuard {
+    private static let maximumPages = 500
+    private static let maximumItems = 100_000
+
+    private var pages = 0
+    private var items = 0
+    private var seenPageSignatures = Set<Int>()
+
+    mutating func record(batchCount: Int, signature: Int?) throws {
+        try Task.checkCancellation()
+        pages += 1
+        items += batchCount
+
+        guard pages <= Self.maximumPages, items <= Self.maximumItems else {
+            throw CloudflareAPIError.invalidRequest(
+                "Cloudflare returned too many paginated results. Narrow the request and try again."
+            )
+        }
+
+        if let signature, batchCount > 0,
+           !seenPageSignatures.insert(signature).inserted {
+            throw CloudflareAPIError.invalidRequest(
+                "Cloudflare repeated a results page, so loading stopped safely."
+            )
+        }
+    }
+}
+
 nonisolated struct CloudflareRawResponse: Sendable {
     let statusCode: Int
     let headers: [String: String]
@@ -107,19 +139,33 @@ actor CloudflareAPI {
     private let session: URLSession
     private let decoder = JSONDecoder()
     private let encoder = JSONEncoder()
+    nonisolated let cacheScope: String
 
     init(email: String, globalAPIKey: String, session: URLSession? = nil) {
-        self.email = email.trimmingCharacters(in: .whitespacesAndNewlines)
-        self.credential = globalAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedCredential = globalAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.email = normalizedEmail
+        self.credential = normalizedCredential
         self.authenticationMode = .globalAPIKey
         self.session = session ?? Self.makeSecureSession()
+        cacheScope = CredentialCacheScope.cloudflare(
+            authenticationMode: .globalAPIKey,
+            email: normalizedEmail,
+            credential: normalizedCredential
+        )
     }
 
     init(apiToken: String, session: URLSession? = nil) {
+        let normalizedCredential = apiToken.trimmingCharacters(in: .whitespacesAndNewlines)
         self.email = nil
-        self.credential = apiToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.credential = normalizedCredential
         self.authenticationMode = .apiToken
         self.session = session ?? Self.makeSecureSession()
+        cacheScope = CredentialCacheScope.cloudflare(
+            authenticationMode: .apiToken,
+            email: nil,
+            credential: normalizedCredential
+        )
     }
 
     init(
@@ -128,10 +174,17 @@ actor CloudflareAPI {
         credential: String,
         session: URLSession? = nil
     ) {
-        self.email = email?.trimmingCharacters(in: .whitespacesAndNewlines)
-        self.credential = credential.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedEmail = email?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedCredential = credential.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.email = normalizedEmail
+        self.credential = normalizedCredential
         self.authenticationMode = authenticationMode
         self.session = session ?? Self.makeSecureSession()
+        cacheScope = CredentialCacheScope.cloudflare(
+            authenticationMode: authenticationMode,
+            email: normalizedEmail,
+            credential: normalizedCredential
+        )
     }
 
     // MARK: - Authentication
@@ -309,7 +362,12 @@ actor CloudflareAPI {
         )
     }
 
-    func createDNSRecord(zoneID: String, record: CloudflareDNSRecordInput) async throws -> CloudflareDNSRecord {
+    func createDNSRecord(
+        zoneID: String,
+        record: CloudflareDNSRecordInput,
+        confirmation: CloudflareMutationConfirmation
+    ) async throws -> CloudflareDNSRecord {
+        try requireConfirmation(confirmation, resourceID: zoneID)
         try validateDNSRecord(record)
         return try await requestResult(
             path: "/zones/\(pathSegment(zoneID))/dns_records",
@@ -321,8 +379,10 @@ actor CloudflareAPI {
     func updateDNSRecord(
         zoneID: String,
         recordID: String,
-        record: CloudflareDNSRecordInput
+        record: CloudflareDNSRecordInput,
+        confirmation: CloudflareMutationConfirmation
     ) async throws -> CloudflareDNSRecord {
+        try requireConfirmation(confirmation, resourceID: recordID)
         try validateDNSRecord(record)
         return try await requestResult(
             path: "/zones/\(pathSegment(zoneID))/dns_records/\(pathSegment(recordID))",
@@ -583,6 +643,7 @@ actor CloudflareAPI {
     ) async throws -> [T] {
         var page = 1
         var allItems: [T] = []
+        var paginationGuard = CloudflarePaginationGuard()
 
         while true {
             var items = queryItems.filter { $0.name != "page" && $0.name != "per_page" }
@@ -591,6 +652,10 @@ actor CloudflareAPI {
 
             let envelope: CloudflareEnvelope<[T]> = try await requestEnvelope(path: path, queryItems: items)
             let batch = envelope.result ?? []
+            try paginationGuard.record(
+                batchCount: batch.count,
+                signature: batch.isEmpty ? nil : String(reflecting: batch).hashValue
+            )
             allItems.append(contentsOf: batch)
 
             if let totalPages = envelope.resultInfo?.totalPages {
@@ -708,8 +773,20 @@ actor CloudflareAPI {
         let data: Data
         let response: URLResponse
         do {
-            (data, response) = try await session.data(for: request)
+            (data, response) = try await ProviderRequestSecurity.data(
+                for: request,
+                using: session,
+                maximumResponseBytes: 32 * 1_024 * 1_024
+            )
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as URLError where error.code == .cancelled {
+            throw CancellationError()
         } catch {
+            let cocoaError = error as NSError
+            if cocoaError.domain == NSURLErrorDomain && cocoaError.code == NSURLErrorCancelled {
+                throw CancellationError()
+            }
             throw CloudflareAPIError.network(error.localizedDescription)
         }
 
@@ -732,6 +809,30 @@ actor CloudflareAPI {
             throw CloudflareAPIError.forbidden(message)
         default:
             throw CloudflareAPIError.requestFailed(statusCode: response.statusCode, message: message)
+        }
+    }
+
+    nonisolated func isOptionalProductUnavailable(_ error: Error) -> Bool {
+        guard let cloudflareError = error as? CloudflareAPIError else { return false }
+        switch cloudflareError {
+        case .forbidden:
+            return true
+        case .requestFailed(let statusCode, _):
+            return statusCode == 400 || statusCode == 403 || statusCode == 404
+        case .api(let issues):
+            guard !issues.isEmpty else { return false }
+            return issues.allSatisfy { issue in
+                let message = issue.message.lowercased()
+                return message.contains("permission")
+                    || message.contains("not authorized")
+                    || message.contains("not found")
+                    || message.contains("not enabled")
+                    || message.contains("unsupported")
+                    || message.contains("jurisdiction")
+            }
+        case .invalidCredentials, .invalidRequest, .confirmationRequired,
+             .graphQL, .decoding, .network:
+            return false
         }
     }
 

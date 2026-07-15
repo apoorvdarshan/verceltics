@@ -25,7 +25,15 @@ struct RegistrarAccountMenu: View {
                     Section(provider.displayName) {
                         ForEach(accounts) { account in
                             Button { store.switchAccount(to: account.id) } label: {
-                                Label(account.name, systemImage: store.activeAccountID == account.id ? "checkmark.circle.fill" : "globe")
+                                Label {
+                                    Text(account.name)
+                                } icon: {
+                                    if store.activeAccountID == account.id {
+                                        Image(systemName: "checkmark.circle.fill")
+                                    } else {
+                                        RegistrarMark(provider: provider, size: 20)
+                                    }
+                                }
                             }
                         }
                     }

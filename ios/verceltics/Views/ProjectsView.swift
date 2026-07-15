@@ -1,42 +1,129 @@
 import SwiftUI
 import StoreKit
+import ImageIO
+import Darwin
+
+private final class FaviconConnectionGuard: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    private let expectedHost: String
+    private let expectedPort: Int
+    private let lock = NSLock()
+    private var publicEndpointResult: Bool?
+
+    init(url: URL) {
+        expectedHost = url.host?.lowercased() ?? ""
+        expectedPort = url.port ?? 443
+    }
+
+    func makeSession() -> URLSession {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.urlCache = nil
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        configuration.httpCookieStorage = nil
+        configuration.httpShouldSetCookies = false
+        configuration.timeoutIntervalForRequest = 5
+        configuration.timeoutIntervalForResource = 8
+        return URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping (URLRequest?) -> Void
+    ) {
+        guard let url = request.url,
+              url.scheme?.lowercased() == "https",
+              url.host?.lowercased() == expectedHost,
+              (url.port ?? 443) == expectedPort,
+              url.user == nil,
+              url.password == nil else {
+            completionHandler(nil)
+            return
+        }
+        completionHandler(request)
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        didFinishCollecting metrics: URLSessionTaskMetrics
+    ) {
+        let remoteAddresses = metrics.transactionMetrics.compactMap(\.remoteAddress)
+        let isPublic = !remoteAddresses.isEmpty
+            && remoteAddresses.allSatisfy(FaviconHostSafety.isPublicIPAddress)
+        lock.withLock { publicEndpointResult = isPublic }
+    }
+
+    func waitForPublicEndpoint() async -> Bool {
+        // Metrics are delivered at task completion, immediately after the final
+        // response bytes. Poll briefly so validation is tied to the connection
+        // URLSession actually used rather than to an earlier DNS lookup.
+        for _ in 0..<25 {
+            let result = lock.withLock { publicEndpointResult }
+            if let result { return result }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        return false
+    }
+}
 
 @Observable
 @MainActor
 final class ProjectsViewModel {
-    private static var cachedProjects: [Int: [Project]] = [:]
+    private struct CachedProjects {
+        let projects: [Project]
+        let warning: String?
+    }
+
+    private static var cachedProjects: [String: CachedProjects] = [:]
 
     var projects: [Project] = []
     var isLoading = true
     var error: String?
+    var warning: String?
 
-    private var loadedCacheKey: Int?
+    private var loadedCacheKey: String?
+    private var loadGeneration = 0
 
     func load(token: String, forceRefresh: Bool = false) async {
-        let cacheKey = token.hashValue
+        let cacheKey = CredentialCacheScope.fingerprint(fields: ["vercel-projects", token])
         if !forceRefresh, loadedCacheKey == cacheKey { return }
         if !forceRefresh, let cached = Self.cachedProjects[cacheKey] {
-            projects = cached
+            projects = cached.projects
             loadedCacheKey = cacheKey
             isLoading = false
             error = nil
+            warning = cached.warning
             return
         }
-        
+
+        loadGeneration += 1
+        let generation = loadGeneration
         // Keep already loaded content visible while an explicit refresh runs.
         isLoading = projects.isEmpty
         error = nil
-        
+        warning = nil
+
         do {
-            projects = try await VercelAPI(token: token).fetchProjects()
+            let api = VercelAPI(token: token)
+            let loadedProjects = try await api.fetchProjects()
+            let loadWarning = await api.lastProjectLoadWarning
+            guard generation == loadGeneration else { return }
+            projects = loadedProjects
+            warning = loadWarning
             loadedCacheKey = cacheKey
-            Self.cachedProjects[cacheKey] = projects
+            Self.cachedProjects[cacheKey] = CachedProjects(
+                projects: loadedProjects,
+                warning: loadWarning
+            )
         } catch is CancellationError {
             // Tab switch — ignore, don't show error
         } catch {
+            guard generation == loadGeneration else { return }
             self.error = error.localizedDescription
         }
-        isLoading = false
+        if generation == loadGeneration { isLoading = false }
     }
 }
 
@@ -77,6 +164,10 @@ struct ProjectsView: View {
                 } else if let error = vm.error, vm.projects.isEmpty {
                     ErrorStateView(message: error) {
                         Task { await loadProjects() }
+                    }
+                } else if let warning = vm.warning, vm.projects.isEmpty {
+                    ErrorStateView(message: warning) {
+                        Task { await refreshProjects() }
                     }
                 } else if vm.projects.isEmpty {
                     EmptyStateView(
@@ -144,6 +235,14 @@ struct ProjectsView: View {
     private var projectsList: some View {
         ScrollView {
             VStack(spacing: 12) {
+                if let error = authManager.error {
+                    AppFeedbackBanner(
+                        title: "Saved account change failed",
+                        message: error,
+                        icon: "lock.trianglebadge.exclamationmark.fill",
+                        tint: AppTheme.danger
+                    )
+                }
                 if let error = vm.error {
                     AppFeedbackBanner(
                         title: "Couldn’t refresh projects",
@@ -152,6 +251,14 @@ struct ProjectsView: View {
                     ) {
                         Task { await refreshProjects() }
                     }
+                }
+                if let warning = vm.warning {
+                    AppFeedbackBanner(
+                        title: "Some project scopes did not load",
+                        message: warning,
+                        icon: "exclamationmark.triangle.fill",
+                        tint: AppTheme.warning
+                    )
                 }
 
                 LazyVGrid(columns: gridColumns, spacing: 12) {
@@ -221,7 +328,12 @@ struct ProjectsView: View {
         guard !hasShownOnboardingRatePrompt,
               vm.error == nil,
               !vm.projects.isEmpty else { return }
-        try? await Task.sleep(for: .seconds(3))
+        do {
+            try await Task.sleep(for: .seconds(3))
+        } catch {
+            return
+        }
+        guard !Task.isCancelled else { return }
         requestReview()
         hasShownOnboardingRatePrompt = true
     }
@@ -447,56 +559,16 @@ struct ProjectIcon: View {
     @MainActor private static let imageCache = NSCache<NSString, UIImage>()
     @MainActor private static var failedAt: [String: Date] = [:]
 
-    private var directFaviconURLs: [URL] {
-        guard let domain else { return [] }
-        // Try www.* and bare host so single-host sites still resolve.
-        // Skip the www variant when the host is already a subdomain — many
-        // wildcard certs (e.g. *.vercel.app) only cover one level, so
-        // www.<sub>.vercel.app fails ATS and stalls the connection pool.
-        let dotCount = domain.filter { $0 == "." }.count
-        let hosts: [String] = {
-            if domain.hasPrefix("www.") {
-                return [domain, String(domain.dropFirst(4))]
-            }
-            if dotCount >= 2 {
-                return [domain]
-            }
-            return [domain, "www.\(domain)"]
-        }()
-        let paths = [
-            "/apple-touch-icon.png",
-            "/apple-touch-icon-precomposed.png",
-            "/favicon-192x192.png",
-            "/favicon-96x96.png",
-            "/favicon.png",
-            "/favicon.ico",
-            "/icon.png",
-            "/icon.svg",
-        ]
-        return hosts.flatMap { host in
-            paths.compactMap { URL(string: "https://\(host)\($0)") }
-        }
+    private var safeDomain: String? {
+        guard let domain else { return nil }
+        return Self.publicHost(from: domain)
     }
 
-    private var fallbackServiceURLs: [URL] {
-        guard let domain else { return [] }
-        // Pre-rasterise common favicon paths through weserv as additional race
-        // entrants — covers SVG-only sites whose scrape→rasterize chain might
-        // otherwise be the only way to land a PNG. Manually fully-encode so
-        // URLSession sees an unambiguous URL.
-        var allowed = CharacterSet.alphanumerics
-        allowed.insert(charactersIn: "-._~")
-        let weservRasterised = ["icon.svg", "favicon.svg", "favicon.ico", "favicon.png", "apple-touch-icon.png"]
-            .compactMap { path -> URL? in
-                let inner = "https://\(domain)/\(path)"
-                guard let escaped = inner.addingPercentEncoding(withAllowedCharacters: allowed) else { return nil }
-                return URL(string: "https://images.weserv.nl/?url=\(escaped)&output=png&w=128&h=128&fit=contain")
-            }
-        return weservRasterised + [
-            URL(string: "https://icons.duckduckgo.com/ip3/\(domain).ico"),
-            URL(string: "https://www.google.com/s2/favicons?domain=\(domain)&sz=256"),
-            URL(string: "https://icon.horse/icon/\(domain)"),
-        ].compactMap { $0 }
+    private var directFaviconURLs: [URL] {
+        guard let safeDomain else { return [] }
+        return ["/apple-touch-icon.png", "/favicon.ico"].compactMap {
+            URL(string: "https://\(safeDomain)\($0)")
+        }
     }
 
     var body: some View {
@@ -518,28 +590,27 @@ struct ProjectIcon: View {
         .task(id: domain) {
             loadedImage = nil
             didFail = false
-            guard let domain else {
+            guard let safeDomain else {
                 didFail = true
                 return
             }
-            if let cached = Self.imageCache.object(forKey: domain as NSString) {
+            if let cached = Self.imageCache.object(forKey: safeDomain as NSString) {
                 loadedImage = cached
                 return
             }
-            if let failedAt = Self.failedAt[domain], Date().timeIntervalSince(failedAt) < 300 {
+            if let failedAt = Self.failedAt[safeDomain], Date().timeIntervalSince(failedAt) < 300 {
                 didFail = true
                 return
             }
 
-            // Race: load favicon vs a bounded timeout (SVG rasterisation chain
-            // can be: fetch HTML -> fetch SVG -> proxy fetch -> render).
+            // Race direct/same-origin favicon discovery against a bounded timeout.
             await withTaskGroup(of: Void.self) { group in
                 group.addTask { @MainActor in await loadFavicon() }
                 group.addTask { @MainActor in
                     try? await Task.sleep(for: .seconds(8))
                     if loadedImage == nil {
                         didFail = true
-                        Self.failedAt[domain] = Date()
+                        Self.failedAt[safeDomain] = Date()
                     }
                 }
                 await group.next()
@@ -587,32 +658,26 @@ struct ProjectIcon: View {
     }
 
     private func loadFavicon() async {
-        guard let domain else { didFail = true; return }
+        guard let safeDomain else { didFail = true; return }
 
         // 1. Race all direct paths in parallel — first valid image wins
         if let image = await raceForFirstImage(directFaviconURLs, minSize: 32) {
-            store(image, for: domain)
+            store(image, for: safeDomain)
             return
         }
 
         // 2. Scrape HTML <link> tags for any explicit icon paths
-        if let scraped = await scrapeFaviconURLs(domain: domain) {
+        if let scraped = await scrapeFaviconURLs(domain: safeDomain) {
             for url in scraped {
                 if let image = await fetchImage(from: url) {
-                    store(image, for: domain)
+                    store(image, for: safeDomain)
                     return
                 }
             }
         }
 
-        // 3. Third-party services in parallel — these almost always return something
-        if let image = await raceForFirstImage(fallbackServiceURLs, minSize: 16) {
-            store(image, for: domain)
-            return
-        }
-
         didFail = true
-        Self.failedAt[domain] = Date()
+        Self.failedAt[safeDomain] = Date()
     }
 
     private func store(_ image: UIImage, for domain: String) {
@@ -625,20 +690,11 @@ struct ProjectIcon: View {
     private func raceForFirstImage(_ urls: [URL], minSize: CGFloat) async -> UIImage? {
         guard !urls.isEmpty else { return nil }
         return await withTaskGroup(of: UIImage?.self) { group in
-            for url in urls {
-                group.addTask { @MainActor in
-                    guard let (data, contentType) = await fetchImageData(from: url) else { return nil }
-                    let uiImage: UIImage?
-                    if looksLikeSVG(data: data, contentType: contentType) {
-                        uiImage = await rasterizeRemoteSVG(originalURL: url)
-                    } else {
-                        uiImage = UIImage(data: data)
-                    }
-                    guard let image = uiImage,
-                          image.size.width >= minSize || image.size.height >= minSize else { return nil }
-                    return await Task.detached(priority: .utility) {
-                        Self.removeWhiteBackground(image)
-                    }.value
+            for url in urls.prefix(2) {
+                group.addTask {
+                    guard let (data, contentType) = await fetchImageData(from: url),
+                          !looksLikeSVG(data: data, contentType: contentType) else { return nil }
+                    return await Self.decodeImage(data, minSize: minSize)
                 }
             }
             for await result in group {
@@ -652,11 +708,24 @@ struct ProjectIcon: View {
     }
 
     nonisolated private func fetchImageData(from url: URL) async -> (Data, String?)? {
+        guard url.scheme?.lowercased() == "https",
+              url.host != nil,
+              url.user == nil,
+              url.password == nil else { return nil }
         var request = URLRequest(url: url, cachePolicy: .returnCacheDataElseLoad)
-        request.timeoutInterval = 10
+        request.timeoutInterval = 5
         request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15", forHTTPHeaderField: "User-Agent")
-        request.setValue("image/png,image/jpeg,image/svg+xml,image/*,*/*;q=0.8", forHTTPHeaderField: "Accept")
-        guard let (data, response) = try? await URLSession.shared.data(for: request),
+        request.setValue("image/png,image/jpeg,image/webp,image/*;q=0.8", forHTTPHeaderField: "Accept")
+        let connectionGuard = FaviconConnectionGuard(url: url)
+        let session = connectionGuard.makeSession()
+        defer { session.finishTasksAndInvalidate() }
+        guard await FaviconHostSafety.resolvesOnlyToPublicAddresses(host: url.host ?? ""),
+              let (data, response) = try? await ProviderRequestSecurity.data(
+                for: request,
+                using: session,
+                maximumResponseBytes: 2_000_000
+              ),
+              await connectionGuard.waitForPublicEndpoint(),
               let http = response as? HTTPURLResponse,
               (200...299).contains(http.statusCode),
               data.count > 50 else { return nil }
@@ -672,35 +741,36 @@ struct ProjectIcon: View {
         return false
     }
 
-    /// Rasterise a remote SVG via images.weserv.nl. UIImage can't decode SVG
-    /// natively, so we route SVG URLs through a public proxy that renders
-    /// them server-side and returns PNG bytes. Inner URL is fully percent-
-    /// encoded so URLSession sees an unambiguous query string even when the
-    /// original has its own ?<hash>.
-    nonisolated private func rasterizeRemoteSVG(originalURL: URL) async -> UIImage? {
-        var allowed = CharacterSet.alphanumerics
-        allowed.insert(charactersIn: "-._~")
-        guard let escaped = originalURL.absoluteString.addingPercentEncoding(withAllowedCharacters: allowed),
-              let proxy = URL(string: "https://images.weserv.nl/?url=\(escaped)&output=png&w=128&h=128&fit=contain"),
-              let (data, ct) = await fetchImageData(from: proxy),
-              !looksLikeSVG(data: data, contentType: ct),
-              let uiImage = UIImage(data: data) else { return nil }
-        return uiImage
+    private func fetchImage(from url: URL) async -> UIImage? {
+        guard let (data, contentType) = await fetchImageData(from: url),
+              !looksLikeSVG(data: data, contentType: contentType) else { return nil }
+        return await Self.decodeImage(data, minSize: 32)
     }
 
-    private func fetchImage(from url: URL) async -> UIImage? {
-        guard let (data, contentType) = await fetchImageData(from: url) else { return nil }
+    nonisolated private static func decodeImage(_ data: Data, minSize: CGFloat) async -> UIImage? {
+        await Task.detached(priority: .utility) {
+            guard let source = CGImageSourceCreateWithData(
+                data as CFData,
+                [kCGImageSourceShouldCache: false] as CFDictionary
+            ),
+            let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+            let pixelWidth = properties[kCGImagePropertyPixelWidth] as? NSNumber,
+            let pixelHeight = properties[kCGImagePropertyPixelHeight] as? NSNumber,
+            max(pixelWidth.doubleValue, pixelHeight.doubleValue) >= Double(minSize) else { return nil }
 
-        let uiImage: UIImage?
-        if looksLikeSVG(data: data, contentType: contentType) {
-            uiImage = await rasterizeRemoteSVG(originalURL: url)
-        } else {
-            uiImage = UIImage(data: data)
-        }
-        guard let image = uiImage,
-              image.size.width >= 32 || image.size.height >= 32 else { return nil }
-        return await Task.detached(priority: .utility) {
-            Self.removeWhiteBackground(image)
+            let options: [CFString: Any] = [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceThumbnailMaxPixelSize: 256,
+                kCGImageSourceShouldCacheImmediately: true,
+            ]
+            guard let thumbnail = CGImageSourceCreateThumbnailAtIndex(
+                source,
+                0,
+                options as CFDictionary
+            ) else { return nil }
+            let image = UIImage(cgImage: thumbnail)
+            return removeWhiteBackground(image)
         }.value
     }
 
@@ -843,10 +913,22 @@ struct ProjectIcon: View {
     private func scrapeFaviconURLs(domain: String) async -> [URL]? {
         guard let pageURL = URL(string: "https://\(domain)"),
               pageURL.scheme == "https",
-              pageURL.host != nil else { return nil }
+              let pageHost = pageURL.host?.lowercased() else { return nil }
         var request = URLRequest(url: pageURL)
         request.timeoutInterval = 5
-        guard let (data, _) = try? await URLSession.shared.data(for: request),
+        request.setValue("text/html,application/xhtml+xml", forHTTPHeaderField: "Accept")
+        let connectionGuard = FaviconConnectionGuard(url: pageURL)
+        let session = connectionGuard.makeSession()
+        defer { session.finishTasksAndInvalidate() }
+        guard await FaviconHostSafety.resolvesOnlyToPublicAddresses(host: pageHost),
+              let (data, response) = try? await ProviderRequestSecurity.data(
+                for: request,
+                using: session,
+                maximumResponseBytes: 512_000
+              ),
+              await connectionGuard.waitForPublicEndpoint(),
+              let http = response as? HTTPURLResponse,
+              (200...299).contains(http.statusCode),
               let html = String(data: data, encoding: .utf8) else { return nil }
 
         var favicons: [URL] = []
@@ -856,7 +938,7 @@ struct ProjectIcon: View {
         let range = NSRange(html.startIndex..., in: html)
         let matches = regex.matches(in: html, range: range)
 
-        for match in matches {
+        for match in matches.prefix(8) {
             let href: String
             if let r1 = Range(match.range(at: 1), in: html), !html[r1].isEmpty {
                 href = String(html[r1])
@@ -864,22 +946,175 @@ struct ProjectIcon: View {
                 href = String(html[r2])
             } else { continue }
 
-            // Inline data:URI SVG — UIImage can't decode SVG and we have no
-            // remote URL to feed the rasterizer. Skip; the fallback chain
-            // picks up the slack.
-            if href.lowercased().hasPrefix("data:image/svg+xml") { continue }
+            if href.lowercased().hasPrefix("data:") { continue }
 
             // Percent-encode characters like spaces that the spec allows in
             // hrefs but URL(string:) rejects (e.g. "assets/calorie logo.png").
             let allowed = CharacterSet.urlQueryAllowed.union(.urlPathAllowed)
             let encoded = href.addingPercentEncoding(withAllowedCharacters: allowed) ?? href
             if let url = URL(string: encoded, relativeTo: pageURL)?.absoluteURL
-                ?? URL(string: href, relativeTo: pageURL)?.absoluteURL {
+                ?? URL(string: href, relativeTo: pageURL)?.absoluteURL,
+               url.scheme?.lowercased() == "https",
+               url.host?.lowercased() == pageHost,
+               (url.port ?? 443) == 443,
+               url.user == nil,
+               url.password == nil,
+               !url.pathExtension.lowercased().contains("svg") {
                 favicons.append(url)
             }
+            if favicons.count == 2 { break }
         }
 
         return favicons.isEmpty ? nil : favicons
+    }
+
+    nonisolated private static func publicHost(from rawValue: String) -> String? {
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !trimmed.isEmpty else { return nil }
+
+        let candidate: URL?
+        if trimmed.contains("://") {
+            candidate = URL(string: trimmed)
+        } else {
+            candidate = URL(string: "https://\(trimmed)")
+        }
+
+        guard let candidate,
+              candidate.scheme?.lowercased() == "https",
+              let host = candidate.host?.lowercased(),
+              candidate.user == nil,
+              candidate.password == nil,
+              candidate.port == nil || candidate.port == 443,
+              host.contains("."),
+              !host.hasSuffix(".local"),
+              !host.hasSuffix(".localhost"),
+              !host.hasSuffix(".internal"),
+              !host.hasSuffix(".lan"),
+              !host.hasSuffix(".home"),
+              !host.contains(":") else { return nil }
+
+        let octets = host.split(separator: ".").compactMap { Int($0) }
+        if octets.count == 4, octets.allSatisfy({ (0...255).contains($0) }) {
+            let first = octets[0]
+            let second = octets[1]
+            let isPrivate = first == 0 || first == 10 || first == 127 || first >= 224
+                || (first == 100 && (64...127).contains(second))
+                || (first == 169 && second == 254)
+                || (first == 172 && (16...31).contains(second))
+                || (first == 192 && second == 168)
+            guard !isPrivate else { return nil }
+        }
+
+        return host
+    }
+}
+
+nonisolated enum FaviconHostSafety {
+    static func resolvesOnlyToPublicAddresses(host: String) async -> Bool {
+        let normalized = host.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return false }
+
+        return await Task.detached(priority: .utility) {
+            guard !Task.isCancelled else { return false }
+            var hints = addrinfo(
+                ai_flags: AI_ADDRCONFIG,
+                ai_family: AF_UNSPEC,
+                ai_socktype: SOCK_STREAM,
+                ai_protocol: Int32(IPPROTO_TCP),
+                ai_addrlen: 0,
+                ai_canonname: nil,
+                ai_addr: nil,
+                ai_next: nil
+            )
+            var results: UnsafeMutablePointer<addrinfo>?
+            guard getaddrinfo(normalized, nil, &hints, &results) == 0,
+                  let firstResult = results else { return false }
+            defer { freeaddrinfo(firstResult) }
+
+            var foundAddress = false
+            var current: UnsafeMutablePointer<addrinfo>? = firstResult
+            while let entry = current {
+                guard !Task.isCancelled else { return false }
+                let address = entry.pointee
+                current = address.ai_next
+                guard address.ai_family == AF_INET || address.ai_family == AF_INET6,
+                      let socketAddress = address.ai_addr else { continue }
+
+                var numericHost = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+                guard getnameinfo(
+                    socketAddress,
+                    address.ai_addrlen,
+                    &numericHost,
+                    socklen_t(numericHost.count),
+                    nil,
+                    0,
+                    NI_NUMERICHOST
+                ) == 0 else { return false }
+                foundAddress = true
+                guard isPublicIPAddress(String(cString: numericHost)) else { return false }
+            }
+            return foundAddress
+        }.value
+    }
+
+    static func isPublicIPAddress(_ rawAddress: String) -> Bool {
+        var ipv4 = in_addr()
+        if inet_pton(AF_INET, rawAddress, &ipv4) == 1 {
+            let value = UInt32(bigEndian: ipv4.s_addr)
+            let octets = [
+                UInt8((value >> 24) & 0xff),
+                UInt8((value >> 16) & 0xff),
+                UInt8((value >> 8) & 0xff),
+                UInt8(value & 0xff),
+            ]
+            return isPublicIPv4(octets)
+        }
+
+        var ipv6 = in6_addr()
+        if inet_pton(AF_INET6, rawAddress, &ipv6) == 1 {
+            let bytes = withUnsafeBytes(of: &ipv6) { Array($0) }
+            return isPublicIPv6(bytes)
+        }
+        return false
+    }
+
+    private static func isPublicIPv4(_ bytes: [UInt8]) -> Bool {
+        guard bytes.count == 4 else { return false }
+        let first = Int(bytes[0])
+        let second = Int(bytes[1])
+        let third = Int(bytes[2])
+
+        if first == 0 || first == 10 || first == 127 || first >= 224 { return false }
+        if first == 100 && (64...127).contains(second) { return false }
+        if first == 169 && second == 254 { return false }
+        if first == 172 && (16...31).contains(second) { return false }
+        if first == 192 && second == 168 { return false }
+        if first == 192 && second == 0 && third <= 2 { return false }
+        if first == 198 && (second == 18 || second == 19 || second == 51) { return false }
+        if first == 203 && second == 0 && third == 113 { return false }
+        return true
+    }
+
+    private static func isPublicIPv6(_ bytes: [UInt8]) -> Bool {
+        guard bytes.count == 16 else { return false }
+        if bytes.allSatisfy({ $0 == 0 }) { return false }
+        if bytes.dropLast().allSatisfy({ $0 == 0 }) && bytes.last == 1 { return false }
+        if bytes[0] & 0xfe == 0xfc { return false } // Unique-local fc00::/7.
+        if bytes[0] == 0xfe && bytes[1] & 0xc0 == 0x80 { return false } // Link-local fe80::/10.
+        if bytes[0] == 0xfe && bytes[1] & 0xc0 == 0xc0 { return false } // Deprecated site-local.
+        if bytes[0] == 0xff { return false } // Multicast.
+        if bytes[0...3].elementsEqual([0x20, 0x01, 0x0d, 0xb8]) { return false } // Documentation.
+
+        let isIPv4Mapped = bytes[0..<10].allSatisfy({ $0 == 0 })
+            && bytes[10] == 0xff && bytes[11] == 0xff
+        let isIPv4Compatible = bytes[0..<12].allSatisfy({ $0 == 0 })
+        let isWellKnownNAT64 = bytes[0...11].elementsEqual([
+            0x00, 0x64, 0xff, 0x9b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        ])
+        if isIPv4Mapped || isIPv4Compatible || isWellKnownNAT64 {
+            return isPublicIPv4(Array(bytes.suffix(4)))
+        }
+        return true
     }
 }
 

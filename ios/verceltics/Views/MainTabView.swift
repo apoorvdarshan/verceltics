@@ -49,7 +49,7 @@ struct MainTabView: View {
         TabView(selection: $selectedTab) {
             Tab("Hosting", systemImage: "server.rack", value: MainTabDestination.hosting) {
                 providerHome()
-                    .id(authManager.activeAccountId)
+                    .id(activeHostingViewIdentity)
             }
 
             Tab(value: MainTabDestination.search, role: .search) {
@@ -86,9 +86,9 @@ struct MainTabView: View {
         switch PrimaryWorkspace(rawValue: lastPrimaryWorkspace) ?? .hosting {
         case .hosting:
             providerHome(startWithSearch: true)
-                .id(authManager.activeAccountId)
+                .id(activeHostingViewIdentity)
         case .registrars:
-            RegistrarsView()
+            RegistrarsView(startWithSearch: true)
         case .sites:
             SitesView(startWithSearch: true)
         }
@@ -111,9 +111,22 @@ struct MainTabView: View {
             HostingEmptyStateView()
         }
     }
+
+    /// Rebuild provider-specific state when credentials are rotated in place.
+    /// Account IDs intentionally remain stable during an update, so using the ID
+    /// alone can leave an API client holding the previous credential.
+    private var activeHostingViewIdentity: String {
+        guard let account = authManager.activeAccount else { return "no-hosting-account" }
+        let metadata = account.providerMetadata
+            .sorted { $0.key < $1.key }
+            .map { "\($0.key)=\($0.value)" }
+            .joined(separator: "&")
+        return "\(account.id.uuidString)|\(account.token.hashValue)|\(metadata.hashValue)"
+    }
 }
 
 private struct HostingEmptyStateView: View {
+    @Environment(AuthManager.self) private var authManager
     @State private var showConnection = false
 
     var body: some View {
@@ -121,14 +134,26 @@ private struct HostingEmptyStateView: View {
             ZStack {
                 AppTheme.canvas.ignoresSafeArea()
 
-                AppEmptyState(
-                    icon: "server.rack",
-                    title: "No hosting account",
-                    message: "Connect a hosting platform to see projects, deployments, logs, domains, and analytics.",
-                    actionTitle: "Connect hosting"
-                ) {
-                    showConnection = true
+                VStack(spacing: 12) {
+                    if let error = authManager.error {
+                        AppFeedbackBanner(
+                            title: "Saved hosting accounts need attention",
+                            message: error,
+                            icon: "lock.trianglebadge.exclamationmark.fill",
+                            tint: AppTheme.danger
+                        )
+                    }
+                    AppEmptyState(
+                        icon: "server.rack",
+                        title: "No hosting account",
+                        message: "Connect a hosting platform to see projects, deployments, logs, domains, and analytics.",
+                        actionTitle: "Connect hosting"
+                    ) {
+                        showConnection = true
+                    }
                 }
+                .padding(.horizontal, 16)
+                .frame(maxWidth: 560)
             }
             .navigationTitle("Hosting")
             .navigationBarTitleDisplayMode(.inline)

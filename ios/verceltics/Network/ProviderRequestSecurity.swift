@@ -23,6 +23,8 @@ private final class ProviderRedirectGuard: NSObject, URLSessionTaskDelegate, @un
 }
 
 enum ProviderRequestSecurity {
+    nonisolated static let defaultMaximumResponseBytes = 16 * 1_024 * 1_024
+
     private static let redirectGuard = ProviderRedirectGuard()
     private static let session: URLSession = {
         let configuration = URLSessionConfiguration.ephemeral
@@ -39,14 +41,47 @@ enum ProviderRequestSecurity {
         )
     }()
 
-    static func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+    static func data(
+        for request: URLRequest,
+        using requestSession: URLSession? = nil,
+        maximumResponseBytes: Int = defaultMaximumResponseBytes
+    ) async throws -> (Data, URLResponse) {
         guard request.url?.scheme?.lowercased() == "https",
               request.url?.host != nil,
               request.url?.user == nil,
               request.url?.password == nil else {
             throw URLError(.badURL)
         }
-        return try await session.data(for: request)
+        do {
+            guard maximumResponseBytes > 0 else {
+                throw ProviderRequestSecurityError.responseTooLarge(0)
+            }
+
+            let activeSession = requestSession ?? session
+            let (bytes, response) = try await activeSession.bytes(for: request)
+            if response.expectedContentLength > Int64(maximumResponseBytes) {
+                throw ProviderRequestSecurityError.responseTooLarge(maximumResponseBytes)
+            }
+
+            var data = Data()
+            if response.expectedContentLength > 0 {
+                data.reserveCapacity(min(Int(response.expectedContentLength), maximumResponseBytes))
+            }
+            for try await byte in bytes {
+                guard data.count < maximumResponseBytes else {
+                    throw ProviderRequestSecurityError.responseTooLarge(maximumResponseBytes)
+                }
+                data.append(byte)
+            }
+            return (data, response)
+        } catch {
+            let cocoaError = error as NSError
+            if error is CancellationError
+                || (cocoaError.domain == NSURLErrorDomain && cocoaError.code == NSURLErrorCancelled) {
+                throw CancellationError()
+            }
+            throw error
+        }
     }
 
     static func validatedHeaders(
@@ -81,6 +116,7 @@ enum ProviderRequestSecurity {
 enum ProviderRequestSecurityError: LocalizedError {
     case invalidHeader
     case invalidBase64Body
+    case responseTooLarge(Int)
 
     var errorDescription: String? {
         switch self {
@@ -88,6 +124,8 @@ enum ProviderRequestSecurityError: LocalizedError {
             "Header names and values cannot contain line breaks."
         case .invalidBase64Body:
             "The encoded binary request body is not valid Base64."
+        case .responseTooLarge(let maximumBytes):
+            "The response exceeded the safe \(ByteCountFormatter.string(fromByteCount: Int64(maximumBytes), countStyle: .file)) limit."
         }
     }
 }

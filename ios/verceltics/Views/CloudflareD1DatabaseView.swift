@@ -3,6 +3,8 @@ import SwiftUI
 @Observable
 @MainActor
 final class CloudflareD1DatabaseViewModel {
+    private static var databaseCache: [String: CloudflareD1Database] = [:]
+
     let api: CloudflareAPI
     let accountID: String
     let databaseID: String
@@ -15,19 +17,32 @@ final class CloudflareD1DatabaseViewModel {
     var didDelete = false
     var actionMessage: String?
     var actionFailed = false
+    private var hasLoaded = false
+
+    private var cacheKey: String { "\(api.cacheScope)|\(accountID)|\(databaseID)" }
 
     init(api: CloudflareAPI, accountID: String, database: CloudflareD1Database) {
         self.api = api
         self.accountID = accountID
         databaseID = database.id
-        self.database = database
+        let key = "\(api.cacheScope)|\(accountID)|\(database.id)"
+        self.database = Self.databaseCache[key] ?? database
+        hasLoaded = Self.databaseCache[key] != nil
+        isLoading = !hasLoaded
     }
 
-    func load() async {
+    func load(forceRefresh: Bool = false) async {
+        if hasLoaded && !forceRefresh { return }
         isLoading = true
         defer { isLoading = false }
         do {
             database = try await api.fetchD1Database(accountID: accountID, databaseID: databaseID)
+            Self.databaseCache[cacheKey] = database
+            hasLoaded = true
+        } catch is CancellationError {
+            // Navigation can cancel an in-flight request; retain prior state.
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            // Navigation can cancel an in-flight request; retain prior state.
         } catch {
             report(error.localizedDescription, failed: true)
         }
@@ -47,6 +62,7 @@ final class CloudflareD1DatabaseViewModel {
             report(rows == 1 ? "Query returned 1 row." : "Query returned \(rows) rows.")
             if queryResults.contains(where: { $0.meta?.changedDatabase == true }) {
                 database = try await api.fetchD1Database(accountID: accountID, databaseID: databaseID)
+                Self.databaseCache[cacheKey] = database
             }
         } catch {
             queryResults = []
@@ -64,6 +80,7 @@ final class CloudflareD1DatabaseViewModel {
                 confirmation: CloudflareMutationConfirmation(confirmingResourceID: databaseID)
             )
             didDelete = true
+            Self.databaseCache[cacheKey] = nil
         } catch {
             report(error.localizedDescription, failed: true)
         }
@@ -121,7 +138,7 @@ struct CloudflareD1DatabaseView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .task { await viewModel.load() }
-        .refreshable { await viewModel.load() }
+        .refreshable { await viewModel.load(forceRefresh: true) }
         .onChange(of: viewModel.didDelete) { _, deleted in if deleted { dismiss() } }
         .confirmationDialog("Run this SQL statement?", isPresented: $isConfirmingQuery, titleVisibility: .visible) {
             Button("Run SQL") { Task { await viewModel.run(sql: sql) } }

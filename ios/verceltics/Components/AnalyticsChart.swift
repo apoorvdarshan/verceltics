@@ -4,6 +4,7 @@ import Charts
 struct AnalyticsChart: View {
     let data: [TimeseriesPoint]
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var selectedMetric: Metric = .visitors
     @State private var selectedPoint: (date: Date, value: Int)?
 
@@ -103,12 +104,7 @@ struct AnalyticsChart: View {
 
     private var chartHeader: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Picker("Metric", selection: $selectedMetric) {
-                ForEach(availableMetrics) { metric in
-                    Text(metric.rawValue).tag(metric)
-                }
-            }
-            .pickerStyle(.segmented)
+            metricPicker
 
             Text(selectedMetric.rawValue.uppercased())
                 .font(.caption2.weight(.semibold))
@@ -153,6 +149,25 @@ struct AnalyticsChart: View {
                 }
             }
             .animation(reduceMotion ? nil : .snappy(duration: 0.18), value: selectedPoint?.date)
+        }
+    }
+
+    @ViewBuilder
+    private var metricPicker: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            Picker("Metric", selection: $selectedMetric) {
+                ForEach(availableMetrics) { metric in
+                    Text(metric.rawValue).tag(metric)
+                }
+            }
+            .pickerStyle(.menu)
+        } else {
+            Picker("Metric", selection: $selectedMetric) {
+                ForEach(availableMetrics) { metric in
+                    Text(metric.rawValue).tag(metric)
+                }
+            }
+            .pickerStyle(.segmented)
         }
     }
 
@@ -229,7 +244,7 @@ struct AnalyticsChart: View {
             AxisMarks(values: .automatic(desiredCount: 5)) {
                 AxisValueLabel()
                     .foregroundStyle(.white.opacity(0.4))
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.caption2.weight(.semibold))
                 AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
                     .foregroundStyle(Color.white.opacity(0.04))
             }
@@ -238,7 +253,7 @@ struct AnalyticsChart: View {
             AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) {
                 AxisValueLabel()
                     .foregroundStyle(.white.opacity(0.4))
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.caption2.weight(.semibold))
                 AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
                     .foregroundStyle(Color.white.opacity(0.04))
             }

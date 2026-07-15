@@ -44,6 +44,11 @@ final class CloudflareStorageDashboardViewModel {
         }
 
         guard generation == currentGeneration else { return }
+        if isCancellation(d1) || isCancellation(kv) || isCancellation(r2) {
+            isLoading = false
+            isRefreshing = false
+            return
+        }
         apply(d1, to: &databases, section: "D1")
         apply(kv, to: &namespaces, section: "KV")
         apply(r2, to: &buckets, section: "R2")
@@ -107,6 +112,11 @@ final class CloudflareStorageDashboardViewModel {
     private func capture<T>(_ operation: () async throws -> T) async -> Result<T, Error> {
         do { return .success(try await operation()) }
         catch { return .failure(error) }
+    }
+
+    private func isCancellation<T>(_ result: Result<T, Error>) -> Bool {
+        guard case .failure(let error) = result else { return false }
+        return error is CancellationError || (error as? URLError)?.code == .cancelled
     }
 
     private func apply<T>(_ result: Result<[T], Error>, to target: inout [T], section: String) {

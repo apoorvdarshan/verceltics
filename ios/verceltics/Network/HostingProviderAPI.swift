@@ -1,7 +1,37 @@
 import CryptoKit
 import Foundation
 
+struct RailwayPaginationGuard {
+    private let maximumPages: Int
+    private var pageCount = 0
+    private var seenCursors = Set<String>()
+
+    init(maximumPages: Int = 200) {
+        self.maximumPages = maximumPages
+    }
+
+    mutating func continuation(hasNextPage: Bool, endCursor: String?) throws -> String? {
+        pageCount += 1
+        guard pageCount <= maximumPages else {
+            throw HostingProviderAPIError.decoding("Railway pagination exceeded \(maximumPages) pages.")
+        }
+        guard hasNextPage else { return nil }
+        guard let endCursor, !endCursor.isEmpty else {
+            throw HostingProviderAPIError.decoding("Railway pagination indicated another page without a cursor.")
+        }
+        guard seenCursors.insert(endCursor).inserted else {
+            throw HostingProviderAPIError.decoding("Railway pagination repeated a cursor.")
+        }
+        return endCursor
+    }
+}
+
 struct HostingProviderAPI {
+    static let awsAmplifyBranchAndJobPageSize = 50
+
+    private static let awsStandardRegionPattern =
+        #"^(?:af|ap|ca|eu|il|me|mx|sa|us)-[a-z]+-[1-9][0-9]*$"#
+
     let provider: AccountProvider
     let credential: String
     let metadata: [String: String]
@@ -112,10 +142,18 @@ struct HostingProviderAPI {
     func fetchResources() async throws -> [HostingResource] {
         switch provider {
         case .netlify:
-            return array(try await requestJSON(path: "/sites?per_page=100")).map { value in
+            let sites = try await collectNumberedPages(pageSize: 100) { page in
+                array(try await requestJSON(path: "/sites?per_page=100&page=\(page)"))
+            }
+            return sites.compactMap { value in
                 let site = object(value)
+                guard let id = stableIdentifier(
+                    string(site, "id"),
+                    namespace: "netlify-site",
+                    values: [string(site, "name", "custom_domain"), string(site, "ssl_url", "url")]
+                ) else { return nil }
                 return HostingResource(
-                    id: string(site, "id") ?? UUID().uuidString,
+                    id: id,
                     name: string(site, "name", "custom_domain") ?? "Untitled site",
                     subtitle: string(site, "custom_domain", "url"),
                     url: string(site, "ssl_url", "url"),
@@ -151,17 +189,30 @@ struct HostingProviderAPI {
                     metadata: ["environmentID": string(token, "environmentId") ?? ""]
                 )]
             }
-            let response = try await graphql(query: """
-                query {
-                  projects {
-                    edges { node { id name description createdAt updatedAt } }
-                  }
-                }
-                """)
-            let projects = edgeNodes(object(object(response["data"])["projects"]))
-            return projects.map { project in
-                HostingResource(
-                    id: string(project, "id") ?? UUID().uuidString,
+            let projects = try await collectRailwayConnection { cursor in
+                var variables: [String: Any] = ["first": 100]
+                if let cursor { variables["after"] = cursor }
+                let response = try await graphql(
+                    query: """
+                        query projects($first: Int, $after: String) {
+                          projects(first: $first, after: $after) {
+                            edges { node { id name description createdAt updatedAt } }
+                            pageInfo { hasNextPage endCursor }
+                          }
+                        }
+                        """,
+                    variables: variables
+                )
+                return object(object(response["data"])["projects"])
+            }
+            return projects.compactMap { project in
+                guard let id = stableIdentifier(
+                    string(project, "id"),
+                    namespace: "railway-project",
+                    values: [string(project, "name"), string(project, "createdAt")]
+                ) else { return nil }
+                return HostingResource(
+                    id: id,
                     name: string(project, "name") ?? "Untitled project",
                     subtitle: string(project, "description"),
                     url: nil,
@@ -174,11 +225,17 @@ struct HostingProviderAPI {
             }
 
         case .render:
-            return array(try await requestJSON(path: "/services?limit=100&includePreviews=true")).map { value in
+            let values = try await fetchRenderCursorPages(path: "/services?limit=100&includePreviews=true")
+            return values.compactMap { value in
                 let service = object(object(value)["service"] ?? value)
                 let details = object(service["serviceDetails"])
+                guard let id = stableIdentifier(
+                    string(service, "id"),
+                    namespace: "render-service",
+                    values: [string(service, "name"), string(service, "url", "repo", "imagePath")]
+                ) else { return nil }
                 return HostingResource(
-                    id: string(service, "id") ?? UUID().uuidString,
+                    id: id,
                     name: string(service, "name") ?? "Untitled service",
                     subtitle: string(service, "repo", "imagePath"),
                     url: string(service, "url"),
@@ -191,13 +248,21 @@ struct HostingProviderAPI {
             }
 
         case .digitalOcean:
-            let root = object(try await requestJSON(path: "/apps?per_page=200"))
-            return array(root["apps"]).map { value in
+            let apps = try await collectNumberedPages(pageSize: 200) { page in
+                let root = object(try await requestJSON(path: "/apps?per_page=200&page=\(page)"))
+                return array(root["apps"])
+            }
+            return apps.compactMap { value in
                 let app = object(value)
                 let active = object(app["active_deployment"])
                 let region = object(app["region"])
+                guard let id = stableIdentifier(
+                    string(app, "id"),
+                    namespace: "digitalocean-app",
+                    values: [string(object(app["spec"]), "name"), string(app, "live_url", "default_ingress")]
+                ) else { return nil }
                 return HostingResource(
-                    id: string(app, "id") ?? UUID().uuidString,
+                    id: id,
                     name: string(app, "spec.name", "name") ?? string(object(app["spec"]), "name") ?? "Untitled app",
                     subtitle: string(app, "default_ingress", "live_url"),
                     url: string(app, "live_url", "default_ingress"),
@@ -210,10 +275,15 @@ struct HostingProviderAPI {
             }
 
         case .heroku:
-            return array(try await requestJSON(path: "/apps")).map { value in
+            return try await fetchHerokuRangePages(path: "/apps").compactMap { value in
                 let app = object(value)
+                guard let id = stableIdentifier(
+                    string(app, "id", "name"),
+                    namespace: "heroku-app",
+                    values: [string(app, "name"), string(app, "web_url")]
+                ) else { return nil }
                 return HostingResource(
-                    id: string(app, "id", "name") ?? UUID().uuidString,
+                    id: id,
                     name: string(app, "name") ?? "Untitled app",
                     subtitle: string(object(app["stack"]), "name"),
                     url: string(app, "web_url"),
@@ -246,10 +316,14 @@ struct HostingProviderAPI {
 
         case .firebase:
             let projectID = try requiredMetadata("projectID", label: "Firebase project ID")
-            let root = object(try await requestJSON(path: "/projects/\(pathComponent(projectID))/sites?pageSize=100"))
-            return array(root["sites"]).map { value in
+            let sites = try await fetchTokenPages(
+                initialPath: "/projects/\(pathComponent(projectID))/sites?pageSize=100",
+                itemKey: "sites",
+                tokenQueryName: "pageToken"
+            )
+            return sites.compactMap { value in
                 let site = object(value)
-                let fullName = string(site, "name") ?? "sites/unknown"
+                guard let fullName = string(site, "name") else { return nil }
                 let siteID = fullName.split(separator: "/").last.map(String.init) ?? fullName
                 return HostingResource(
                     id: siteID,
@@ -265,12 +339,21 @@ struct HostingProviderAPI {
             }
 
         case .awsAmplify:
-            let root = object(try await requestJSON(path: "/apps?maxResults=100"))
-            return array(root["apps"]).map { value in
+            let apps = try await fetchTokenPages(
+                initialPath: "/apps?maxResults=100",
+                itemKey: "apps",
+                tokenQueryName: "nextToken"
+            )
+            return apps.compactMap { value in
                 let app = object(value)
                 let production = object(app["productionBranch"])
+                guard let id = stableIdentifier(
+                    string(app, "appId"),
+                    namespace: "amplify-app",
+                    values: [string(app, "name"), string(app, "repository", "defaultDomain")]
+                ) else { return nil }
                 return HostingResource(
-                    id: string(app, "appId") ?? UUID().uuidString,
+                    id: id,
                     name: string(app, "name") ?? "Untitled app",
                     subtitle: string(app, "repository", "description"),
                     url: string(app, "defaultDomain").map { "https://\($0)" },
@@ -290,26 +373,41 @@ struct HostingProviderAPI {
     func fetchDeployments(for resource: HostingResource) async throws -> [HostingDeployment] {
         switch provider {
         case .netlify:
-            return array(try await requestJSON(path: "/sites/\(pathComponent(resource.id))/deploys?per_page=50")).map {
-                deployment(from: object($0), provider: .netlify)
+            let values = try await collectNumberedPages(pageSize: 100) { page in
+                array(try await requestJSON(
+                    path: "/sites/\(pathComponent(resource.id))/deploys?per_page=100&page=\(page)"
+                ))
             }
+            return deduplicatedDeployments(values.map {
+                deployment(from: object($0), provider: .netlify)
+            })
 
         case .railway:
             return try await fetchRailwayDeployments(projectID: resource.id)
 
         case .render:
-            return array(try await requestJSON(path: "/services/\(pathComponent(resource.id))/deploys?limit=50")).map {
+            let values = try await fetchRenderCursorPages(
+                path: "/services/\(pathComponent(resource.id))/deploys?limit=100"
+            )
+            return deduplicatedDeployments(values.map {
                 deployment(from: object(object($0)["deploy"] ?? $0), provider: .render)
-            }
+            })
 
         case .digitalOcean:
-            let root = object(try await requestJSON(path: "/apps/\(pathComponent(resource.id))/deployments?per_page=50"))
-            return array(root["deployments"]).map { deployment(from: object($0), provider: .digitalOcean) }
+            let values = try await collectNumberedPages(pageSize: 200) { page in
+                let root = object(try await requestJSON(
+                    path: "/apps/\(pathComponent(resource.id))/deployments?per_page=200&page=\(page)"
+                ))
+                return array(root["deployments"])
+            }
+            return deduplicatedDeployments(values.map { deployment(from: object($0), provider: .digitalOcean) })
 
         case .heroku:
-            return array(try await requestJSON(path: "/apps/\(pathComponent(resource.id))/releases")).prefix(50).map {
+            return deduplicatedDeployments(try await fetchHerokuRangePages(
+                path: "/apps/\(pathComponent(resource.id))/releases"
+            ).map {
                 deployment(from: object($0), provider: .heroku)
-            }
+            })
 
         case .fly:
             let appName = resource.metadata["appName"] ?? resource.name
@@ -318,25 +416,38 @@ struct HostingProviderAPI {
             }
 
         case .firebase:
-            let root = object(try await requestJSON(path: "/sites/\(pathComponent(resource.id))/releases?pageSize=50"))
-            return array(root["releases"]).map { deployment(from: object($0), provider: .firebase) }
+            let values = try await fetchTokenPages(
+                initialPath: "/sites/\(pathComponent(resource.id))/releases?pageSize=100",
+                itemKey: "releases",
+                tokenQueryName: "pageToken"
+            )
+            return deduplicatedDeployments(values.map { deployment(from: object($0), provider: .firebase) })
 
         case .awsAmplify:
-            let branchesRoot = object(try await requestJSON(path: "/apps/\(pathComponent(resource.id))/branches?maxResults=100"))
+            let branches = try await fetchTokenPages(
+                initialPath: "/apps/\(pathComponent(resource.id))/branches?maxResults=\(Self.awsAmplifyBranchAndJobPageSize)",
+                itemKey: "branches",
+                tokenQueryName: "nextToken"
+            )
             var results: [HostingDeployment] = []
-            for branchValue in array(branchesRoot["branches"]) {
+            for branchValue in branches {
+                try Task.checkCancellation()
                 let branch = object(branchValue)
                 guard let branchName = string(branch, "branchName") else { continue }
-                let jobsRoot = object(try await requestJSON(
-                    path: "/apps/\(pathComponent(resource.id))/branches/\(pathComponent(branchName))/jobs?maxResults=50"
-                ))
-                results += array(jobsRoot["jobSummaries"]).map {
+                let jobs = try await fetchTokenPages(
+                    initialPath: "/apps/\(pathComponent(resource.id))/branches/\(pathComponent(branchName))/jobs?maxResults=\(Self.awsAmplifyBranchAndJobPageSize)",
+                    itemKey: "jobSummaries",
+                    tokenQueryName: "nextToken"
+                )
+                results += jobs.map {
                     var value = object($0)
                     value["branchName"] = branchName
                     return deployment(from: value, provider: .awsAmplify)
                 }
             }
-            return results.sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }
+            return deduplicatedDeployments(results).sorted {
+                ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast)
+            }
 
         case .vercel, .cloudflare:
             return []
@@ -429,6 +540,7 @@ struct HostingProviderAPI {
         guard path.hasPrefix("/"), !path.hasPrefix("//") else {
             throw HostingProviderAPIError.invalidConfiguration("Enter a provider-relative path beginning with /.")
         }
+        let requestPath = Self.normalizedRequestPath(for: provider, path: path)
 
         let bodyData: Data?
         if bodyIsBase64, let body {
@@ -449,13 +561,13 @@ struct HostingProviderAPI {
         if provider == .awsAmplify {
             request = try awsSignedRequest(
                 method: normalizedMethod,
-                path: path,
+                path: requestPath,
                 body: bodyData,
                 contentType: validatedContentType ?? "application/json"
             )
         } else {
             let bearerCredential = try await resolvedBearerCredential()
-            guard let baseURL, let url = URL(string: baseURL + path) else {
+            guard let baseURL, let url = URL(string: baseURL + requestPath) else {
                 throw HostingProviderAPIError.invalidConfiguration("This provider has no API base URL.")
             }
             request = URLRequest(url: url)
@@ -495,47 +607,77 @@ struct HostingProviderAPI {
     // MARK: - Railway
 
     private func fetchRailwayDeployments(projectID: String) async throws -> [HostingDeployment] {
-        let projectResponse = try await graphql(
-            query: """
-                query project($id: String!) {
-                  project(id: $id) {
-                    services { edges { node { id name } } }
-                    environments { edges { node { id name } } }
-                  }
-                }
-                """,
-            variables: ["id": projectID]
-        )
-        let project = object(object(projectResponse["data"])["project"])
-        let services = edgeNodes(object(project["services"]))
-        let environments = edgeNodes(object(project["environments"]))
+        let services = try await collectRailwayConnection { cursor in
+            var variables: [String: Any] = ["id": projectID, "first": 100]
+            if let cursor { variables["after"] = cursor }
+            let response = try await graphql(
+                query: """
+                    query projectServices($id: String!, $first: Int, $after: String) {
+                      project(id: $id) {
+                        services(first: $first, after: $after) {
+                          edges { node { id name } }
+                          pageInfo { hasNextPage endCursor }
+                        }
+                      }
+                    }
+                    """,
+                variables: variables
+            )
+            let project = object(object(response["data"])["project"])
+            return object(project["services"])
+        }
+        let environments = try await collectRailwayConnection { cursor in
+            var variables: [String: Any] = ["id": projectID, "first": 100]
+            if let cursor { variables["after"] = cursor }
+            let response = try await graphql(
+                query: """
+                    query projectEnvironments($id: String!, $first: Int, $after: String) {
+                      project(id: $id) {
+                        environments(first: $first, after: $after) {
+                          edges { node { id name } }
+                          pageInfo { hasNextPage endCursor }
+                        }
+                      }
+                    }
+                    """,
+                variables: variables
+            )
+            let project = object(object(response["data"])["project"])
+            return object(project["environments"])
+        }
         var deployments: [HostingDeployment] = []
 
         for service in services {
             guard let serviceID = string(service, "id") else { continue }
             for environment in environments {
                 guard let environmentID = string(environment, "id") else { continue }
-                let response = try await graphql(
-                    query: """
-                        query deployments($input: DeploymentListInput!, $first: Int) {
-                          deployments(input: $input, first: $first) {
-                            edges { node { id status createdAt url staticUrl meta canRedeploy canRollback } }
-                          }
-                        }
-                        """,
-                    variables: [
+                let nodes = try await collectRailwayConnection { cursor in
+                    var variables: [String: Any] = [
                         "input": [
                             "projectId": projectID,
                             "serviceId": serviceID,
                             "environmentId": environmentID
                         ],
-                        "first": 20
+                        "first": 100
                     ]
-                )
-                let nodes = edgeNodes(object(object(response["data"])["deployments"]))
+                    if let cursor { variables["after"] = cursor }
+                    let response = try await graphql(
+                        query: """
+                            query deployments($input: DeploymentListInput!, $first: Int, $after: String) {
+                              deployments(input: $input, first: $first, after: $after) {
+                                edges { node { id status createdAt url staticUrl meta canRedeploy canRollback } }
+                                pageInfo { hasNextPage endCursor }
+                              }
+                            }
+                            """,
+                        variables: variables
+                    )
+                    return object(object(response["data"])["deployments"])
+                }
                 deployments += nodes.map { node in
                     HostingDeployment(
-                        id: string(node, "id") ?? UUID().uuidString,
+                        id: string(node, "id")
+                            ?? fallbackIdentifier(namespace: "railway-deploy", value: node),
                         title: "\(string(service, "name") ?? "Service") · \(string(environment, "name") ?? "Environment")",
                         status: string(node, "status") ?? "UNKNOWN",
                         createdAt: date(node["createdAt"]),
@@ -552,7 +694,42 @@ struct HostingProviderAPI {
                 }
             }
         }
-        return deployments.sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }
+        var seenDeploymentIDs = Set<String>()
+        return deployments
+            .filter { seenDeploymentIDs.insert($0.id).inserted }
+            .sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }
+    }
+
+    private func collectRailwayConnection(
+        maximumPages: Int = 200,
+        fetchPage: (String?) async throws -> [String: Any]
+    ) async throws -> [[String: Any]] {
+        var cursor: String?
+        var result: [[String: Any]] = []
+        var seenItems = Set<String>()
+        var guardrail = RailwayPaginationGuard(maximumPages: maximumPages)
+
+        for _ in 1...maximumPages {
+            try Task.checkCancellation()
+            let connection = try await fetchPage(cursor)
+            let nodes = edgeNodes(connection)
+            for node in nodes {
+                guard let fingerprint = jsonFingerprint(node) else {
+                    result.append(node)
+                    continue
+                }
+                if seenItems.insert(fingerprint).inserted { result.append(node) }
+            }
+
+            let pageInfo = object(connection["pageInfo"])
+            cursor = try guardrail.continuation(
+                hasNextPage: bool(pageInfo, "hasNextPage") == true,
+                endCursor: string(pageInfo, "endCursor")
+            )
+            if cursor == nil { return result }
+        }
+        // The guardrail is authoritative; reaching this branch is defensive.
+        throw HostingProviderAPIError.decoding("Railway pagination exceeded \(maximumPages) pages.")
     }
 
     private func graphql(query: String, variables: [String: Any] = [:]) async throws -> [String: Any] {
@@ -572,6 +749,15 @@ struct HostingProviderAPI {
 
     // MARK: - Shared request helpers
 
+    /// First-class DigitalOcean calls use provider-relative paths while the
+    /// bundled OpenAPI catalog already includes `/v2`. Normalize both forms to
+    /// exactly one version prefix so raw catalog operations never become `/v2/v2`.
+    static func normalizedRequestPath(for provider: AccountProvider, path: String) -> String {
+        guard provider == .digitalOcean else { return path }
+        if path == "/v2" || path.hasPrefix("/v2/") || path.hasPrefix("/v2?") { return path }
+        return "/v2\(path)"
+    }
+
     private var baseURL: String? {
         switch provider {
         case .netlify: "https://api.netlify.com/api/v1"
@@ -589,6 +775,147 @@ struct HostingProviderAPI {
         let response = try await rawRequest(method: "GET", path: path, body: nil)
         if response.body.isEmpty { return [:] }
         return try parseJSON(response.body)
+    }
+
+    private func collectNumberedPages(
+        pageSize: Int,
+        maximumPages: Int = 200,
+        fetchPage: (Int) async throws -> [Any]
+    ) async throws -> [Any] {
+        var result: [Any] = []
+        var seenItems = Set<String>()
+        for page in 1...maximumPages {
+            try Task.checkCancellation()
+            let items = try await fetchPage(page)
+            if items.isEmpty { return result }
+            let uniqueItems = items.filter { item in
+                guard let fingerprint = jsonFingerprint(item) else { return true }
+                return seenItems.insert(fingerprint).inserted
+            }
+            guard !uniqueItems.isEmpty else {
+                throw HostingProviderAPIError.decoding("Pagination repeated a page without returning new items.")
+            }
+            result.append(contentsOf: uniqueItems)
+            if items.count < pageSize { return result }
+        }
+        throw HostingProviderAPIError.decoding("Pagination exceeded \(maximumPages) pages.")
+    }
+
+    private func fetchTokenPages(
+        initialPath: String,
+        itemKey: String,
+        tokenQueryName: String,
+        maximumPages: Int = 200
+    ) async throws -> [Any] {
+        var path = initialPath
+        var result: [Any] = []
+        var seenTokens = Set<String>()
+        var seenItems = Set<String>()
+        let responseTokenName = tokenQueryName == "pageToken" ? "nextPageToken" : tokenQueryName
+
+        for _ in 1...maximumPages {
+            try Task.checkCancellation()
+            let root = object(try await requestJSON(path: path))
+            let items = array(root[itemKey])
+            for item in items {
+                guard let fingerprint = jsonFingerprint(item) else {
+                    result.append(item)
+                    continue
+                }
+                if seenItems.insert(fingerprint).inserted { result.append(item) }
+            }
+            guard let token = string(root, responseTokenName), !token.isEmpty else { return result }
+            guard seenTokens.insert(token).inserted else {
+                throw HostingProviderAPIError.decoding("Pagination repeated a continuation token.")
+            }
+            path = initialPath + (initialPath.contains("?") ? "&" : "?")
+                + "\(tokenQueryName)=\(queryComponent(token))"
+        }
+        throw HostingProviderAPIError.decoding("Pagination exceeded \(maximumPages) pages.")
+    }
+
+    private func fetchRenderCursorPages(path initialPath: String, maximumPages: Int = 200) async throws -> [Any] {
+        var path = initialPath
+        var result: [Any] = []
+        var seenCursors = Set<String>()
+        var seenItems = Set<String>()
+
+        for _ in 1...maximumPages {
+            try Task.checkCancellation()
+            let items = array(try await requestJSON(path: path))
+            if items.isEmpty { return result }
+            for item in items {
+                guard let fingerprint = jsonFingerprint(item) else {
+                    result.append(item)
+                    continue
+                }
+                if seenItems.insert(fingerprint).inserted { result.append(item) }
+            }
+            guard let cursor = string(object(items.last), "cursor"), !cursor.isEmpty else { return result }
+            guard seenCursors.insert(cursor).inserted else {
+                throw HostingProviderAPIError.decoding("Render pagination repeated a cursor.")
+            }
+            path = initialPath + (initialPath.contains("?") ? "&" : "?")
+                + "cursor=\(queryComponent(cursor))"
+        }
+        throw HostingProviderAPIError.decoding("Render pagination exceeded \(maximumPages) pages.")
+    }
+
+    private func fetchHerokuRangePages(path: String, maximumPages: Int = 200) async throws -> [Any] {
+        var nextRange: String? = "id ..; max=200; order=asc"
+        var seenRanges = Set<String>()
+        var seenItems = Set<String>()
+        var result: [Any] = []
+
+        for _ in 1...maximumPages {
+            try Task.checkCancellation()
+            guard let range = nextRange, seenRanges.insert(range).inserted else {
+                if nextRange == nil { return result }
+                throw HostingProviderAPIError.decoding("Heroku pagination repeated a range.")
+            }
+            let raw = try await rawRequest(
+                method: "GET",
+                path: path,
+                body: nil,
+                additionalHeaders: ["Range": range]
+            )
+            let items = array(try parseJSON(raw.body))
+            for item in items {
+                guard let fingerprint = jsonFingerprint(item) else {
+                    result.append(item)
+                    continue
+                }
+                if seenItems.insert(fingerprint).inserted { result.append(item) }
+            }
+            nextRange = header(named: "Next-Range", in: raw.headers)
+            if nextRange?.isEmpty != false { return result }
+        }
+        throw HostingProviderAPIError.decoding("Heroku pagination exceeded \(maximumPages) pages.")
+    }
+
+    private func header(named name: String, in headers: [String: String]) -> String? {
+        headers.first { $0.key.caseInsensitiveCompare(name) == .orderedSame }?.value
+    }
+
+    private func jsonFingerprint(_ value: Any) -> String? {
+        guard JSONSerialization.isValidJSONObject(value),
+              let data = try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]) else { return nil }
+        return sha256Hex(data)
+    }
+
+    private func stableIdentifier(_ existing: String?, namespace: String, values: [String?]) -> String? {
+        if let existing, !existing.isEmpty { return existing }
+        let components = values.compactMap { value -> String? in
+            guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
+            return value
+        }
+        guard !components.isEmpty else { return nil }
+        return "\(namespace)-\(sha256Hex(Data(components.joined(separator: "\u{1F}").utf8)).prefix(20))"
+    }
+
+    private func deduplicatedDeployments(_ deployments: [HostingDeployment]) -> [HostingDeployment] {
+        var seen = Set<String>()
+        return deployments.filter { seen.insert($0.id).inserted }
     }
 
     private func parseJSON(_ body: String) throws -> Any {
@@ -668,11 +995,47 @@ struct HostingProviderAPI {
 
     // MARK: - AWS Signature Version 4
 
+    static func awsAmplifyEndpoint(region: String, path: String) throws -> (host: String, url: URL) {
+        guard region.utf8.count <= 63,
+              region.range(of: awsStandardRegionPattern, options: .regularExpression)
+            == region.startIndex..<region.endIndex else {
+            throw HostingProviderAPIError.invalidConfiguration(
+                "Enter a valid AWS region such as us-east-1."
+            )
+        }
+
+        let host = "amplify.\(region).amazonaws.com"
+        guard path.hasPrefix("/"), !path.hasPrefix("//"),
+              var components = URLComponents(string: path),
+              components.scheme == nil,
+              components.host == nil,
+              components.user == nil,
+              components.password == nil,
+              components.port == nil else {
+            throw HostingProviderAPIError.invalidConfiguration("The Amplify request path is invalid.")
+        }
+        components.scheme = "https"
+        components.host = host
+
+        guard components.host == host,
+              let url = components.url,
+              url.scheme == "https",
+              url.host == host,
+              url.user == nil,
+              url.password == nil,
+              url.port == nil else {
+            throw HostingProviderAPIError.invalidConfiguration("The Amplify endpoint is invalid.")
+        }
+        return (host, url)
+    }
+
     private func awsSignedRequest(method: String, path: String, body: Data?, contentType: String) throws -> URLRequest {
         let accessKeyID = try requiredMetadata("accessKeyID", label: "AWS access key ID")
         let region = try requiredMetadata("region", label: "AWS region")
-        let host = "amplify.\(region).amazonaws.com"
-        guard let components = URLComponents(string: "https://\(host)\(path)"), let url = components.url else {
+        let endpoint = try Self.awsAmplifyEndpoint(region: region, path: path)
+        let host = endpoint.host
+        let url = endpoint.url
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
             throw HostingProviderAPIError.invalidConfiguration("The Amplify request path is invalid.")
         }
 
@@ -764,7 +1127,7 @@ struct HostingProviderAPI {
         switch provider {
         case .netlify:
             return HostingDeployment(
-                id: string(value, "id") ?? UUID().uuidString,
+                id: string(value, "id") ?? fallbackIdentifier(namespace: "netlify-deploy", value: value),
                 title: string(value, "title", "context") ?? "Deploy",
                 status: string(value, "state") ?? "unknown",
                 createdAt: date(value["created_at"]),
@@ -776,7 +1139,7 @@ struct HostingProviderAPI {
         case .render:
             let commit = object(value["commit"])
             return HostingDeployment(
-                id: string(value, "id") ?? UUID().uuidString,
+                id: string(value, "id") ?? fallbackIdentifier(namespace: "render-deploy", value: value),
                 title: string(commit, "message") ?? "Deploy",
                 status: string(value, "status") ?? "unknown",
                 createdAt: date(value["createdAt"]),
@@ -787,7 +1150,7 @@ struct HostingProviderAPI {
             )
         case .digitalOcean:
             return HostingDeployment(
-                id: string(value, "id") ?? UUID().uuidString,
+                id: string(value, "id") ?? fallbackIdentifier(namespace: "digitalocean-deploy", value: value),
                 title: string(value, "cause") ?? "Deployment",
                 status: string(value, "phase") ?? "UNKNOWN",
                 createdAt: date(value["created_at"]),
@@ -799,7 +1162,9 @@ struct HostingProviderAPI {
         case .heroku:
             let version = integer(value["version"])
             return HostingDeployment(
-                id: string(value, "id") ?? "release-\(version ?? 0)",
+                id: string(value, "id")
+                    ?? version.map { "release-\($0)" }
+                    ?? fallbackIdentifier(namespace: "heroku-release", value: value),
                 title: version.map { "Release v\($0)" } ?? "Release",
                 status: string(value, "status") ?? (bool(value, "current") == true ? "current" : "released"),
                 createdAt: date(value["created_at"]),
@@ -811,7 +1176,7 @@ struct HostingProviderAPI {
         case .fly:
             let config = object(value["config"])
             return HostingDeployment(
-                id: string(value, "id") ?? UUID().uuidString,
+                id: string(value, "id") ?? fallbackIdentifier(namespace: "fly-machine", value: value),
                 title: string(value, "name") ?? "Machine",
                 status: string(value, "state") ?? "unknown",
                 createdAt: date(value["created_at"]),
@@ -823,7 +1188,7 @@ struct HostingProviderAPI {
         case .firebase:
             let version = object(value["version"])
             return HostingDeployment(
-                id: string(value, "name") ?? UUID().uuidString,
+                id: string(value, "name") ?? fallbackIdentifier(namespace: "firebase-release", value: value),
                 title: string(value, "type")?.replacingOccurrences(of: "_", with: " ").capitalized ?? "Release",
                 status: string(version, "status") ?? "RELEASED",
                 createdAt: date(value["releaseTime"]) ?? date(version["finalizeTime"]),
@@ -834,7 +1199,7 @@ struct HostingProviderAPI {
             )
         case .awsAmplify:
             return HostingDeployment(
-                id: string(value, "jobId") ?? UUID().uuidString,
+                id: string(value, "jobId") ?? fallbackIdentifier(namespace: "amplify-job", value: value),
                 title: string(value, "jobType")?.capitalized ?? "Build job",
                 status: string(value, "status") ?? "UNKNOWN",
                 createdAt: date(value["startTime"]),
@@ -845,7 +1210,7 @@ struct HostingProviderAPI {
             )
         default:
             return HostingDeployment(
-                id: string(value, "id") ?? UUID().uuidString,
+                id: string(value, "id") ?? fallbackIdentifier(namespace: "hosting-deployment", value: value),
                 title: "Deployment",
                 status: string(value, "status") ?? "unknown",
                 createdAt: nil,
@@ -923,6 +1288,12 @@ struct HostingProviderAPI {
               let data = try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]),
               let string = String(data: data, encoding: .utf8) else { return nil }
         return string
+    }
+
+    private func fallbackIdentifier(namespace: String, value: [String: Any]) -> String {
+        let fingerprint = jsonFingerprint(value)
+            ?? sha256Hex(Data("\(namespace)|\(String(describing: value))".utf8))
+        return "\(namespace)-\(fingerprint.prefix(20))"
     }
 
     private func pathComponent(_ value: String) -> String {

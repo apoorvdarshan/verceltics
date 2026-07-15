@@ -128,6 +128,7 @@ extension CloudflareAPI {
         let path = "/accounts/\(workerOperationsPathSegment(accountID))/workers/domains"
         var page = 1
         var domains: [CloudflareWorkerDomain] = []
+        var paginationGuard = CloudflarePaginationGuard()
 
         while true {
             let response = try await rawRequest(
@@ -144,6 +145,7 @@ extension CloudflareAPI {
             }
             guard envelope.success else { throw CloudflareAPIError.api(envelope.errors) }
             let batch = envelope.result ?? []
+            try paginationGuard.record(batchCount: batch.count, signature: response.data.hashValue)
             domains.append(contentsOf: batch)
 
             if let totalPages = envelope.resultInfo?.totalPages {

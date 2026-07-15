@@ -327,6 +327,8 @@ struct SitesView: View {
         .frame(maxWidth: .infinity, minHeight: 138, alignment: .topLeading)
         .providerSurface(accent: account.provider.accentColor)
         .contentShape(RoundedRectangle(cornerRadius: AppTheme.panelRadius, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Open \(account.provider.displayName) details")
     }
 
     private var addServiceCard: some View {
@@ -350,6 +352,8 @@ struct SitesView: View {
         .frame(maxWidth: .infinity, minHeight: 138, alignment: .leading)
         .appSurface()
         .contentShape(RoundedRectangle(cornerRadius: AppTheme.panelRadius, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Open the connection picker")
     }
 
     private func siteCard(_ site: AggregatedSite) -> some View {
@@ -394,6 +398,8 @@ struct SitesView: View {
         .frame(maxWidth: .infinity, minHeight: 126, alignment: .topLeading)
         .appSurface()
         .contentShape(RoundedRectangle(cornerRadius: AppTheme.panelRadius, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Open \(site.name) details")
     }
 
     private func compactMetric(value: String, label: String) -> some View {
@@ -532,8 +538,7 @@ private struct SiteProviderIconTile: View {
                 RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous)
                     .strokeBorder(provider.accentColor.opacity(0.12), lineWidth: 0.5)
             }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(provider.displayName)
+            .accessibilityHidden(true)
     }
 }
 
@@ -716,7 +721,17 @@ private struct SiteServiceDetailView: View {
                                 resourceCard(resource)
                             }
                         } else if refreshError == nil {
-                            AppDashboardLoadingView(accent: account.provider.accentColor)
+                            VStack(spacing: 10) {
+                                ProgressView()
+                                    .tint(account.provider.accentColor)
+                                Text("Loading \(account.provider.displayName)")
+                                    .font(.footnote.weight(.semibold))
+                                    .foregroundStyle(AppTheme.textSecondary)
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 150)
+                            .appSurface()
+                            .accessibilityElement(children: .combine)
+                            .accessibilityLabel("Loading \(account.provider.displayName)")
                         }
                     } else {
                         AppFeedbackBanner(

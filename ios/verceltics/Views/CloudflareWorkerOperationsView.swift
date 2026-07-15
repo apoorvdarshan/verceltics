@@ -202,6 +202,7 @@ struct CloudflareWorkerOperationsView: View {
     let api: CloudflareAPI
     let accountID: String
     let worker: CloudflareWorkerScript
+    let onDeploymentChanged: @MainActor () async -> Void
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var viewModel: CloudflareWorkerOperationsViewModel
@@ -213,10 +214,16 @@ struct CloudflareWorkerOperationsView: View {
     @State private var pendingDelete: DeleteTarget?
     @State private var pendingDeployment: CloudflareWorkerVersion?
 
-    init(api: CloudflareAPI, accountID: String, worker: CloudflareWorkerScript) {
+    init(
+        api: CloudflareAPI,
+        accountID: String,
+        worker: CloudflareWorkerScript,
+        onDeploymentChanged: @escaping @MainActor () async -> Void = {}
+    ) {
         self.api = api
         self.accountID = accountID
         self.worker = worker
+        self.onDeploymentChanged = onDeploymentChanged
         _viewModel = State(
             wrappedValue: CloudflareWorkerOperationsViewModel(api: api, accountID: accountID, worker: worker)
         )
@@ -319,7 +326,12 @@ struct CloudflareWorkerOperationsView: View {
             Button("Deploy to 100%") {
                 guard let version = pendingDeployment else { return }
                 pendingDeployment = nil
-                Task { await viewModel.deploy(version) }
+                Task {
+                    await viewModel.deploy(version)
+                    if !viewModel.actionFailed {
+                        await onDeploymentChanged()
+                    }
+                }
             }
             Button("Cancel", role: .cancel) { pendingDeployment = nil }
         } message: {
@@ -1372,6 +1384,8 @@ private final class CloudflareWorkerLiveTailViewModel {
 
 private struct CloudflareWorkerLiveTailView: View {
     @State private var viewModel: CloudflareWorkerLiveTailViewModel
+    @State private var isFollowingLatestEvent = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(api: CloudflareAPI, accountID: String, scriptName: String) {
         _viewModel = State(
@@ -1437,9 +1451,20 @@ private struct CloudflareWorkerLiveTailView: View {
                             }
                             .padding()
                         }
+                        .onScrollGeometryChange(for: Bool.self) { geometry in
+                            let visibleBottom = geometry.contentOffset.y + geometry.containerSize.height
+                            return geometry.contentSize.height - visibleBottom < 72
+                        } action: { _, isAtBottom in
+                            isFollowingLatestEvent = isAtBottom
+                        }
                         .onChange(of: viewModel.lines.count) { _, _ in
-                            if let id = viewModel.lines.last?.id {
-                                withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(id, anchor: .bottom) }
+                            guard isFollowingLatestEvent, let id = viewModel.lines.last?.id else { return }
+                            if reduceMotion {
+                                proxy.scrollTo(id, anchor: .bottom)
+                            } else {
+                                withAnimation(.easeOut(duration: 0.2)) {
+                                    proxy.scrollTo(id, anchor: .bottom)
+                                }
                             }
                         }
                     }

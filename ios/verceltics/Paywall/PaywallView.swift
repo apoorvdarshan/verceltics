@@ -45,11 +45,11 @@ struct PaywallView: View {
                     Spacer().frame(height: 40)
 
                     Text("Verceltics Pro")
-                        .font(.system(size: 32, weight: .semibold))
+                        .font(.largeTitle.weight(.semibold))
                         .foregroundStyle(AppTheme.textPrimary)
 
                     Text("Detailed analytics on every project")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.subheadline.weight(.semibold))
                         .foregroundStyle(AppTheme.textSecondary)
                         .padding(.top, 4)
 
@@ -157,14 +157,15 @@ struct PaywallView: View {
                             if isPurchasing {
                                 ProgressView().tint(.black)
                             } else {
-                                Text(subscribeButtonLabel)
-                                    .font(.system(size: 17, weight: .semibold))
+                            Text(subscribeButtonLabel)
+                                    .font(.headline)
                                 Image(systemName: "arrow.right")
-                                    .font(.system(size: 14, weight: .semibold))
+                                    .font(.callout.weight(.semibold))
                             }
                         }
                         .frame(maxWidth: .infinity)
-                        .frame(height: 56)
+                        .frame(minHeight: 56)
+                        .padding(.vertical, 4)
                         .background(selectedPackage != nil ? AppTheme.signal : AppTheme.surfaceRaised)
                         .foregroundStyle(selectedPackage != nil ? .white : AppTheme.textTertiary)
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -233,7 +234,7 @@ struct PaywallView: View {
                             .padding(.horizontal, 40)
 
                         Button("Sign Out") { authManager.logout() }
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(.caption.weight(.semibold))
                             .foregroundStyle(Color(red: 1.0, green: 0.42, blue: 0.42).opacity(0.6))
                             .frame(minHeight: 44)
                             .contentShape(Rectangle())
@@ -327,41 +328,27 @@ struct PlanCard: View {
     var showTrial: Bool = true
     let onTap: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         Button(action: onTap) {
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 8) {
-                        Text(label)
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundStyle(.white)
-                        if let badge {
-                            HStack(spacing: 3) {
-                                Image(systemName: "sparkles")
-                                    .font(.system(size: 8, weight: .semibold))
-                                Text(badge)
-                                    .font(.system(size: 10, weight: .semibold))
-                                    .tracking(0.3)
-                            }
-                            .foregroundStyle(AppTheme.success)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(AppTheme.success.opacity(0.12))
-                            .clipShape(Capsule())
-                        }
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: 10) {
+                        planTitle
+                        priceDetail
+                        selectionIcon
                     }
-                    Text(showTrial ? "\(price) \(detail) after trial" : "\(price) \(detail)")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.45))
+                } else {
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            planTitle
+                            priceDetail
+                        }
+                        Spacer()
+                        selectionIcon
+                    }
                 }
-
-                Spacer()
-
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 26, weight: .regular))
-                    .foregroundStyle(isSelected ? AppTheme.signal : AppTheme.textTertiary)
-                    .contentTransition(.symbolEffect(.replace))
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 18)
@@ -375,6 +362,45 @@ struct PlanCard: View {
         }
         .buttonStyle(PressScaleButtonStyle())
         .sensoryFeedback(.selection, trigger: isSelected)
+        .accessibilityElement(children: .combine)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityHint("Select this purchase option")
+    }
+
+    private var planTitle: some View {
+        HStack(spacing: 8) {
+            Text(label)
+                .font(.headline)
+                .foregroundStyle(.white)
+            if let badge {
+                HStack(spacing: 3) {
+                    Image(systemName: "sparkles")
+                        .font(.caption2.weight(.semibold))
+                    Text(badge)
+                        .font(.caption2.weight(.semibold))
+                        .tracking(0.3)
+                }
+                .foregroundStyle(AppTheme.success)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(AppTheme.success.opacity(0.12))
+                .clipShape(Capsule())
+            }
+        }
+    }
+
+    private var priceDetail: some View {
+        Text(showTrial ? "\(price) \(detail) after trial" : "\(price) \(detail)")
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(AppTheme.textSecondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var selectionIcon: some View {
+        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+            .font(.title2)
+            .foregroundStyle(isSelected ? AppTheme.signal : AppTheme.textTertiary)
+            .contentTransition(.symbolEffect(.replace))
+            .accessibilityHidden(true)
     }
 }

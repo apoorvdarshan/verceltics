@@ -162,8 +162,10 @@ struct SiteIntegrationsAPI {
         let maximumDetailedProperties = 25
         var resources: [SiteIntegrationResource] = []
         var warnings: [String] = []
+        var detailedMetricsArePartial = false
 
         for (index, entry) in entries.enumerated() {
+            try Task.checkCancellation()
             guard let propertyID = string(entry["siteUrl"]), !propertyID.isEmpty else { continue }
             let permission = string(entry["permissionLevel"]) ?? "siteUnverifiedUser"
             let displayURL = searchConsoleDisplayURL(propertyID)
@@ -186,6 +188,7 @@ struct SiteIntegrationsAPI {
                     metrics.append(contentsOf: analytics)
                 } catch {
                     try throwIfGoogleUnauthorized(error)
+                    detailedMetricsArePartial = true
                     warnings.append("\(propertyID) search performance could not load: \(error.localizedDescription)")
                 }
 
@@ -203,6 +206,7 @@ struct SiteIntegrationsAPI {
                     ))
                 } catch {
                     try throwIfGoogleUnauthorized(error)
+                    detailedMetricsArePartial = true
                     warnings.append("\(propertyID) sitemaps could not load: \(error.localizedDescription)")
                 }
 
@@ -241,13 +245,18 @@ struct SiteIntegrationsAPI {
             )
         }
 
-        let metrics = aggregateSearchConsoleMetrics(resources)
+        let hasPartialMetrics = detailedMetricsArePartial || entries.count > maximumDetailedProperties
+        let metrics = markPartialMetrics(
+            aggregateSearchConsoleMetrics(resources),
+            when: hasPartialMetrics,
+            excluding: ["searchconsole.properties"]
+        )
         return SiteIntegrationSnapshot(
             accountID: accountID,
             provider: .googleSearchConsole,
             resources: resources,
             metrics: metrics,
-            status: resources.isEmpty ? "No properties" : "Connected",
+            status: resources.isEmpty ? "No properties" : (hasPartialMetrics ? "Connected · Partial metrics" : "Connected"),
             warnings: warnings
         )
     }
@@ -401,8 +410,10 @@ struct SiteIntegrationsAPI {
         var warnings: [String] = []
         let maximumSummaryPages = 20
         var summaryPageCount = 0
+        var summaryListIsPartial = false
 
         repeat {
+            try Task.checkCancellation()
             var components = URLComponents(string: "https://analyticsadmin.googleapis.com/v1beta/accountSummaries")!
             var query = [URLQueryItem(name: "pageSize", value: "200")]
             if let pageToken { query.append(URLQueryItem(name: "pageToken", value: pageToken)) }
@@ -416,11 +427,13 @@ struct SiteIntegrationsAPI {
             let nextPageToken = nonEmpty(string(root["nextPageToken"]))
             if let nextPageToken, !seenTokens.insert(nextPageToken).inserted {
                 warnings.append("Google Analytics repeated a pagination token, so account loading stopped safely.")
+                summaryListIsPartial = true
                 pageToken = nil
             } else if nextPageToken != nil, summaryPageCount >= maximumSummaryPages {
                 warnings.append(
                     "Google Analytics account loading stopped after \(maximumSummaryPages) pages to protect the device. Some properties may not be shown."
                 )
+                summaryListIsPartial = true
                 pageToken = nil
             } else {
                 pageToken = nextPageToken
@@ -433,8 +446,10 @@ struct SiteIntegrationsAPI {
         }
         let maximumDetailedProperties = 25
         var resources: [SiteIntegrationResource] = []
+        var detailedMetricsArePartial = false
 
         for (index, item) in properties.enumerated() {
+            try Task.checkCancellation()
             guard let propertyName = string(item.property["property"]),
                   let propertyID = propertyName.split(separator: "/").last.map(String.init),
                   !propertyID.isEmpty,
@@ -469,6 +484,7 @@ struct SiteIntegrationsAPI {
                     ))
                 } catch {
                     try throwIfGoogleUnauthorized(error)
+                    detailedMetricsArePartial = true
                     warnings.append("\(displayName) analytics could not load: \(error.localizedDescription)")
                 }
 
@@ -484,6 +500,7 @@ struct SiteIntegrationsAPI {
                     }
                 } catch {
                     try throwIfGoogleUnauthorized(error)
+                    detailedMetricsArePartial = true
                     warnings.append("\(displayName) realtime data could not load: \(error.localizedDescription)")
                 }
             }
@@ -507,12 +524,19 @@ struct SiteIntegrationsAPI {
             )
         }
 
+        let hasPartialMetrics = summaryListIsPartial
+            || detailedMetricsArePartial
+            || properties.count > maximumDetailedProperties
         return SiteIntegrationSnapshot(
             accountID: accountID,
             provider: .googleAnalytics,
             resources: resources,
-            metrics: aggregateGoogleAnalyticsMetrics(resources),
-            status: resources.isEmpty ? "No GA4 properties" : "Connected",
+            metrics: markPartialMetrics(
+                aggregateGoogleAnalyticsMetrics(resources),
+                when: hasPartialMetrics,
+                excluding: summaryListIsPartial ? [] : ["ga4.properties"]
+            ),
+            status: resources.isEmpty ? "No GA4 properties" : (hasPartialMetrics ? "Connected · Partial metrics" : "Connected"),
             warnings: warnings
         )
     }
@@ -869,6 +893,7 @@ struct SiteIntegrationsAPI {
         var resources: [SiteIntegrationResource] = []
         var warnings: [String] = []
         var detailedSiteCount = 0
+        var detailedMetricsArePartial = false
         for item in sites {
             let site = object(item)
             guard let value = string(site["Url"] ?? site["url"]), !value.isEmpty else { continue }
@@ -888,6 +913,7 @@ struct SiteIntegrationsAPI {
                     ))
                 } catch {
                     try throwIfCancellation(error)
+                    detailedMetricsArePartial = true
                     warnings.append("\(value) Bing traffic could not load: \(error.localizedDescription)")
                 }
                 do {
@@ -900,6 +926,7 @@ struct SiteIntegrationsAPI {
                     metadata.merge(crawl.metadata) { _, new in new }
                 } catch {
                     try throwIfCancellation(error)
+                    detailedMetricsArePartial = true
                     warnings.append("\(value) Bing crawl data could not load: \(error.localizedDescription)")
                 }
             }
@@ -921,6 +948,7 @@ struct SiteIntegrationsAPI {
             )
         }
         let verifiedCount = resources.filter { $0.status == "Verified" }.count
+        let hasPartialMetrics = detailedMetricsArePartial || verifiedCount > maximumDetailedSites
         var metrics = [
             metric(key: "bing.sites", label: "Sites", value: Double(resources.count), unit: .count),
             metric(key: "bing.verified", label: "Verified", value: Double(verifiedCount), unit: .count)
@@ -946,8 +974,12 @@ struct SiteIntegrationsAPI {
             accountID: accountID,
             provider: .bingWebmaster,
             resources: resources,
-            metrics: metrics,
-            status: resources.isEmpty ? "No sites" : "Connected",
+            metrics: markPartialMetrics(
+                metrics,
+                when: hasPartialMetrics,
+                excluding: ["bing.sites", "bing.verified"]
+            ),
+            status: resources.isEmpty ? "No sites" : (hasPartialMetrics ? "Connected · Partial metrics" : "Connected"),
             warnings: warnings
         )
     }
@@ -1035,7 +1067,7 @@ struct SiteIntegrationsAPI {
         if raw.hasPrefix("/Date(") {
             let payload = raw.dropFirst(6)
             let millisecondText = payload.prefix(while: { $0.isNumber })
-            if let milliseconds = Double(millisecondText) {
+            if let milliseconds = Double(millisecondText), milliseconds.isFinite {
                 return Date(timeIntervalSince1970: milliseconds / 1_000)
             }
         }
@@ -1218,6 +1250,7 @@ struct SiteIntegrationsAPI {
         var seenWebsiteIDs = Set<String>()
         let maximumWebsitePages = 20
         repeat {
+            try Task.checkCancellation()
             let url = try endpoint(
                 base: apiBase,
                 path: "websites",
@@ -1269,7 +1302,9 @@ struct SiteIntegrationsAPI {
         let startAt = Int(Date.now.addingTimeInterval(-30 * 86_400).timeIntervalSince1970 * 1_000)
         let maximumDetailedSites = 10
         var resources: [SiteIntegrationResource] = []
+        var detailedMetricsArePartial = false
         for (index, website) in websites.enumerated() {
+            try Task.checkCancellation()
             guard let id = string(website["id"]), !id.isEmpty else { continue }
             let name = string(website["name"]) ?? string(website["domain"]) ?? "Umami site"
             let domain = string(website["domain"])
@@ -1289,6 +1324,7 @@ struct SiteIntegrationsAPI {
                     resourceMetrics = normalizeUmamiStats(stats, resourceID: id)
                 } catch {
                     try throwIfCancellation(error)
+                    detailedMetricsArePartial = true
                     warnings.append("\(name) stats could not load: \(error.localizedDescription)")
                 }
             }
@@ -1307,13 +1343,17 @@ struct SiteIntegrationsAPI {
         if resources.count > maximumDetailedSites {
             warnings.append("Analytics totals were loaded for the first \(maximumDetailedSites) of \(resources.count) sites to respect API limits.")
         }
-        let aggregate = aggregateUmamiMetrics(resources: resources)
+        let hasPartialMetrics = detailedMetricsArePartial || resources.count > maximumDetailedSites
+        let aggregate = markPartialMetrics(
+            aggregateUmamiMetrics(resources: resources),
+            when: hasPartialMetrics
+        )
         return SiteIntegrationSnapshot(
             accountID: accountID,
             provider: .umami,
             resources: resources,
             metrics: aggregate,
-            status: resources.isEmpty ? "No sites" : "Connected",
+            status: resources.isEmpty ? "No sites" : (hasPartialMetrics ? "Connected · Partial metrics" : "Connected"),
             warnings: warnings
         )
     }
@@ -1396,6 +1436,32 @@ struct SiteIntegrationsAPI {
 
     // MARK: - UptimeRobot
 
+    enum UptimeRobotPaginationAction: Equatable {
+        case loadNextPage
+        case complete
+        case noProgress
+    }
+
+    nonisolated static func uptimeRobotPaginationAction(
+        pageItemCount: Int,
+        newUniqueMonitorCount: Int,
+        loadedUniqueMonitorCount: Int,
+        reportedTotal: Int?,
+        pageSize: Int
+    ) -> UptimeRobotPaginationAction {
+        if pageItemCount == 0 {
+            return .complete
+        }
+        if newUniqueMonitorCount == 0 {
+            return .noProgress
+        }
+        if reportedTotal.map({ loadedUniqueMonitorCount >= $0 }) == true
+            || (reportedTotal == nil && pageItemCount < pageSize) {
+            return .complete
+        }
+        return .loadNextPage
+    }
+
     private func fetchUptimeRobotSnapshot(accountID: UUID) async throws -> SiteIntegrationSnapshot {
         let apiKey = try requiredCredential(label: "UptimeRobot read-only API key")
         let endpoint = URL(string: "https://api.uptimerobot.com/v2/getMonitors")!
@@ -1405,7 +1471,9 @@ struct SiteIntegrationsAPI {
         var seenMonitorIDs = Set<String>()
         var warnings: [String] = []
         var pageCount = 0
-        while true {
+        var accountMetricsArePartial = false
+        paginationLoop: while true {
+            try Task.checkCancellation()
             let form = formData([
                 URLQueryItem(name: "api_key", value: apiKey),
                 URLQueryItem(name: "format", value: "json"),
@@ -1445,18 +1513,25 @@ struct SiteIntegrationsAPI {
             let total = int(pagination["total"])
             offset += page.count
             pageCount += 1
-            if page.isEmpty
-                || total.map({ offset >= $0 }) == true
-                || (total == nil && page.count < pageSize) {
-                break
-            }
-            if newMonitorCount == 0 {
+            switch Self.uptimeRobotPaginationAction(
+                pageItemCount: page.count,
+                newUniqueMonitorCount: newMonitorCount,
+                loadedUniqueMonitorCount: seenMonitorIDs.count,
+                reportedTotal: total,
+                pageSize: pageSize
+            ) {
+            case .complete:
+                break paginationLoop
+            case .noProgress:
                 warnings.append("UptimeRobot repeated a results page, so loading stopped to avoid an endless request loop.")
-                break
-            }
-            if pageCount >= 200 {
-                warnings.append("UptimeRobot loading stopped after 10,000 monitors to protect the device.")
-                break
+                accountMetricsArePartial = true
+                break paginationLoop
+            case .loadNextPage:
+                if pageCount >= 200 {
+                    warnings.append("UptimeRobot loading stopped after 10,000 monitors to protect the device.")
+                    accountMetricsArePartial = true
+                    break paginationLoop
+                }
             }
         }
 
@@ -1468,7 +1543,10 @@ struct SiteIntegrationsAPI {
             let status = uptimeRobotStatus(statusCode)
             var metrics: [SiteIntegrationMetric] = []
             if let uptimeValues = string(monitor["custom_uptime_ratio"] ?? monitor["custom_uptime_ratios"]) {
-                let parts = uptimeValues.split(separator: "-").compactMap { Double($0) }
+                let parts = uptimeValues.split(separator: "-").compactMap { value -> Double? in
+                    guard let number = Double(value), number.isFinite else { return nil }
+                    return number
+                }
                 let labels = ["24h Uptime", "7d Uptime", "30d Uptime"]
                 let keys = ["1d", "7d", "30d"]
                 for index in parts.indices where labels.indices.contains(index) {
@@ -1505,12 +1583,12 @@ struct SiteIntegrationsAPI {
         let up = resources.filter { $0.status == "Up" }.count
         let down = resources.filter { $0.status == "Down" || $0.status == "Seems down" }.count
         let paused = resources.filter { $0.status == "Paused" }.count
-        let metrics = [
+        let metrics = markPartialMetrics([
             metric(key: "uptimerobot.monitors", label: "Monitors", value: Double(resources.count), unit: .count),
             metric(key: "uptimerobot.up", label: "Up", value: Double(up), unit: .count),
             metric(key: "uptimerobot.down", label: "Down", value: Double(down), unit: .count),
             metric(key: "uptimerobot.paused", label: "Paused", value: Double(paused), unit: .count)
-        ]
+        ], when: accountMetricsArePartial)
         let status: String
         if resources.isEmpty {
             status = "No monitors"
@@ -1521,12 +1599,13 @@ struct SiteIntegrationsAPI {
         } else {
             status = "\(up) up · \(resources.count - up) paused or checking"
         }
+        let displayedStatus = accountMetricsArePartial ? "\(status) · Partial metrics" : status
         return SiteIntegrationSnapshot(
             accountID: accountID,
             provider: .uptimeRobot,
             resources: resources,
             metrics: metrics,
-            status: status,
+            status: displayedStatus,
             warnings: warnings
         )
     }
@@ -1562,9 +1641,12 @@ struct SiteIntegrationsAPI {
         let maximumPages = 100
         let maximumMonitors = 10_000
         var pageCount = 0
+        var accountMetricsArePartial = false
         while let url = nextURL {
+            try Task.checkCancellation()
             guard seenPageURLs.insert(url.absoluteString).inserted else {
                 warnings.append("Better Stack repeated a pagination URL, so loading stopped to avoid an endless request loop.")
+                accountMetricsArePartial = true
                 break
             }
             let root = object(try await jsonRequest(url: url, headers: headers))
@@ -1591,11 +1673,13 @@ struct SiteIntegrationsAPI {
                 warnings.append(
                     "Better Stack monitor loading stopped after \(maximumMonitors) monitors to protect the device."
                 )
+                accountMetricsArePartial = true
                 nextURL = nil
             } else if nextURL != nil, pageCount >= maximumPages {
                 warnings.append(
                     "Better Stack monitor loading stopped after \(maximumPages) pages to protect the device. Some monitors may not be shown."
                 )
+                accountMetricsArePartial = true
                 nextURL = nil
             }
         }
@@ -1633,12 +1717,12 @@ struct SiteIntegrationsAPI {
         let up = resources.filter { $0.status?.lowercased() == "up" }.count
         let down = resources.filter { $0.status?.lowercased() == "down" }.count
         let paused = resources.filter { $0.status?.lowercased() == "paused" }.count
-        let metrics = [
+        let metrics = markPartialMetrics([
             metric(key: "betterstack.monitors", label: "Monitors", value: Double(resources.count), unit: .count),
             metric(key: "betterstack.up", label: "Up", value: Double(up), unit: .count),
             metric(key: "betterstack.down", label: "Down", value: Double(down), unit: .count),
             metric(key: "betterstack.paused", label: "Paused", value: Double(paused), unit: .count)
-        ]
+        ], when: accountMetricsArePartial)
         let status: String
         if resources.isEmpty {
             status = "No monitors"
@@ -1649,12 +1733,13 @@ struct SiteIntegrationsAPI {
         } else {
             status = "\(up) up · \(resources.count - up) paused or checking"
         }
+        let displayedStatus = accountMetricsArePartial ? "\(status) · Partial metrics" : status
         return SiteIntegrationSnapshot(
             accountID: accountID,
             provider: .betterStack,
             resources: resources,
             metrics: metrics,
-            status: status,
+            status: displayedStatus,
             warnings: warnings
         )
     }
@@ -1896,6 +1981,11 @@ struct SiteIntegrationsAPI {
         return encoded
     }
 
+    nonisolated static func safeInteger(_ value: Double) -> Int? {
+        guard value.isFinite else { return nil }
+        return Int(exactly: value.rounded(.towardZero))
+    }
+
     private func endpoint(base: URL, path: String, queryItems: [URLQueryItem] = []) throws -> URL {
         guard base.scheme?.lowercased() == "https", base.host != nil else {
             throw SiteIntegrationsAPIError.invalidConfiguration("Provider requests must use HTTPS.")
@@ -1963,13 +2053,20 @@ private func nonEmpty(_ value: String?) -> String? {
 }
 
 private func number(_ value: Any?) -> Double? {
-    if let value = value as? NSNumber { return value.doubleValue }
-    if let value = value as? String { return Double(value.trimmingCharacters(in: .whitespacesAndNewlines)) }
-    return nil
+    let result: Double?
+    if let value = value as? NSNumber {
+        result = value.doubleValue
+    } else if let value = value as? String {
+        result = Double(value.trimmingCharacters(in: .whitespacesAndNewlines))
+    } else {
+        result = nil
+    }
+    guard let result, result.isFinite else { return nil }
+    return result
 }
 
 private func int(_ value: Any?) -> Int? {
-    number(value).map(Int.init)
+    number(value).flatMap(SiteIntegrationsAPI.safeInteger)
 }
 
 private func boolean(_ value: Any?) -> Bool? {
@@ -2011,6 +2108,25 @@ private func metric(
         formattedValue: formattedValue,
         resourceID: resourceID
     )
+}
+
+private func markPartialMetrics(
+    _ metrics: [SiteIntegrationMetric],
+    when isPartial: Bool,
+    excluding completeKeys: Set<String> = []
+) -> [SiteIntegrationMetric] {
+    guard isPartial else { return metrics }
+    return metrics.map { metric in
+        guard !completeKeys.contains(metric.key) else { return metric }
+        return SiteIntegrationMetric(
+            key: metric.key,
+            label: "\(metric.label) · Partial",
+            value: metric.value,
+            unit: metric.unit,
+            formattedValue: metric.formattedValue,
+            resourceID: metric.resourceID
+        )
+    }
 }
 
 private func withResourceID(_ metric: SiteIntegrationMetric, resourceID: String) -> SiteIntegrationMetric {

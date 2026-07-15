@@ -1,6 +1,8 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+private let cloudflareExplorerUploadLimit = 25 * 1_024 * 1_024
+
 @Observable
 @MainActor
 final class CloudflareAPIExplorerViewModel {
@@ -600,7 +602,14 @@ struct CloudflareAPIExplorerView: View {
             let url = try result.get()
             let didAccess = url.startAccessingSecurityScopedResource()
             defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+            if let fileSize = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+               fileSize > cloudflareExplorerUploadLimit {
+                throw CloudflareExplorerError.fileTooLarge
+            }
             let data = try Data(contentsOf: url, options: [.mappedIfSafe])
+            guard data.count <= cloudflareExplorerUploadLimit else {
+                throw CloudflareExplorerError.fileTooLarge
+            }
             viewModel.requestBody = data.base64EncodedString(options: [.lineLength64Characters])
             viewModel.bodyEncoding = .base64
             if viewModel.contentType == "application/json" {
@@ -616,6 +625,7 @@ struct CloudflareAPIExplorerView: View {
 private enum CloudflareExplorerError: LocalizedError {
     case invalidQuery(String)
     case invalidHeader(String)
+    case fileTooLarge
 
     var errorDescription: String? {
         switch self {
@@ -623,6 +633,8 @@ private enum CloudflareExplorerError: LocalizedError {
             "Query parameter “\(line)” must use key=value format."
         case .invalidHeader(let line):
             "Request header “\(line)” must use Name: value format."
+        case .fileTooLarge:
+            "Request body files must be 25 MB or smaller."
         }
     }
 }

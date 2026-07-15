@@ -128,6 +128,26 @@ actor ProviderAPICatalogStore {
     }
 
     func railwayCatalog(account: VercelAccount) async throws -> ProviderAPICatalog {
+        do {
+            return try await liveRailwayCatalog(account: account)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as URLError where error.code == .cancelled && Task.isCancelled {
+            throw CancellationError()
+        } catch {
+            let fallback = try catalog(id: "hosting.railway")
+            return ProviderAPICatalog(
+                id: fallback.id,
+                title: fallback.title,
+                apiVersion: "\(fallback.apiVersion) · Bundled fallback",
+                sourceURL: fallback.sourceURL,
+                sourceDescription: "Live schema discovery was unavailable. The bundled manual GraphQL request remains usable. \(error.localizedDescription)",
+                operations: fallback.operations
+            )
+        }
+    }
+
+    private func liveRailwayCatalog(account: VercelAccount) async throws -> ProviderAPICatalog {
         let query = """
         query VercelticsIntrospection {
           __schema {

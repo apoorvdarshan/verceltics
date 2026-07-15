@@ -190,11 +190,28 @@ nonisolated struct CloudflareUser: Identifiable, Decodable, Equatable, Sendable 
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
-            id = try container.decodeIfPresent(String.self, forKey: .id) ?? UUID().uuidString
-            name = try container.decodeIfPresent(String.self, forKey: .name)
-            permissions = try container.decodeIfPresent([String].self, forKey: .permissions) ?? []
-            roles = try container.decodeIfPresent([String].self, forKey: .roles) ?? []
-            status = try container.decodeIfPresent(String.self, forKey: .status)
+            let decodedName = try container.decodeIfPresent(String.self, forKey: .name)
+            let decodedPermissions = try container.decodeIfPresent([String].self, forKey: .permissions) ?? []
+            let decodedRoles = try container.decodeIfPresent([String].self, forKey: .roles) ?? []
+            let decodedStatus = try container.decodeIfPresent(String.self, forKey: .status)
+            name = decodedName
+            permissions = decodedPermissions
+            roles = decodedRoles
+            status = decodedStatus
+
+            if let decodedID = try container.decodeIfPresent(String.self, forKey: .id), !decodedID.isEmpty {
+                id = decodedID
+            } else {
+                let identity = [
+                    decodedName,
+                    decodedStatus,
+                    decodedRoles.sorted().joined(separator: ","),
+                    decodedPermissions.sorted().joined(separator: ","),
+                ]
+                .compactMap { $0 }
+                .joined(separator: "|")
+                id = "organization-" + Data((identity.isEmpty ? "unknown" : identity).utf8).base64EncodedString()
+            }
         }
     }
 }

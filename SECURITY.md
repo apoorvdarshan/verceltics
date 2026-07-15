@@ -1,6 +1,6 @@
 # Security Policy
 
-Verceltics handles hosting-platform and domain-registrar credentials, so we take security reports seriously. Thanks for helping keep the app and its users safe.
+Verceltics handles hosting-platform, domain-registrar, and site-intelligence credentials, so we take security reports seriously. Thanks for helping keep the app and its users safe.
 
 ## Supported Versions
 
@@ -59,8 +59,10 @@ Verceltics stores all connected credentials in the iOS Keychain using device-onl
 - `api.cloudflare.com` (Cloudflare profile, accounts, zones, DNS, Pages, Workers, analytics, and user-initiated API operations)
 - `api.netlify.com`, `backboard.railway.com`, `api.render.com`, `api.digitalocean.com`, `api.heroku.com`, `api.machines.dev`, `firebasehosting.googleapis.com`, `oauth2.googleapis.com` (only when exchanging a saved Firebase refresh token), or the selected regional `amplify.*.amazonaws.com` host
 - `api.name.com`, `api.namecheap.com`, `api.porkbun.com`, `spaceship.dev`, `api.dynadot.com`, `www.namesilo.com`, `api.gandi.net`, or `api.godaddy.com`
+- Google OAuth and Sites APIs under `accounts.google.com`, `oauth2.googleapis.com`, `www.googleapis.com`, `searchconsole.googleapis.com`, `analyticsadmin.googleapis.com`, `analyticsdata.googleapis.com`, and `chromeuxreport.googleapis.com`
+- `ssl.bing.com`, `www.clarity.ms`, `plausible.io`, `api.umami.is` (or the user-selected HTTPS Umami host), `api.uptimerobot.com`, and `uptime.betterstack.com`
 
-Favicon fetches, SVG rasterisation, and Vercel avatar image loads do **not** include credentials — they are plain image/GET requests.
+Favicon fetches are limited to the project site's own HTTPS origin, and Vercel avatar image loads do **not** include credentials. No project domain is sent to a third-party favicon service.
 
 Provider credentials inherit their configured permissions and can make destructive changes or purchases. The app blocks cross-host redirects and requires confirmation before detected write or purchase requests. If a credential may be exposed, revoke or rotate it immediately in that provider's dashboard.
 

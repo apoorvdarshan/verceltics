@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Privacy Policy",
   description:
-    "Verceltics privacy policy. Hosting and registrar credentials stay in the device-only iOS Keychain. No app tracking, telemetry, or data proxy.",
+    "Verceltics privacy policy. Hosting, registrar, and site-service credentials stay in the device-only iOS Keychain. No app tracking, telemetry, or data proxy.",
   alternates: { canonical: "https://www.verceltics.com/privacy" },
   openGraph: {
     type: "article",
@@ -35,17 +35,17 @@ export default function Privacy() {
       />
       <Link href="/" className="text-[13px] text-white/30 transition-colors hover:text-white/60">&larr; Back to Verceltics</Link>
       <h1 className="mt-10 font-serif text-4xl italic tracking-[-0.03em]">Privacy Policy</h1>
-      <p className="mt-2 text-[13px] text-white/25">Last updated: July 14, 2026 — applies to v2.0</p>
+      <p className="mt-2 text-[13px] text-white/25">Last updated: July 15, 2026 — applies to v2.0</p>
 
       <div className="mt-12 space-y-10 text-[15px] leading-7 text-white/40">
         <section>
           <h2 className="text-lg font-semibold text-white/80">Overview</h2>
-          <p className="mt-3">Verceltics is a direct-to-provider mobile dashboard for hosting platforms and domain registrars. This policy explains how credentials and provider data are handled.</p>
+          <p className="mt-3">Verceltics is a direct-to-provider mobile dashboard for hosting platforms, domain registrars, and site-intelligence services. This policy explains how credentials and provider data are handled.</p>
         </section>
 
         <section>
           <h2 className="text-lg font-semibold text-white/80">Data We Collect</h2>
-          <p className="mt-3"><strong className="text-white/60">The iOS app does not collect your hosting or registrar account data.</strong> Specifically:</p>
+          <p className="mt-3"><strong className="text-white/60">The iOS app does not collect your hosting, registrar, or site-service account data.</strong> Specifically:</p>
           <ul className="mt-3 list-disc space-y-1 pl-5">
             <li>We do not track you</li>
             <li>We do not use product analytics, advertising tracking, or provider-data telemetry inside the app</li>
@@ -56,18 +56,18 @@ export default function Privacy() {
 
         <section>
           <h2 className="text-lg font-semibold text-white/80">Provider Credentials</h2>
-          <p className="mt-3">Credentials for Vercel, Cloudflare, Netlify, Railway, Render, DigitalOcean, Heroku, Fly.io, Firebase, AWS Amplify, Name.com, Namecheap, Porkbun, Spaceship, Dynadot, NameSilo, Gandi, and GoDaddy are stored locally using device-only, when-unlocked iOS Keychain protection.</p>
-          <p className="mt-3">A credential is attached only to HTTPS requests for its selected provider&apos;s official API host. For Firebase refresh-token connections, the refresh token is first sent directly to Google&apos;s official <code className="text-white/60">oauth2.googleapis.com</code> token endpoint and the returned access token is sent to Firebase Hosting. Redirects to a different host are blocked. Credentials never cross Verceltics infrastructure. Provider keys inherit the permissions configured by the provider; detected writes and purchases require confirmation in the app.</p>
+          <p className="mt-3">Credentials for connected hosting platforms, registrars, and Sites services — Google Search Console, Google Analytics, PageSpeed &amp; CrUX, Bing Webmaster, Microsoft Clarity, Plausible, Umami, UptimeRobot, and Better Stack — are stored locally using device-only, when-unlocked iOS Keychain protection.</p>
+          <p className="mt-3">A credential is attached only to HTTPS requests for its selected provider&apos;s official API host. Firebase refresh-token connections and Google Sites connections use Google&apos;s official OAuth endpoints; Google authorization opens in the system authentication session and the resulting tokens are kept in the Keychain. Redirects to a different host are blocked. Credentials never cross Verceltics infrastructure. Provider keys inherit the permissions configured by the provider; detected writes and purchases require confirmation in the app.</p>
         </section>
 
         <section>
           <h2 className="text-lg font-semibold text-white/80">Analytics Data</h2>
-          <p className="mt-3">All account, project, domain, configuration, deployment, DNS, Worker, and analytics data is fetched directly from the selected provider to your device. API explorer responses are displayed locally. We do not proxy or store this data on our servers.</p>
+          <p className="mt-3">All account, project, domain, configuration, deployment, DNS, Worker, search, performance, uptime, and analytics data is fetched directly from the selected provider to your device. API explorer responses are displayed locally. The Sites dashboard keeps a protected, backup-excluded snapshot cache in the app&apos;s local Application Support directory so recently viewed data can reappear without a blank reload. We do not proxy or store this data on our servers.</p>
         </section>
 
         <section>
           <h2 className="text-lg font-semibold text-white/80">Images, Favicons, and Avatars</h2>
-          <p className="mt-3">To display project favicons, the app may issue plain GET requests to <code className="text-white/60">images.weserv.nl</code>, <code className="text-white/60">icons.duckduckgo.com</code>, <code className="text-white/60">www.google.com/s2/favicons</code>, and <code className="text-white/60">icon.horse</code>. Vercel profile avatars may be loaded from Vercel. These image requests never include provider credentials or account data.</p>
+          <p className="mt-3">To display a project favicon, the app may issue bounded plain GET requests only to that project site&apos;s own HTTPS origin. If no safe icon is available, it draws a local letter tile instead; project domains are not sent to third-party favicon services. Vercel profile avatars may be loaded from Vercel. These image requests never include provider credentials or account data.</p>
         </section>
 
         <section>
@@ -96,7 +96,7 @@ export default function Privacy() {
 
         <section>
           <h2 className="text-lg font-semibold text-white/80">External Links and Support</h2>
-          <p className="mt-3">The app and website may link to GitHub, Product Hunt, LinkedIn, TrustMRR, Ko-fi, PayPal, X, Apple, and supported hosting or registrar providers. Opening those links sends you to third-party services with their own privacy practices.</p>
+          <p className="mt-3">The app and website may link to GitHub, Product Hunt, LinkedIn, TrustMRR, Ko-fi, PayPal, X, Apple, and supported hosting, registrar, or site-intelligence providers. Opening those links sends you to third-party services with their own privacy practices.</p>
           <p className="mt-3">Optional support payments through Ko-fi or PayPal are handled outside Verceltics. They do not unlock app features and do not give those services access to provider credentials or provider data.</p>
         </section>
 

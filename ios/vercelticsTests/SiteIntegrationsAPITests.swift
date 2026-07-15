@@ -283,6 +283,84 @@ final class SiteIntegrationsAPITests: XCTestCase {
         )
     }
 
+    func testSafeIntegerRejectsNonFiniteAndOutOfRangeValues() {
+        XCTAssertNil(SiteIntegrationsAPI.safeInteger(.nan))
+        XCTAssertNil(SiteIntegrationsAPI.safeInteger(.infinity))
+        XCTAssertNil(SiteIntegrationsAPI.safeInteger(-.infinity))
+        XCTAssertNil(SiteIntegrationsAPI.safeInteger(Double.greatestFiniteMagnitude))
+        XCTAssertEqual(SiteIntegrationsAPI.safeInteger(42.9), 42)
+        XCTAssertEqual(SiteIntegrationsAPI.safeInteger(-42.9), -42)
+    }
+
+    func testUptimeRobotPaginationTreatsRepeatedPagesAsNoProgressBeforeCompletion() {
+        XCTAssertEqual(
+            SiteIntegrationsAPI.uptimeRobotPaginationAction(
+                pageItemCount: 50,
+                newUniqueMonitorCount: 0,
+                loadedUniqueMonitorCount: 50,
+                reportedTotal: 100,
+                pageSize: 50
+            ),
+            .noProgress
+        )
+        XCTAssertEqual(
+            SiteIntegrationsAPI.uptimeRobotPaginationAction(
+                pageItemCount: 10,
+                newUniqueMonitorCount: 0,
+                loadedUniqueMonitorCount: 50,
+                reportedTotal: nil,
+                pageSize: 50
+            ),
+            .noProgress
+        )
+    }
+
+    func testUptimeRobotPaginationUsesUniqueMonitorCountForReportedTotal() {
+        XCTAssertEqual(
+            SiteIntegrationsAPI.uptimeRobotPaginationAction(
+                pageItemCount: 50,
+                newUniqueMonitorCount: 10,
+                loadedUniqueMonitorCount: 60,
+                reportedTotal: 100,
+                pageSize: 50
+            ),
+            .loadNextPage
+        )
+        XCTAssertEqual(
+            SiteIntegrationsAPI.uptimeRobotPaginationAction(
+                pageItemCount: 50,
+                newUniqueMonitorCount: 50,
+                loadedUniqueMonitorCount: 100,
+                reportedTotal: 100,
+                pageSize: 50
+            ),
+            .complete
+        )
+    }
+
+    func testUptimeRobotPaginationAllowsLegitimateEmptyAndShortCompletionPages() {
+        XCTAssertEqual(
+            SiteIntegrationsAPI.uptimeRobotPaginationAction(
+                pageItemCount: 0,
+                newUniqueMonitorCount: 0,
+                loadedUniqueMonitorCount: 0,
+                reportedTotal: 0,
+                pageSize: 50
+            ),
+            .complete
+        )
+        XCTAssertEqual(
+            SiteIntegrationsAPI.uptimeRobotPaginationAction(
+                pageItemCount: 10,
+                newUniqueMonitorCount: 10,
+                loadedUniqueMonitorCount: 10,
+                reportedTotal: nil,
+                pageSize: 50
+            ),
+            .complete
+        )
+    }
+
     func testResourcePathComponentEncodesSeparators() throws {
         XCTAssertEqual(
             try SiteIntegrationsAPI.pathComponent("site/id ?#"),

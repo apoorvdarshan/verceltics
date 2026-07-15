@@ -35,7 +35,7 @@ export default function Terms() {
       />
       <Link href="/" className="text-[13px] text-white/30 transition-colors hover:text-white/60">&larr; Back to Verceltics</Link>
       <h1 className="mt-10 font-serif text-4xl italic tracking-[-0.03em]">Terms of Service</h1>
-      <p className="mt-2 text-[13px] text-white/25">Last updated: July 14, 2026 — applies to v2.0</p>
+      <p className="mt-2 text-[13px] text-white/25">Last updated: July 15, 2026 — applies to v2.0</p>
 
       <div className="mt-12 space-y-10 text-[15px] leading-7 text-white/40">
         <section>
@@ -45,13 +45,13 @@ export default function Terms() {
 
         <section>
           <h2 className="text-lg font-semibold text-white/80">The Service</h2>
-          <p className="mt-3">Verceltics is a mobile dashboard for supported hosting platforms and domain registrars. It uses credentials you provide to communicate directly with the selected provider, display account data, and perform actions you initiate.</p>
+          <p className="mt-3">Verceltics is a mobile dashboard for supported hosting platforms, domain registrars, and site-intelligence services. It uses credentials you provide to communicate directly with the selected provider, display account data, and perform actions you initiate.</p>
           <p className="mt-3">Advanced API explorers can send requests to provider-relative official API paths. You are responsible for reviewing the method, path, parameters, and body before confirming a write or purchase.</p>
         </section>
 
         <section>
           <h2 className="text-lg font-semibold text-white/80">Your Account</h2>
-          <p className="mt-3">You are responsible for every hosting and registrar credential you connect and all activity initiated through it. Keep credentials secure and revoke or rotate them if you stop using the app or suspect exposure. Provider credentials inherit their configured permissions and may allow purchases, configuration changes, or destructive operations.</p>
+          <p className="mt-3">You are responsible for every hosting, registrar, and site-service credential you connect and all activity initiated through it. Keep credentials secure and revoke or rotate them if you stop using the app or suspect exposure. Provider credentials inherit their configured permissions and may allow purchases, configuration changes, or destructive operations.</p>
         </section>
 
         <section>
@@ -94,7 +94,7 @@ export default function Terms() {
 
         <section>
           <h2 className="text-lg font-semibold text-white/80">Disclaimer</h2>
-          <p className="mt-3">Verceltics is provided &quot;as is&quot; without warranty of any kind. We are not responsible for provider API availability, the accuracy of returned data, or changes resulting from actions you confirm. Verceltics is independent and is not affiliated with, endorsed by, or sponsored by any supported hosting platform or registrar.</p>
+          <p className="mt-3">Verceltics is provided &quot;as is&quot; without warranty of any kind. We are not responsible for provider API availability, the accuracy of returned data, or changes resulting from actions you confirm. Verceltics is independent and is not affiliated with, endorsed by, or sponsored by any supported hosting platform, registrar, or site-intelligence service.</p>
         </section>
 
         <section>

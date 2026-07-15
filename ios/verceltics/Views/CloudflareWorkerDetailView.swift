@@ -3,6 +3,8 @@ import SwiftUI
 @Observable
 @MainActor
 final class CloudflareWorkerDetailViewModel {
+    private static var deploymentCache: [String: [CloudflareWorkerDeployment]] = [:]
+
     let api: CloudflareAPI
     let accountID: String
     let worker: CloudflareWorkerScript
@@ -14,19 +16,32 @@ final class CloudflareWorkerDetailViewModel {
     var actionMessage: String?
     var actionFailed = false
     var didDeleteWorker = false
+    private var hasLoaded = false
+
+    private var cacheKey: String { "\(api.cacheScope)|\(accountID)|\(worker.id)" }
 
     init(api: CloudflareAPI, accountID: String, worker: CloudflareWorkerScript) {
         self.api = api
         self.accountID = accountID
         self.worker = worker
+        if let cached = Self.deploymentCache[cacheKey] {
+            deployments = cached
+            isLoading = false
+            hasLoaded = true
+        }
     }
 
-    func load() async {
-        isLoading = true
+    func load(forceRefresh: Bool = false) async {
+        if hasLoaded && !forceRefresh { return }
+        isLoading = deployments.isEmpty
         error = nil
         do {
             deployments = try await api.fetchWorkerDeployments(accountID: accountID, scriptName: worker.id)
+            Self.deploymentCache[cacheKey] = deployments
+            hasLoaded = true
         } catch is CancellationError {
+            // Navigation can cancel an in-flight request.
+        } catch let urlError as URLError where urlError.code == .cancelled {
             // Navigation can cancel an in-flight request.
         } catch {
             self.error = error.localizedDescription
@@ -47,6 +62,7 @@ final class CloudflareWorkerDetailViewModel {
             actionMessage = "Worker deployment deleted."
             actionFailed = false
             deployments = try await api.fetchWorkerDeployments(accountID: accountID, scriptName: worker.id)
+            Self.deploymentCache[cacheKey] = deployments
         } catch {
             actionMessage = error.localizedDescription
             actionFailed = true
@@ -66,6 +82,7 @@ final class CloudflareWorkerDetailViewModel {
             actionMessage = "Worker deleted."
             actionFailed = false
             didDeleteWorker = true
+            Self.deploymentCache[cacheKey] = nil
         } catch {
             actionMessage = error.localizedDescription
             actionFailed = true
@@ -121,7 +138,7 @@ struct CloudflareWorkerDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .task { await viewModel.load() }
-        .refreshable { await viewModel.load() }
+        .refreshable { await viewModel.load(forceRefresh: true) }
         .onChange(of: viewModel.didDeleteWorker) { _, deleted in
             if deleted { dismiss() }
         }
@@ -224,7 +241,13 @@ struct CloudflareWorkerDetailView: View {
 
     private var operationsLink: some View {
         NavigationLink {
-            CloudflareWorkerOperationsView(api: api, accountID: accountID, worker: worker)
+            CloudflareWorkerOperationsView(
+                api: api,
+                accountID: accountID,
+                worker: worker
+            ) {
+                await viewModel.load(forceRefresh: true)
+            }
         } label: {
             CloudflareResourceRow(
                 icon: "switch.2",

@@ -45,6 +45,7 @@ extension CloudflareAPI {
         let path = "/accounts/\(cloudflareStoragePathSegment(accountID))/d1/database"
         var page = 1
         var databases: [CloudflareD1Database] = []
+        var paginationGuard = CloudflarePaginationGuard()
 
         while true {
             let response = try await rawRequest(
@@ -54,6 +55,7 @@ extension CloudflareAPI {
             )
             let envelope: CloudflareStorageEnvelope<[CloudflareD1Database]> = try decodeStorageEnvelope(response)
             let batch = envelope.result ?? []
+            try paginationGuard.record(batchCount: batch.count, signature: response.data.hashValue)
             databases.append(contentsOf: batch)
 
             guard !batch.isEmpty else { break }
@@ -142,6 +144,7 @@ extension CloudflareAPI {
         let path = kvNamespacesPath(accountID: accountID)
         var page = 1
         var namespaces: [CloudflareKVNamespace] = []
+        var paginationGuard = CloudflarePaginationGuard()
 
         while true {
             let response = try await rawRequest(
@@ -156,6 +159,7 @@ extension CloudflareAPI {
             )
             let envelope: CloudflareStorageEnvelope<[CloudflareKVNamespace]> = try decodeStorageEnvelope(response)
             let batch = envelope.result ?? []
+            try paginationGuard.record(batchCount: batch.count, signature: response.data.hashValue)
             namespaces.append(contentsOf: batch)
 
             guard !batch.isEmpty else { break }
@@ -236,6 +240,7 @@ extension CloudflareAPI {
         var cursor: String?
         var seenCursors = Set<String>()
         var keys: [CloudflareKVKey] = []
+        var paginationGuard = CloudflarePaginationGuard()
 
         repeat {
             var query = ["limit": "1000"]
@@ -244,10 +249,16 @@ extension CloudflareAPI {
 
             let response = try await rawRequest(method: .get, path: path, query: query)
             let envelope: CloudflareStorageEnvelope<[CloudflareKVKey]> = try decodeStorageEnvelope(response)
-            keys.append(contentsOf: envelope.result ?? [])
+            let batch = envelope.result ?? []
+            try paginationGuard.record(batchCount: batch.count, signature: response.data.hashValue)
+            keys.append(contentsOf: batch)
             cursor = envelope.resultInfo?.cursor
             if let cursor, !cursor.isEmpty {
-                guard seenCursors.insert(cursor).inserted else { break }
+                guard seenCursors.insert(cursor).inserted else {
+                    throw CloudflareAPIError.invalidRequest(
+                        "Cloudflare repeated a KV cursor, so loading stopped safely."
+                    )
+                }
             }
         } while cursor?.isEmpty == false
 
@@ -323,8 +334,13 @@ extension CloudflareAPI {
 
         // Jurisdictional buckets live in separate API scopes. Unsupported scopes are optional.
         for jurisdiction in ["eu", "fedramp"] {
-            if let scoped = try? await fetchR2Buckets(accountID: accountID, jurisdiction: jurisdiction) {
+            do {
+                let scoped = try await fetchR2Buckets(accountID: accountID, jurisdiction: jurisdiction)
                 buckets.append(contentsOf: scoped)
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                guard isOptionalProductUnavailable(error) else { throw error }
             }
         }
 
@@ -395,6 +411,7 @@ extension CloudflareAPI {
         var cursor: String?
         var seenCursors = Set<String>()
         var buckets: [CloudflareR2Bucket] = []
+        var paginationGuard = CloudflarePaginationGuard()
 
         repeat {
             var query = ["per_page": "1000", "order": "name", "direction": "asc"]
@@ -409,10 +426,15 @@ extension CloudflareAPI {
             let scopedBuckets = (envelope.result?.buckets ?? []).map {
                 storageR2Bucket($0, jurisdiction: jurisdiction)
             }
+            try paginationGuard.record(batchCount: scopedBuckets.count, signature: response.data.hashValue)
             buckets.append(contentsOf: scopedBuckets)
             cursor = envelope.resultInfo?.cursor
             if let cursor, !cursor.isEmpty {
-                guard seenCursors.insert(cursor).inserted else { break }
+                guard seenCursors.insert(cursor).inserted else {
+                    throw CloudflareAPIError.invalidRequest(
+                        "Cloudflare repeated an R2 cursor, so loading stopped safely."
+                    )
+                }
             }
         } while cursor?.isEmpty == false
 

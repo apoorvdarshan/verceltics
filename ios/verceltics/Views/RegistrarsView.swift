@@ -12,11 +12,13 @@ final class RegistrarDashboardViewModel {
     var isRefreshing = false
     var error: String?
     private var hasLoaded = false
+    private let cacheKey: String
 
     init(account: RegistrarAccount) {
         self.account = account
         api = RegistrarAPI(account: account)
-        if let cached = Self.cachedDomains[account.id.uuidString] {
+        cacheKey = CredentialCacheScope.registrarAccount(account)
+        if let cached = Self.cachedDomains[cacheKey] {
             domains = cached
             isLoading = false
             hasLoaded = true
@@ -32,7 +34,7 @@ final class RegistrarDashboardViewModel {
                 $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
             }
             hasLoaded = true
-            Self.cachedDomains[account.id.uuidString] = domains
+            Self.cachedDomains[cacheKey] = domains
         } catch is CancellationError {
             // Switching tabs can cancel a request; keep any cached content.
         } catch { self.error = error.localizedDescription }
@@ -44,24 +46,37 @@ final class RegistrarDashboardViewModel {
 struct RegistrarsView: View {
     @Environment(RegistrarStore.self) private var store
     @State private var showConnection = false
+    var startWithSearch = false
 
     var body: some View {
         Group {
             if let account = store.activeAccount {
-                RegistrarDashboardView(account: account)
-                    .id(account.id)
+                RegistrarDashboardView(account: account, startWithSearch: startWithSearch)
+                    .id(account.dashboardViewIdentity)
             } else {
                 NavigationStack {
                     ZStack {
                         AppTheme.canvas.ignoresSafeArea()
-                        AppEmptyState(
-                            icon: "globe.americas.fill",
-                            title: "No registrar account",
-                            message: "Connect a registrar to track expiry, renewal, privacy, locks, and nameservers.",
-                            actionTitle: "Connect registrar"
-                        ) {
-                            showConnection = true
+                        VStack(spacing: 12) {
+                            if let error = store.error {
+                                AppFeedbackBanner(
+                                    title: "Saved registrar accounts need attention",
+                                    message: error,
+                                    icon: "lock.trianglebadge.exclamationmark.fill",
+                                    tint: AppTheme.danger
+                                )
+                            }
+                            AppEmptyState(
+                                icon: "globe.americas.fill",
+                                title: "No registrar account",
+                                message: "Connect a registrar to track expiry, renewal, privacy, locks, and nameservers.",
+                                actionTitle: "Connect registrar"
+                            ) {
+                                showConnection = true
+                            }
                         }
+                        .padding(.horizontal, 16)
+                        .frame(maxWidth: 560)
                     }
                     .navigationTitle("Registrars")
                     .navigationBarTitleDisplayMode(.inline)
@@ -84,14 +99,18 @@ struct RegistrarsView: View {
 
 struct RegistrarDashboardView: View {
     let account: RegistrarAccount
+    var startWithSearch = false
     @State private var viewModel: RegistrarDashboardViewModel
     @State private var searchText = ""
+    @State private var isSearching = false
     @State private var refreshSpin = 0.0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(RegistrarStore.self) private var store
 
-    init(account: RegistrarAccount) {
+    init(account: RegistrarAccount, startWithSearch: Bool = false) {
         self.account = account
+        self.startWithSearch = startWithSearch
         _viewModel = State(initialValue: RegistrarDashboardViewModel(account: account))
     }
 
@@ -121,7 +140,7 @@ struct RegistrarDashboardView: View {
             .navigationTitle("Registrars")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarColorScheme(.dark, for: .navigationBar)
-            .searchable(text: $searchText, prompt: "Search domains")
+            .searchable(text: $searchText, isPresented: $isSearching, prompt: "Search domains")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { RegistrarAccountMenu() }
                 ToolbarItem(placement: .topBarTrailing) {
@@ -141,6 +160,9 @@ struct RegistrarDashboardView: View {
                 }
             }
             .task(id: account.id) { await viewModel.load() }
+            .onAppear {
+                if startWithSearch { isSearching = true }
+            }
         }
     }
 
@@ -148,6 +170,15 @@ struct RegistrarDashboardView: View {
         ScrollView {
             LazyVStack(spacing: 16) {
                 portfolioHeader
+
+                if let error = store.error {
+                    AppFeedbackBanner(
+                        title: "Saved registrar change failed",
+                        message: error,
+                        icon: "lock.trianglebadge.exclamationmark.fill",
+                        tint: AppTheme.danger
+                    )
+                }
                 stats
                 actions
 
@@ -322,6 +353,8 @@ struct RegistrarDashboardView: View {
         }
         .padding(14)
         .appSurface()
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Open \(domain.name) details")
     }
 
     private var healthFraction: CGFloat {
@@ -370,5 +403,15 @@ struct RegistrarDashboardView: View {
         ) {
             Task { await viewModel.load(refresh: true) }
         }
+    }
+}
+
+private extension RegistrarAccount {
+    var dashboardViewIdentity: String {
+        let metadataValue = metadata
+            .sorted { $0.key < $1.key }
+            .map { "\($0.key)=\($0.value)" }
+            .joined(separator: "&")
+        return "\(id.uuidString)|\(primaryCredential.hashValue)|\(secondaryCredential?.hashValue ?? 0)|\(metadataValue.hashValue)"
     }
 }

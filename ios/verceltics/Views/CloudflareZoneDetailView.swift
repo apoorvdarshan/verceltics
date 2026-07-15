@@ -4,6 +4,14 @@ import SwiftUI
 @Observable
 @MainActor
 final class CloudflareZoneDetailViewModel {
+    private struct CachedZoneAnalytics {
+        let analytics: CloudflareZoneAnalyticsSummary
+        let analyticsBreakdowns: CloudflareZoneAnalyticsBreakdowns?
+    }
+
+    private static var analyticsCache: [String: CachedZoneAnalytics] = [:]
+    private static var dnsCache: [String: [CloudflareDNSRecord]] = [:]
+
     let api: CloudflareAPI
     let zone: CloudflareZone
 
@@ -20,19 +28,50 @@ final class CloudflareZoneDetailViewModel {
     var customAnalyticsFrom = Calendar.current.date(byAdding: .day, value: -30, to: Date()) ?? Date()
     var customAnalyticsTo = Date()
     private var loadGeneration = 0
+    private var hasLoadedAnalytics = false
+    private var hasLoadedDNS = false
+
+    private var dnsCacheKey: String { "\(api.cacheScope)|\(zone.id)|dns" }
+
+    private var analyticsCacheKey: String {
+        Self.analyticsCacheKey(
+            credentialScope: api.cacheScope,
+            zoneID: zone.id,
+            range: selectedAnalyticsRange,
+            customFrom: customAnalyticsFrom,
+            customTo: customAnalyticsTo
+        )
+    }
 
     init(api: CloudflareAPI, zone: CloudflareZone) {
         self.api = api
         self.zone = zone
+        if let cached = Self.analyticsCache[
+            Self.analyticsCacheKey(
+                credentialScope: api.cacheScope,
+                zoneID: zone.id,
+                range: .days7,
+                customFrom: customAnalyticsFrom,
+                customTo: customAnalyticsTo
+            )
+        ] {
+            analytics = cached.analytics
+            analyticsBreakdowns = cached.analyticsBreakdowns
+            hasLoadedAnalytics = true
+        }
+        if let cachedDNS = Self.dnsCache["\(api.cacheScope)|\(zone.id)|dns"] {
+            dnsRecords = cachedDNS
+            hasLoadedDNS = true
+        }
+        isLoading = !hasLoadedAnalytics && !hasLoadedDNS
     }
 
-    func load() async {
+    func load(forceRefresh: Bool = false) async {
+        if hasLoadedAnalytics && hasLoadedDNS && !forceRefresh { return }
         loadGeneration += 1
         let generation = loadGeneration
-        isLoading = true
-        analytics = nil
-        analyticsBreakdowns = nil
-        dnsRecords = []
+        let requestedAnalyticsCacheKey = analyticsCacheKey
+        isLoading = analytics == nil && dnsRecords.isEmpty
         analyticsError = nil
         dnsError = nil
 
@@ -56,10 +95,21 @@ final class CloudflareZoneDetailViewModel {
             breakdownResult
         )
         guard generation == loadGeneration else { return }
+        if isCancellation(analyticsResponse)
+            || isCancellation(dnsResponse)
+            || isCancellation(breakdownResponse) {
+            isLoading = false
+            return
+        }
 
+        var receivedFreshAnalytics = false
         switch analyticsResponse {
-        case .success(let analytics): self.analytics = analytics
-        case .failure(let error): analyticsError = error.localizedDescription
+        case .success(let analytics):
+            self.analytics = analytics
+            hasLoadedAnalytics = true
+            receivedFreshAnalytics = true
+        case .failure(let error):
+            if !isCancellation(error) { analyticsError = error.localizedDescription }
         }
 
         switch dnsResponse {
@@ -68,28 +118,38 @@ final class CloudflareZoneDetailViewModel {
                 if $0.name == $1.name { return $0.type < $1.type }
                 return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
             }
+            hasLoadedDNS = true
+            Self.dnsCache[dnsCacheKey] = dnsRecords
         case .failure(let error):
-            dnsRecords = []
-            dnsError = error.localizedDescription
+            if !isCancellation(error) { dnsError = error.localizedDescription }
         }
 
-        if case .success(let breakdowns) = breakdownResponse {
-            analyticsBreakdowns = breakdowns
+        if receivedFreshAnalytics, let analytics {
+            if case .success(let breakdowns) = breakdownResponse {
+                analyticsBreakdowns = breakdowns
+            } else {
+                analyticsBreakdowns = nil
+            }
+            Self.analyticsCache[requestedAnalyticsCacheKey] = CachedZoneAnalytics(
+                analytics: analytics,
+                analyticsBreakdowns: analyticsBreakdowns
+            )
         }
-
         isLoading = false
     }
 
     func selectAnalyticsRange(_ range: CloudflareAnalyticsRange) async {
         selectedAnalyticsRange = range
-        await load()
+        restoreAnalyticsCacheForSelectedRange()
+        await load(forceRefresh: true)
     }
 
     func selectCustomAnalyticsRange(from: Date, to: Date) async {
         customAnalyticsFrom = from
         customAnalyticsTo = to
         selectedAnalyticsRange = .custom
-        await load()
+        restoreAnalyticsCacheForSelectedRange()
+        await load(forceRefresh: true)
     }
 
     func saveDNSRecord(existing: CloudflareDNSRecord?, input: CloudflareDNSRecordInput) async throws {
@@ -99,14 +159,25 @@ final class CloudflareZoneDetailViewModel {
 
         do {
             if let existing {
-                _ = try await api.updateDNSRecord(zoneID: zone.id, recordID: existing.id, record: input)
+                _ = try await api.updateDNSRecord(
+                    zoneID: zone.id,
+                    recordID: existing.id,
+                    record: input,
+                    confirmation: CloudflareMutationConfirmation(confirmingResourceID: existing.id)
+                )
                 actionMessage = "DNS record updated."
             } else {
-                _ = try await api.createDNSRecord(zoneID: zone.id, record: input)
+                _ = try await api.createDNSRecord(
+                    zoneID: zone.id,
+                    record: input,
+                    confirmation: CloudflareMutationConfirmation(confirmingResourceID: zone.id)
+                )
                 actionMessage = "DNS record created."
             }
             actionFailed = false
             dnsRecords = try await api.fetchDNSRecords(zoneID: zone.id)
+            hasLoadedDNS = true
+            Self.dnsCache[dnsCacheKey] = dnsRecords
         } catch {
             actionMessage = error.localizedDescription
             actionFailed = true
@@ -127,6 +198,8 @@ final class CloudflareZoneDetailViewModel {
             actionMessage = "DNS record deleted."
             actionFailed = false
             dnsRecords.removeAll { $0.id == record.id }
+            hasLoadedDNS = true
+            Self.dnsCache[dnsCacheKey] = dnsRecords
         } catch {
             actionMessage = error.localizedDescription
             actionFailed = true
@@ -155,6 +228,43 @@ final class CloudflareZoneDetailViewModel {
     private func capture<T>(_ operation: () async throws -> T) async -> Result<T, Error> {
         do { return .success(try await operation()) }
         catch { return .failure(error) }
+    }
+
+    private func isCancellation(_ error: Error) -> Bool {
+        error is CancellationError || (error as? URLError)?.code == .cancelled
+    }
+
+    private func isCancellation<T>(_ result: Result<T, Error>) -> Bool {
+        guard case .failure(let error) = result else { return false }
+        return isCancellation(error)
+    }
+
+    private func restoreAnalyticsCacheForSelectedRange() {
+        if let cached = Self.analyticsCache[analyticsCacheKey] {
+            analytics = cached.analytics
+            analyticsBreakdowns = cached.analyticsBreakdowns
+            hasLoadedAnalytics = true
+        } else {
+            analytics = nil
+            analyticsBreakdowns = nil
+            hasLoadedAnalytics = false
+        }
+    }
+
+    private static func analyticsCacheKey(
+        credentialScope: String,
+        zoneID: String,
+        range: CloudflareAnalyticsRange,
+        customFrom: Date,
+        customTo: Date
+    ) -> String {
+        let rangeScope: String
+        if range == .custom {
+            rangeScope = "custom|\(customFrom.timeIntervalSinceReferenceDate.bitPattern)|\(customTo.timeIntervalSinceReferenceDate.bitPattern)"
+        } else {
+            rangeScope = range.rawValue
+        }
+        return "\(credentialScope)|\(zoneID)|analytics|\(rangeScope)"
     }
 }
 
@@ -245,7 +355,7 @@ struct CloudflareZoneDetailView: View {
         .toolbarColorScheme(.dark, for: .navigationBar)
         .searchable(text: $searchText, prompt: "Search DNS records")
         .task { await viewModel.load() }
-        .refreshable { await viewModel.load() }
+        .refreshable { await viewModel.load(forceRefresh: true) }
         .sheet(item: $editingRecord) { item in
             NavigationStack {
                 CloudflareDNSRecordEditor(

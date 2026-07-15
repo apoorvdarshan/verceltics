@@ -12,56 +12,62 @@ enum KeychainHelper {
     private static let siteIntegrationSnapshotsKey = "site_integration_snapshots"
     private static let activeSiteIntegrationAccountIdKey = "active_site_integration_account_id"
 
-    static func saveAccounts(_ accounts: [VercelAccount]) {
+    static func saveAccounts(_ accounts: [VercelAccount]) throws {
+        let data: Data
         do {
-            let data = try JSONEncoder().encode(accounts)
-            let query: [String: Any] = [
-                kSecClass as String: kSecClassGenericPassword,
-                kSecAttrService as String: service,
-                kSecAttrAccount as String: accountsKey
-            ]
-            let attributes: [String: Any] = [
-                kSecValueData as String: data,
-                kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
-            ]
-            let updateStatus = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
-            if updateStatus == errSecItemNotFound {
-                var addQuery = query
-                attributes.forEach { addQuery[$0.key] = $0.value }
-                let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
-                if addStatus != errSecSuccess {
-                    print("Failed to save accounts to Keychain: \(addStatus)")
-                }
-            } else if updateStatus != errSecSuccess {
-                print("Failed to update accounts in Keychain: \(updateStatus)")
-            }
+            data = try JSONEncoder().encode(accounts)
         } catch {
-            print("Failed to encode accounts: \(error)")
+            throw ConnectedAccountPersistenceError.encoding(.hosting, error)
+        }
+        do {
+            try writeKeychainData(data, account: accountsKey)
+        } catch let error as KeychainDataError {
+            throw error.persistenceError(for: .hosting)
         }
     }
 
-    static func getAccounts() -> [VercelAccount] {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: accountsKey,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-        var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-        guard status == errSecSuccess, let data = result as? Data else { return [] }
-        return (try? JSONDecoder().decode([VercelAccount].self, from: data)) ?? []
+    static func getAccounts() throws -> [VercelAccount] {
+        let data: Data?
+        do {
+            data = try readKeychainDataWithStatus(account: accountsKey)
+        } catch let error as KeychainDataError {
+            throw error.persistenceError(for: .hosting)
+        }
+        guard let data else { return [] }
+        do {
+            return try JSONDecoder().decode([VercelAccount].self, from: data)
+        } catch {
+            throw ConnectedAccountPersistenceError.decoding(.hosting, error)
+        }
     }
 
-    static func saveRegistrarAccounts(_ accounts: [RegistrarAccount]) {
-        guard let data = try? JSONEncoder().encode(accounts) else { return }
-        saveKeychainData(data, account: registrarAccountsKey)
+    static func saveRegistrarAccounts(_ accounts: [RegistrarAccount]) throws {
+        let data: Data
+        do {
+            data = try JSONEncoder().encode(accounts)
+        } catch {
+            throw ConnectedAccountPersistenceError.encoding(.registrar, error)
+        }
+        do {
+            try writeKeychainData(data, account: registrarAccountsKey)
+        } catch let error as KeychainDataError {
+            throw error.persistenceError(for: .registrar)
+        }
     }
 
-    static func getRegistrarAccounts() -> [RegistrarAccount] {
-        guard let data = readKeychainData(account: registrarAccountsKey) else { return [] }
-        return (try? JSONDecoder().decode([RegistrarAccount].self, from: data)) ?? []
+    static func getRegistrarAccounts() throws -> [RegistrarAccount] {
+        let data: Data?
+        do {
+            data = try readKeychainDataWithStatus(account: registrarAccountsKey)
+        } catch let error as KeychainDataError {
+            throw error.persistenceError(for: .registrar)
+        }
+        guard let data else { return [] }
+        do {
+            return try JSONDecoder().decode([RegistrarAccount].self, from: data)
+        } catch {
+            throw ConnectedAccountPersistenceError.decoding(.registrar, error)
+        }
     }
 
     static func saveActiveRegistrarAccountID(_ id: UUID?) {
@@ -180,22 +186,20 @@ enum KeychainHelper {
         return Set(strings.compactMap(UUID.init(uuidString:)))
     }
 
-    static func deleteHostingAccounts() {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: accountsKey
-        ]
-        SecItemDelete(query as CFDictionary)
-        UserDefaults.standard.removeObject(forKey: activeAccountIdKey)
-        UserDefaults.standard.removeObject(forKey: longAnalyticsHistoryAccountIdsKey)
-    }
-
-    private static func saveKeychainData(_ data: Data, account: String) {
-        try? saveKeychainDataThrowing(data, account: account)
-    }
-
     private static func saveKeychainDataThrowing(_ data: Data, account: String) throws {
+        do {
+            try writeKeychainData(data, account: account)
+        } catch let error as KeychainDataError {
+            switch error {
+            case .read(let status):
+                throw SiteIntegrationAccountPersistenceError.keychainRead(status)
+            case .write(let status):
+                throw SiteIntegrationAccountPersistenceError.keychain(status)
+            }
+        }
+    }
+
+    private static func writeKeychainData(_ data: Data, account: String) throws {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -211,10 +215,10 @@ enum KeychainHelper {
             attributes.forEach { addQuery[$0.key] = $0.value }
             let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
             guard addStatus == errSecSuccess else {
-                throw SiteIntegrationAccountPersistenceError.keychain(addStatus)
+                throw KeychainDataError.write(addStatus)
             }
         } else if status != errSecSuccess {
-            throw SiteIntegrationAccountPersistenceError.keychain(status)
+            throw KeychainDataError.write(status)
         }
     }
 
@@ -232,6 +236,19 @@ enum KeychainHelper {
     }
 
     private static func readKeychainDataThrowing(account: String) throws -> Data? {
+        do {
+            return try readKeychainDataWithStatus(account: account)
+        } catch let error as KeychainDataError {
+            switch error {
+            case .read(let status):
+                throw SiteIntegrationAccountPersistenceError.keychainRead(status)
+            case .write(let status):
+                throw SiteIntegrationAccountPersistenceError.keychain(status)
+            }
+        }
+    }
+
+    private static func readKeychainDataWithStatus(account: String) throws -> Data? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -243,7 +260,7 @@ enum KeychainHelper {
         let status = SecItemCopyMatching(query as CFDictionary, &result)
         if status == errSecItemNotFound { return nil }
         guard status == errSecSuccess, let data = result as? Data else {
-            throw SiteIntegrationAccountPersistenceError.keychainRead(status)
+            throw KeychainDataError.read(status)
         }
         return data
     }
@@ -328,6 +345,58 @@ enum SiteIntegrationAccountPersistenceError: LocalizedError {
             } else {
                 "The connected Sites account could not be saved securely (Keychain error \(status))."
             }
+        }
+    }
+}
+
+enum ConnectedAccountPersistenceScope {
+    case hosting
+    case registrar
+
+    var displayName: String {
+        switch self {
+        case .hosting: "hosting"
+        case .registrar: "registrar"
+        }
+    }
+}
+
+enum ConnectedAccountPersistenceError: LocalizedError {
+    case encoding(ConnectedAccountPersistenceScope, Error)
+    case decoding(ConnectedAccountPersistenceScope, Error)
+    case keychainRead(ConnectedAccountPersistenceScope, OSStatus)
+    case keychainWrite(ConnectedAccountPersistenceScope, OSStatus)
+
+    var errorDescription: String? {
+        switch self {
+        case .encoding(let scope, _):
+            "The connected \(scope.displayName) account could not be encoded."
+        case .decoding(let scope, _):
+            "The connected \(scope.displayName) accounts could not be read securely. Your saved credentials were left unchanged."
+        case .keychainRead(let scope, let status):
+            if let message = SecCopyErrorMessageString(status, nil) as String? {
+                "The connected \(scope.displayName) accounts could not be read securely: \(message)"
+            } else {
+                "The connected \(scope.displayName) accounts could not be read securely (Keychain error \(status))."
+            }
+        case .keychainWrite(let scope, let status):
+            if let message = SecCopyErrorMessageString(status, nil) as String? {
+                "The connected \(scope.displayName) accounts could not be saved securely: \(message)"
+            } else {
+                "The connected \(scope.displayName) accounts could not be saved securely (Keychain error \(status))."
+            }
+        }
+    }
+}
+
+private enum KeychainDataError: Error {
+    case read(OSStatus)
+    case write(OSStatus)
+
+    func persistenceError(for scope: ConnectedAccountPersistenceScope) -> ConnectedAccountPersistenceError {
+        switch self {
+        case .read(let status): .keychainRead(scope, status)
+        case .write(let status): .keychainWrite(scope, status)
         }
     }
 }

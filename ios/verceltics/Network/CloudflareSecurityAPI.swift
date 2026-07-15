@@ -30,11 +30,19 @@ extension CloudflareAPI {
                 query: ["status": "all", "per_page": "50"],
                 category: category
             )
-            let custom = (try? await securityItems(
-                path: securityZonePath(zoneID) + "/custom_certificates",
-                query: ["per_page": "50"],
-                category: category
-            )) ?? []
+            let custom: [CloudflareSecurityItem]
+            do {
+                custom = try await securityItems(
+                    path: securityZonePath(zoneID) + "/custom_certificates",
+                    query: ["per_page": "50"],
+                    category: category
+                )
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                guard isOptionalProductUnavailable(error) else { throw error }
+                custom = []
+            }
             return edge + custom
         case .pageShield:
             return try await securityItems(
@@ -134,6 +142,7 @@ extension CloudflareAPI {
         var cursor: String?
         var seenCursors = Set<String>()
         var items: [CloudflareSecurityItem] = []
+        var paginationGuard = CloudflarePaginationGuard()
 
         while true {
             var requestQuery = query
@@ -145,10 +154,18 @@ extension CloudflareAPI {
 
             let response = try await securityResponse(path: path, query: requestQuery)
             let pageItems = securityItems(from: response.result, category: category, startIndex: items.count)
+            try paginationGuard.record(
+                batchCount: pageItems.count,
+                signature: pageItems.isEmpty ? nil : String(reflecting: pageItems).hashValue
+            )
             items.append(contentsOf: pageItems)
 
             if let after = response.resultInfo?.cursors?.after, !after.isEmpty {
-                guard seenCursors.insert(after).inserted else { break }
+                guard seenCursors.insert(after).inserted else {
+                    throw CloudflareAPIError.invalidRequest(
+                        "Cloudflare repeated a security pagination cursor, so loading stopped safely."
+                    )
+                }
                 cursor = after
                 continue
             }

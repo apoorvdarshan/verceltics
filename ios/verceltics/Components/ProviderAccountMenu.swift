@@ -112,12 +112,15 @@ struct ProviderAccountMenu: View {
                     Button {
                         authManager.switchAccount(to: account.id)
                     } label: {
-                        Label(
-                            account.name,
-                            systemImage: authManager.activeAccountId == account.id
-                                ? "checkmark.circle.fill"
-                                : provider.systemImage
-                        )
+                        Label {
+                            Text(account.name)
+                        } icon: {
+                            if authManager.activeAccountId == account.id {
+                                Image(systemName: "checkmark.circle.fill")
+                            } else {
+                                ProviderMark(provider: provider, size: 18)
+                            }
+                        }
                     }
                 }
             }

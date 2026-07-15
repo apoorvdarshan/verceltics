@@ -12,11 +12,13 @@ final class HostingDashboardViewModel {
     var isRefreshing = false
     var error: String?
     private var hasLoaded = false
+    private let cacheKey: String
 
     init(account: VercelAccount) {
         self.account = account
         self.api = HostingProviderAPI(account: account)
-        if let cached = Self.cachedResources[account.id.uuidString] {
+        cacheKey = CredentialCacheScope.hostingAccount(account)
+        if let cached = Self.cachedResources[cacheKey] {
             resources = cached
             isLoading = false
             hasLoaded = true
@@ -32,7 +34,7 @@ final class HostingDashboardViewModel {
                 $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
             }
             hasLoaded = true
-            Self.cachedResources[account.id.uuidString] = resources
+            Self.cachedResources[cacheKey] = resources
         } catch is CancellationError {
             // Switching tabs can cancel a request; keep any cached content.
         } catch {
@@ -53,6 +55,7 @@ struct HostingDashboardView: View {
     @State private var refreshSpin = 0.0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(AuthManager.self) private var authManager
 
     init(account: VercelAccount, startWithSearch: Bool = false) {
         self.account = account
@@ -119,6 +122,15 @@ struct HostingDashboardView: View {
         ScrollView {
             LazyVStack(spacing: 16) {
                 accountCard
+
+                if let error = authManager.error {
+                    AppFeedbackBanner(
+                        title: "Saved account change failed",
+                        message: error,
+                        icon: "lock.trianglebadge.exclamationmark.fill",
+                        tint: AppTheme.danger
+                    )
+                }
 
                 if let error = viewModel.error {
                     AppFeedbackBanner(
@@ -266,6 +278,8 @@ struct HostingDashboardView: View {
         }
         .padding(15)
         .appSurface()
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Open \(resource.name) details")
     }
 
     private func errorView(_ message: String) -> some View {
