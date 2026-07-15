@@ -36,7 +36,6 @@ private enum MainTabDestination: Hashable {
 struct MainTabView: View {
     @Environment(AppUpdateChecker.self) private var appUpdateChecker
     @Environment(AuthManager.self) private var authManager
-    @Environment(RegistrarStore.self) private var registrarStore
     @AppStorage(lastPrimaryWorkspaceKey) private var lastPrimaryWorkspace = PrimaryWorkspace.hosting.rawValue
     @State private var selectedTab: MainTabDestination
 
@@ -48,30 +47,17 @@ struct MainTabView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            if let provider = authManager.activeProvider {
-                Tab(provider.displayName, image: provider.logoAssetName, value: MainTabDestination.hosting) {
-                    providerHome()
-                        .id(authManager.activeAccountId)
-                }
-            } else {
-                Tab("Hosting", systemImage: "server.rack", value: MainTabDestination.hosting) {
-                    providerHome()
-                        .id(authManager.activeAccountId)
-                }
+            Tab("Hosting", systemImage: "server.rack", value: MainTabDestination.hosting) {
+                providerHome()
+                    .id(authManager.activeAccountId)
             }
 
             Tab(value: MainTabDestination.search, role: .search) {
                 searchHome()
             }
 
-            if let provider = registrarStore.activeAccount?.provider {
-                Tab(provider.displayName, image: provider.navigationLogoAssetName, value: MainTabDestination.registrars) {
-                    RegistrarsView()
-                }
-            } else {
-                Tab("Registrars", systemImage: "globe.americas.fill", value: MainTabDestination.registrars) {
-                    RegistrarsView()
-                }
+            Tab("Registrars", systemImage: "globe.americas.fill", value: MainTabDestination.registrars) {
+                RegistrarsView()
             }
 
             Tab("Sites", systemImage: "chart.xyaxis.line", value: MainTabDestination.sites) {
