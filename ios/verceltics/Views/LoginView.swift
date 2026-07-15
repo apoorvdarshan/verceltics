@@ -229,7 +229,12 @@ struct LoginView: View {
             updateSelection { selectedSiteProvider = provider }
         } label: {
             HStack(spacing: 13) {
-                AppIconTile(icon: provider.systemImage, tint: provider.accentColor, size: 34)
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(provider.accentColor.opacity(0.14))
+                    SiteProviderMark(provider: provider, size: 20)
+                }
+                .frame(width: 34, height: 34)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Connect \(provider.displayName)")

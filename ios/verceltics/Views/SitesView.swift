@@ -16,14 +16,25 @@ struct SitesView: View {
         store.accounts.compactMap { store.snapshot(for: $0.id) }
     }
 
+    private var sourcedResources: [SourcedSiteResource] {
+        store.accounts.flatMap { account -> [SourcedSiteResource] in
+            guard let snapshot = store.snapshot(for: account.id) else { return [] }
+            return snapshot.resources.map {
+                SourcedSiteResource(accountID: account.id, resource: $0)
+            }
+        }
+    }
+
     private var allResources: [SiteIntegrationResource] {
-        snapshots.flatMap(\.resources)
+        sourcedResources.map(\.resource)
     }
 
     private var sites: [AggregatedSite] {
-        let grouped = Dictionary(grouping: allResources, by: canonicalSiteKey)
-        return grouped.map { key, resources in
-            AggregatedSite(key: key, resources: resources)
+        let grouped = Dictionary(grouping: sourcedResources) {
+            canonicalSiteKey($0.resource)
+        }
+        return grouped.map { key, sources in
+            AggregatedSite(key: key, sources: sources)
         }
         .filter { site in
             searchText.isEmpty
@@ -40,6 +51,26 @@ struct SitesView: View {
     private var warningCount: Int {
         snapshots.reduce(0) { $0 + $1.warnings.count }
             + allResources.filter { resourceHasIssue($0) }.count
+            + refreshFailures.count
+    }
+
+    private var refreshFailures: [(account: SiteIntegrationAccount, message: String)] {
+        store.accounts.compactMap { account in
+            guard let message = store.refreshErrors[account.id], !message.isEmpty else { return nil }
+            return (account, message)
+        }
+        .sorted { $0.account.provider.displayName < $1.account.provider.displayName }
+    }
+
+    private var refreshFailureSummary: String {
+        var lines = refreshFailures.prefix(3).map {
+            "\($0.account.provider.displayName): \($0.message)"
+        }
+        let remaining = refreshFailures.count - lines.count
+        if remaining > 0 {
+            lines.append("And \(remaining) more \(remaining == 1 ? "service" : "services").")
+        }
+        return lines.joined(separator: "\n")
     }
 
     var body: some View {
@@ -93,14 +124,19 @@ struct SitesView: View {
             LazyVStack(spacing: 18) {
                 signalOverview
 
-                if let error = store.error {
+                if !refreshFailures.isEmpty {
                     AppFeedbackBanner(
-                        title: "Some site signals could not refresh",
-                        message: error,
+                        title: "\(refreshFailures.count) site \(refreshFailures.count == 1 ? "service" : "services") could not refresh",
+                        message: refreshFailureSummary,
                         actionTitle: "Try again"
                     ) {
                         refreshAll()
                     }
+                } else if let error = store.error, !error.isEmpty {
+                    AppFeedbackBanner(
+                        title: "A site service needs attention",
+                        message: error
+                    )
                 }
 
                 if !snapshotWarnings.isEmpty {
@@ -150,7 +186,7 @@ struct SitesView: View {
                     LazyVGrid(columns: siteColumns, spacing: 14) {
                         ForEach(sites) { site in
                             NavigationLink {
-                                AggregatedSiteDetailView(site: site)
+                                AggregatedSiteDetailView(siteKey: site.key)
                             } label: {
                                 siteCard(site)
                             }
@@ -168,14 +204,27 @@ struct SitesView: View {
     }
 
     private var emptyState: some View {
-        AppEmptyState(
-            icon: "chart.xyaxis.line",
-            title: "Connect your site signals",
-            message: "Bring search, traffic, performance, experience, and uptime into one site-level dashboard.",
-            actionTitle: "Connect a service"
-        ) {
-            showingConnection = true
+        VStack(spacing: 10) {
+            if let error = store.error, !error.isEmpty {
+                AppFeedbackBanner(
+                    title: "Saved site services need attention",
+                    message: error,
+                    icon: "lock.trianglebadge.exclamationmark.fill",
+                    tint: AppTheme.danger
+                )
+            }
+
+            AppEmptyState(
+                icon: "chart.xyaxis.line",
+                title: "Connect your site signals",
+                message: "Bring search, traffic, performance, experience, and uptime into one site-level dashboard.",
+                actionTitle: "Connect a service"
+            ) {
+                showingConnection = true
+            }
         }
+        .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
+        .appContentWidth(560, horizontalSizeClass: horizontalSizeClass)
     }
 
     private var signalOverview: some View {
@@ -186,7 +235,7 @@ struct SitesView: View {
                         .font(.caption2.weight(.semibold))
                         .tracking(1.3)
                         .foregroundStyle(AppTheme.textSecondary)
-                    Text("\(uniqueSiteCount.formatted()) \(uniqueSiteCount == 1 ? "site" : "sites") in view")
+                    Text("\(sites.count.formatted()) \(sites.count == 1 ? "site" : "sites") in view")
                         .font(.title2.weight(.semibold))
                         .foregroundStyle(AppTheme.textPrimary)
                     Text("Discovery, experience, and availability stay attached to the site—not the vendor.")
@@ -199,15 +248,33 @@ struct SitesView: View {
 
                 AppStatusBadge(
                     text: warningCount == 0 ? "Clear" : "\(warningCount) to review",
-                    tone: warningCount == 0 ? .success : .warning
+                    tone: warningCount == 0 ? .success : (refreshFailures.isEmpty ? .warning : .danger)
                 )
             }
 
             SignalCoverageRail(
                 rows: [
-                    .init(label: "Discovery", detail: discoveryDetail, tint: Color(red: 0.33, green: 0.62, blue: 1.0), active: hasDiscoverySignal),
-                    .init(label: "Experience", detail: experienceDetail, tint: Color(red: 0.62, green: 0.43, blue: 1.0), active: hasExperienceSignal),
-                    .init(label: "Availability", detail: availabilityDetail, tint: AppTheme.success, active: hasAvailabilitySignal),
+                    .init(
+                        label: "Discovery",
+                        detail: discoveryDetail,
+                        tint: Color(red: 0.33, green: 0.62, blue: 1.0),
+                        active: hasDiscoverySignal,
+                        hasIssue: discoveryRefreshFailureCount > 0
+                    ),
+                    .init(
+                        label: "Experience",
+                        detail: experienceDetail,
+                        tint: Color(red: 0.62, green: 0.43, blue: 1.0),
+                        active: hasExperienceSignal,
+                        hasIssue: experienceRefreshFailureCount > 0
+                    ),
+                    .init(
+                        label: "Availability",
+                        detail: availabilityDetail,
+                        tint: AppTheme.success,
+                        active: hasAvailabilitySignal,
+                        hasIssue: availabilityRefreshFailureCount > 0
+                    ),
                 ]
             )
         }
@@ -217,9 +284,10 @@ struct SitesView: View {
 
     private func serviceCard(_ account: SiteIntegrationAccount) -> some View {
         let snapshot = store.snapshot(for: account.id)
+        let status = siteServiceStatus(snapshot: snapshot, refreshError: store.refreshErrors[account.id])
         return VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 12) {
-                AppIconTile(icon: account.provider.systemImage, tint: account.provider.accentColor, size: 42)
+                SiteProviderIconTile(provider: account.provider, size: 42)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(account.provider.displayName)
                         .font(.headline)
@@ -232,8 +300,8 @@ struct SitesView: View {
                 }
                 Spacer(minLength: 6)
                 AppStatusBadge(
-                    text: snapshot == nil ? "Ready" : (snapshot?.status ?? "Connected"),
-                    tone: snapshot?.warnings.isEmpty == false ? .warning : .success
+                    text: status.text,
+                    tone: status.tone
                 )
             }
 
@@ -306,12 +374,7 @@ struct SitesView: View {
 
             HStack(spacing: 6) {
                 ForEach(Array(site.providers.prefix(4))) { provider in
-                    Image(systemName: provider.systemImage)
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(provider.accentColor)
-                        .frame(width: 25, height: 25)
-                        .background(provider.accentColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-                        .accessibilityLabel(provider.displayName)
+                    SiteProviderIconTile(provider: provider, size: 25)
                 }
                 if site.providers.count > 4 {
                     Text("+\(site.providers.count - 4)")
@@ -359,8 +422,6 @@ struct SitesView: View {
         snapshots.flatMap(\.warnings)
     }
 
-    private var uniqueSiteCount: Int { Set(allResources.map(canonicalSiteKey)).count }
-
     private var connectedProviders: Set<SiteIntegrationProvider> {
         Set(store.accounts.map(\.provider))
     }
@@ -377,9 +438,60 @@ struct SitesView: View {
         !connectedProviders.isDisjoint(with: [.pageSpeed, .uptimeRobot, .betterStack])
     }
 
-    private var discoveryDetail: String { hasDiscoverySignal ? "Search connected" : "Add search data" }
-    private var experienceDetail: String { hasExperienceSignal ? "Traffic connected" : "Add analytics" }
-    private var availabilityDetail: String { hasAvailabilitySignal ? "Health connected" : "Add performance" }
+    private var discoveryRefreshFailureCount: Int {
+        refreshFailureCount(for: [.googleSearchConsole, .bingWebmaster])
+    }
+
+    private var experienceRefreshFailureCount: Int {
+        refreshFailureCount(for: [.googleAnalytics, .clarity, .plausible, .umami])
+    }
+
+    private var availabilityRefreshFailureCount: Int {
+        refreshFailureCount(for: [.pageSpeed, .uptimeRobot, .betterStack])
+    }
+
+    private var discoveryDetail: String {
+        coverageDetail(
+            failureCount: discoveryRefreshFailureCount,
+            connected: hasDiscoverySignal,
+            connectedText: "Search connected",
+            missingText: "Add search data"
+        )
+    }
+
+    private var experienceDetail: String {
+        coverageDetail(
+            failureCount: experienceRefreshFailureCount,
+            connected: hasExperienceSignal,
+            connectedText: "Traffic connected",
+            missingText: "Add analytics"
+        )
+    }
+
+    private var availabilityDetail: String {
+        coverageDetail(
+            failureCount: availabilityRefreshFailureCount,
+            connected: hasAvailabilitySignal,
+            connectedText: "Health connected",
+            missingText: "Add performance"
+        )
+    }
+
+    private func refreshFailureCount(for providers: Set<SiteIntegrationProvider>) -> Int {
+        refreshFailures.count { providers.contains($0.account.provider) }
+    }
+
+    private func coverageDetail(
+        failureCount: Int,
+        connected: Bool,
+        connectedText: String,
+        missingText: String
+    ) -> String {
+        if failureCount > 0 {
+            return "\(failureCount) refresh \(failureCount == 1 ? "failed" : "failures")"
+        }
+        return connected ? connectedText : missingText
+    }
 
     private func refreshAll() {
         if !reduceMotion {
@@ -389,31 +501,39 @@ struct SitesView: View {
     }
 
     private func loadAll(force: Bool) async {
-        for account in store.accounts {
-            await store.refresh(accountID: account.id, force: force)
-        }
-    }
-
-    private func canonicalSiteKey(_ resource: SiteIntegrationResource) -> String {
-        if let host = resource.url?.host?.lowercased() {
-            return host.removingPrefix("www.")
-        }
-        for key in ["domain", "siteURL", "url"] {
-            if let raw = resource.metadata[key],
-               let host = URL(string: raw)?.host?.lowercased() {
-                return host.removingPrefix("www.")
-            }
-        }
-        let name = resource.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if name.contains("."), !name.contains(" ") {
-            return name.removingPrefix("www.")
-        }
-        return "\(resource.provider.rawValue):\(resource.id)"
+        await refreshSiteAccounts(
+            store,
+            accountIDs: store.accounts.map(\.id),
+            force: force
+        )
     }
 
     private func resourceHasIssue(_ resource: SiteIntegrationResource) -> Bool {
-        guard let status = resource.status?.lowercased() else { return false }
-        return ["down", "error", "failed", "failing", "offline", "paused", "poor"].contains { status.contains($0) }
+        guard let status = resource.status else { return false }
+        switch statusTone(status) {
+        case .warning, .danger:
+            return true
+        case .success, .progress, .neutral:
+            return false
+        }
+    }
+}
+
+private struct SiteProviderIconTile: View {
+    let provider: SiteIntegrationProvider
+    var size: CGFloat
+
+    var body: some View {
+        SiteProviderMark(provider: provider, size: size * 0.52)
+            .frame(width: size, height: size)
+            .background(provider.accentColor.opacity(0.105))
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppTheme.iconRadius, style: .continuous)
+                    .strokeBorder(provider.accentColor.opacity(0.12), lineWidth: 0.5)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(provider.displayName)
     }
 }
 
@@ -423,51 +543,116 @@ private struct SignalCoverageRail: View {
         let detail: String
         let tint: Color
         let active: Bool
+        let hasIssue: Bool
         var id: String { label }
+
+        init(label: String, detail: String, tint: Color, active: Bool, hasIssue: Bool = false) {
+            self.label = label
+            self.detail = detail
+            self.tint = tint
+            self.active = active
+            self.hasIssue = hasIssue
+        }
+
+        var effectiveTint: Color {
+            hasIssue ? AppTheme.danger : tint
+        }
     }
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let rows: [Row]
 
     var body: some View {
         VStack(spacing: 10) {
             ForEach(rows) { row in
-                HStack(spacing: 10) {
-                    Circle()
-                        .fill(row.active ? row.tint : AppTheme.surfaceRaised)
-                        .frame(width: 7, height: 7)
-
-                    Text(row.label)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(AppTheme.textPrimary)
-                        .frame(width: 78, alignment: .leading)
-
-                    GeometryReader { geometry in
-                        ZStack(alignment: .leading) {
-                            Capsule().fill(AppTheme.surfaceRaised)
-                            Capsule()
-                                .fill(row.tint.opacity(row.active ? 0.9 : 0.12))
-                                .frame(width: geometry.size.width * (row.active ? 1 : 0.16))
-                        }
-                    }
-                    .frame(height: 3)
-
-                    Text(row.detail)
-                        .font(.caption2)
-                        .foregroundStyle(row.active ? AppTheme.textSecondary : AppTheme.textTertiary)
-                        .frame(width: 102, alignment: .trailing)
-                        .lineLimit(1)
-                }
+                coverageRow(row)
             }
         }
         .accessibilityElement(children: .combine)
     }
+
+    @ViewBuilder
+    private func coverageRow(_ row: Row) -> some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(spacing: 10) {
+                    statusDot(row)
+                    Text(row.label)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AppTheme.textPrimary)
+                }
+
+                Text(row.detail)
+                    .font(.caption)
+                    .foregroundStyle(detailColor(row))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.leading, 17)
+
+                coverageTrack(row)
+                    .padding(.leading, 17)
+            }
+        } else {
+            HStack(spacing: 10) {
+                statusDot(row)
+
+                Text(row.label)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                    .lineLimit(1)
+                    .layoutPriority(2)
+
+                coverageTrack(row)
+
+                Text(row.detail)
+                    .font(.caption2)
+                    .foregroundStyle(detailColor(row))
+                    .lineLimit(1)
+                    .multilineTextAlignment(.trailing)
+                    .layoutPriority(1)
+            }
+        }
+    }
+
+    private func statusDot(_ row: Row) -> some View {
+        Circle()
+            .fill(row.active || row.hasIssue ? row.effectiveTint : AppTheme.surfaceRaised)
+            .frame(width: 7, height: 7)
+    }
+
+    private func coverageTrack(_ row: Row) -> some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                Capsule().fill(AppTheme.surfaceRaised)
+                Capsule()
+                    .fill(row.effectiveTint.opacity(row.active || row.hasIssue ? 0.9 : 0.12))
+                    .frame(width: geometry.size.width * (row.active || row.hasIssue ? 1 : 0.16))
+            }
+        }
+        .frame(minWidth: 28, maxWidth: .infinity)
+        .frame(height: 3)
+    }
+
+    private func detailColor(_ row: Row) -> Color {
+        if row.hasIssue { return AppTheme.danger }
+        return row.active ? AppTheme.textSecondary : AppTheme.textTertiary
+    }
 }
 
-struct AggregatedSite: Identifiable {
+private struct SourcedSiteResource: Identifiable {
+    let accountID: UUID
+    let resource: SiteIntegrationResource
+
+    var id: String {
+        "\(accountID.uuidString)|\(resource.provider.rawValue)|\(resource.id)"
+    }
+}
+
+private struct AggregatedSite: Identifiable {
     let key: String
-    let resources: [SiteIntegrationResource]
+    let sources: [SourcedSiteResource]
 
     var id: String { key }
+    var resources: [SiteIntegrationResource] { sources.map(\.resource) }
     var name: String {
         if !key.contains(":") { return key }
         return resources.first?.name ?? "Site"
@@ -495,6 +680,7 @@ private struct SiteServiceDetailView: View {
         store.accounts.first { $0.id == accountID }
     }
     private var snapshot: SiteIntegrationSnapshot? { store.snapshot(for: accountID) }
+    private var refreshError: String? { store.refreshErrors[accountID] }
 
     var body: some View {
         ZStack {
@@ -503,24 +689,42 @@ private struct SiteServiceDetailView: View {
                 LazyVStack(spacing: 16) {
                     if let account {
                         sourceHeader(account)
-                    }
 
-                    if let snapshot {
-                        if !snapshot.metrics.isEmpty {
-                            AppSectionHeader(title: "Account metrics", count: snapshot.metrics.count)
-                            LazyVGrid(columns: metricColumns, spacing: 10) {
-                                ForEach(snapshot.metrics) { metric in
-                                    metricCard(metric)
-                                }
+                        if let refreshError {
+                            AppFeedbackBanner(
+                                title: snapshot == nil ? "Could not load this service" : "Showing saved data",
+                                message: refreshError,
+                                tint: AppTheme.danger,
+                                actionTitle: "Try again"
+                            ) {
+                                Task { await store.refresh(accountID: accountID, force: true) }
                             }
                         }
 
-                        AppSectionHeader(title: "Properties", count: snapshot.resources.count)
-                        ForEach(snapshot.resources) { resource in
-                            resourceCard(resource)
+                        if let snapshot {
+                            if !snapshot.metrics.isEmpty {
+                                AppSectionHeader(title: "Account metrics", count: snapshot.metrics.count)
+                                LazyVGrid(columns: metricColumns, spacing: 10) {
+                                    ForEach(snapshot.metrics) { metric in
+                                        metricCard(metric)
+                                    }
+                                }
+                            }
+
+                            AppSectionHeader(title: "Properties", count: snapshot.resources.count)
+                            ForEach(snapshot.resources) { resource in
+                                resourceCard(resource)
+                            }
+                        } else if refreshError == nil {
+                            AppDashboardLoadingView(accent: account.provider.accentColor)
                         }
                     } else {
-                        AppDashboardLoadingView(accent: account?.provider.accentColor ?? AppTheme.signal)
+                        AppFeedbackBanner(
+                            title: "This service is no longer connected",
+                            message: "Return to Sites to choose another connected service.",
+                            icon: "link.badge.plus",
+                            tint: AppTheme.textSecondary
+                        )
                     }
                 }
                 .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
@@ -537,8 +741,9 @@ private struct SiteServiceDetailView: View {
     }
 
     private func sourceHeader(_ account: SiteIntegrationAccount) -> some View {
-        HStack(spacing: 13) {
-            AppIconTile(icon: account.provider.systemImage, tint: account.provider.accentColor, size: 52)
+        let status = siteServiceStatus(snapshot: snapshot, refreshError: refreshError)
+        return HStack(spacing: 13) {
+            SiteProviderIconTile(provider: account.provider, size: 52)
             VStack(alignment: .leading, spacing: 4) {
                 Text(account.name)
                     .font(.headline)
@@ -549,7 +754,7 @@ private struct SiteServiceDetailView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 8)
-            AppStatusBadge(text: snapshot?.status ?? "Connected", tone: snapshot?.warnings.isEmpty == false ? .warning : .success)
+            AppStatusBadge(text: status.text, tone: status.tone)
         }
         .padding(18)
         .providerSurface(accent: account.provider.accentColor)
@@ -577,7 +782,7 @@ private struct SiteServiceDetailView: View {
     private func resourceCard(_ resource: SiteIntegrationResource) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                AppIconTile(icon: resource.provider.systemImage, tint: resource.provider.accentColor, size: 38)
+                SiteProviderIconTile(provider: resource.provider, size: 38)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(resource.name)
                         .font(.subheadline.weight(.semibold))
@@ -628,8 +833,47 @@ private struct SiteServiceDetailView: View {
 }
 
 private struct AggregatedSiteDetailView: View {
-    let site: AggregatedSite
+    @Environment(SiteStore.self) private var store
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    let siteKey: String
+
+    private var site: AggregatedSite {
+        AggregatedSite(key: siteKey, sources: currentSources)
+    }
+
+    private var currentSources: [SourcedSiteResource] {
+        store.accounts.flatMap { account -> [SourcedSiteResource] in
+            guard let snapshot = store.snapshot(for: account.id) else { return [] }
+            return snapshot.resources.compactMap { resource in
+                guard canonicalSiteKey(resource) == siteKey else { return nil }
+                return SourcedSiteResource(accountID: account.id, resource: resource)
+            }
+        }
+    }
+
+    private var sourceAccountIDs: [UUID] {
+        currentSources.map(\.accountID).uniqued()
+    }
+
+    private var sourceRefreshFailures: [(provider: SiteIntegrationProvider, message: String)] {
+        let accountIDs = Set(sourceAccountIDs)
+        return store.accounts.compactMap { account -> (provider: SiteIntegrationProvider, message: String)? in
+            guard accountIDs.contains(account.id),
+                  let message = store.refreshErrors[account.id] else { return nil }
+            return (account.provider, message)
+        }
+    }
+
+    private var sourceRefreshFailureSummary: String {
+        var lines = sourceRefreshFailures.prefix(3).map {
+            "\($0.provider.displayName): \($0.message)"
+        }
+        let remaining = sourceRefreshFailures.count - lines.count
+        if remaining > 0 {
+            lines.append("And \(remaining) more \(remaining == 1 ? "source" : "sources").")
+        }
+        return lines.joined(separator: "\n")
+    }
 
     var body: some View {
         ZStack {
@@ -654,40 +898,62 @@ private struct AggregatedSiteDetailView: View {
                     .padding(18)
                     .providerSurface(accent: site.accentColor)
 
-                    AppSectionHeader(title: "Connected sources", count: site.resources.count)
-                    ForEach(site.resources) { resource in
-                        VStack(alignment: .leading, spacing: 10) {
-                            HStack(spacing: 11) {
-                                AppIconTile(icon: resource.provider.systemImage, tint: resource.provider.accentColor, size: 38)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(resource.provider.displayName)
-                                        .font(.subheadline.weight(.semibold))
-                                    Text(resource.status ?? resource.subtitle ?? "Connected")
-                                        .font(.footnote)
-                                        .foregroundStyle(AppTheme.textSecondary)
+                    if !sourceRefreshFailures.isEmpty {
+                        AppFeedbackBanner(
+                            title: "Some source data is saved",
+                            message: sourceRefreshFailureSummary,
+                            tint: AppTheme.danger,
+                            actionTitle: "Try again"
+                        ) {
+                            refreshSources()
+                        }
+                    }
+
+                    if site.resources.isEmpty {
+                        AppFeedbackBanner(
+                            title: "This site is no longer available",
+                            message: "Its connected sources were removed or no longer return this site.",
+                            icon: "network.slash",
+                            tint: AppTheme.textSecondary
+                        )
+                    } else {
+                        AppSectionHeader(title: "Connected sources", count: site.resources.count)
+                        ForEach(site.sources) { source in
+                            let resource = source.resource
+                            VStack(alignment: .leading, spacing: 10) {
+                                HStack(spacing: 11) {
+                                    SiteProviderIconTile(provider: resource.provider, size: 38)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(resource.provider.displayName)
+                                            .font(.subheadline.weight(.semibold))
+                                        Text(resource.status ?? resource.subtitle ?? "Connected")
+                                            .font(.footnote)
+                                            .foregroundStyle(AppTheme.textSecondary)
+                                    }
+                                    Spacer()
                                 }
-                                Spacer()
-                            }
-                            if !resource.metrics.isEmpty {
-                                LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), spacing: 8)], spacing: 8) {
-                                    ForEach(resource.metrics.prefix(8)) { metric in
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text(format(metric))
-                                                .font(.caption.weight(.semibold).monospacedDigit())
-                                            Text(metric.label)
-                                                .font(.caption2)
-                                                .foregroundStyle(AppTheme.textTertiary)
-                                                .lineLimit(1)
+
+                                if !resource.metrics.isEmpty {
+                                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), spacing: 8)], spacing: 8) {
+                                        ForEach(resource.metrics.prefix(8)) { metric in
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(format(metric))
+                                                    .font(.caption.weight(.semibold).monospacedDigit())
+                                                Text(metric.label)
+                                                    .font(.caption2)
+                                                    .foregroundStyle(AppTheme.textTertiary)
+                                                    .lineLimit(1)
+                                            }
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                            .padding(9)
+                                            .background(AppTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
                                         }
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .padding(9)
-                                        .background(AppTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
                                     }
                                 }
                             }
+                            .padding(15)
+                            .appSurface()
                         }
-                        .padding(15)
-                        .appSurface()
                     }
                 }
                 .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
@@ -699,6 +965,9 @@ private struct AggregatedSiteDetailView: View {
         .navigationTitle(site.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
+        .refreshable {
+            await refreshSiteAccounts(store, accountIDs: sourceAccountIDs, force: true)
+        }
     }
 
     private var siteCoverageRows: [SignalCoverageRail.Row] {
@@ -712,6 +981,77 @@ private struct AggregatedSiteDetailView: View {
             .init(label: "Availability", detail: availability ? "Connected" : "Not connected", tint: AppTheme.success, active: availability),
         ]
     }
+
+    private func refreshSources() {
+        let accountIDs = sourceAccountIDs
+        Task {
+            await refreshSiteAccounts(store, accountIDs: accountIDs, force: true)
+        }
+    }
+}
+
+private struct SiteServiceStatusPresentation {
+    let text: String
+    let tone: AppStatusTone
+}
+
+private func siteServiceStatus(
+    snapshot: SiteIntegrationSnapshot?,
+    refreshError: String?
+) -> SiteServiceStatusPresentation {
+    if refreshError != nil {
+        return SiteServiceStatusPresentation(text: "Refresh failed", tone: .danger)
+    }
+    guard let snapshot else {
+        return SiteServiceStatusPresentation(text: "Loading", tone: .progress)
+    }
+    if let status = snapshot.status, !status.isEmpty {
+        let tone = statusTone(status)
+        if case .danger = tone {
+            return SiteServiceStatusPresentation(text: status, tone: tone)
+        }
+        if !snapshot.warnings.isEmpty {
+            return SiteServiceStatusPresentation(text: "Needs review", tone: .warning)
+        }
+        return SiteServiceStatusPresentation(text: status, tone: tone)
+    }
+    if !snapshot.warnings.isEmpty {
+        return SiteServiceStatusPresentation(text: "Needs review", tone: .warning)
+    }
+    return SiteServiceStatusPresentation(text: "Connected", tone: .success)
+}
+
+@MainActor
+private func refreshSiteAccounts(
+    _ store: SiteStore,
+    accountIDs: [UUID],
+    force: Bool
+) async {
+    await withTaskGroup(of: Void.self) { group in
+        for accountID in accountIDs {
+            group.addTask { @MainActor in
+                await store.refresh(accountID: accountID, force: force)
+            }
+        }
+        await group.waitForAll()
+    }
+}
+
+private func canonicalSiteKey(_ resource: SiteIntegrationResource) -> String {
+    if let host = resource.url?.host?.lowercased() {
+        return host.removingPrefix("www.")
+    }
+    for key in ["domain", "siteURL", "url"] {
+        if let raw = resource.metadata[key],
+           let host = URL(string: raw)?.host?.lowercased() {
+            return host.removingPrefix("www.")
+        }
+    }
+    let name = resource.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    if name.contains("."), !name.contains(" ") {
+        return name.removingPrefix("www.")
+    }
+    return "\(resource.provider.rawValue):\(resource.id)"
 }
 
 private func format(_ metric: SiteIntegrationMetric) -> String {
@@ -741,13 +1081,28 @@ private func format(_ metric: SiteIntegrationMetric) -> String {
 
 private func statusTone(_ status: String) -> AppStatusTone {
     let value = status.lowercased()
-    if ["down", "error", "failed", "offline", "poor"].contains(where: value.contains) { return .danger }
-    if ["paused", "warning", "pending", "unknown"].contains(where: value.contains) { return .warning }
-    if ["up", "active", "verified", "connected", "good", "ok"].contains(where: value.contains) { return .success }
+    if ["down", "error", "fail", "offline", "poor", "expired", "blocked", "disabled", "inactive", "unhealthy"].contains(where: value.contains) {
+        return .danger
+    }
+    if ["paused", "warning", "pending", "unknown", "degraded", "attention", "needs work", "not checked", "not ready", "not connected", "not verified", "unverified", "not ok"].contains(where: value.contains) {
+        return .warning
+    }
+    if ["refreshing", "loading", "checking", "progress", "initializing"].contains(where: value.contains) {
+        return .progress
+    }
+    if value.containsStatusWord("up")
+        || ["active", "verified", "connected", "good", "healthy", "operational", "ok", "clear"].contains(where: value.contains) {
+        return .success
+    }
     return .neutral
 }
 
 private extension String {
+    func containsStatusWord(_ word: String) -> Bool {
+        split { !$0.isLetter && !$0.isNumber }
+            .contains { $0 == Substring(word) }
+    }
+
     func removingPrefix(_ prefix: String) -> String {
         hasPrefix(prefix) ? String(dropFirst(prefix.count)) : self
     }

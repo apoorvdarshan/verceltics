@@ -1,12 +1,6 @@
 import Foundation
 
 private final class ProviderRedirectGuard: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
-    let allowedHosts: Set<String>
-
-    init(allowedHosts: Set<String>) {
-        self.allowedHosts = allowedHosts
-    }
-
     func urlSession(
         _ session: URLSession,
         task: URLSessionTask,
@@ -14,9 +8,13 @@ private final class ProviderRedirectGuard: NSObject, URLSessionTaskDelegate, @un
         newRequest request: URLRequest,
         completionHandler: @escaping (URLRequest?) -> Void
     ) {
-        guard request.url?.scheme == "https",
-              let host = request.url?.host?.lowercased(),
-              allowedHosts.contains(host) else {
+        guard let originalURL = task.originalRequest?.url,
+              let redirectURL = request.url,
+              redirectURL.scheme?.lowercased() == "https",
+              redirectURL.host?.lowercased() == originalURL.host?.lowercased(),
+              (redirectURL.port ?? 443) == (originalURL.port ?? 443),
+              redirectURL.user == nil,
+              redirectURL.password == nil else {
             completionHandler(nil)
             return
         }
@@ -25,22 +23,29 @@ private final class ProviderRedirectGuard: NSObject, URLSessionTaskDelegate, @un
 }
 
 enum ProviderRequestSecurity {
-    static func data(for request: URLRequest) async throws -> (Data, URLResponse) {
-        guard request.url?.scheme == "https",
-              let host = request.url?.host?.lowercased() else {
-            throw URLError(.badURL)
-        }
+    private static let redirectGuard = ProviderRedirectGuard()
+    private static let session: URLSession = {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.urlCache = nil
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
         configuration.httpCookieStorage = nil
         configuration.httpShouldSetCookies = false
-        let session = URLSession(
+        configuration.timeoutIntervalForRequest = 30
+        configuration.timeoutIntervalForResource = 60
+        return URLSession(
             configuration: configuration,
-            delegate: ProviderRedirectGuard(allowedHosts: [host]),
+            delegate: redirectGuard,
             delegateQueue: nil
         )
-        defer { session.finishTasksAndInvalidate() }
+    }()
+
+    static func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        guard request.url?.scheme?.lowercased() == "https",
+              request.url?.host != nil,
+              request.url?.user == nil,
+              request.url?.password == nil else {
+            throw URLError(.badURL)
+        }
         return try await session.data(for: request)
     }
 

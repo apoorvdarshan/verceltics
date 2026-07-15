@@ -77,24 +77,72 @@ enum KeychainHelper {
         return UUID(uuidString: value)
     }
 
-    static func saveSiteIntegrationAccounts(_ accounts: [SiteIntegrationAccount]) {
-        guard let data = try? JSONEncoder().encode(accounts) else { return }
-        saveKeychainData(data, account: siteIntegrationAccountsKey)
+    static func saveSiteIntegrationAccounts(_ accounts: [SiteIntegrationAccount]) throws {
+        let data: Data
+        do {
+            data = try JSONEncoder().encode(accounts)
+        } catch {
+            throw SiteIntegrationAccountPersistenceError.encoding(error)
+        }
+        try saveKeychainDataThrowing(data, account: siteIntegrationAccountsKey)
     }
 
-    static func getSiteIntegrationAccounts() -> [SiteIntegrationAccount] {
-        guard let data = readKeychainData(account: siteIntegrationAccountsKey) else { return [] }
-        return (try? JSONDecoder().decode([SiteIntegrationAccount].self, from: data)) ?? []
+    static func getSiteIntegrationAccounts() throws -> [SiteIntegrationAccount] {
+        guard let data = try readKeychainDataThrowing(account: siteIntegrationAccountsKey) else { return [] }
+        do {
+            return try JSONDecoder().decode([SiteIntegrationAccount].self, from: data)
+        } catch {
+            throw SiteIntegrationAccountPersistenceError.decoding(error)
+        }
     }
 
-    static func saveSiteIntegrationSnapshots(_ snapshots: [SiteIntegrationSnapshot]) {
-        guard let data = try? JSONEncoder().encode(snapshots) else { return }
-        saveKeychainData(data, account: siteIntegrationSnapshotsKey)
+    static func saveSiteIntegrationSnapshots(_ snapshots: [SiteIntegrationSnapshot]) throws {
+        let data: Data
+        do {
+            data = try JSONEncoder().encode(snapshots)
+        } catch {
+            throw SiteIntegrationSnapshotCacheError.encoding(error)
+        }
+        let fileURL = try siteIntegrationSnapshotsFileURL()
+        do {
+            try data.write(to: fileURL, options: .atomic)
+            try FileManager.default.setAttributes(
+                [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
+                ofItemAtPath: fileURL.path
+            )
+            var resourceValues = URLResourceValues()
+            resourceValues.isExcludedFromBackup = true
+            var protectedFileURL = fileURL
+            try protectedFileURL.setResourceValues(resourceValues)
+        } catch {
+            throw SiteIntegrationSnapshotCacheError.writing(error)
+        }
     }
 
-    static func getSiteIntegrationSnapshots() -> [SiteIntegrationSnapshot] {
-        guard let data = readKeychainData(account: siteIntegrationSnapshotsKey) else { return [] }
-        return (try? JSONDecoder().decode([SiteIntegrationSnapshot].self, from: data)) ?? []
+    static func getSiteIntegrationSnapshots() throws -> [SiteIntegrationSnapshot] {
+        let fileURL = try siteIntegrationSnapshotsFileURL()
+        if FileManager.default.fileExists(atPath: fileURL.path) {
+            do {
+                let data = try Data(contentsOf: fileURL)
+                return try JSONDecoder().decode([SiteIntegrationSnapshot].self, from: data)
+            } catch {
+                throw SiteIntegrationSnapshotCacheError.reading(error)
+            }
+        }
+
+        // Versions before the file-backed cache kept every non-secret snapshot in one
+        // Keychain value. Migrate it once, deleting the legacy value only after the
+        // protected file has been written successfully.
+        guard let legacyData = readKeychainData(account: siteIntegrationSnapshotsKey) else { return [] }
+        let snapshots: [SiteIntegrationSnapshot]
+        do {
+            snapshots = try JSONDecoder().decode([SiteIntegrationSnapshot].self, from: legacyData)
+        } catch {
+            throw SiteIntegrationSnapshotCacheError.reading(error)
+        }
+        try saveSiteIntegrationSnapshots(snapshots)
+        deleteKeychainData(account: siteIntegrationSnapshotsKey)
+        return snapshots
     }
 
     static func saveActiveSiteIntegrationAccountID(_ id: UUID?) {
@@ -144,6 +192,10 @@ enum KeychainHelper {
     }
 
     private static func saveKeychainData(_ data: Data, account: String) {
+        try? saveKeychainDataThrowing(data, account: account)
+    }
+
+    private static func saveKeychainDataThrowing(_ data: Data, account: String) throws {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -157,7 +209,12 @@ enum KeychainHelper {
         if status == errSecItemNotFound {
             var addQuery = query
             attributes.forEach { addQuery[$0.key] = $0.value }
-            SecItemAdd(addQuery as CFDictionary, nil)
+            let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+            guard addStatus == errSecSuccess else {
+                throw SiteIntegrationAccountPersistenceError.keychain(addStatus)
+            }
+        } else if status != errSecSuccess {
+            throw SiteIntegrationAccountPersistenceError.keychain(status)
         }
     }
 
@@ -172,5 +229,105 @@ enum KeychainHelper {
         var result: AnyObject?
         guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess else { return nil }
         return result as? Data
+    }
+
+    private static func readKeychainDataThrowing(account: String) throws -> Data? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        if status == errSecItemNotFound { return nil }
+        guard status == errSecSuccess, let data = result as? Data else {
+            throw SiteIntegrationAccountPersistenceError.keychainRead(status)
+        }
+        return data
+    }
+
+    private static func deleteKeychainData(account: String) {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account
+        ]
+        SecItemDelete(query as CFDictionary)
+    }
+
+    private static func siteIntegrationSnapshotsFileURL() throws -> URL {
+        guard let applicationSupport = FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        ).first else {
+            throw SiteIntegrationSnapshotCacheError.applicationSupportUnavailable
+        }
+        let directory = applicationSupport
+            .appendingPathComponent("Verceltics", isDirectory: true)
+            .appendingPathComponent("SiteCache", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(
+                at: directory,
+                withIntermediateDirectories: true,
+                attributes: [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication]
+            )
+            var resourceValues = URLResourceValues()
+            resourceValues.isExcludedFromBackup = true
+            var protectedDirectory = directory
+            try protectedDirectory.setResourceValues(resourceValues)
+        } catch {
+            throw SiteIntegrationSnapshotCacheError.writing(error)
+        }
+        return directory.appendingPathComponent("site-integration-snapshots.json", isDirectory: false)
+    }
+}
+
+enum SiteIntegrationSnapshotCacheError: LocalizedError {
+    case applicationSupportUnavailable
+    case encoding(Error)
+    case reading(Error)
+    case writing(Error)
+
+    var errorDescription: String? {
+        switch self {
+        case .applicationSupportUnavailable:
+            "The device cache directory is unavailable."
+        case .encoding:
+            "The Sites dashboard cache could not be encoded."
+        case .reading:
+            "The Sites dashboard cache could not be read."
+        case .writing:
+            "The Sites dashboard cache could not be saved."
+        }
+    }
+}
+
+enum SiteIntegrationAccountPersistenceError: LocalizedError {
+    case encoding(Error)
+    case decoding(Error)
+    case keychainRead(OSStatus)
+    case keychain(OSStatus)
+
+    var errorDescription: String? {
+        switch self {
+        case .encoding:
+            "The connected Sites account could not be encoded."
+        case .decoding:
+            "The connected Sites accounts could not be read securely. Your saved credentials were left unchanged."
+        case .keychainRead(let status):
+            if let message = SecCopyErrorMessageString(status, nil) as String? {
+                "The connected Sites accounts could not be read securely: \(message)"
+            } else {
+                "The connected Sites accounts could not be read securely (Keychain error \(status))."
+            }
+        case .keychain(let status):
+            if let message = SecCopyErrorMessageString(status, nil) as String? {
+                "The connected Sites account could not be saved securely: \(message)"
+            } else {
+                "The connected Sites account could not be saved securely (Keychain error \(status))."
+            }
+        }
     }
 }

@@ -1,0 +1,15 @@
+{
+  "images" : [
+    {
+      "filename" : "BetterStackMark.svg",
+      "idiom" : "universal"
+    }
+  ],
+  "properties" : {
+    "template-rendering-intent" : "template"
+  },
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

@@ -28,6 +28,27 @@ enum SiteIntegrationProvider: String, Codable, CaseIterable, Hashable, Identifia
         }
     }
 
+    var logoAssetName: String {
+        switch self {
+        case .googleSearchConsole: "GoogleSearchConsoleMark"
+        case .googleAnalytics: "GoogleAnalyticsMark"
+        case .pageSpeed: "PageSpeedMark"
+        case .bingWebmaster: "BingWebmasterMark"
+        case .clarity: "MicrosoftClarityMark"
+        case .plausible: "PlausibleMark"
+        case .umami: "UmamiMark"
+        case .uptimeRobot: "UptimeRobotMark"
+        case .betterStack: "BetterStackMark"
+        }
+    }
+
+    var logoNeedsTint: Bool {
+        switch self {
+        case .bingWebmaster, .umami, .betterStack: true
+        case .googleSearchConsole, .googleAnalytics, .pageSpeed, .clarity, .plausible, .uptimeRobot: false
+        }
+    }
+
     var connectionSubtitle: String {
         switch self {
         case .googleSearchConsole: "Search performance, indexing, sitemaps and URL inspection"
@@ -91,11 +112,27 @@ enum SiteIntegrationProvider: String, Codable, CaseIterable, Hashable, Identifia
         return URL(string: value)
     }
 
-    var isOAuthPending: Bool {
+    var usesOAuth: Bool {
         switch self {
         case .googleSearchConsole, .googleAnalytics: true
         case .pageSpeed, .bingWebmaster, .clarity, .plausible, .umami, .uptimeRobot, .betterStack: false
         }
+    }
+}
+
+struct SiteProviderMark: View {
+    let provider: SiteIntegrationProvider
+    var size: CGFloat = 22
+    var monochrome = false
+
+    var body: some View {
+        Image(provider.logoAssetName)
+            .resizable()
+            .renderingMode(monochrome || provider.logoNeedsTint ? .template : .original)
+            .scaledToFit()
+            .foregroundStyle(monochrome ? Color.white : provider.accentColor)
+            .frame(width: size, height: size)
+            .accessibilityHidden(true)
     }
 }
 

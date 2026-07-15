@@ -124,6 +124,15 @@ enum GoogleOAuthError: LocalizedError, Equatable {
 }
 
 @MainActor
+private final class GoogleOAuthSessionBox {
+    weak var session: ASWebAuthenticationSession?
+
+    func cancel() {
+        session?.cancel()
+    }
+}
+
+@MainActor
 final class GoogleOAuthService: NSObject, ASWebAuthenticationPresentationContextProviding {
     static let shared = GoogleOAuthService()
 
@@ -245,29 +254,45 @@ final class GoogleOAuthService: NSObject, ASWebAuthenticationPresentationContext
     }
 
     private func startAuthorization(url: URL, callbackScheme: String) async throws -> URL {
-        try await withCheckedThrowingContinuation { continuation in
-            let session = ASWebAuthenticationSession(url: url, callbackURLScheme: callbackScheme) { [weak self] callbackURL, error in
-                Task { @MainActor in
-                    self?.activeSession = nil
-                    if let authenticationError = error as? ASWebAuthenticationSessionError,
-                       authenticationError.code == .canceledLogin {
-                        continuation.resume(throwing: GoogleOAuthError.authorizationCancelled)
-                    } else if let error {
-                        continuation.resume(throwing: error)
-                    } else if let callbackURL {
-                        continuation.resume(returning: callbackURL)
-                    } else {
-                        continuation.resume(throwing: GoogleOAuthError.invalidAuthorizationResponse)
+        try Task.checkCancellation()
+        let sessionBox = GoogleOAuthSessionBox()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                let session = ASWebAuthenticationSession(url: url, callbackURLScheme: callbackScheme) { [weak self] callbackURL, error in
+                    Task { @MainActor in
+                        if let completedSession = sessionBox.session,
+                           self?.activeSession === completedSession {
+                            self?.activeSession = nil
+                        }
+                        sessionBox.session = nil
+                        if let authenticationError = error as? ASWebAuthenticationSessionError,
+                           authenticationError.code == .canceledLogin {
+                            continuation.resume(throwing: GoogleOAuthError.authorizationCancelled)
+                        } else if let error {
+                            continuation.resume(throwing: error)
+                        } else if let callbackURL {
+                            continuation.resume(returning: callbackURL)
+                        } else {
+                            continuation.resume(throwing: GoogleOAuthError.invalidAuthorizationResponse)
+                        }
                     }
                 }
+                session.presentationContextProvider = self
+                session.prefersEphemeralWebBrowserSession = false
+                sessionBox.session = session
+                activeSession = session
+                guard session.start() else {
+                    if activeSession === session {
+                        activeSession = nil
+                    }
+                    sessionBox.session = nil
+                    continuation.resume(throwing: GoogleOAuthError.invalidAuthorizationResponse)
+                    return
+                }
             }
-            session.presentationContextProvider = self
-            session.prefersEphemeralWebBrowserSession = false
-            activeSession = session
-            guard session.start() else {
-                activeSession = nil
-                continuation.resume(throwing: GoogleOAuthError.invalidAuthorizationResponse)
-                return
+        } onCancel: {
+            Task { @MainActor in
+                sessionBox.cancel()
             }
         }
     }

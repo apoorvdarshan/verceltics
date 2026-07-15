@@ -13,6 +13,8 @@ struct SiteServiceConnectionView: View {
     @State private var siteID = ""
     @State private var umamiBaseURL = "https://api.umami.is/v1"
     @State private var umamiAuthMode = "cloud"
+    @State private var connectionTask: Task<Void, Never>?
+    @State private var isVisible = false
     @FocusState private var focusedField: Field?
 
     private var googleOAuthIsConfigured: Bool {
@@ -46,7 +48,7 @@ struct SiteServiceConnectionView: View {
                 }
 
                 VStack(spacing: 14) {
-                    if provider.isOAuthPending {
+                    if provider.usesOAuth {
                         oauthPreparation
                     } else {
                         instructions
@@ -62,13 +64,17 @@ struct SiteServiceConnectionView: View {
             }
         }
         .scrollDismissesKeyboard(.interactively)
-        .onAppear { store.error = nil }
+        .onAppear {
+            isVisible = true
+            store.clearTransientError()
+        }
+        .onDisappear { cancelConnectionTask() }
     }
 
     private var header: some View {
         VStack(spacing: 20) {
             HStack {
-                Button(action: onBack) {
+                Button(action: cancelConnectionAndGoBack) {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 15, weight: .semibold))
                         .frame(width: 44, height: 44)
@@ -79,7 +85,10 @@ struct SiteServiceConnectionView: View {
                 Spacer()
             }
 
-            AppIconTile(icon: provider.systemImage, tint: provider.accentColor, size: 72)
+            SiteProviderMark(provider: provider, size: 36)
+                .frame(width: 72, height: 72)
+                .background(provider.accentColor.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 
             VStack(spacing: 6) {
                 Text("Connect \(provider.displayName)")
@@ -144,12 +153,7 @@ struct SiteServiceConnectionView: View {
             .buttonStyle(PressScaleButtonStyle())
 
             if googleOAuthIsConfigured {
-                Button {
-                    Task {
-                        await store.connectGoogle(provider: provider)
-                        if store.error == nil { onConnected() }
-                    }
-                } label: {
+                Button(action: beginGoogleConnection) {
                     HStack(spacing: 10) {
                         if store.isConnecting {
                             ProgressView().tint(.white)
@@ -325,12 +329,7 @@ struct SiteServiceConnectionView: View {
     }
 
     private var connectButton: some View {
-        Button {
-            Task {
-                await store.connect(provider: provider, credential: credential, metadata: metadata)
-                if store.error == nil { onConnected() }
-            }
-        } label: {
+        Button(action: beginAPIConnection) {
             HStack(spacing: 10) {
                 if store.isConnecting {
                     ProgressView().tint(.white)
@@ -356,6 +355,39 @@ struct SiteServiceConnectionView: View {
                 umamiBaseURL = "https://api.umami.is/v1"
             }
         }
+    }
+
+    private func beginGoogleConnection() {
+        connectionTask?.cancel()
+        connectionTask = Task { @MainActor in
+            let connected = await store.connectGoogle(provider: provider)
+            guard connected, !Task.isCancelled, isVisible else { return }
+            onConnected()
+        }
+    }
+
+    private func beginAPIConnection() {
+        connectionTask?.cancel()
+        connectionTask = Task { @MainActor in
+            let connected = await store.connect(
+                provider: provider,
+                credential: credential,
+                metadata: metadata
+            )
+            guard connected, !Task.isCancelled, isVisible else { return }
+            onConnected()
+        }
+    }
+
+    private func cancelConnectionAndGoBack() {
+        cancelConnectionTask()
+        onBack()
+    }
+
+    private func cancelConnectionTask() {
+        isVisible = false
+        connectionTask?.cancel()
+        connectionTask = nil
     }
 
     private var metadata: [String: String] {

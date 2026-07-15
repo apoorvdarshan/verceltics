@@ -13,6 +13,11 @@ enum SiteIntegrationsAPIError: LocalizedError, Equatable {
     case requestFailed(Int, String)
     case decoding(String)
 
+    var isUnauthorized: Bool {
+        guard case .requestFailed(let status, _) = self else { return false }
+        return status == 401
+    }
+
     var errorDescription: String? {
         switch self {
         case .invalidConfiguration(let message):
@@ -73,8 +78,14 @@ struct SiteIntegrationsAPI {
         try await validatedSnapshot().name
     }
 
-    func validatedSnapshot() async throws -> (name: String, snapshot: SiteIntegrationSnapshot) {
+    func validatedSnapshot() async throws -> (
+        name: String,
+        snapshot: SiteIntegrationSnapshot,
+        connectionMetadata: [String: String]
+    ) {
+        async let discoveredConnectionMetadata = connectionMetadata()
         let snapshot = try await fetchSnapshot(accountID: account.id)
+        let connectionMetadata = try await discoveredConnectionMetadata
         let name: String
         switch account.provider {
         case .googleSearchConsole:
@@ -97,7 +108,19 @@ struct SiteIntegrationsAPI {
         case .betterStack:
             name = "Better Stack · \(snapshot.resources.count) monitor\(snapshot.resources.count == 1 ? "" : "s")"
         }
-        return (name, snapshot)
+        return (name, snapshot, connectionMetadata)
+    }
+
+    func connectionMetadata() async throws -> [String: String] {
+        guard account.provider == .umami else { return [:] }
+        let context = try umamiRequestContext()
+        let root = object(try await jsonRequest(
+            url: try endpoint(base: context.base, path: "me"),
+            headers: context.headers,
+            maximumAttempts: 1,
+            timeoutInterval: 8
+        ))
+        return try Self.umamiConnectionMetadata(from: root, endpoint: context.base)
     }
 
     func fetchSnapshot(accountID: UUID? = nil) async throws -> SiteIntegrationSnapshot {
@@ -144,7 +167,7 @@ struct SiteIntegrationsAPI {
             guard let propertyID = string(entry["siteUrl"]), !propertyID.isEmpty else { continue }
             let permission = string(entry["permissionLevel"]) ?? "siteUnverifiedUser"
             let displayURL = searchConsoleDisplayURL(propertyID)
-            let resourceID = propertyID.lowercased()
+            let resourceID = stableSiteResourceID(propertyID)
             var metrics: [SiteIntegrationMetric] = []
             var metadata: [String: String] = [
                 "propertyID": propertyID,
@@ -162,6 +185,7 @@ struct SiteIntegrationsAPI {
                     )
                     metrics.append(contentsOf: analytics)
                 } catch {
+                    try throwIfGoogleUnauthorized(error)
                     warnings.append("\(propertyID) search performance could not load: \(error.localizedDescription)")
                 }
 
@@ -178,6 +202,7 @@ struct SiteIntegrationsAPI {
                         resourceID: resourceID
                     ))
                 } catch {
+                    try throwIfGoogleUnauthorized(error)
                     warnings.append("\(propertyID) sitemaps could not load: \(error.localizedDescription)")
                 }
 
@@ -191,6 +216,7 @@ struct SiteIntegrationsAPI {
                         metadata.merge(inspection.metadata) { _, new in new }
                         if let inspectionStatus = inspection.status { status = inspectionStatus }
                     } catch {
+                        try throwIfGoogleUnauthorized(error)
                         warnings.append("\(propertyID) index status could not load: \(error.localizedDescription)")
                     }
                 }
@@ -372,6 +398,9 @@ struct SiteIntegrationsAPI {
         var summaries: [[String: Any]] = []
         var pageToken: String?
         var seenTokens = Set<String>()
+        var warnings: [String] = []
+        let maximumSummaryPages = 20
+        var summaryPageCount = 0
 
         repeat {
             var components = URLComponents(string: "https://analyticsadmin.googleapis.com/v1beta/accountSummaries")!
@@ -383,9 +412,20 @@ struct SiteIntegrationsAPI {
                 throw SiteIntegrationsAPIError.decoding("Google Analytics did not return account summaries.")
             }
             summaries.append(contentsOf: array(root["accountSummaries"]).map(object))
-            pageToken = nonEmpty(string(root["nextPageToken"]))
-            if let pageToken, !seenTokens.insert(pageToken).inserted { break }
-        } while pageToken != nil && seenTokens.count < 20
+            summaryPageCount += 1
+            let nextPageToken = nonEmpty(string(root["nextPageToken"]))
+            if let nextPageToken, !seenTokens.insert(nextPageToken).inserted {
+                warnings.append("Google Analytics repeated a pagination token, so account loading stopped safely.")
+                pageToken = nil
+            } else if nextPageToken != nil, summaryPageCount >= maximumSummaryPages {
+                warnings.append(
+                    "Google Analytics account loading stopped after \(maximumSummaryPages) pages to protect the device. Some properties may not be shown."
+                )
+                pageToken = nil
+            } else {
+                pageToken = nextPageToken
+            }
+        } while pageToken != nil
 
         let properties = summaries.flatMap { summary -> [(property: [String: Any], accountName: String)] in
             let accountName = string(summary["displayName"]) ?? string(summary["account"]) ?? "Google Analytics"
@@ -393,7 +433,6 @@ struct SiteIntegrationsAPI {
         }
         let maximumDetailedProperties = 25
         var resources: [SiteIntegrationResource] = []
-        var warnings: [String] = []
 
         for (index, item) in properties.enumerated() {
             guard let propertyName = string(item.property["property"]),
@@ -418,6 +457,7 @@ struct SiteIntegrationsAPI {
                     siteURL = stream.url
                     metadata.merge(stream.metadata) { _, new in new }
                 } catch {
+                    try throwIfGoogleUnauthorized(error)
                     warnings.append("\(displayName) website details could not load: \(error.localizedDescription)")
                 }
 
@@ -428,6 +468,7 @@ struct SiteIntegrationsAPI {
                         resourceID: propertyName
                     ))
                 } catch {
+                    try throwIfGoogleUnauthorized(error)
                     warnings.append("\(displayName) analytics could not load: \(error.localizedDescription)")
                 }
 
@@ -442,6 +483,7 @@ struct SiteIntegrationsAPI {
                         ))
                     }
                 } catch {
+                    try throwIfGoogleUnauthorized(error)
                     warnings.append("\(displayName) realtime data could not load: \(error.localizedDescription)")
                 }
             }
@@ -626,7 +668,7 @@ struct SiteIntegrationsAPI {
     private func fetchPageSpeedSnapshot(accountID: UUID) async throws -> SiteIntegrationSnapshot {
         let key = try requiredCredential(label: "Google API key")
         let siteURL = try validatedSiteURL(try requiredMetadata("siteURL", label: "site URL"))
-        let resourceID = siteURL.absoluteString.lowercased()
+        let resourceID = stableSiteResourceID(siteURL.absoluteString)
         var warnings: [String] = []
         var metrics = try await fetchPageSpeedMetrics(
             siteURL: siteURL,
@@ -642,6 +684,7 @@ struct SiteIntegrationsAPI {
                 resourceID: resourceID
             ))
         } catch {
+            try throwIfCancellation(error)
             warnings.append("Desktop PageSpeed data is unavailable: \(error.localizedDescription)")
         }
         do {
@@ -651,6 +694,7 @@ struct SiteIntegrationsAPI {
                 resourceID: resourceID
             ))
         } catch {
+            try throwIfCancellation(error)
             warnings.append("Chrome UX field data is unavailable: \(error.localizedDescription)")
         }
 
@@ -830,7 +874,7 @@ struct SiteIntegrationsAPI {
             guard let value = string(site["Url"] ?? site["url"]), !value.isEmpty else { continue }
             let siteURL = URL(string: value)
             let isVerified = boolean(site["IsVerified"] ?? site["isVerified"]) ?? false
-            let resourceID = value.lowercased()
+            let resourceID = stableSiteResourceID(value)
             var resourceMetrics: [SiteIntegrationMetric] = []
             var metadata = ["verified": String(isVerified)]
 
@@ -843,6 +887,7 @@ struct SiteIntegrationsAPI {
                         resourceID: resourceID
                     ))
                 } catch {
+                    try throwIfCancellation(error)
                     warnings.append("\(value) Bing traffic could not load: \(error.localizedDescription)")
                 }
                 do {
@@ -854,12 +899,13 @@ struct SiteIntegrationsAPI {
                     resourceMetrics.append(contentsOf: crawl.metrics)
                     metadata.merge(crawl.metadata) { _, new in new }
                 } catch {
+                    try throwIfCancellation(error)
                     warnings.append("\(value) Bing crawl data could not load: \(error.localizedDescription)")
                 }
             }
 
             resources.append(SiteIntegrationResource(
-                id: value.lowercased(),
+                id: resourceID,
                 provider: .bingWebmaster,
                 name: siteURL?.host ?? value,
                 subtitle: value,
@@ -1018,6 +1064,7 @@ struct SiteIntegrationsAPI {
         }
         var accumulated: [String: (label: String, value: Double, unit: SiteIntegrationMetricUnit, samples: Int)] = [:]
         var discoveredURLs = Set<String>()
+        var discoveredOrigins: [URL: Int] = [:]
 
         for item in rows {
             let group = object(item)
@@ -1026,13 +1073,14 @@ struct SiteIntegrationsAPI {
                 let information = object(rawInformation)
                 if let site = string(information["URL"] ?? information["url"]), !site.isEmpty {
                     discoveredURLs.insert(site)
+                    if let url = URL(string: site), let origin = Self.originURL(from: url) {
+                        discoveredOrigins[origin, default: 0] += 1
+                    }
                 }
                 for (field, rawValue) in information {
                     guard field.lowercased() != "url", let value = number(rawValue) else { continue }
                     let key = "clarity.\(slug(metricName)).\(slug(field))"
-                    let label = field.caseInsensitiveCompare(metricName) == .orderedSame
-                        ? humanized(field)
-                        : humanized(field)
+                    let label = humanized(field)
                     let unit = inferredUnit(for: field)
                     let oldValue = accumulated[key]?.value ?? 0
                     let samples = (accumulated[key]?.samples ?? 0) + 1
@@ -1047,18 +1095,32 @@ struct SiteIntegrationsAPI {
         }
         let configuredSite = nonEmpty(account.metadata["siteURL"])
         let projectName = nonEmpty(account.metadata["projectName"]) ?? "Microsoft Clarity"
-        let resourceURL = configuredSite.flatMap(URL.init(string:))
+        let configuredURL = configuredSite
+            .flatMap(URL.init(string:))
+            .flatMap { Self.originURL(from: $0) }
+        let discoveredURL = discoveredOrigins.max { left, right in
+            if left.value == right.value {
+                return left.key.absoluteString > right.key.absoluteString
+            }
+            return left.value < right.value
+        }?.key
+        let resourceURL = configuredURL ?? discoveredURL
+        let resourceID = resourceURL
+            .map { stableSiteResourceID($0.absoluteString) }
+            ?? projectName.lowercased()
         var resourceMetadata = ["days": String(days)]
         if !discoveredURLs.isEmpty { resourceMetadata["reportedURLs"] = String(discoveredURLs.count) }
+        if !discoveredOrigins.isEmpty { resourceMetadata["reportedOrigins"] = String(discoveredOrigins.count) }
+        if let resourceURL { resourceMetadata["siteURL"] = resourceURL.absoluteString }
         let resource = SiteIntegrationResource(
-            id: configuredSite?.lowercased() ?? projectName.lowercased(),
+            id: resourceID,
             provider: .clarity,
             name: projectName,
-            subtitle: configuredSite ?? "Last \(days * 24) hours",
+            subtitle: resourceURL?.absoluteString ?? "Last \(days * 24) hours",
             url: resourceURL,
             status: "Connected",
             updatedAt: .now,
-            metrics: metrics.map { withResourceID($0, resourceID: configuredSite?.lowercased() ?? projectName.lowercased()) },
+            metrics: metrics.map { withResourceID($0, resourceID: resourceID) },
             metadata: resourceMetadata
         )
         return SiteIntegrationSnapshot(
@@ -1104,7 +1166,7 @@ struct SiteIntegrationsAPI {
             ("bounce_rate", "Bounce Rate", .percent),
             ("visit_duration", "Visit Duration", .seconds)
         ]
-        let resourceID = siteID.lowercased()
+        let resourceID = stableSiteResourceID(siteID)
         var metrics: [SiteIntegrationMetric] = []
         for (index, definition) in definitions.enumerated() where values.indices.contains(index) {
             guard let value = number(values[index]) else { continue }
@@ -1144,19 +1206,17 @@ struct SiteIntegrationsAPI {
     // MARK: - Umami
 
     private func fetchUmamiSnapshot(accountID: UUID) async throws -> SiteIntegrationSnapshot {
-        let credential = try requiredCredential(label: "Umami credential")
-        let apiBase = try umamiAPIBaseURL()
-        let authMode = nonEmpty(account.metadata["authMode"]) ?? "cloud"
-        let headers: [String: String]
-        if authMode == "selfHosted" {
-            headers = ["Authorization": "Bearer \(credential)"]
-        } else {
-            headers = ["x-umami-api-key": credential]
-        }
+        let context = try umamiRequestContext()
+        let apiBase = context.base
+        let headers = context.headers
 
         var websites: [[String: Any]] = []
         var page = 1
         var expectedCount: Int?
+        var warnings: [String] = []
+        var seenPageSignatures = Set<String>()
+        var seenWebsiteIDs = Set<String>()
+        let maximumWebsitePages = 20
         repeat {
             let url = try endpoint(
                 base: apiBase,
@@ -1174,13 +1234,33 @@ struct SiteIntegrationsAPI {
                 )
             }
             let pageItems = array(root["data"] ?? root["websites"]).map(object)
-            websites.append(contentsOf: pageItems)
+            let pageIDs = pageItems.compactMap { nonEmpty(string($0["id"])) }
+            let pageSignature = pageIDs.sorted().joined(separator: "|")
+            if !pageSignature.isEmpty, !seenPageSignatures.insert(pageSignature).inserted {
+                warnings.append("Umami repeated a results page, so site loading stopped safely.")
+                break
+            }
+            let uniquePageItems = pageItems.filter { website in
+                guard let id = nonEmpty(string(website["id"])) else { return false }
+                return seenWebsiteIDs.insert(id).inserted
+            }
+            websites.append(contentsOf: uniquePageItems)
             expectedCount = int(root["count"]) ?? expectedCount
             page += 1
+            if !pageItems.isEmpty, uniquePageItems.isEmpty {
+                warnings.append("Umami returned no new sites on the next page, so site loading stopped safely.")
+                break
+            }
             if pageItems.isEmpty
                 || pageItems.count < 100
-                || expectedCount.map({ websites.count >= $0 }) == true
-                || page > 20 {
+                || expectedCount.map({ seenWebsiteIDs.count >= $0 }) == true {
+                break
+            }
+            if page > maximumWebsitePages {
+                let suffix = expectedCount.map { " of \($0)" } ?? ""
+                warnings.append(
+                    "Umami site loading stopped after \(websites.count)\(suffix) sites (\(maximumWebsitePages) pages) to protect the device."
+                )
                 break
             }
         } while true
@@ -1189,7 +1269,6 @@ struct SiteIntegrationsAPI {
         let startAt = Int(Date.now.addingTimeInterval(-30 * 86_400).timeIntervalSince1970 * 1_000)
         let maximumDetailedSites = 10
         var resources: [SiteIntegrationResource] = []
-        var warnings: [String] = []
         for (index, website) in websites.enumerated() {
             guard let id = string(website["id"]), !id.isEmpty else { continue }
             let name = string(website["name"]) ?? string(website["domain"]) ?? "Umami site"
@@ -1209,6 +1288,7 @@ struct SiteIntegrationsAPI {
                     let stats = object(try await jsonRequest(url: statsURL, headers: headers))
                     resourceMetrics = normalizeUmamiStats(stats, resourceID: id)
                 } catch {
+                    try throwIfCancellation(error)
                     warnings.append("\(name) stats could not load: \(error.localizedDescription)")
                 }
             }
@@ -1299,6 +1379,19 @@ struct SiteIntegrationsAPI {
             throw SiteIntegrationsAPIError.invalidConfiguration("The self-hosted Umami URL is invalid.")
         }
         return result
+    }
+
+    private func umamiRequestContext() throws -> (base: URL, headers: [String: String]) {
+        let credential = try requiredCredential(label: "Umami credential")
+        let base = try umamiAPIBaseURL()
+        let mode = nonEmpty(account.metadata["authMode"]) ?? "cloud"
+        let headers: [String: String]
+        if mode == "selfHosted" {
+            headers = ["Authorization": "Bearer \(credential)"]
+        } else {
+            headers = ["x-umami-api-key": credential]
+        }
+        return (base, headers)
     }
 
     // MARK: - UptimeRobot
@@ -1464,7 +1557,11 @@ struct SiteIntegrationsAPI {
         var nextURL: URL? = URL(string: "https://uptime.betterstack.com/api/v2/monitors")
         var monitors: [[String: Any]] = []
         var seenPageURLs = Set<String>()
+        var seenMonitorIDs = Set<String>()
         var warnings: [String] = []
+        let maximumPages = 100
+        let maximumMonitors = 10_000
+        var pageCount = 0
         while let url = nextURL {
             guard seenPageURLs.insert(url.absoluteString).inserted else {
                 warnings.append("Better Stack repeated a pagination URL, so loading stopped to avoid an endless request loop.")
@@ -1476,13 +1573,30 @@ struct SiteIntegrationsAPI {
                     "Better Stack did not return a monitor list."
                 )
             }
-            monitors.append(contentsOf: array(root["data"]).map(object))
+            for monitor in array(root["data"]).map(object) {
+                guard let id = string(monitor["id"]), seenMonitorIDs.insert(id).inserted else { continue }
+                monitors.append(monitor)
+                if monitors.count >= maximumMonitors { break }
+            }
+            pageCount += 1
             let next = string(object(root["pagination"])["next"])
             nextURL = next.flatMap(URL.init(string:))
             if let nextURL {
-                guard nextURL.scheme == "https", nextURL.host?.lowercased() == "uptime.betterstack.com" else {
+                guard nextURL.scheme?.lowercased() == "https",
+                      nextURL.host?.lowercased() == "uptime.betterstack.com" else {
                     throw SiteIntegrationsAPIError.invalidResponse
                 }
+            }
+            if nextURL != nil, monitors.count >= maximumMonitors {
+                warnings.append(
+                    "Better Stack monitor loading stopped after \(maximumMonitors) monitors to protect the device."
+                )
+                nextURL = nil
+            } else if nextURL != nil, pageCount >= maximumPages {
+                warnings.append(
+                    "Better Stack monitor loading stopped after \(maximumPages) pages to protect the device. Some monitors may not be shown."
+                )
+                nextURL = nil
             }
         }
         let resources = monitors.compactMap { monitor -> SiteIntegrationResource? in
@@ -1552,7 +1666,9 @@ struct SiteIntegrationsAPI {
         url: URL,
         body: Data? = nil,
         headers: [String: String] = [:],
-        contentType: String = "application/json"
+        contentType: String = "application/json",
+        maximumAttempts: Int = 3,
+        timeoutInterval: TimeInterval = 30
     ) async throws -> Any {
         guard url.scheme?.lowercased() == "https", url.host != nil else {
             throw SiteIntegrationsAPIError.invalidConfiguration("Provider requests must use HTTPS.")
@@ -1560,6 +1676,7 @@ struct SiteIntegrationsAPI {
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.httpBody = body
+        request.timeoutInterval = timeoutInterval
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         if body != nil {
             request.setValue(
@@ -1570,19 +1687,66 @@ struct SiteIntegrationsAPI {
         let validatedHeaders = try ProviderRequestSecurity.validatedHeaders(headers, protectedHeaders: [])
         for (name, value) in validatedHeaders { request.setValue(value, forHTTPHeaderField: name) }
 
-        let (data, response) = try await ProviderRequestSecurity.data(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw SiteIntegrationsAPIError.invalidResponse
+        var attempt = 0
+        while true {
+            do {
+                let (data, response) = try await ProviderRequestSecurity.data(for: request)
+                guard let http = response as? HTTPURLResponse else {
+                    throw SiteIntegrationsAPIError.invalidResponse
+                }
+                guard (200...299).contains(http.statusCode) else {
+                    if isRetryableStatus(http.statusCode), attempt + 1 < maximumAttempts {
+                        try await waitBeforeRetry(attempt: attempt, response: http)
+                        attempt += 1
+                        continue
+                    }
+                    throw SiteIntegrationsAPIError.requestFailed(http.statusCode, errorMessage(data))
+                }
+                guard !data.isEmpty else { return [String: Any]() }
+                do {
+                    return try JSONSerialization.jsonObject(with: data)
+                } catch {
+                    throw SiteIntegrationsAPIError.decoding(error.localizedDescription)
+                }
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch let urlError as URLError where urlError.code == .cancelled {
+                throw CancellationError()
+            } catch let urlError as URLError
+                where isRetryableNetworkError(urlError) && attempt + 1 < maximumAttempts {
+                try await waitBeforeRetry(attempt: attempt, response: nil)
+                attempt += 1
+            }
         }
-        guard (200...299).contains(http.statusCode) else {
-            throw SiteIntegrationsAPIError.requestFailed(http.statusCode, errorMessage(data))
+    }
+
+    private func isRetryableStatus(_ status: Int) -> Bool {
+        status == 429 || status == 500 || status == 502 || status == 503 || status == 504
+    }
+
+    private func isRetryableNetworkError(_ error: URLError) -> Bool {
+        switch error.code {
+        case .timedOut, .networkConnectionLost, .cannotConnectToHost, .dnsLookupFailed:
+            true
+        default:
+            false
         }
-        guard !data.isEmpty else { return [String: Any]() }
-        do {
-            return try JSONSerialization.jsonObject(with: data)
-        } catch {
-            throw SiteIntegrationsAPIError.decoding(error.localizedDescription)
-        }
+    }
+
+    private func waitBeforeRetry(attempt: Int, response: HTTPURLResponse?) async throws {
+        let seconds = Self.retryDelaySeconds(
+            retryAfterHeader: response?.value(forHTTPHeaderField: "Retry-After"),
+            attempt: attempt
+        )
+        try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+    }
+
+    static func retryDelaySeconds(retryAfterHeader: String?, attempt: Int) -> TimeInterval {
+        let parsedRetryAfter = retryAfterHeader.flatMap(Double.init)
+        let retryAfter = parsedRetryAfter.flatMap { $0.isFinite ? $0 : nil }
+        let boundedAttempt = min(max(attempt, 0), 4)
+        let fallback = 0.5 * pow(2, Double(boundedAttempt))
+        return min(max(retryAfter ?? fallback, 0.1), 8)
     }
 
     private func requiredCredential(label: String) throws -> String {
@@ -1599,13 +1763,53 @@ struct SiteIntegrationsAPI {
         return value
     }
 
+    private func throwIfGoogleUnauthorized(_ error: Error) throws {
+        try throwIfCancellation(error)
+        if let apiError = error as? SiteIntegrationsAPIError, apiError.isUnauthorized {
+            throw apiError
+        }
+    }
+
+    private func throwIfCancellation(_ error: Error) throws {
+        if error is CancellationError {
+            throw CancellationError()
+        }
+        if let urlError = error as? URLError, urlError.code == .cancelled {
+            throw CancellationError()
+        }
+    }
+
+    private func stableSiteResourceID(_ rawValue: String) -> String {
+        let value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        if value.lowercased().hasPrefix("sc-domain:") {
+            return "sc-domain:" + value.dropFirst("sc-domain:".count).lowercased()
+        }
+        let hasScheme = value.contains("://")
+        let candidate = hasScheme ? value : "https://\(value)"
+        guard var components = URLComponents(string: candidate),
+              let scheme = components.scheme,
+              let host = components.host else {
+            return value
+        }
+        components.scheme = scheme.lowercased()
+        components.host = host.lowercased()
+        components.fragment = nil
+        guard let normalized = components.string else { return value }
+        return normalized
+    }
+
     private func validatedSiteURL(_ rawValue: String) throws -> URL {
         let value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let url = URL(string: value),
-              url.scheme?.lowercased() == "https",
-              url.host != nil,
-              url.user == nil,
-              url.password == nil else {
+        guard var components = URLComponents(string: value),
+              components.scheme?.lowercased() == "https",
+              let host = components.host,
+              components.user == nil,
+              components.password == nil else {
+            throw SiteIntegrationsAPIError.invalidConfiguration("Enter a complete HTTPS site URL.")
+        }
+        components.scheme = "https"
+        components.host = host.lowercased()
+        guard let url = components.url else {
             throw SiteIntegrationsAPIError.invalidConfiguration("Enter a complete HTTPS site URL.")
         }
         return url
@@ -1620,6 +1824,8 @@ struct SiteIntegrationsAPI {
               components.password == nil else {
             throw SiteIntegrationsAPIError.invalidConfiguration("Enter a complete HTTPS base URL.")
         }
+        components.scheme = "https"
+        components.host = components.host?.lowercased()
         components.query = nil
         components.fragment = nil
         guard let url = components.url else {
@@ -1628,10 +1834,51 @@ struct SiteIntegrationsAPI {
         return url
     }
 
+    static func canonicalEndpointIdentity(_ rawValue: String) -> String? {
+        guard let url = URL(string: rawValue),
+              var components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              components.scheme?.lowercased() == "https",
+              let host = components.host,
+              components.user == nil,
+              components.password == nil else { return nil }
+        components.scheme = "https"
+        components.host = host.lowercased()
+        if components.port == 443 { components.port = nil }
+        components.query = nil
+        components.fragment = nil
+        var path = components.path
+        while path.count > 1, path.hasSuffix("/") { path.removeLast() }
+        components.path = (path.isEmpty ? "" : path) + "/"
+        return components.url?.absoluteString
+    }
+
+    static func umamiConnectionMetadata(
+        from root: [String: Any],
+        endpoint: URL
+    ) throws -> [String: String] {
+        let user = object(root["user"])
+        guard let userID = nonEmpty(string(user["id"])),
+              let endpointIdentity = canonicalEndpointIdentity(endpoint.absoluteString) else {
+            throw SiteIntegrationsAPIError.decoding(
+                "Umami did not return a stable account identity from /me."
+            )
+        }
+        var metadata = [
+            "umamiUserID": userID,
+            "umamiEndpoint": endpointIdentity,
+        ]
+        if let username = nonEmpty(string(user["username"])) {
+            metadata["umamiUsername"] = username
+        }
+        return metadata
+    }
+
     static func originURL(from url: URL) -> URL? {
         guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false),
               components.scheme?.lowercased() == "https",
-              components.host != nil else { return nil }
+              let host = components.host else { return nil }
+        components.scheme = "https"
+        components.host = host.lowercased()
         components.path = ""
         components.query = nil
         components.fragment = nil
@@ -1650,12 +1897,12 @@ struct SiteIntegrationsAPI {
     }
 
     private func endpoint(base: URL, path: String, queryItems: [URLQueryItem] = []) throws -> URL {
-        guard base.scheme == "https", base.host != nil else {
+        guard base.scheme?.lowercased() == "https", base.host != nil else {
             throw SiteIntegrationsAPIError.invalidConfiguration("Provider requests must use HTTPS.")
         }
         let baseValue = base.absoluteString.hasSuffix("/") ? base.absoluteString : base.absoluteString + "/"
         guard let url = URL(string: path, relativeTo: URL(string: baseValue))?.absoluteURL,
-              url.scheme == "https",
+              url.scheme?.lowercased() == "https",
               url.host?.lowercased() == base.host?.lowercased(),
               var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
             throw SiteIntegrationsAPIError.invalidConfiguration("The provider endpoint is invalid.")

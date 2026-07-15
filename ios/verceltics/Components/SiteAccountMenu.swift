@@ -27,12 +27,15 @@ struct SiteAccountMenu: View {
                             Button {
                                 store.switchAccount(to: account.id)
                             } label: {
-                                Label(
-                                    account.name,
-                                    systemImage: store.activeAccountID == account.id
-                                        ? "checkmark.circle.fill"
-                                        : provider.systemImage
-                                )
+                                Label {
+                                    Text(account.name)
+                                } icon: {
+                                    if store.activeAccountID == account.id {
+                                        Image(systemName: "checkmark.circle.fill")
+                                    } else {
+                                        SiteProviderMark(provider: provider, size: 16, monochrome: true)
+                                    }
+                                }
                             }
                         }
                     }
@@ -65,9 +68,7 @@ struct SiteAccountMenu: View {
         } label: {
             HStack(spacing: 6) {
                 if let provider = store.activeAccount?.provider {
-                    Image(systemName: provider.systemImage)
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(.white)
+                    SiteProviderMark(provider: provider, size: 21, monochrome: true)
                 } else {
                     Image(systemName: "chart.xyaxis.line")
                         .font(.system(size: 16, weight: .semibold))
