@@ -9,7 +9,7 @@ final class HostingDashboardViewModel {
     }
 
     @ResettableMemoryCache private static var cachedResources: [String: CachedResources] = [:]
-    private static let cacheLifetime: TimeInterval = 3 * 60
+    private static let cacheLifetime = DashboardRefreshPolicy.inventoryFreshness
 
     let account: VercelAccount
     let api: HostingProviderAPI

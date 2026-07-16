@@ -24,17 +24,17 @@ private final class SearchConsoleDetailViewModel {
     private static var sitesCache: [String: CachedValue<[SearchConsoleSite]>] = [:]
     @ResettableMemoryCache(limit: 12)
     private static var selectedSiteCache: [String: String] = [:]
-    @ResettableMemoryCache(limit: 8)
+    @ResettableMemoryCache(limit: 16)
     private static var timelineCache: [String: CachedValue<SearchConsoleAnalyticsResponse>] = [:]
-    @ResettableMemoryCache(limit: 8)
+    @ResettableMemoryCache(limit: 16)
     private static var breakdownCache: [String: CachedValue<SearchConsoleAnalyticsResponse>] = [:]
     @ResettableMemoryCache(limit: 12)
     private static var sitemapCache: [String: CachedValue<[SearchConsoleSitemap]>] = [:]
     @ResettableMemoryCache(limit: 16)
     private static var inspectionCache: [String: CachedValue<SearchConsoleURLInspectionResult>] = [:]
 
-    private static let performanceCacheLifetime: TimeInterval = 5 * 60
-    private static let supportingDataCacheLifetime: TimeInterval = 10 * 60
+    private static let performanceCacheLifetime = DashboardRefreshPolicy.reportFreshness
+    private static let supportingDataCacheLifetime = DashboardRefreshPolicy.inventoryFreshness
     private static let maximumBreakdownRows = 100_000
 
     let account: SiteIntegrationAccount
@@ -116,7 +116,7 @@ private final class SearchConsoleDetailViewModel {
             "search-console-detail",
             account.id.uuidString.lowercased(),
             account.provider.rawValue,
-            account.credential,
+            "stable-google-account",
             metadataScope,
         ])
 

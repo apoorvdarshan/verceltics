@@ -78,7 +78,7 @@ final class ProjectsViewModel {
     }
 
     @ResettableMemoryCache private static var cachedProjects: [String: CachedProjects] = [:]
-    private static let cacheLifetime: TimeInterval = 3 * 60
+    private static let cacheLifetime = DashboardRefreshPolicy.inventoryFreshness
 
     var projects: [Project] = []
     var isLoading = true

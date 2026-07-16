@@ -9,7 +9,7 @@ final class RegistrarDashboardViewModel {
     }
 
     @ResettableMemoryCache private static var cachedDomains: [String: CachedDomains] = [:]
-    private static let cacheLifetime: TimeInterval = 3 * 60
+    private static let cacheLifetime = DashboardRefreshPolicy.inventoryFreshness
 
     let account: RegistrarAccount
     let api: RegistrarAPI

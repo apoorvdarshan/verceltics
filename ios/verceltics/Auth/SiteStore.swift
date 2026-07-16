@@ -435,7 +435,7 @@ final class SiteStore {
     }
 
     private func cacheLifetime(for provider: SiteIntegrationProvider) -> TimeInterval {
-        switch provider {
+        let providerLifetime: TimeInterval = switch provider {
         case .googleSearchConsole, .googleAnalytics: 5 * 60
         case .pageSpeed: 30 * 60
         case .bingWebmaster: 15 * 60
@@ -443,6 +443,7 @@ final class SiteStore {
         case .plausible, .umami: 5 * 60
         case .uptimeRobot, .betterStack: 2 * 60
         }
+        return max(DashboardRefreshPolicy.inventoryFreshness, providerLifetime)
     }
 
     private func persistSnapshots() {

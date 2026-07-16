@@ -1,5 +1,12 @@
 import Foundation
 
+/// Shared stale-while-revalidate windows for the primary dashboards. Cached rows remain visible
+/// while an eligible background refresh runs; pull-to-refresh always bypasses these windows.
+nonisolated enum DashboardRefreshPolicy {
+    static let inventoryFreshness: TimeInterval = 15 * 60
+    static let reportFreshness: TimeInterval = 10 * 60
+}
+
 /// Coordinates short-lived, process-local UI caches so credentials and their
 /// associated payloads can be discarded immediately when an account changes.
 @MainActor

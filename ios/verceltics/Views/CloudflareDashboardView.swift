@@ -19,7 +19,7 @@ final class CloudflareDashboardViewModel {
     }
 
     @ResettableMemoryCache private static var dashboards: [String: CachedDashboard] = [:]
-    private static let cacheLifetime: TimeInterval = 3 * 60
+    private static let cacheLifetime = DashboardRefreshPolicy.inventoryFreshness
 
     private(set) var api: CloudflareAPI?
     private var loadedEmail: String?

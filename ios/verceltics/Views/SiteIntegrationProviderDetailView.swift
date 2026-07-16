@@ -29,7 +29,7 @@ private final class SiteIntegrationProviderDetailViewModel {
         }
     }
 
-    @ResettableMemoryCache(limit: 2)
+    @ResettableMemoryCache(limit: 8)
     private static var payloadCache: [String: CacheEntry] = [:]
 
     let accountID: UUID
@@ -126,9 +126,19 @@ private final class SiteIntegrationProviderDetailViewModel {
             isLoading = cached == nil
             isRefreshing = cached != nil
             error = nil
+            // Progressive rendering is for the first load only. During a stale/manual refresh,
+            // keep the complete cached report visible until its replacement is ready.
+            let partialHandler: (@Sendable (SiteIntegrationDetailPayload) async -> Void)?
+            if cached == nil {
+                partialHandler = { [weak self] partial in
+                    await self?.applyPartial(partial, generation: generation)
+                }
+            } else {
+                partialHandler = nil
+            }
             let loaded: SiteIntegrationDetailPayload
             do {
-                loaded = try await client.fetch(request)
+                loaded = try await client.fetch(request, onPartial: partialHandler)
             } catch SiteIntegrationDetailAPIError.requestFailed(401)
                 where requestAccount.provider == .googleAnalytics {
                 // Google access tokens can be revoked between the local expiry check and the
@@ -141,7 +151,7 @@ private final class SiteIntegrationProviderDetailViewModel {
                 account = requestAccount
                 request = try detailRequest(account: requestAccount)
                 payloadCacheKey = cacheKey(for: requestAccount)
-                loaded = try await client.fetch(request)
+                loaded = try await client.fetch(request, onPartial: partialHandler)
             }
             guard generation == loadGeneration else { return }
             payload = loaded
@@ -162,6 +172,17 @@ private final class SiteIntegrationProviderDetailViewModel {
             isLoading = false
             isRefreshing = false
         }
+    }
+
+    private func applyPartial(
+        _ partial: SiteIntegrationDetailPayload,
+        generation: Int
+    ) {
+        guard generation == loadGeneration else { return }
+        payload = partial
+        error = nil
+        isLoading = false
+        isRefreshing = true
     }
 
     func toggleClarityDimension(_ dimension: String) {
@@ -303,7 +324,7 @@ private final class SiteIntegrationProviderDetailViewModel {
             "site-provider-detail",
             account.id.uuidString.lowercased(),
             account.provider.rawValue,
-            account.credential,
+            account.provider == .googleAnalytics ? "stable-google-account" : account.credential,
             metadata,
             queryIdentity
         ])
@@ -314,7 +335,8 @@ private final class SiteIntegrationProviderDetailViewModel {
         case .pageSpeed: 30 * 60
         case .clarity: 6 * 60 * 60
         case .bingWebmaster: 15 * 60
-        case .googleAnalytics, .plausible, .umami: 5 * 60
+        case .googleAnalytics: 15 * 60
+        case .plausible, .umami: 5 * 60
         case .uptimeRobot, .betterStack: 2 * 60
         case .googleSearchConsole: 5 * 60
         }
@@ -586,7 +608,9 @@ struct SiteIntegrationProviderDetailView: View {
         VStack(spacing: 13) {
             ProgressView()
                 .tint(viewModel.provider?.accentColor ?? AppTheme.signal)
-            Text("Loading the complete provider report…")
+            Text(viewModel.provider == .googleAnalytics
+                 ? "Loading the Analytics overview…"
+                 : "Loading the provider report…")
                 .font(.footnote)
                 .foregroundStyle(AppTheme.textSecondary)
         }

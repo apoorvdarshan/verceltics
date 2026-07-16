@@ -76,10 +76,18 @@ nonisolated struct SiteIntegrationDetailClient: Sendable {
         self.session = session
     }
 
-    func fetch(_ request: SiteIntegrationDetailRequest) async throws -> SiteIntegrationDetailPayload {
+    func fetch(
+        _ request: SiteIntegrationDetailRequest,
+        onPartial: (@Sendable (SiteIntegrationDetailPayload) async -> Void)? = nil
+    ) async throws -> SiteIntegrationDetailPayload {
         let payload = switch request {
         case .googleAnalytics(let propertyID, let token, let range):
-            try await fetchGoogleAnalytics(propertyID: propertyID, token: token, range: range)
+            try await fetchGoogleAnalytics(
+                propertyID: propertyID,
+                token: token,
+                range: range,
+                onPartial: onPartial
+            )
         case .pageSpeed(let url, let apiKey):
             try await fetchPageSpeed(siteURL: url, apiKey: apiKey)
         case .bingWebmaster(let siteURL, let apiKey):
@@ -105,7 +113,7 @@ nonisolated struct SiteIntegrationDetailClient: Sendable {
 
     // MARK: Google Analytics 4
 
-    private struct GAQuery {
+    private struct GAQuery: Sendable {
         let id: String
         let title: String
         let dimensions: [String]
@@ -113,32 +121,78 @@ nonisolated struct SiteIntegrationDetailClient: Sendable {
         let isTimeline: Bool
     }
 
-    private struct GAPagedReport {
+    private struct GAReportWork: Sendable {
+        let query: GAQuery
+        let maximumRows: Int
+    }
+
+    private struct GAReportResult: Sendable {
+        let query: GAQuery
+        let report: GAPagedReport
+    }
+
+    private struct GAReportRefillWork: Sendable {
+        let index: Int
+        let work: GAReportWork
+    }
+
+    private struct GAReportRefillResult: Sendable {
+        let index: Int
+        let result: GAReportResult
+    }
+
+    private struct GAPagedReport: Sendable {
         let merged: SiteIntegrationJSONValue
         let pages: [SiteIntegrationJSONValue]
         let totalRows: Int
         let truncated: Bool
     }
 
-    private struct PagedCollection {
+    private struct PagedCollection: Sendable {
         let pages: [SiteIntegrationJSONValue]
         let items: [SiteIntegrationJSONValue]
         let truncated: Bool
     }
 
-    private struct GAAuxiliarySurfaces {
+    private struct GAAuxiliarySurfaces: Sendable {
         var title: String?
         var raw: [String: SiteIntegrationJSONValue] = [:]
         var sections: [SiteIntegrationDetailSection] = []
         var series: [SiteIntegrationDetailSeries] = []
         var tables: [SiteIntegrationDetailTable] = []
         var warnings: [String] = []
+
+        mutating func merge(_ other: Self) {
+            if let title = other.title { self.title = title }
+            raw.merge(other.raw) { _, new in new }
+            sections.append(contentsOf: other.sections)
+            series.append(contentsOf: other.series)
+            tables.append(contentsOf: other.tables)
+            warnings.append(contentsOf: other.warnings)
+        }
+    }
+
+    private struct GASetting: Sendable {
+        let key: String
+        let title: String
+        let version: String
+        let suffix: String
+    }
+
+    private enum GAAuxiliaryRequest: Sendable {
+        case realtimeOverview
+        case realtimeTimeline
+        case property
+        case dataStreams
+        case dataAPIMetadata
+        case setting(GASetting)
     }
 
     private func fetchGoogleAnalytics(
         propertyID: String,
         token: String,
-        range: SiteIntegrationDetailRange
+        range: SiteIntegrationDetailRange,
+        onPartial: (@Sendable (SiteIntegrationDetailPayload) async -> Void)?
     ) async throws -> SiteIntegrationDetailPayload {
         guard !propertyID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw SiteIntegrationDetailAPIError.invalidConfiguration("A GA4 property ID is required.")
@@ -180,44 +234,145 @@ nonisolated struct SiteIntegrationDetailClient: Sendable {
             )
         ]
 
-        var raw: [String: SiteIntegrationJSONValue] = [:]
-        var tables: [SiteIntegrationDetailTable] = []
-        var series: [SiteIntegrationDetailSeries] = []
-        var sections: [SiteIntegrationDetailSection] = []
-        var warnings: [String] = []
-        var remainingReportRows = Self.maximumPayloadRows
-        for (queryIndex, query) in queries.enumerated() {
-            var body: [String: Any] = [
-                "dateRanges": [["startDate": range.startDate, "endDate": range.endDate]],
-                "dimensions": query.dimensions.map { ["name": $0] },
-                "metrics": query.metrics.map { ["name": $0] }
-            ]
-            if !query.dimensions.isEmpty {
-                // Stable dimension ordering is required when offset-paging: without it, rows can
-                // move between pages while Google evaluates the report.
-                body["orderBys"] = query.dimensions.map {
-                    ["dimension": ["dimensionName": $0], "desc": false] as [String: Any]
-                }
-            }
-            let remainingQueries = max(1, queries.count - queryIndex)
-            let reportRowLimit = min(
-                Self.maximumGAReportRows,
-                max(1, remainingReportRows / remainingQueries)
+        let coreQueries = Array(queries.prefix(2))
+        let breakdownQueries = Array(queries.dropFirst(2))
+        let timelineRows = min(
+            Self.maximumPayloadRows / 4,
+            max(
+                1,
+                (Calendar.autoupdatingCurrent.dateComponents(
+                    [.day],
+                    from: range.start,
+                    to: range.end
+                ).day ?? 0) + 1
             )
-            let report = try await fetchGAReportPages(
+        )
+        let coreWork = [
+            GAReportWork(query: coreQueries[0], maximumRows: 1),
+            GAReportWork(query: coreQueries[1], maximumRows: timelineRows)
+        ]
+        let coreResults = try await boundedConcurrentMap(
+            coreWork,
+            maximumConcurrent: coreWork.count
+        ) { work in
+            try await fetchGAReport(
+                work,
                 url: url,
-                body: body,
                 token: token,
-                maximumRows: reportRowLimit
+                range: range
             )
-            remainingReportRows = max(
-                0,
-                remainingReportRows - (report.merged["rows"]?.arrayValue?.count ?? 0)
+        }
+
+        let fetchedAt = Date.now
+        var surfaces = googleAnalyticsSurfaces(from: coreResults, range: range)
+        let partialPayload = SiteIntegrationDetailPayload(
+            provider: .googleAnalytics,
+            resourceID: propertyID,
+            title: "Google Analytics · \(propertyID)",
+            sections: surfaces.sections,
+            series: surfaces.series,
+            tables: surfaces.tables,
+            rawResponses: surfaces.raw,
+            warnings: surfaces.warnings,
+            fetchedAt: fetchedAt
+        )
+        if let onPartial {
+            await onPartial(Self.boundedForDevice(partialPayload))
+        }
+
+        let usedCoreRows = coreResults.reduce(0) {
+            $0 + ($1.report.merged["rows"]?.arrayValue?.count ?? 0)
+        }
+        let remainingRows = max(
+            breakdownQueries.count,
+            Self.maximumPayloadRows - usedCoreRows
+        )
+        let breakdownLimits = distributedLimits(
+            total: remainingRows,
+            count: breakdownQueries.count
+        )
+        let breakdownWork = zip(breakdownQueries, breakdownLimits).map {
+            GAReportWork(query: $0.0, maximumRows: $0.1)
+        }
+
+        async let breakdownResults = boundedConcurrentMap(
+            breakdownWork,
+            maximumConcurrent: 3
+        ) { work in
+            try await fetchGAReport(
+                work,
+                url: url,
+                token: token,
+                range: range
             )
-            raw[query.id] = .array(report.pages)
+        }
+        async let auxiliary = fetchGoogleAnalyticsRealtimeAndConfiguration(
+            propertyID: encodedProperty,
+            token: token
+        )
+        let (initialBreakdowns, loadedAuxiliary) = try await (breakdownResults, auxiliary)
+        let loadedBreakdowns = try await refillGAReportBudget(
+            initialBreakdowns,
+            totalBudget: remainingRows,
+            url: url,
+            token: token,
+            range: range
+        )
+        surfaces.merge(googleAnalyticsSurfaces(from: loadedBreakdowns, range: range))
+        surfaces.merge(loadedAuxiliary)
+
+        return SiteIntegrationDetailPayload(
+            provider: .googleAnalytics,
+            resourceID: propertyID,
+            title: surfaces.title ?? "Google Analytics · \(propertyID)",
+            sections: surfaces.sections,
+            series: surfaces.series,
+            tables: surfaces.tables,
+            rawResponses: surfaces.raw,
+            warnings: surfaces.warnings,
+            fetchedAt: fetchedAt
+        )
+    }
+
+    private func fetchGAReport(
+        _ work: GAReportWork,
+        url: URL,
+        token: String,
+        range: SiteIntegrationDetailRange
+    ) async throws -> GAReportResult {
+        var body: [String: Any] = [
+            "dateRanges": [["startDate": range.startDate, "endDate": range.endDate]],
+            "dimensions": work.query.dimensions.map { ["name": $0] },
+            "metrics": work.query.metrics.map { ["name": $0] }
+        ]
+        if !work.query.dimensions.isEmpty {
+            // Stable dimension ordering is required when offset-paging: without it, rows can
+            // move between pages while Google evaluates the report.
+            body["orderBys"] = work.query.dimensions.map {
+                ["dimension": ["dimensionName": $0], "desc": false] as [String: Any]
+            }
+        }
+        let report = try await fetchGAReportPages(
+            url: url,
+            body: body,
+            token: token,
+            maximumRows: min(Self.maximumGAReportRows, max(1, work.maximumRows))
+        )
+        return GAReportResult(query: work.query, report: report)
+    }
+
+    private func googleAnalyticsSurfaces(
+        from results: [GAReportResult],
+        range: SiteIntegrationDetailRange
+    ) -> GAAuxiliarySurfaces {
+        var output = GAAuxiliarySurfaces()
+        for result in results {
+            let query = result.query
+            let report = result.report
+            output.raw[query.id] = .array(report.pages)
             if report.truncated {
                 let retainedCount = report.merged["rows"]?.arrayValue?.count ?? 0
-                warnings.append(
+                output.warnings.append(
                     "Google Analytics \(query.title.lowercased()) has \(report.totalRows) rows; "
                     + "Verceltics kept the first \(retainedCount) rows "
                     + "within the shared device budget."
@@ -225,30 +380,38 @@ nonisolated struct SiteIntegrationDetailClient: Sendable {
             }
             let normalized = normalizeGAReport(report.merged, id: query.id, title: query.title)
             if query.id == "overview", let first = normalized.rows.first {
-                sections.append(SiteIntegrationDetailSection(
+                output.sections.append(SiteIntegrationDetailSection(
                     id: "ga4.overview",
                     title: "Overview · \(range.startDate) – \(range.endDate)",
                     fields: first.keys.sorted().map {
-                        SiteIntegrationDetailField(key: $0, label: humanized($0), value: first[$0] ?? .null)
+                        SiteIntegrationDetailField(
+                            key: $0,
+                            label: humanized($0),
+                            value: first[$0] ?? .null
+                        )
                     }
                 ))
             } else if query.isTimeline {
-                series.append(SiteIntegrationDetailSeries(
+                output.series.append(SiteIntegrationDetailSeries(
                     id: "ga4.timeline",
                     title: query.title,
-                    metricLabels: Dictionary(uniqueKeysWithValues: normalized.metricNames.map { ($0, humanized($0)) }),
+                    metricLabels: Dictionary(
+                        uniqueKeysWithValues: normalized.metricNames.map { ($0, humanized($0)) }
+                    ),
                     points: normalized.rows.compactMap { row in
                         guard let rawDate = row["date"]?.stringValue else { return nil }
                         return SiteIntegrationDetailSeriesPoint(
                             x: normalizedGADate(rawDate),
-                            values: Dictionary(uniqueKeysWithValues: normalized.metricNames.compactMap { metric in
-                                row[metric]?.numberValue.map { (metric, $0) }
-                            })
+                            values: Dictionary(
+                                uniqueKeysWithValues: normalized.metricNames.compactMap { metric in
+                                    row[metric]?.numberValue.map { (metric, $0) }
+                                }
+                            )
                         )
                     }
                 ))
             } else {
-                tables.append(SiteIntegrationDetailTable(
+                output.tables.append(SiteIntegrationDetailTable(
                     id: "ga4.\(query.id)",
                     title: query.title,
                     columns: normalized.columns,
@@ -257,25 +420,87 @@ nonisolated struct SiteIntegrationDetailClient: Sendable {
                 ))
             }
         }
-        let auxiliary = await fetchGoogleAnalyticsRealtimeAndConfiguration(
-            propertyID: encodedProperty,
-            token: token
-        )
-        raw.merge(auxiliary.raw) { _, new in new }
-        sections.append(contentsOf: auxiliary.sections)
-        series.append(contentsOf: auxiliary.series)
-        tables.append(contentsOf: auxiliary.tables)
-        warnings.append(contentsOf: auxiliary.warnings)
-        return SiteIntegrationDetailPayload(
-            provider: .googleAnalytics,
-            resourceID: propertyID,
-            title: auxiliary.title ?? "Google Analytics · \(propertyID)",
-            sections: sections,
-            series: series,
-            tables: tables,
-            rawResponses: raw,
-            warnings: warnings
-        )
+        return output
+    }
+
+    /// The first concurrent pass gives every breakdown a fair share of the aggregate row budget.
+    /// Sparse reports often leave most of that share unused, so refill only the truncated reports
+    /// until the shared budget is actually consumed. Refills remain bounded and deterministic.
+    private func refillGAReportBudget(
+        _ initialResults: [GAReportResult],
+        totalBudget: Int,
+        url: URL,
+        token: String,
+        range: SiteIntegrationDetailRange
+    ) async throws -> [GAReportResult] {
+        var results = initialResults
+        var remaining = max(0, totalBudget - retainedRowCount(in: results))
+        var refillRound = 0
+
+        while remaining > 0, refillRound < results.count {
+            let candidateIndices = results.indices.filter { results[$0].report.truncated }
+            guard !candidateIndices.isEmpty else { break }
+
+            let increments = distributedLimits(total: remaining, count: candidateIndices.count)
+            let work: [GAReportRefillWork] = zip(candidateIndices, increments).compactMap {
+                pair -> GAReportRefillWork? in
+                let (index, increment) = pair
+                guard increment > 0 else { return nil }
+                let currentRows = results[index].report.merged["rows"]?.arrayValue?.count ?? 0
+                let expandedLimit = min(
+                    Self.maximumGAReportRows,
+                    results[index].report.totalRows,
+                    currentRows + increment
+                )
+                guard expandedLimit > currentRows else { return nil }
+                return GAReportRefillWork(
+                    index: index,
+                    work: GAReportWork(
+                        query: results[index].query,
+                        maximumRows: expandedLimit
+                    )
+                )
+            }
+            guard !work.isEmpty else { break }
+
+            let refilled = try await boundedConcurrentMap(work, maximumConcurrent: 3) { item in
+                GAReportRefillResult(
+                    index: item.index,
+                    result: try await fetchGAReport(
+                        item.work,
+                        url: url,
+                        token: token,
+                        range: range
+                    )
+                )
+            }
+            var addedRows = 0
+            for refill in refilled {
+                let oldCount = results[refill.index].report.merged["rows"]?.arrayValue?.count ?? 0
+                let newCount = refill.result.report.merged["rows"]?.arrayValue?.count ?? 0
+                guard newCount > oldCount else { continue }
+                results[refill.index] = refill.result
+                addedRows += newCount - oldCount
+            }
+            guard addedRows > 0 else { break }
+            remaining = max(0, remaining - addedRows)
+            refillRound += 1
+        }
+        return results
+    }
+
+    private func retainedRowCount(in results: [GAReportResult]) -> Int {
+        results.reduce(0) {
+            $0 + ($1.report.merged["rows"]?.arrayValue?.count ?? 0)
+        }
+    }
+
+    private func distributedLimits(total: Int, count: Int) -> [Int] {
+        guard count > 0 else { return [] }
+        let boundedTotal = max(0, total)
+        let base = boundedTotal / count
+        let remainder = boundedTotal % count
+        return (0..<count).map { base + ($0 < remainder ? 1 : 0) }
     }
 
     private func fetchGAReportPages(
@@ -339,17 +564,77 @@ nonisolated struct SiteIntegrationDetailClient: Sendable {
     private func fetchGoogleAnalyticsRealtimeAndConfiguration(
         propertyID: String,
         token: String
-    ) async -> GAAuxiliarySurfaces {
+    ) async throws -> GAAuxiliarySurfaces {
+        let settings = [
+            GASetting(
+                key: "dataRetentionSettings",
+                title: "Data retention",
+                version: "v1beta",
+                suffix: "dataRetentionSettings"
+            ),
+            GASetting(
+                key: "googleSignalsSettings",
+                title: "Google Signals",
+                version: "v1alpha",
+                suffix: "googleSignalsSettings"
+            ),
+            GASetting(
+                key: "attributionSettings",
+                title: "Attribution",
+                version: "v1alpha",
+                suffix: "attributionSettings"
+            ),
+            GASetting(
+                key: "reportingIdentitySettings",
+                title: "Reporting identity",
+                version: "v1alpha",
+                suffix: "reportingIdentitySettings"
+            ),
+            GASetting(
+                key: "userProvidedDataSettings",
+                title: "User-provided data",
+                version: "v1alpha",
+                suffix: "userProvidedDataSettings"
+            )
+        ]
+        let requests: [GAAuxiliaryRequest] = [
+            .realtimeOverview,
+            .realtimeTimeline,
+            .property,
+            .dataStreams,
+            .dataAPIMetadata
+        ] + settings.map(GAAuxiliaryRequest.setting)
+        let fragments = try await boundedConcurrentMap(
+            requests,
+            maximumConcurrent: 4
+        ) { request in
+            try await fetchGoogleAnalyticsAuxiliaryFragment(
+                request,
+                propertyID: propertyID,
+                token: token
+            )
+        }
+        return fragments.reduce(into: GAAuxiliarySurfaces()) { result, fragment in
+            result.merge(fragment)
+        }
+    }
+
+    private func fetchGoogleAnalyticsAuxiliaryFragment(
+        _ request: GAAuxiliaryRequest,
+        propertyID: String,
+        token: String
+    ) async throws -> GAAuxiliarySurfaces {
         var output = GAAuxiliarySurfaces()
         let headers = ["Authorization": "Bearer \(token)"]
-
-        if let realtimeURL = URL(
-            string: "https://analyticsdata.googleapis.com/v1beta/properties/\(propertyID):runRealtimeReport"
-        ) {
-            do {
+        do {
+            switch request {
+            case .realtimeOverview:
+                let url = URL(
+                    string: "https://analyticsdata.googleapis.com/v1beta/properties/\(propertyID):runRealtimeReport"
+                )!
                 let response = try await requestJSON(
                     method: "POST",
-                    url: realtimeURL,
+                    url: url,
                     jsonBody: [
                         "metrics": ["activeUsers", "eventCount", "screenPageViews"].map { ["name": $0] },
                         "returnPropertyQuota": true
@@ -357,24 +642,32 @@ nonisolated struct SiteIntegrationDetailClient: Sendable {
                     headers: headers
                 )
                 output.raw["realtime.overview"] = response
-                let normalized = normalizeGAReport(response, id: "realtime.overview", title: "Realtime overview")
+                let normalized = normalizeGAReport(
+                    response,
+                    id: "realtime.overview",
+                    title: "Realtime overview"
+                )
                 if let row = normalized.rows.first {
                     output.sections.append(SiteIntegrationDetailSection(
                         id: "ga4.realtime.overview",
                         title: "Realtime · last 30 minutes",
                         fields: normalized.metricNames.map {
-                            SiteIntegrationDetailField(key: $0, label: humanized($0), value: row[$0] ?? .null)
+                            SiteIntegrationDetailField(
+                                key: $0,
+                                label: humanized($0),
+                                value: row[$0] ?? .null
+                            )
                         }
                     ))
                 }
-            } catch {
-                output.warnings.append("Google Analytics realtime overview could not load: \(error.localizedDescription)")
-            }
 
-            do {
+            case .realtimeTimeline:
+                let url = URL(
+                    string: "https://analyticsdata.googleapis.com/v1beta/properties/\(propertyID):runRealtimeReport"
+                )!
                 let response = try await requestJSON(
                     method: "POST",
-                    url: realtimeURL,
+                    url: url,
                     jsonBody: [
                         "dimensions": [["name": "minutesAgo"]],
                         "metrics": ["activeUsers", "eventCount", "screenPageViews"].map { ["name": $0] },
@@ -388,7 +681,11 @@ nonisolated struct SiteIntegrationDetailClient: Sendable {
                     headers: headers
                 )
                 output.raw["realtime.report"] = response
-                let normalized = normalizeGAReport(response, id: "realtime.report", title: "Realtime activity")
+                let normalized = normalizeGAReport(
+                    response,
+                    id: "realtime.report",
+                    title: "Realtime activity"
+                )
                 output.tables.append(SiteIntegrationDetailTable(
                     id: "ga4.realtime.report",
                     title: "Realtime activity by minute",
@@ -399,96 +696,85 @@ nonisolated struct SiteIntegrationDetailClient: Sendable {
                 output.series.append(SiteIntegrationDetailSeries(
                     id: "ga4.realtime.timeline",
                     title: "Realtime activity",
-                    metricLabels: Dictionary(uniqueKeysWithValues: normalized.metricNames.map { ($0, humanized($0)) }),
+                    metricLabels: Dictionary(
+                        uniqueKeysWithValues: normalized.metricNames.map { ($0, humanized($0)) }
+                    ),
                     points: normalized.rows.compactMap { row in
                         guard let minute = row["minutesAgo"]?.stringValue else { return nil }
                         return SiteIntegrationDetailSeriesPoint(
                             x: minute,
-                            values: Dictionary(uniqueKeysWithValues: normalized.metricNames.compactMap { metric in
-                                row[metric]?.numberValue.map { (metric, $0) }
-                            })
+                            values: Dictionary(
+                                uniqueKeysWithValues: normalized.metricNames.compactMap { metric in
+                                    row[metric]?.numberValue.map { (metric, $0) }
+                                }
+                            )
                         )
                     }
                 ))
-            } catch {
-                output.warnings.append("Google Analytics realtime report could not load: \(error.localizedDescription)")
-            }
-        }
 
-        do {
-            let url = URL(string: "https://analyticsadmin.googleapis.com/v1beta/properties/\(propertyID)")!
-            let response = try await requestJSON(url: url, headers: headers)
-            output.raw["property"] = response
-            output.title = response["displayName"]?.stringValue
-                ?? "Google Analytics · \(propertyID)"
-            output.sections.append(SiteIntegrationDetailSection(
-                id: "ga4.property",
-                title: "Property metadata",
-                fields: flattenedFields(response, maximumDepth: 3)
-            ))
-        } catch {
-            output.warnings.append("Google Analytics property metadata could not load: \(error.localizedDescription)")
-        }
+            case .property:
+                let url = URL(
+                    string: "https://analyticsadmin.googleapis.com/v1beta/properties/\(propertyID)"
+                )!
+                let response = try await requestJSON(url: url, headers: headers)
+                output.raw["property"] = response
+                output.title = response["displayName"]?.stringValue
+                    ?? "Google Analytics · \(propertyID)"
+                output.sections.append(SiteIntegrationDetailSection(
+                    id: "ga4.property",
+                    title: "Property metadata",
+                    fields: flattenedFields(response, maximumDepth: 3)
+                ))
 
-        do {
-            let initialURL = URL(
-                string: "https://analyticsadmin.googleapis.com/v1beta/properties/\(propertyID)/dataStreams?pageSize=200"
-            )!
-            let result = try await fetchGoogleTokenPages(
-                initialURL: initialURL,
-                itemKey: "dataStreams",
-                token: token
-            )
-            output.raw["dataStreams"] = .array(result.pages)
-            if result.truncated {
-                output.warnings.append(
-                    "Google Analytics data streams reached the on-device pagination limit; additional streams may be available."
+            case .dataStreams:
+                let initialURL = URL(
+                    string: "https://analyticsadmin.googleapis.com/v1beta/properties/\(propertyID)/dataStreams?pageSize=200"
+                )!
+                let result = try await fetchGoogleTokenPages(
+                    initialURL: initialURL,
+                    itemKey: "dataStreams",
+                    token: token
                 )
-            }
-            let rows = result.items.map(flattenedObject)
-            output.tables.append(SiteIntegrationDetailTable(
-                id: "ga4.dataStreams",
-                title: "Data streams",
-                columns: orderedColumns(rows, preferred: [
-                    "name", "type", "displayName", "webStreamData.measurementId",
-                    "webStreamData.defaultUri", "androidAppStreamData.packageName", "iosAppStreamData.bundleId"
-                ]),
-                rows: rows
-            ))
-        } catch {
-            output.warnings.append("Google Analytics data streams could not load: \(error.localizedDescription)")
-        }
-
-        do {
-            let url = URL(
-                string: "https://analyticsdata.googleapis.com/v1beta/properties/\(propertyID)/metadata"
-            )!
-            let response = try await requestJSON(url: url, headers: headers)
-            output.raw["dataAPI.metadata"] = response
-            for (key, title) in [("dimensions", "Available dimensions"), ("metrics", "Available metrics")] {
-                let rows = (response[key]?.arrayValue ?? []).map(flattenedObject)
+                output.raw["dataStreams"] = .array(result.pages)
+                if result.truncated {
+                    output.warnings.append(
+                        "Google Analytics data streams reached the on-device pagination limit; additional streams may be available."
+                    )
+                }
+                let rows = result.items.map(flattenedObject)
                 output.tables.append(SiteIntegrationDetailTable(
-                    id: "ga4.metadata.\(key)",
-                    title: title,
+                    id: "ga4.dataStreams",
+                    title: "Data streams",
                     columns: orderedColumns(rows, preferred: [
-                        "apiName", "uiName", "description", "category", "deprecatedApiNames"
+                        "name", "type", "displayName", "webStreamData.measurementId",
+                        "webStreamData.defaultUri", "androidAppStreamData.packageName",
+                        "iosAppStreamData.bundleId"
                     ]),
                     rows: rows
                 ))
-            }
-        } catch {
-            output.warnings.append("Google Analytics Data API metadata could not load: \(error.localizedDescription)")
-        }
 
-        let settings: [(key: String, title: String, version: String, suffix: String)] = [
-            ("dataRetentionSettings", "Data retention", "v1beta", "dataRetentionSettings"),
-            ("googleSignalsSettings", "Google Signals", "v1alpha", "googleSignalsSettings"),
-            ("attributionSettings", "Attribution", "v1alpha", "attributionSettings"),
-            ("reportingIdentitySettings", "Reporting identity", "v1alpha", "reportingIdentitySettings"),
-            ("userProvidedDataSettings", "User-provided data", "v1alpha", "userProvidedDataSettings")
-        ]
-        for setting in settings {
-            do {
+            case .dataAPIMetadata:
+                let url = URL(
+                    string: "https://analyticsdata.googleapis.com/v1beta/properties/\(propertyID)/metadata"
+                )!
+                let response = try await requestJSON(url: url, headers: headers)
+                output.raw["dataAPI.metadata"] = response
+                for (key, title) in [
+                    ("dimensions", "Available dimensions"),
+                    ("metrics", "Available metrics")
+                ] {
+                    let rows = (response[key]?.arrayValue ?? []).map(flattenedObject)
+                    output.tables.append(SiteIntegrationDetailTable(
+                        id: "ga4.metadata.\(key)",
+                        title: title,
+                        columns: orderedColumns(rows, preferred: [
+                            "apiName", "uiName", "description", "category", "deprecatedApiNames"
+                        ]),
+                        rows: rows
+                    ))
+                }
+
+            case .setting(let setting):
                 let url = URL(
                     string: "https://analyticsadmin.googleapis.com/\(setting.version)/properties/\(propertyID)/\(setting.suffix)"
                 )!
@@ -499,11 +785,63 @@ nonisolated struct SiteIntegrationDetailClient: Sendable {
                     title: setting.title,
                     fields: flattenedFields(response, maximumDepth: 3)
                 ))
-            } catch {
-                output.warnings.append("Google Analytics \(setting.title.lowercased()) could not load: \(error.localizedDescription)")
             }
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as URLError where error.code == .cancelled {
+            throw CancellationError()
+        } catch {
+            output.warnings.append(
+                "Google Analytics \(auxiliaryDescription(request)) could not load: \(error.localizedDescription)"
+            )
         }
         return output
+    }
+
+    private func auxiliaryDescription(_ request: GAAuxiliaryRequest) -> String {
+        switch request {
+        case .realtimeOverview: "realtime overview"
+        case .realtimeTimeline: "realtime report"
+        case .property: "property metadata"
+        case .dataStreams: "data streams"
+        case .dataAPIMetadata: "Data API metadata"
+        case .setting(let setting): setting.title.lowercased()
+        }
+    }
+
+    private func boundedConcurrentMap<Input: Sendable, Output: Sendable>(
+        _ values: [Input],
+        maximumConcurrent: Int,
+        operation: @escaping @Sendable (Input) async throws -> Output
+    ) async throws -> [Output] {
+        guard !values.isEmpty else { return [] }
+        let batchSize = max(1, maximumConcurrent)
+        var orderedResults: [(index: Int, value: Output)] = []
+        orderedResults.reserveCapacity(values.count)
+
+        for batchStart in stride(from: 0, to: values.count, by: batchSize) {
+            try Task.checkCancellation()
+            let batchEnd = min(values.count, batchStart + batchSize)
+            let batch = (batchStart..<batchEnd).map { ($0, values[$0]) }
+            let completed = try await withThrowingTaskGroup(
+                of: (Int, Output).self,
+                returning: [(Int, Output)].self
+            ) { group in
+                for (index, value) in batch {
+                    group.addTask {
+                        (index, try await operation(value))
+                    }
+                }
+                var results: [(Int, Output)] = []
+                results.reserveCapacity(batch.count)
+                for try await result in group {
+                    results.append(result)
+                }
+                return results
+            }
+            orderedResults.append(contentsOf: completed)
+        }
+        return orderedResults.sorted { $0.index < $1.index }.map(\.value)
     }
 
     private func fetchGoogleTokenPages(

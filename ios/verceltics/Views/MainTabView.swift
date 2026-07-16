@@ -115,14 +115,6 @@ struct MainTabView: View {
         }
         .task {
             await appUpdateChecker.checkForUpdates()
-            while !Task.isCancelled {
-                do {
-                    try await Task.sleep(for: .seconds(60))
-                } catch {
-                    return
-                }
-                requestBackgroundRefreshForCurrentWorkspace()
-            }
         }
     }
 

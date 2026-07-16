@@ -113,27 +113,64 @@ final class SiteIntegrationDetailAPITests: XCTestCase {
     }
 
     func testGoogleAnalyticsUsesInjectedSessionAndBuildsTimelineAndBreakdowns() async throws {
-        let reportShapes: [([String], [String], String, Int)] = [
-            ([], ["activeUsers", "sessions", "screenPageViews", "engagementRate", "eventCount", "averageSessionDuration"], "overview", 1),
-            (["date"], ["activeUsers", "sessions", "screenPageViews", "engagementRate", "eventCount", "averageSessionDuration"], "20260715", 1),
-            (["sessionDefaultChannelGroup", "sessionSource", "sessionMedium"], ["sessions", "activeUsers", "engagementRate"], "organic", 2),
-            (["sessionDefaultChannelGroup", "sessionSource", "sessionMedium"], ["sessions", "activeUsers", "engagementRate"], "direct", 2),
-            (["pagePath", "pageTitle"], ["screenPageViews", "activeUsers", "averageSessionDuration"], "page", 1),
-            (["eventName"], ["eventCount", "activeUsers"], "event", 1),
-            (["country", "city"], ["activeUsers", "sessions"], "geo", 1),
-            (["deviceCategory", "browser", "operatingSystem"], ["activeUsers", "sessions"], "tech", 1)
-        ]
-        var reportRequestIndex = 0
-        var realtimeRequestIndex = 0
-        var dataStreamRequestIndex = 0
         SiteIntegrationDetailMockURLProtocol.handler = { request in
             XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer oauth-token")
             let path = request.url?.path ?? ""
             if path.hasSuffix(":runReport") {
                 XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
-                let (dimensions, metrics, sample, rowCount) = reportShapes[reportRequestIndex]
-                reportRequestIndex += 1
                 let requestBody = try decodedJSONBody(of: request)
+                let dimensions = (requestBody["dimensions"] as? [[String: String]] ?? [])
+                    .compactMap { $0["name"] }
+                let metrics = (requestBody["metrics"] as? [[String: String]] ?? [])
+                    .compactMap { $0["name"] }
+                let offset = Int(requestBody["offset"] as? String ?? "0") ?? 0
+                let expectedMetrics: [String]
+                let sample: String
+                let rowCount: Int
+                switch dimensions {
+                case []:
+                    expectedMetrics = [
+                        "activeUsers", "sessions", "screenPageViews", "engagementRate",
+                        "eventCount", "averageSessionDuration"
+                    ]
+                    sample = "overview"
+                    rowCount = 1
+                case ["date"]:
+                    expectedMetrics = [
+                        "activeUsers", "sessions", "screenPageViews", "engagementRate",
+                        "eventCount", "averageSessionDuration"
+                    ]
+                    sample = "20260715"
+                    rowCount = 1
+                case ["sessionDefaultChannelGroup", "sessionSource", "sessionMedium"]:
+                    expectedMetrics = ["sessions", "activeUsers", "engagementRate"]
+                    sample = offset == 0 ? "organic" : "direct"
+                    rowCount = 2
+                case ["pagePath", "pageTitle"]:
+                    expectedMetrics = ["screenPageViews", "activeUsers", "averageSessionDuration"]
+                    sample = "page"
+                    rowCount = 1
+                case ["eventName"]:
+                    expectedMetrics = ["eventCount", "activeUsers"]
+                    sample = "event"
+                    rowCount = 1
+                case ["country", "city"]:
+                    expectedMetrics = ["activeUsers", "sessions"]
+                    sample = "geo"
+                    rowCount = 1
+                case ["deviceCategory", "browser", "operatingSystem"]:
+                    expectedMetrics = ["activeUsers", "sessions"]
+                    sample = "tech"
+                    // Larger than the initial fair-share limit so the client must reclaim the
+                    // unused budgets from the sparse breakdowns and refill this report.
+                    rowCount = 4_100
+                default:
+                    XCTFail("Unexpected GA report dimensions: \(dimensions)")
+                    expectedMetrics = metrics
+                    sample = "unexpected"
+                    rowCount = 1
+                }
+                XCTAssertEqual(metrics, expectedMetrics)
                 if dimensions.isEmpty {
                     XCTAssertNil(requestBody["orderBys"])
                 } else {
@@ -146,22 +183,39 @@ final class SiteIntegrationDetailAPITests: XCTestCase {
                         dimensions
                     )
                 }
-                let dimensionValues = dimensions.map { name in
-                    ["value": name == "date" ? sample : "\(sample)-\(name)"]
+                let requestedLimit = Int(requestBody["limit"] as? String ?? "1") ?? 1
+                let returnedRowCount: Int
+                if dimensions == ["deviceCategory", "browser", "operatingSystem"] {
+                    returnedRowCount = max(0, min(requestedLimit, rowCount - offset))
+                } else {
+                    returnedRowCount = 1
                 }
-                let metricValues = metrics.enumerated().map { index, _ in ["value": String(index + 1)] }
+                let rows = (0..<returnedRowCount).map { rowIndex in
+                    let dimensionValues = dimensions.map { name in
+                        [
+                            "value": name == "date"
+                                ? sample
+                                : "\(sample)-\(name)-\(offset + rowIndex)"
+                        ]
+                    }
+                    let metricValues = metrics.enumerated().map { index, _ in
+                        ["value": String(index + 1)]
+                    }
+                    return ["dimensionValues": dimensionValues, "metricValues": metricValues]
+                }
                 return (200, [
                     "dimensionHeaders": dimensions.map { ["name": $0] },
                     "metricHeaders": metrics.map { ["name": $0, "type": "TYPE_INTEGER"] },
-                    "rows": [["dimensionValues": dimensionValues, "metricValues": metricValues]],
+                    "rows": rows,
                     "rowCount": rowCount,
                     "metadata": ["currencyCode": "USD", "timeZone": "UTC"]
                 ])
             }
             if path.hasSuffix(":runRealtimeReport") {
-                let isTimeline = realtimeRequestIndex == 1
-                realtimeRequestIndex += 1
                 let requestBody = try decodedJSONBody(of: request)
+                let dimensions = (requestBody["dimensions"] as? [[String: String]] ?? [])
+                    .compactMap { $0["name"] }
+                let isTimeline = dimensions == ["minutesAgo"]
                 if isTimeline {
                     let orderBys = try XCTUnwrap(requestBody["orderBys"] as? [[String: Any]])
                     XCTAssertEqual(
@@ -169,7 +223,6 @@ final class SiteIntegrationDetailAPITests: XCTestCase {
                         "minutesAgo"
                     )
                 }
-                let dimensions = isTimeline ? ["minutesAgo"] : []
                 let metrics = ["activeUsers", "eventCount", "screenPageViews"]
                 return (200, [
                     "dimensionHeaders": dimensions.map { ["name": $0] },
@@ -189,11 +242,14 @@ final class SiteIntegrationDetailAPITests: XCTestCase {
                 ])
             }
             if path == "/v1beta/properties/1234/dataStreams" {
-                dataStreamRequestIndex += 1
-                if dataStreamRequestIndex == 1 {
+                let components = URLComponents(
+                    url: try XCTUnwrap(request.url),
+                    resolvingAgainstBaseURL: false
+                )
+                let pageToken = components?.queryItems?.first { $0.name == "pageToken" }?.value
+                if pageToken == nil {
                     XCTAssertEqual(
-                        URLComponents(url: try XCTUnwrap(request.url), resolvingAgainstBaseURL: false)?
-                            .queryItems?.first { $0.name == "pageSize" }?.value,
+                        components?.queryItems?.first { $0.name == "pageSize" }?.value,
                         "200"
                     )
                     return (200, [
@@ -204,11 +260,7 @@ final class SiteIntegrationDetailAPITests: XCTestCase {
                         "nextPageToken": "stream-2"
                     ])
                 }
-                XCTAssertEqual(
-                    URLComponents(url: try XCTUnwrap(request.url), resolvingAgainstBaseURL: false)?
-                        .queryItems?.first { $0.name == "pageToken" }?.value,
-                    "stream-2"
-                )
+                XCTAssertEqual(pageToken, "stream-2")
                 return (200, ["dataStreams": [[
                     "name": "properties/1234/dataStreams/2", "type": "IOS_APP_DATA_STREAM",
                     "displayName": "iOS", "iosAppStreamData": ["bundleId": "com.example.app"]
@@ -245,13 +297,17 @@ final class SiteIntegrationDetailAPITests: XCTestCase {
             start: Date(timeIntervalSince1970: 1_768_435_200),
             end: Date(timeIntervalSince1970: 1_771_027_200)
         )
+        let partialRecorder = SiteIntegrationPartialPayloadRecorder()
         let payload = try await client.fetch(.googleAnalytics(
             propertyID: "1234", accessToken: "oauth-token", range: range
-        ))
+        ), onPartial: { partial in
+            await partialRecorder.append(partial)
+        })
 
         XCTAssertEqual(payload.provider, .googleAnalytics)
         XCTAssertEqual(payload.title, "Main property")
-        XCTAssertEqual(payload.rawResponses.count, 17)
+        XCTAssertNotNil(payload.rawResponses["overview"])
+        XCTAssertNotNil(payload.rawResponses["technology"])
         XCTAssertEqual(payload.rawResponses["acquisition"]?.arrayValue?.count, 2)
         XCTAssertEqual(payload.rawResponses["dataStreams"]?.arrayValue?.count, 2)
         XCTAssertEqual(payload.series.first { $0.id == "ga4.timeline" }?.points.first?.x, "2026-07-15")
@@ -259,12 +315,44 @@ final class SiteIntegrationDetailAPITests: XCTestCase {
             "ga4.acquisition", "ga4.pages", "ga4.events", "ga4.geography", "ga4.technology"
         ]).isSubset(of: Set(payload.tables.map(\.id))))
         XCTAssertEqual(payload.tables.first { $0.id == "ga4.acquisition" }?.rows.count, 2)
+        XCTAssertEqual(payload.tables.first { $0.id == "ga4.technology" }?.rows.count, 4_100)
         XCTAssertEqual(payload.tables.first { $0.id == "ga4.dataStreams" }?.rows.count, 2)
+        let breakdownIDs = Set([
+            "ga4.acquisition", "ga4.pages", "ga4.events", "ga4.geography", "ga4.technology"
+        ])
+        XCTAssertLessThanOrEqual(
+            payload.tables
+                .filter { breakdownIDs.contains($0.id) }
+                .reduce(0) { $0 + $1.rows.count },
+            19_998
+        )
+        XCTAssertTrue(payload.warnings.contains { $0.contains("on-device memory limit") })
         XCTAssertTrue(payload.sections.contains { $0.id == "ga4.realtime.overview" })
         XCTAssertTrue(payload.sections.contains { $0.id == "ga4.dataRetentionSettings" })
         XCTAssertTrue(payload.sections.contains { $0.id == "ga4.reportingIdentitySettings" })
         XCTAssertTrue(payload.sections.contains { $0.id == "ga4.userProvidedDataSettings" })
-        XCTAssertEqual(SiteIntegrationDetailMockURLProtocol.requests.count, 19)
+        let partials = await partialRecorder.payloads
+        XCTAssertEqual(partials.count, 1)
+        let partial = try XCTUnwrap(partials.first)
+        XCTAssertTrue(partial.sections.contains { $0.id == "ga4.overview" })
+        XCTAssertTrue(partial.series.contains { $0.id == "ga4.timeline" })
+        XCTAssertTrue(partial.tables.isEmpty)
+        XCTAssertEqual(Set(partial.rawResponses.keys), Set(["overview", "timeline"]))
+        let technologyRequests = try SiteIntegrationDetailMockURLProtocol.requests.compactMap {
+            request -> [String: Any]? in
+            guard request.url?.path.hasSuffix(":runReport") == true else { return nil }
+            let body = try decodedJSONBody(of: request)
+            let dimensions = (body["dimensions"] as? [[String: String]] ?? [])
+                .compactMap { $0["name"] }
+            return dimensions == ["deviceCategory", "browser", "operatingSystem"]
+                ? body
+                : nil
+        }
+        XCTAssertEqual(
+            technologyRequests.compactMap { Int($0["limit"] as? String ?? "") },
+            [3_999, 4_100]
+        )
+        XCTAssertEqual(SiteIntegrationDetailMockURLProtocol.requests.count, 20)
     }
 
     func testPlausiblePaginatesEveryReportedResultAndPreservesPages() async throws {
@@ -624,16 +712,35 @@ private func decodedFormBody(of request: URLRequest) throws -> [String: String] 
     })
 }
 
+private actor SiteIntegrationPartialPayloadRecorder {
+    private(set) var payloads: [SiteIntegrationDetailPayload] = []
+
+    func append(_ payload: SiteIntegrationDetailPayload) {
+        payloads.append(payload)
+    }
+}
+
 private final class SiteIntegrationDetailMockURLProtocol: URLProtocol {
-    nonisolated(unsafe) static var handler: ((URLRequest) throws -> (Int, Any))?
-    nonisolated(unsafe) static var requests: [URLRequest] = []
+    private static let stateLock = NSLock()
+    nonisolated(unsafe) private static var storedHandler: ((URLRequest) throws -> (Int, Any))?
+    nonisolated(unsafe) private static var storedRequests: [URLRequest] = []
+
+    static var handler: ((URLRequest) throws -> (Int, Any))? {
+        get { stateLock.withLock { storedHandler } }
+        set { stateLock.withLock { storedHandler = newValue } }
+    }
+
+    static var requests: [URLRequest] {
+        get { stateLock.withLock { storedRequests } }
+        set { stateLock.withLock { storedRequests = newValue } }
+    }
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
         do {
-            Self.requests.append(request)
+            Self.stateLock.withLock { Self.storedRequests.append(request) }
             let handler = try XCTUnwrap(Self.handler)
             let (status, object) = try handler(request)
             let response = try XCTUnwrap(HTTPURLResponse(
