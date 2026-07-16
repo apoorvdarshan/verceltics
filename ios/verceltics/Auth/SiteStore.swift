@@ -8,6 +8,7 @@ final class SiteStore {
     var activeAccountID: UUID?
     var isConnecting = false
     var error: String?
+    private(set) var persistenceError: String?
     var snapshots: [UUID: SiteIntegrationSnapshot] = [:]
     var refreshErrors: [UUID: String] = [:]
     private var refreshAttemptIDs: [UUID: UUID] = [:]
@@ -15,6 +16,11 @@ final class SiteStore {
 
     var isRefreshing: Bool {
         !refreshAttemptIDs.isEmpty
+    }
+
+    func isRefreshing(accountID: UUID?) -> Bool {
+        guard let accountID else { return false }
+        return refreshAttemptIDs[accountID] != nil
     }
 
     var activeAccount: SiteIntegrationAccount? {
@@ -27,6 +33,7 @@ final class SiteStore {
         } catch {
             accounts = []
             accountPersistenceFailure = error.localizedDescription
+            persistenceError = error.localizedDescription
             self.error = error.localizedDescription
         }
         activeAccountID = KeychainHelper.getActiveSiteIntegrationAccountID()
@@ -38,6 +45,7 @@ final class SiteStore {
                 snapshots[snapshot.accountID] = snapshot
             }
         } catch {
+            persistenceError = error.localizedDescription
             self.error = error.localizedDescription
         }
         if activeAccount == nil, let first = accounts.first {
@@ -180,6 +188,7 @@ final class SiteStore {
         do {
             try KeychainHelper.saveSiteIntegrationAccounts(updatedAccounts)
         } catch {
+            persistenceError = error.localizedDescription
             self.error = error.localizedDescription
             return
         }
@@ -204,6 +213,7 @@ final class SiteStore {
         do {
             try KeychainHelper.saveSiteIntegrationAccounts([])
         } catch {
+            persistenceError = error.localizedDescription
             self.error = error.localizedDescription
             return
         }
@@ -441,7 +451,11 @@ final class SiteStore {
             try KeychainHelper.saveSiteIntegrationSnapshots(
                 snapshots.values.filter { accountIDs.contains($0.accountID) }
             )
+            if accountPersistenceFailure == nil {
+                persistenceError = nil
+            }
         } catch {
+            persistenceError = error.localizedDescription
             self.error = error.localizedDescription
         }
     }
