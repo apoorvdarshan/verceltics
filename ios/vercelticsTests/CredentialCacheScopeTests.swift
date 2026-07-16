@@ -73,4 +73,25 @@ final class CredentialCacheScopeTests: XCTestCase {
         XCTAssertNotEqual(first, rotated)
         XCTAssertFalse(first.contains("cloudflare-secret"))
     }
+
+    func testSiteIntegrationScopeChangesOnCredentialRotationWithoutExposingSecret() {
+        let id = UUID(uuidString: "00000000-0000-0000-0000-000000000003")!
+        let original = SiteIntegrationAccount(
+            id: id,
+            provider: .googleSearchConsole,
+            name: "Search Console",
+            credential: "google-oauth-secret",
+            metadata: ["email": "user@example.com"]
+        )
+        var rotated = original
+        rotated.credential = "rotated-google-oauth-secret"
+
+        let originalScope = CredentialCacheScope.siteIntegrationAccount(original)
+        let rotatedScope = CredentialCacheScope.siteIntegrationAccount(rotated)
+
+        XCTAssertNotEqual(originalScope, rotatedScope)
+        XCTAssertFalse(originalScope.contains(original.credential))
+        XCTAssertFalse(rotatedScope.contains(rotated.credential))
+        XCTAssertEqual(originalScope.count, 64)
+    }
 }

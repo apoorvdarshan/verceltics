@@ -29,6 +29,18 @@ nonisolated enum CredentialCacheScope {
         )
     }
 
+    static func siteIntegrationAccount(_ account: SiteIntegrationAccount) -> String {
+        fingerprint(
+            fields: [
+                "site-integration-account",
+                account.id.uuidString.lowercased(),
+                account.provider.rawValue,
+                account.credential,
+                canonicalMetadata(account.metadata)
+            ]
+        )
+    }
+
     static func cloudflare(
         authenticationMode: CloudflareAuthenticationMode,
         email: String?,

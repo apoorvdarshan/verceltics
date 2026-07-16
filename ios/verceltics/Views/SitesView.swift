@@ -318,10 +318,10 @@ struct SitesView: View {
             HStack(spacing: 18) {
                 compactMetric(
                     value: (snapshot?.resources.count ?? 0).formatted(),
-                    label: "Properties"
+                    label: resourceNoun(for: account.provider, count: snapshot?.resources.count ?? 0)
                 )
 
-                if let metric = snapshot?.metrics.first {
+                if let metric = snapshot?.metrics.first(where: { !isResourceCountMetric($0) }) {
                     compactMetric(value: format(metric), label: metric.label)
                 } else {
                     compactMetric(value: "—", label: "Latest signal")
@@ -424,6 +424,26 @@ struct SitesView: View {
                 .foregroundStyle(AppTheme.textTertiary)
                 .lineLimit(1)
         }
+    }
+
+    private func resourceNoun(for provider: SiteIntegrationProvider, count: Int) -> String {
+        let singular: String
+        switch provider {
+        case .googleSearchConsole, .googleAnalytics:
+            singular = "Property"
+        case .pageSpeed, .bingWebmaster, .clarity, .plausible, .umami:
+            singular = "Site"
+        case .uptimeRobot, .betterStack:
+            singular = "Monitor"
+        }
+        return count == 1 ? singular : "\(singular)s"
+    }
+
+    private func isResourceCountMetric(_ metric: SiteIntegrationMetric) -> Bool {
+        let label = metric.label
+            .replacingOccurrences(of: " · Partial", with: "")
+            .lowercased()
+        return ["properties", "sites", "monitors"].contains(label)
     }
 
     private var serviceColumns: [GridItem] {
@@ -694,169 +714,120 @@ private struct SiteServiceDetailView: View {
     @Environment(SiteStore.self) private var store
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     let accountID: UUID
+    var initialResourceID: String? = nil
+
+    @State private var preparedSearchConsoleAccount: SiteIntegrationAccount?
+    @State private var preparationError: String?
+    @State private var isPreparing = false
 
     private var account: SiteIntegrationAccount? {
         store.accounts.first { $0.id == accountID }
     }
-    private var snapshot: SiteIntegrationSnapshot? { store.snapshot(for: accountID) }
-    private var refreshError: String? { store.refreshErrors[accountID] }
+
+    private var taskIdentity: String {
+        account.map(CredentialCacheScope.siteIntegrationAccount)
+            ?? "\(accountID.uuidString.lowercased())|removed"
+    }
+
+    private var preferredSearchConsoleSiteURL: String? {
+        guard let initialResourceID,
+              let resource = store.snapshot(for: accountID)?.resources.first(where: { $0.id == initialResourceID }) else {
+            return nil
+        }
+        return resource.metadata["propertyID"] ?? resource.subtitle
+    }
 
     var body: some View {
-        ZStack {
-            AppTheme.canvas.ignoresSafeArea()
-            ScrollView {
-                LazyVStack(spacing: 16) {
-                    if let account {
-                        sourceHeader(account)
+        Group {
+            if let account {
+                if account.provider == .googleSearchConsole {
+                    searchConsoleDestination(account)
+                } else {
+                    SiteIntegrationProviderDetailView(
+                        accountID: accountID,
+                        initialResourceID: initialResourceID
+                    )
+                }
+            } else {
+                ZStack {
+                    AppTheme.canvas.ignoresSafeArea()
+                    AppFeedbackBanner(
+                        title: "This service is no longer connected",
+                        message: "Return to Sites to choose another connected service.",
+                        icon: "link.badge.plus",
+                        tint: AppTheme.textSecondary
+                    )
+                    .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
+                    .appContentWidth(560, horizontalSizeClass: horizontalSizeClass)
+                }
+                .navigationTitle("Site service")
+            }
+        }
+        .task(id: taskIdentity) {
+            guard account?.provider == .googleSearchConsole else { return }
+            await prepareSearchConsoleAccount(forceCredentialRefresh: false)
+        }
+    }
 
-                        if let refreshError {
-                            AppFeedbackBanner(
-                                title: snapshot == nil ? "Could not load this service" : "Showing saved data",
-                                message: refreshError,
-                                tint: AppTheme.danger,
-                                actionTitle: "Try again"
-                            ) {
-                                Task { await store.refresh(accountID: accountID, force: true) }
-                            }
-                        }
-
-                        if let snapshot {
-                            if !snapshot.metrics.isEmpty {
-                                AppSectionHeader(title: "Account metrics", count: snapshot.metrics.count)
-                                LazyVGrid(columns: metricColumns, spacing: 10) {
-                                    ForEach(snapshot.metrics) { metric in
-                                        metricCard(metric)
-                                    }
-                                }
-                            }
-
-                            AppSectionHeader(title: "Properties", count: snapshot.resources.count)
-                            ForEach(snapshot.resources) { resource in
-                                resourceCard(resource)
-                            }
-                        } else if refreshError == nil {
-                            VStack(spacing: 10) {
-                                ProgressView()
-                                    .tint(account.provider.accentColor)
-                                Text("Loading \(account.provider.displayName)")
-                                    .font(.footnote.weight(.semibold))
-                                    .foregroundStyle(AppTheme.textSecondary)
-                            }
-                            .frame(maxWidth: .infinity, minHeight: 150)
-                            .appSurface()
-                            .accessibilityElement(children: .combine)
-                            .accessibilityLabel("Loading \(account.provider.displayName)")
-                        }
-                    } else {
-                        AppFeedbackBanner(
-                            title: "This service is no longer connected",
-                            message: "Return to Sites to choose another connected service.",
-                            icon: "link.badge.plus",
-                            tint: AppTheme.textSecondary
-                        )
-                    }
+    @ViewBuilder
+    private func searchConsoleDestination(_ account: SiteIntegrationAccount) -> some View {
+        if let preparedSearchConsoleAccount {
+            SearchConsoleDetailView(
+                account: preparedSearchConsoleAccount,
+                initialSiteURL: preferredSearchConsoleSiteURL,
+                refreshAccount: {
+                    try await store.accountForDirectRequest(
+                        id: accountID,
+                        forceCredentialRefresh: true
+                    )
+                }
+            )
+        } else if let preparationError {
+            ZStack {
+                AppTheme.canvas.ignoresSafeArea()
+                AppFeedbackBanner(
+                    title: "Couldn’t open Search Console",
+                    message: preparationError,
+                    tint: AppTheme.danger,
+                    actionTitle: "Try again"
+                ) {
+                    Task { await prepareSearchConsoleAccount(forceCredentialRefresh: true) }
                 }
                 .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
-                .padding(.top, 18)
-                .padding(.bottom, 28)
-                .appContentWidth(AppLayout.detailMaxWidth, horizontalSizeClass: horizontalSizeClass)
+                .appContentWidth(560, horizontalSizeClass: horizontalSizeClass)
             }
+            .navigationTitle(account.provider.displayName)
+            .navigationBarTitleDisplayMode(.inline)
+        } else {
+            ZStack {
+                AppTheme.canvas.ignoresSafeArea()
+                AppDashboardLoadingView(
+                    accent: SiteIntegrationProvider.googleSearchConsole.accentColor,
+                    showsMetrics: true
+                )
+            }
+            .navigationTitle(account.provider.displayName)
+            .navigationBarTitleDisplayMode(.inline)
         }
-        .navigationTitle(account?.provider.displayName ?? "Site service")
-        .navigationBarTitleDisplayMode(.inline)
-        .task { await store.refresh(accountID: accountID, force: false) }
-        .refreshable { await store.refresh(accountID: accountID, force: true) }
     }
 
-    private func sourceHeader(_ account: SiteIntegrationAccount) -> some View {
-        let status = siteServiceStatus(snapshot: snapshot, refreshError: refreshError)
-        return HStack(spacing: 13) {
-            SiteProviderIconTile(provider: account.provider, size: 52)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(account.name)
-                    .font(.headline)
-                    .foregroundStyle(AppTheme.textPrimary)
-                Text(account.provider.connectionSubtitle)
-                    .font(.footnote)
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer(minLength: 8)
-            AppStatusBadge(text: status.text, tone: status.tone)
+    @MainActor
+    private func prepareSearchConsoleAccount(forceCredentialRefresh: Bool) async {
+        guard !isPreparing else { return }
+        isPreparing = true
+        preparationError = nil
+        defer { isPreparing = false }
+        do {
+            preparedSearchConsoleAccount = try await store.accountForDirectRequest(
+                id: accountID,
+                forceCredentialRefresh: forceCredentialRefresh
+            )
+        } catch is CancellationError {
+            return
+        } catch {
+            preparedSearchConsoleAccount = nil
+            preparationError = error.localizedDescription
         }
-        .padding(18)
-        .providerSurface(accent: account.provider.accentColor)
-    }
-
-    private var metricColumns: [GridItem] {
-        [GridItem(.adaptive(minimum: 132), spacing: 10)]
-    }
-
-    private func metricCard(_ metric: SiteIntegrationMetric) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(metric.label.uppercased())
-                .font(.caption2.weight(.semibold))
-                .tracking(0.9)
-                .foregroundStyle(AppTheme.textSecondary)
-            Text(format(metric))
-                .font(.title3.weight(.semibold).monospacedDigit())
-                .foregroundStyle(AppTheme.textPrimary)
-        }
-        .frame(maxWidth: .infinity, minHeight: 78, alignment: .leading)
-        .padding(14)
-        .appSurface()
-    }
-
-    private func resourceCard(_ resource: SiteIntegrationResource) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 12) {
-                SiteProviderIconTile(provider: resource.provider, size: 38)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(resource.name)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(AppTheme.textPrimary)
-                    if let subtitle = resource.subtitle {
-                        Text(subtitle)
-                            .font(.footnote)
-                            .foregroundStyle(AppTheme.textSecondary)
-                            .lineLimit(2)
-                    }
-                }
-                Spacer()
-                if let status = resource.status {
-                    AppStatusBadge(text: status, tone: statusTone(status))
-                }
-            }
-
-            if !resource.metrics.isEmpty {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 105), spacing: 8)], spacing: 8) {
-                    ForEach(resource.metrics.prefix(6)) { metric in
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(format(metric))
-                                .font(.caption.weight(.semibold).monospacedDigit())
-                                .foregroundStyle(AppTheme.textPrimary)
-                            Text(metric.label)
-                                .font(.caption2)
-                                .foregroundStyle(AppTheme.textTertiary)
-                                .lineLimit(1)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(9)
-                        .background(AppTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-                    }
-                }
-            }
-
-            if let url = resource.url {
-                Link(destination: url) {
-                    Label("Open site", systemImage: "arrow.up.right")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(resource.provider.accentColor)
-                }
-            }
-        }
-        .padding(15)
-        .appSurface()
     }
 }
 
@@ -948,39 +919,52 @@ private struct AggregatedSiteDetailView: View {
                         AppSectionHeader(title: "Connected sources", count: site.resources.count)
                         ForEach(site.sources) { source in
                             let resource = source.resource
-                            VStack(alignment: .leading, spacing: 10) {
-                                HStack(spacing: 11) {
-                                    SiteProviderIconTile(provider: resource.provider, size: 38)
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(resource.provider.displayName)
-                                            .font(.subheadline.weight(.semibold))
-                                        Text(resource.status ?? resource.subtitle ?? "Connected")
-                                            .font(.footnote)
-                                            .foregroundStyle(AppTheme.textSecondary)
+                            NavigationLink {
+                                SiteServiceDetailView(
+                                    accountID: source.accountID,
+                                    initialResourceID: resource.id
+                                )
+                            } label: {
+                                VStack(alignment: .leading, spacing: 10) {
+                                    HStack(spacing: 11) {
+                                        SiteProviderIconTile(provider: resource.provider, size: 38)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(resource.provider.displayName)
+                                                .font(.subheadline.weight(.semibold))
+                                                .foregroundStyle(AppTheme.textPrimary)
+                                            Text(resource.status ?? resource.subtitle ?? "Connected")
+                                                .font(.footnote)
+                                                .foregroundStyle(AppTheme.textSecondary)
+                                        }
+                                        Spacer()
+                                        Image(systemName: "chevron.right")
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(AppTheme.textTertiary)
                                     }
-                                    Spacer()
-                                }
 
-                                if !resource.metrics.isEmpty {
-                                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), spacing: 8)], spacing: 8) {
-                                        ForEach(resource.metrics.prefix(8)) { metric in
-                                            VStack(alignment: .leading, spacing: 2) {
-                                                Text(format(metric))
-                                                    .font(.caption.weight(.semibold).monospacedDigit())
-                                                Text(metric.label)
-                                                    .font(.caption2)
-                                                    .foregroundStyle(AppTheme.textTertiary)
-                                                    .lineLimit(1)
+                                    if !resource.metrics.isEmpty {
+                                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), spacing: 8)], spacing: 8) {
+                                            ForEach(resource.metrics.prefix(8)) { metric in
+                                                VStack(alignment: .leading, spacing: 2) {
+                                                    Text(format(metric))
+                                                        .font(.caption.weight(.semibold).monospacedDigit())
+                                                        .foregroundStyle(AppTheme.textPrimary)
+                                                    Text(metric.label)
+                                                        .font(.caption2)
+                                                        .foregroundStyle(AppTheme.textTertiary)
+                                                        .lineLimit(1)
+                                                }
+                                                .frame(maxWidth: .infinity, alignment: .leading)
+                                                .padding(9)
+                                                .background(AppTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
                                             }
-                                            .frame(maxWidth: .infinity, alignment: .leading)
-                                            .padding(9)
-                                            .background(AppTheme.surfaceRaised, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
                                         }
                                     }
                                 }
+                                .padding(15)
+                                .appSurface()
                             }
-                            .padding(15)
-                            .appSurface()
+                            .buttonStyle(PressScaleButtonStyle())
                         }
                     }
                 }
@@ -1065,13 +1049,12 @@ private func refreshSiteAccounts(
 }
 
 private func canonicalSiteKey(_ resource: SiteIntegrationResource) -> String {
-    if let host = resource.url?.host?.lowercased() {
-        return host.removingPrefix("www.")
+    if let key = canonicalURLSiteKey(resource.url) {
+        return key
     }
     for key in ["domain", "siteURL", "url"] {
-        if let raw = resource.metadata[key],
-           let host = URL(string: raw)?.host?.lowercased() {
-            return host.removingPrefix("www.")
+        if let raw = resource.metadata[key], let value = canonicalURLSiteKey(URL(string: raw)) {
+            return value
         }
     }
     let name = resource.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -1079,6 +1062,21 @@ private func canonicalSiteKey(_ resource: SiteIntegrationResource) -> String {
         return name.removingPrefix("www.")
     }
     return "\(resource.provider.rawValue):\(resource.id)"
+}
+
+private func canonicalURLSiteKey(_ url: URL?) -> String? {
+    guard let url,
+          var components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+          let host = components.host?.lowercased() else { return nil }
+    let canonicalHost = host.removingPrefix("www.")
+    components.query = nil
+    components.fragment = nil
+    if components.path == "/" { components.path = "" }
+    while components.path.count > 1, components.path.hasSuffix("/") {
+        components.path.removeLast()
+    }
+    let port = components.port.map { ":\($0)" } ?? ""
+    return "\(canonicalHost)\(port)\(components.percentEncodedPath)".lowercased()
 }
 
 private func format(_ metric: SiteIntegrationMetric) -> String {

@@ -224,6 +224,24 @@ final class SiteStore {
         return snapshots[id]
     }
 
+    /// Returns the latest saved account and refreshes short-lived Google credentials when
+    /// necessary. Detail workspaces use this instead of forcing a full snapshot refresh merely
+    /// to make an authenticated drill-down request.
+    func accountForDirectRequest(
+        id: UUID,
+        forceCredentialRefresh: Bool = false
+    ) async throws -> SiteIntegrationAccount {
+        guard let account = accounts.first(where: { $0.id == id }) else {
+            throw SiteIntegrationsAPIError.invalidConfiguration(
+                "This site service is no longer connected."
+            )
+        }
+        return try await accountWithFreshGoogleCredential(
+            account,
+            force: forceCredentialRefresh
+        )
+    }
+
     func refresh(accountID: UUID? = nil, force: Bool = false) async {
         guard let id = accountID ?? activeAccountID,
               let savedAccount = accounts.first(where: { $0.id == id }) else { return }
