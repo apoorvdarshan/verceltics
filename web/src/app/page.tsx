@@ -1,688 +1,268 @@
 import type { Metadata } from "next";
 import Image from "next/image";
-import Link from "next/link";
 
-import { ScrollReveal } from "@/components/scroll-reveal";
+import { ProviderDirectory } from "@/components/provider-directory";
+import { ArrowUpRight, SiteFooter, SiteHeader } from "@/components/site-chrome";
+import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 
-const SITE_URL = "https://www.verceltics.com";
-
-export const metadata: Metadata = {
-  alternates: { canonical: SITE_URL },
-};
-
-const APPSTORE = "https://apps.apple.com/us/app/verceltics/id6761645656";
+const SITE_URL = "https://verceltics.com";
+const APP_STORE = "https://apps.apple.com/us/app/verceltics/id6761645656";
 const GITHUB = "https://github.com/apoorvdarshan/verceltics";
-const LINKEDIN = "https://www.linkedin.com/company/verceltics";
-const PRODUCTHUNT = "https://www.producthunt.com/products/verceltics";
-const TRUSTMRR = "https://trustmrr.com/startup/vercel-analytics-verceltics";
-const KOFI = "https://ko-fi.com/apoorvdarshan";
 
-const useCases = [
+export const metadata: Metadata = { alternates: { canonical: SITE_URL } };
+
+const providerRibbon = [
+  { name: "Vercel", icon: "VercelMark.svg" },
+  { name: "Cloudflare", icon: "CloudflareMark.svg" },
+  { name: "Netlify", icon: "NetlifyMark.svg" },
+  { name: "Namecheap", icon: "NamecheapMark.svg" },
+  { name: "Firebase", icon: "FirebaseMark.svg" },
+  { name: "Search Console", icon: "GoogleSearchConsoleMark.svg" },
+  { name: "Google Analytics", icon: "GoogleAnalyticsMark.svg" },
+  { name: "PageSpeed", icon: "PageSpeedMark.svg" },
+] as const;
+
+const workspaces = [
   {
-    title: "Hosting platforms together",
-    body: "Switch between Vercel, Cloudflare, Netlify, Railway, Render, DigitalOcean, Heroku, Fly.io, Firebase, and AWS Amplify from one native dashboard.",
+    label: "Hosting",
+    count: "10",
+    accent: "blue",
+    title: "Deployments stay with deployments.",
+    body: "Projects, deploys, domains, logs, jobs, bandwidth, channels, and releases across the hosting platforms you use.",
+    image: "/screens/ios/hosting.png",
+    alt: "Verceltics hosting provider connection screen on iPhone",
   },
   {
-    title: "Domains and DNS",
-    body: "Connect eight registrars, review expiry and renewal state, inspect nameservers, and open guarded provider API operations without jumping between dashboards.",
+    label: "Registrars",
+    count: "8",
+    accent: "white",
+    title: "Domains stay with domains.",
+    body: "Expiry, renewals, nameservers, DNS, contacts, privacy, forwarding, transfers, and certificates in a dedicated workspace.",
+    image: "/screens/ios/registrars.png",
+    alt: "Verceltics registrar connection screen on iPhone",
   },
   {
-    title: "Private direct connections",
-    body: "Credentials stay in the device-only iOS Keychain and talk directly to the selected provider. Verceltics does not proxy, track, or store provider account data.",
+    label: "Sites",
+    count: "9",
+    accent: "violet",
+    title: "Signals stay separate.",
+    body: "Search Console is not Analytics. Speed is not uptime. Each service opens as its own provider-specific dashboard.",
+    image: "/screens/ios/services.png",
+    alt: "Verceltics site service connection screen on iPhone",
   },
+] as const;
+
+const checks = [
+  ["01", "Review a deploy", "See status, environment, logs, and the latest release."],
+  ["02", "Inspect DNS", "Find the zone, record, or nameserver that changed."],
+  ["03", "Check a domain", "Confirm expiry, renewal state, privacy, and forwarding."],
+  ["04", "Read traffic", "Spot changes in requests, visitors, cache, threats, and HTTPS."],
+  ["05", "Check discovery", "Review clicks, indexing, sitemaps, and URL inspection."],
+  ["06", "Confirm uptime", "See monitor state, response time, and availability."],
+] as const;
+
+const plans = [
+  { name: "Monthly", price: "$4.99", detail: "per month", featured: false },
+  { name: "Yearly", price: "$34.99", detail: "per year · 7-day trial", featured: true },
+  { name: "Lifetime", price: "$59.99", detail: "one-time purchase", featured: false },
 ] as const;
 
 const faqs = [
   {
-    question: "Is Verceltics an official provider app?",
-    answer:
-      "No. Verceltics is an independent, open-source iOS dashboard and is not affiliated with, endorsed by, or sponsored by any supported hosting platform or registrar.",
+    question: "What is Verceltics?",
+    answer: "Verceltics is an independent native workspace for hosting platforms, domain registrars, and site-intelligence services on iPhone and iPad.",
   },
   {
-    question: "Which hosting platforms and registrars are supported?",
-    answer:
-      "Hosting support includes Vercel, Cloudflare, Netlify, Railway, Render, DigitalOcean, Heroku, Fly.io, Firebase, and AWS Amplify. Registrar support includes Name.com, Namecheap, Porkbun, Spaceship, Dynadot, NameSilo, Gandi, and GoDaddy.",
+    question: "Does Verceltics merge provider data?",
+    answer: "No. Providers stay separate. Google Search Console and Google Analytics, for example, have separate connections and separate dashboards inside the Sites workspace.",
   },
   {
-    question: "Can I use Verceltics as a Vercel mobile app?",
-    answer:
-      "Yes. It is built for quick Vercel checks on iPhone and iPad: analytics, project search, deployment details, domains, account switching, and mobile-friendly traffic breakdowns.",
-  },
-  {
-    question: "What Vercel Analytics data does it show?",
-    answer:
-      "Verceltics shows visitors, page views, trends, pages, routes, hostnames, referrers, UTM parameters, countries, devices, browsers, operating systems, events, feature flags, and query parameters where Vercel provides that data.",
-  },
-  {
-    question: "Does Verceltics show Vercel charts on iPhone?",
-    answer:
-      "Yes. Verceltics renders your Vercel Web Analytics as native, interactive Swift Charts. Drag across the visitors chart to inspect any day, with peak and average markers, right on your iPhone or iPad.",
-  },
-  {
-    question: "Is there a Vercel Analytics app for iPhone?",
-    answer:
-      "Verceltics is a Vercel Analytics app for iPhone and iPad. Create a Vercel personal access token, paste it once, and check visitors, page views, referrers, and full traffic breakdowns from your phone.",
-  },
-  {
-    question: "Does Verceltics proxy my Vercel token?",
-    answer:
-      "No. Vercel tokens are stored locally in the iOS Keychain and are sent only to Vercel endpoints needed to load your account, projects, domains, deployments, and analytics.",
+    question: "Where are credentials stored?",
+    answer: "Credentials and OAuth tokens use device-only, when-unlocked iOS Keychain protection. Requests go directly to each provider’s official HTTPS API; Verceltics does not run a credential proxy.",
   },
   {
     question: "Does it work on iPad?",
-    answer:
-      "Yes. Verceltics supports iPhone and iPad on iOS 18 and later.",
+    answer: "Yes. The universal app uses a sidebar, adaptive grids, wider tables, and full-width charts on regular-width iPad layouts.",
+  },
+  {
+    question: "Can I build it myself?",
+    answer: "Yes. The complete SwiftUI app and website are open source under the MIT license. A source build uses your own provider credentials and OAuth configuration.",
   },
 ] as const;
 
-const ticker = [
-  "v2.0 — hosting & domains",
-  "SwiftUI",
-  "Swift Charts",
-  "Private by design",
-  "Open source",
-  "Deployment details",
-  "Account avatars",
-  "iOS Keychain",
-  "No app tracking",
-  "No data proxy",
-  "iPad ready",
-] as const;
-
-const features = [
-  {
-    label: "Dashboard",
-    title: "Your numbers, one glance.",
-    body: "Visitors, page views, and trends in a native layout that stays legible on the smallest screen. Drag the chart to inspect any day — peak indicator and dashed average line travel with the data.",
-    bullets: ["Period comparisons", "Swift Charts native", "Drag-to-inspect with haptics"],
-    image: "/analytics.png",
-    alt: "Verceltics analytics dashboard with chart",
-  },
-  {
-    label: "Breakdowns",
-    title: "Where the traffic moved.",
-    body: "Pages, routes, hostnames, referrers, UTM, countries, devices, browsers, OS, events, flags, query params — twelve dimensions, all ranked by visitors with blue gradient bars.",
-    bullets: ["Twelve breakdowns surfaced", "Country flag emoji", "Ranked by visitors"],
-    image: "/referrers.png",
-    alt: "Pages, routes, hostnames, and referrers ranked",
-  },
-  {
-    label: "Projects",
-    title: "Every project, one tap.",
-    body: "All your Vercel projects with favicons, framework, last commit, and a pulsing green dot when something deployed in the last thirty minutes. Switch Vercel accounts from the toolbar with the active Vercel avatar, search, copy URLs, or inspect recent deployments.",
-    bullets: ["Multi-account avatars", "Deployment details", "Search & filter"],
-    image: "/projects.png",
-    alt: "Verceltics project list with favicons and live deploy dots",
-  },
-  {
-    label: "Audience",
-    title: "Who's visiting, from where.",
-    body: "Country, device, browser, OS — every audience axis from the same data Vercel renders on the web. Read it all without rotating your phone.",
-    bullets: ["Country with flag emoji", "Device & browser splits", "OS distribution"],
-    image: "/devices.png",
-    alt: "Country, device, and browser breakdowns",
-  },
-  {
-    label: "Depth",
-    title: "Down to the query parameter.",
-    body: "Operating systems. Custom events. Feature flags. UTM source. Query strings. Everything Vercel tracks in the web dashboard, surfaced in the same legible cards on iPhone.",
-    bullets: ["Events & flags", "UTM source ranking", "Query params"],
-    image: "/breakdowns.png",
-    alt: "OS, events, flags, and query parameter breakdowns",
-  },
-] as const;
-
-const tiers = [
-  {
-    name: "Monthly",
-    price: "$4.99",
-    cadence: "/mo",
-    pitch: "Cancel anytime. Full access.",
-    badge: null as string | null,
-    featured: false,
-    features: ["Unlimited projects", "All twelve breakdowns", "Native Swift Charts", "Open source"],
-  },
-  {
-    name: "Yearly",
-    price: "$34.99",
-    cadence: "/yr",
-    pitch: "$2.92 / month equivalent.",
-    badge: "Best value",
-    featured: true,
-    features: ["7-day free trial", "Unlimited projects", "All twelve breakdowns", "Save 42% vs monthly"],
-  },
-  {
-    name: "Lifetime",
-    price: "$59.99",
-    cadence: "once",
-    pitch: "Pay once. No recurring charges. Ever.",
-    badge: "Forever",
-    featured: false,
-    features: ["Unlimited projects", "All twelve breakdowns", "No subscription", "Yours forever"],
-  },
-] as const;
-
-const jsonLd = {
+const applicationJsonLd = {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   name: "Verceltics",
-  operatingSystem: "iOS",
+  operatingSystem: "iOS 18 or later",
   applicationCategory: "DeveloperApplication",
   softwareVersion: "2.0",
-  description:
-    "Hosting, deployment, analytics, DNS, and registrar dashboard for iPhone and iPad. Built with SwiftUI and Swift Charts. Open source, private by default, no tracking, and no data proxy.",
+  description: "A native iPhone and iPad workspace for hosting, domains, analytics, search performance, speed, and uptime.",
   url: SITE_URL,
-  downloadUrl: APPSTORE,
-  mainEntityOfPage: SITE_URL,
-  sameAs: [GITHUB, LINKEDIN, PRODUCTHUNT, TRUSTMRR, KOFI, "https://x.com/apoorvdarshan"],
-  image: `${SITE_URL}/og.jpg`,
-  screenshot: [
-    `${SITE_URL}/analytics.png`,
-    `${SITE_URL}/referrers.png`,
-    `${SITE_URL}/projects.png`,
-    `${SITE_URL}/devices.png`,
-    `${SITE_URL}/breakdowns.png`,
-  ],
-  author: {
-    "@type": "Person",
-    name: "Apoorv Darshan",
-    url: "https://x.com/apoorvdarshan",
-  },
-  offers: [
-    { "@type": "Offer", price: "4.99", priceCurrency: "USD", description: "Monthly subscription" },
-    { "@type": "Offer", price: "34.99", priceCurrency: "USD", description: "Yearly subscription with 7-day free trial" },
-    { "@type": "Offer", price: "59.99", priceCurrency: "USD", description: "Lifetime, one-time purchase" },
-  ],
+  downloadUrl: APP_STORE,
+  image: `${SITE_URL}/screens/ipad/cloudflare.png`,
+  screenshot: workspaces.map((workspace) => `${SITE_URL}${workspace.image}`),
+  sameAs: [APP_STORE, GITHUB],
+  offers: plans.map((plan) => ({ "@type": "Offer", price: plan.price.replace("$", ""), priceCurrency: "USD", description: `${plan.name} access` })),
 };
 
 const faqJsonLd = {
   "@context": "https://schema.org",
   "@type": "FAQPage",
-  mainEntity: faqs.map((faq) => ({
-    "@type": "Question",
-    name: faq.question,
-    acceptedAnswer: {
-      "@type": "Answer",
-      text: faq.answer,
-    },
-  })),
+  mainEntity: faqs.map((faq) => ({ "@type": "Question", name: faq.question, acceptedAnswer: { "@type": "Answer", text: faq.answer } })),
 };
 
 export default function Home() {
   return (
-    <div className="grain relative bg-[#050a12] text-[#e8e8ed]">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
-      />
+    <div className="site-canvas">
+      <script dangerouslySetInnerHTML={{ __html: JSON.stringify(applicationJsonLd) }} type="application/ld+json" />
+      <script dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} type="application/ld+json" />
+      <SiteHeader />
 
-      {/* ── Ambient ── */}
-      <div aria-hidden className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute -top-[30vh] left-1/2 h-[80vh] w-[120vw] -translate-x-1/2 bg-[radial-gradient(ellipse,rgba(80,140,255,0.09),transparent_60%)]" />
-      </div>
+      <main id="main-content">
+        <section className="hero page-width">
+          <div className="hero-copy">
+            <p className="eyebrow"><span /> Native ops for iPhone and iPad</p>
+            <h1>Your stack,<br /><em>off the desk.</em></h1>
+            <p className="hero-description">Check deploys, domains, DNS, traffic, search, speed, and uptime from one native app. Credentials stay in your Keychain; requests go straight to each provider.</p>
+            <div className="hero-actions">
+              <a className="primary-action" href={APP_STORE} rel="noreferrer" target="_blank">Get Verceltics <ArrowUpRight /></a>
+              <a className="secondary-action" href={GITHUB} rel="noreferrer" target="_blank">View source <ArrowUpRight /></a>
+            </div>
+            <p className="hero-trust">27 direct integrations <i /> Device-only Keychain <i /> No tracking</p>
+          </div>
+          <WorkspaceSwitcher />
+        </section>
 
-      {/* ── Nav ── */}
-      <nav className="fixed top-0 z-50 w-full bg-[#050a12]/75 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3.5 sm:px-8">
-          <Link href="/" className="flex items-center gap-2.5">
-            <Image src="/icon.png" alt="" width={30} height={30} className="rounded-[9px]" />
-            <span className="text-[13px] font-semibold tracking-[0.2em]">VERCELTICS</span>
-          </Link>
+        <section aria-label="Selected supported providers" className="provider-ribbon">
+          <div className="page-width provider-ribbon-inner">
+            <p>Works with the stack you already have.</p>
+            <ul>
+              {providerRibbon.map((provider) => (
+                <li key={provider.name} translate="no"><Image alt="" height={20} src={`/providers/${provider.icon}`} width={20} /><span>{provider.name}</span></li>
+              ))}
+            </ul>
+          </div>
+        </section>
 
-          <div className="hidden items-center gap-7 md:flex">
-            {[
-              { text: "Features", href: "#features" },
-              { text: "How it works", href: "#how-it-works" },
-              { text: "Pricing", href: "#pricing" },
-              { text: "GitHub", href: GITHUB, ext: true },
-            ].map((l) => (
-              <a
-                key={l.text}
-                href={l.href}
-                target={l.ext ? "_blank" : undefined}
-                rel={l.ext ? "noreferrer" : undefined}
-                className="nav-link text-[13px] text-white/40 transition-colors hover:text-white"
-              >
-                {l.text}
-              </a>
+        <section className="page-section page-width" id="workspaces">
+          <header className="section-heading section-heading--wide">
+            <p className="eyebrow"><span /> One app. Three clear workspaces.</p>
+            <h2>Providers stay themselves.</h2>
+            <p>Cloudflare is not Vercel. Search Console is not Analytics. Verceltics keeps every provider’s shape, then makes switching between them immediate.</p>
+          </header>
+
+          <div className="workspace-showcase">
+            {workspaces.map((workspace) => (
+              <article className={`workspace-story workspace-story--${workspace.accent}`} key={workspace.label}>
+                <header><span>{workspace.count}</span><strong>{workspace.label}</strong></header>
+                <h3>{workspace.title}</h3>
+                <p>{workspace.body}</p>
+                <div className="workspace-phone"><Image alt={workspace.alt} fill sizes="(max-width: 760px) 82vw, 310px" src={workspace.image} /></div>
+              </article>
             ))}
           </div>
+        </section>
 
-          <a
-            href={APPSTORE}
-            target="_blank"
-            rel="noreferrer"
-            className="rounded-full bg-white px-4 py-1.5 text-[13px] font-semibold text-[#050a12] transition-colors hover:bg-white/85"
-          >
-            App Store
-          </a>
-        </div>
-      </nav>
+        <section className="page-section page-width production-section">
+          <div className="production-copy">
+            <p className="eyebrow"><span /> The five-minute production check</p>
+            <h2>Know what needs attention before you open your laptop.</h2>
+            <p>Verceltics is built around the quick checks developers actually make between meetings, on a commute, or away from a desk.</p>
+            <ol className="check-list">
+              {checks.map(([number, title, description]) => (
+                <li key={number}><span>{number}</span><div><strong>{title}</strong><p>{description}</p></div></li>
+              ))}
+            </ol>
+          </div>
 
-      <main>
-        {/* ══ HERO ══ */}
-        <section className="relative flex min-h-svh items-center overflow-hidden">
-          <div className="mx-auto grid w-full max-w-[1320px] items-center gap-8 px-5 pb-6 pt-20 sm:gap-12 sm:px-8 sm:pt-24 lg:grid-cols-[0.85fr_1.15fr] lg:gap-10 lg:pb-0 lg:pt-16">
-            {/* Copy */}
-            <div className="max-w-xl text-center lg:text-left">
-              <a
-                href={TRUSTMRR}
-                target="_blank"
-                rel="noreferrer"
-                className="animate-fade-up mb-5 inline-flex items-center gap-2 rounded-full border border-amber-400/25 bg-amber-400/[0.08] px-3.5 py-1.5 text-[12px] font-medium text-amber-200/90 transition-colors hover:bg-amber-400/[0.14]"
-                style={{ animationDelay: "0s" }}
-              >
-                <span className="relative flex h-1.5 w-1.5">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400/70" />
-                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-amber-400" />
-                </span>
-                This app is for sale — view the offer
-                <span aria-hidden>&rarr;</span>
-              </a>
+          <div className="production-visual">
+            <div className="production-phone production-phone--analytics"><Image alt="Cloudflare analytics in Verceltics on iPhone" fill sizes="300px" src="/screens/ios/analytics.png" /></div>
+            <div className="production-phone production-phone--search"><Image alt="Google Search Console in Verceltics on iPhone" fill sizes="250px" src="/screens/ios/search.png" /></div>
+            <span className="production-note production-note--top">Traffic, cache, threats</span>
+            <span className="production-note production-note--bottom">Search &amp; indexing</span>
+          </div>
+        </section>
 
-              <p
-                className="animate-fade-up text-[11px] font-medium uppercase tracking-[0.35em] text-white/30"
-                style={{ animationDelay: "0.05s" }}
-              >
-                Open source &middot; iOS 18+ &middot; v2.0
-              </p>
-
-              <h1
-                className="animate-fade-up mt-5 font-serif text-[clamp(3rem,7vw,7rem)] italic leading-[0.88] tracking-[-0.04em]"
-                style={{ animationDelay: "0.15s" }}
-              >
-                Hosting and domains,
-                <br />
-                <span className="bg-gradient-to-r from-white via-[#a4cfff] to-[#5a96ff] bg-clip-text text-transparent">
-                  in your pocket.
-                </span>
-              </h1>
-
-              <p
-                className="animate-fade-up mt-7 max-w-md text-[15px] leading-7 text-white/45 lg:text-base"
-                style={{ animationDelay: "0.28s" }}
-              >
-                Ten hosting platforms and eight registrars on iPhone and iPad —
-                projects, deployments, analytics, DNS, and domains. Credentials
-                in your Keychain. Nothing in between.
-              </p>
-
-              <div
-                className="animate-fade-up mt-8 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center lg:justify-start"
-                style={{ animationDelay: "0.4s" }}
-              >
-                <a
-                  href={APPSTORE}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-6 py-3 text-[14px] font-semibold text-[#050a12] transition-colors hover:bg-white/85 sm:text-[15px]"
-                >
-                  <AppleIcon />
-                  Download on App Store
-                </a>
-                <a
-                  href={PRODUCTHUNT}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center justify-center gap-2.5 rounded-full border border-[#FF6154]/20 bg-[#FF6154]/[0.06] px-5 py-2.5 transition-colors hover:bg-[#FF6154]/[0.12]"
-                >
-                  <svg width="24" height="24" viewBox="0 0 40 40" fill="none" aria-hidden className="flex-none">
-                    <circle cx="20" cy="20" r="20" fill="#FF6154" />
-                    <path d="M22.667 20h-6v-6.667h6a3.333 3.333 0 1 1 0 6.667Z" fill="#fff" />
-                    <path d="M16.667 26.667V20h6a6.667 6.667 0 0 0 0-13.333h-9.334V26.667h3.334Z" fill="#fff" />
-                  </svg>
-                  <div className="flex flex-col">
-                    <div className="flex items-center gap-0.5">
-                      {[1, 2, 3, 4, 5].map((s) => (
-                        <svg key={s} width="10" height="10" viewBox="0 0 24 24" fill="#FF6154" aria-hidden>
-                          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                        </svg>
-                      ))}
-                    </div>
-                    <span className="text-[12px] font-medium text-[#FF6154]/80">Vote on Product Hunt</span>
-                  </div>
-                </a>
-              </div>
-            </div>
-
-            {/* Hero phones — single transparent product shot */}
-            <div className="animate-fade-up relative w-full" style={{ animationDelay: "0.35s" }}>
-              <div className="absolute inset-x-[5%] top-[8%] h-[70%] rounded-[40%] bg-[radial-gradient(ellipse,rgba(80,140,255,0.22),transparent_70%)] blur-3xl" aria-hidden />
-              <Image
-                src="/hero-phones.png"
-                alt="Verceltics on three iPhones — projects list, welcome chart, analytics dashboard"
-                width={1920}
-                height={1440}
-                priority
-                className="relative h-auto w-full drop-shadow-[0_50px_90px_rgba(0,0,0,0.6)] lg:w-[118%] lg:max-w-none lg:-translate-x-[6%]"
-              />
+        <section className="page-section native-section">
+          <div className="page-width native-copy">
+            <p className="eyebrow"><span /> Native on every screen</p>
+            <h2>Not a web dashboard in a wrapper.</h2>
+            <p>On iPad, Verceltics opens into a real operator workspace: persistent navigation, adaptive metric grids, full-width charts, and provider controls sized for regular width.</p>
+            <ul>
+              <li><strong>Cached first</strong><span>Recent dashboards return immediately.</span></li>
+              <li><strong>Fresh quietly</strong><span>Background refresh updates the data without resetting the screen.</span></li>
+              <li><strong>Writes guarded</strong><span>Detected changes, purchases, and destructive requests ask for confirmation.</span></li>
+            </ul>
+          </div>
+          <div className="native-ipad-wrap">
+            <div className="native-ipad">
+              <div className="tablet-camera" />
+              <Image alt="Cloudflare analytics workspace in Verceltics on iPad" fill sizes="(max-width: 900px) 94vw, 1180px" src="/screens/ipad/cloudflare.png" />
             </div>
           </div>
         </section>
 
-        {/* ── Ticker ── */}
-        <div className="overflow-hidden border-y border-white/[0.04] py-4">
-          <div className="animate-marquee flex w-max gap-10">
-            {[...ticker, ...ticker].map((t, i) => (
-              <span key={`${t}-${i}`} className="flex items-center gap-3 text-[13px] text-white/25">
-                <span className="text-white/15">/</span>
-                {t}
-              </span>
-            ))}
+        <section className="page-section page-width" id="providers">
+          <header className="section-heading section-heading--split">
+            <div><p className="eyebrow"><span /> 27 direct integrations</p><h2>Use the stack you already chose.</h2></div>
+            <p>Connect each account independently. Provider credentials stay scoped to that provider and every dashboard keeps its own capabilities.</p>
+          </header>
+          <ProviderDirectory />
+        </section>
+
+        <section className="page-section page-width privacy-section" id="privacy">
+          <div className="privacy-copy">
+            <p className="eyebrow"><span /> Private by architecture</p>
+            <h2>Your credentials don’t visit us.</h2>
+            <p>Connected credentials and OAuth tokens stay in the device-only iOS Keychain. Provider data travels directly between your device and the selected provider’s official HTTPS API.</p>
+            <div className="privacy-links"><a href="/privacy">Read the privacy policy <ArrowUpRight /></a><a href={GITHUB} rel="noreferrer" target="_blank">Audit the source <ArrowUpRight /></a></div>
           </div>
-        </div>
-
-        {/* ══ FEATURES ══ */}
-        <section id="features" className="scroll-mt-24 px-5 py-20 sm:px-8 sm:py-28">
-          <div className="mx-auto max-w-6xl">
-            <ScrollReveal>
-              <p className="text-center text-[11px] font-medium uppercase tracking-[0.35em] text-white/30 lg:text-left">Features</p>
-              <h2 className="mt-4 text-center font-serif text-[clamp(1.8rem,4.5vw,3.8rem)] italic leading-[0.95] tracking-[-0.03em] lg:max-w-lg lg:text-left">
-                Everything you need. Nothing you don&apos;t.
-              </h2>
-            </ScrollReveal>
-
-            <div className="mt-14 space-y-20 sm:mt-20 sm:space-y-28">
-              {features.map((f, i) => {
-                const flip = i % 2 !== 0;
-                return (
-                  <ScrollReveal key={f.title} delay={80}>
-                    <div className={`grid items-center gap-8 sm:gap-12 lg:grid-cols-[1fr_1fr] lg:gap-20 ${flip ? "[direction:rtl]" : ""}`}>
-                      {/* Screenshot */}
-                      <div className="mx-auto w-full max-w-[220px] sm:max-w-[280px] [direction:ltr]">
-                        <div className="overflow-hidden rounded-2xl border border-white/[0.05] shadow-[0_20px_60px_rgba(0,0,0,0.4)] sm:rounded-[1.5rem]">
-                          <Image src={f.image} alt={f.alt} width={460} height={996} className="h-auto w-full" />
-                        </div>
-                      </div>
-
-                      {/* Copy */}
-                      <div className="text-center [direction:ltr] lg:text-left">
-                        <p className="text-[11px] font-medium uppercase tracking-[0.35em] text-white/30">{f.label}</p>
-                        <h3 className="mt-4 font-serif text-3xl italic leading-[1] tracking-[-0.02em] sm:text-4xl">
-                          {f.title}
-                        </h3>
-                        <p className="mt-5 max-w-md text-[15px] leading-7 text-white/40">{f.body}</p>
-                        <ul className="mt-7 flex flex-col gap-3">
-                          {f.bullets.map((b) => (
-                            <li key={b} className="flex items-center gap-2.5 text-[14px] text-white/35">
-                              <span className="h-px w-3 bg-white/20" />
-                              {b}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-                  </ScrollReveal>
-                );
-              })}
-            </div>
+          <div className="privacy-route" aria-label="Data travels from your iPhone or iPad directly to the selected provider API">
+            <div className="privacy-node"><Image alt="" height={52} src="/icon.png" width={52} /><span><strong>Your device</strong><small>Keychain + protected cache</small></span></div>
+            <div className="privacy-route-line"><i /><i /><i /><span>Encrypted HTTPS</span></div>
+            <div className="privacy-node privacy-node--api"><span aria-hidden="true">↗</span><span><strong>Official provider API</strong><small>Only the selected provider host</small></span></div>
+            <div className="privacy-no-proxy"><b>×</b><span><strong>No Verceltics proxy</strong><small>No credential or provider-data server in between.</small></span></div>
           </div>
         </section>
 
-        <div className="divider mx-auto max-w-4xl" />
-
-        {/* ══ HOW IT WORKS ══ */}
-        <section id="how-it-works" className="scroll-mt-24 px-5 py-20 sm:px-8 sm:py-28">
-          <div className="mx-auto max-w-6xl">
-            <ScrollReveal>
-              <p className="text-[11px] font-medium uppercase tracking-[0.35em] text-white/30">Setup</p>
-              <h2 className="mt-4 font-serif text-[clamp(2rem,4.5vw,3.8rem)] italic leading-[0.95] tracking-[-0.03em]">
-                Three steps. That&apos;s it.
-              </h2>
-            </ScrollReveal>
-
-            <div className="mt-16 grid gap-px overflow-hidden rounded-2xl border border-white/[0.04] md:grid-cols-3">
-              {[
-                { n: "01", t: "Choose a provider", d: "Pick Hosting or Registrars, then select the service you use." },
-                { n: "02", t: "Connect securely", d: "Enter its API credential once. It stays in your device-only Keychain." },
-                { n: "03", t: "Manage anytime", d: "Switch accounts and review resources without opening every desktop dashboard." },
-              ].map((s, i) => (
-                <ScrollReveal key={s.n} delay={i * 80}>
-                  <div className="h-full bg-white/[0.02] p-8 transition-colors hover:bg-white/[0.04]">
-                    <span className="font-serif text-4xl italic text-white/[0.06]">{s.n}</span>
-                    <h3 className="mt-4 text-lg font-semibold tracking-[-0.01em]">{s.t}</h3>
-                    <p className="mt-3 text-[14px] leading-6 text-white/35">{s.d}</p>
-                  </div>
-                </ScrollReveal>
+        <section className="page-section page-width pricing-section" id="pricing">
+          <header className="section-heading">
+            <p className="eyebrow"><span /> Verceltics Pro</p>
+            <h2>One app. Every integration.</h2>
+            <p>Every paid option unlocks the same provider workspaces on iPhone and iPad. Or build the MIT-licensed source for personal use.</p>
+          </header>
+          <div className="purchase-sheet">
+            <div className="purchase-sheet-head"><Image alt="" height={58} src="/icon.png" width={58} /><div><strong>Verceltics Pro</strong><span>All 27 integrations · iPhone + iPad</span></div></div>
+            <div className="purchase-options">
+              {plans.map((plan) => (
+                <div className={plan.featured ? "purchase-option is-featured" : "purchase-option"} key={plan.name}>
+                  <div><strong>{plan.name}</strong><span>{plan.detail}</span></div>
+                  <b>{plan.price}</b>
+                  {plan.featured ? <small>Best value</small> : null}
+                </div>
               ))}
             </div>
+            <a className="primary-action purchase-action" href={APP_STORE} rel="noreferrer" target="_blank">View in the App Store <ArrowUpRight /></a>
+            <p>Prices shown in USD. Local App Store pricing and tax may vary.</p>
           </div>
         </section>
 
-        <div className="divider mx-auto max-w-4xl" />
-
-        {/* ══ PRICING ══ */}
-        <section id="pricing" className="scroll-mt-24 px-5 py-20 sm:px-8 sm:py-24">
-          <div className="mx-auto max-w-6xl">
-            <ScrollReveal>
-              <div className="text-center">
-                <p className="text-[11px] font-medium uppercase tracking-[0.35em] text-white/30">Pricing</p>
-                <h2 className="mt-4 font-serif text-[clamp(2rem,4.5vw,3.8rem)] italic leading-[0.95] tracking-[-0.03em]">
-                  Three plans. No tricks.
-                </h2>
-                <p className="mt-4 max-w-md mx-auto text-[14px] leading-6 text-white/35">
-                  Yearly comes with a real 7-day free trial. Lifetime is one payment, no recurring charges ever. Or build from source for free with your own provider credentials.
-                </p>
-              </div>
-            </ScrollReveal>
-
-            <div className="mx-auto mt-12 grid max-w-5xl gap-px overflow-hidden rounded-2xl border border-white/[0.04] lg:grid-cols-3">
-              {tiers.map((t, i) => (
-                <ScrollReveal key={t.name} delay={i * 70}>
-                  <div
-                    className={`relative h-full p-7 sm:p-8 ${
-                      t.featured
-                        ? "bg-gradient-to-b from-sky-500/[0.08] via-sky-500/[0.02] to-white/[0.02]"
-                        : "bg-white/[0.02]"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <p
-                        className={`text-[11px] font-medium uppercase tracking-[0.3em] ${
-                          t.featured ? "text-sky-300/70" : "text-white/30"
-                        }`}
-                      >
-                        {t.name}
-                      </p>
-                      {t.badge && (
-                        <span
-                          className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] ${
-                            t.featured
-                              ? "bg-sky-400/[0.10] text-sky-300/80"
-                              : "border border-white/10 text-white/45"
-                          }`}
-                        >
-                          {t.badge}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="mt-5 flex items-baseline gap-1">
-                      <span className="text-4xl font-semibold tracking-tight sm:text-5xl">{t.price}</span>
-                      <span className="text-sm text-white/30">{t.cadence}</span>
-                    </div>
-
-                    <p className="mt-4 text-[14px] leading-6 text-white/35">{t.pitch}</p>
-
-                    <ul className="mt-7 space-y-2.5">
-                      {t.features.map((f) => (
-                        <li
-                          key={f}
-                          className={`flex items-center gap-2.5 text-[13px] ${
-                            t.featured ? "text-white/55" : "text-white/45"
-                          }`}
-                        >
-                          <Tick className={t.featured ? "text-sky-400/55" : "text-white/25"} />
-                          {f}
-                        </li>
-                      ))}
-                    </ul>
-
-                    <a
-                      href={APPSTORE}
-                      target="_blank"
-                      rel="noreferrer"
-                      className={`mt-8 inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-2.5 text-[13px] font-semibold transition-colors ${
-                        t.featured
-                          ? "bg-white text-[#050a12] hover:bg-white/90"
-                          : "border border-white/10 text-white hover:border-white/30 hover:bg-white/[0.03]"
-                      }`}
-                    >
-                      <AppleIcon />
-                      {t.featured ? "Start free trial" : t.name === "Lifetime" ? "Buy lifetime" : "Start monthly"}
-                    </a>
-                  </div>
-                </ScrollReveal>
-              ))}
-            </div>
-
-            <p className="mt-6 text-center text-[11px] uppercase tracking-[0.18em] text-white/20">
-              All payments via Apple. Subscriptions auto-renew until cancelled in Settings.
-            </p>
+        <section className="page-section page-width faq-section">
+          <header className="section-heading"><p className="eyebrow"><span /> Before connecting</p><h2>Questions, answered.</h2></header>
+          <div className="faq-list">
+            {faqs.map((faq) => <details key={faq.question}><summary>{faq.question}<span>+</span></summary><p>{faq.answer}</p></details>)}
           </div>
         </section>
 
-        {/* ══ USE CASES ══ */}
-        <section id="provider-mobile-app" className="scroll-mt-24 border-y border-white/[0.04] bg-white/[0.015] px-5 py-20 sm:px-8 sm:py-24">
-          <div className="mx-auto max-w-6xl">
-            <ScrollReveal>
-              <div className="max-w-3xl">
-                <p className="text-[11px] font-medium uppercase tracking-[0.35em] text-white/30">
-                  Provider mobile dashboard
-                </p>
-                <h2 className="mt-4 font-serif text-[clamp(2rem,4.5vw,3.8rem)] italic leading-[0.95] tracking-[-0.03em]">
-                  Built for the checks you do between deploys.
-                </h2>
-                <p className="mt-5 max-w-2xl text-[15px] leading-7 text-white/40">
-                  Verceltics is an iOS dashboard for developers, founders, and indie hackers who want hosting, analytics, deployments, DNS, and domains together on iPhone or iPad.
-                </p>
-              </div>
-            </ScrollReveal>
-
-            <div className="mt-12 grid gap-8 md:grid-cols-3">
-              {useCases.map((item, i) => (
-                <ScrollReveal key={item.title} delay={i * 70}>
-                  <article className="border-l border-white/10 pl-5">
-                    <h3 className="text-lg font-semibold tracking-[-0.01em] text-white/85">{item.title}</h3>
-                    <p className="mt-3 text-[14px] leading-7 text-white/40">{item.body}</p>
-                  </article>
-                </ScrollReveal>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ══ FAQ ══ */}
-        <section id="faq" className="scroll-mt-24 px-5 py-20 sm:px-8 sm:py-24">
-          <div className="mx-auto max-w-4xl">
-            <ScrollReveal>
-              <p className="text-[11px] font-medium uppercase tracking-[0.35em] text-white/30">FAQ</p>
-              <h2 className="mt-4 font-serif text-[clamp(2rem,4.5vw,3.6rem)] italic leading-[0.95] tracking-[-0.03em]">
-                Quick answers before you install.
-              </h2>
-            </ScrollReveal>
-
-            <div className="mt-10 divide-y divide-white/[0.06]">
-              {faqs.map((faq, i) => (
-                <ScrollReveal key={faq.question} delay={i * 55}>
-                  <details className="group py-6">
-                    <summary className="flex cursor-pointer list-none items-center justify-between gap-6 text-left text-[16px] font-semibold text-white/80">
-                      {faq.question}
-                      <span className="text-2xl font-light text-white/25 transition-transform group-open:rotate-45">+</span>
-                    </summary>
-                    <p className="mt-4 max-w-3xl text-[14px] leading-7 text-white/40">{faq.answer}</p>
-                  </details>
-                </ScrollReveal>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <div className="divider mx-auto max-w-4xl" />
-
-        {/* ══ CTA ══ */}
-        <section className="px-5 py-20 sm:px-8 sm:py-28">
-          <ScrollReveal>
-            <div className="mx-auto max-w-2xl text-center">
-              <h2 className="font-serif text-[clamp(2.4rem,5vw,4.2rem)] italic leading-[0.92] tracking-[-0.03em]">
-                Try it free for seven days.
-              </h2>
-              <p className="mt-5 text-[15px] text-white/35">Your hosting and domains, always in your pocket.</p>
-              <a
-                href={APPSTORE}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-9 inline-flex items-center gap-2 rounded-full bg-white px-7 py-3.5 text-[15px] font-semibold text-[#050a12] transition-colors hover:bg-white/85"
-              >
-                <AppleIcon />
-                Download on App Store
-              </a>
-            </div>
-          </ScrollReveal>
+        <section className="final-cta page-width">
+          <Image alt="" height={70} src="/icon.png" width={70} />
+          <div><p className="eyebrow"><span /> Verceltics 2.0</p><h2>Take your stack with you.</h2><p>Private, native, open source, and ready for iPhone and iPad.</p></div>
+          <a className="primary-action" href={APP_STORE} rel="noreferrer" target="_blank">Get Verceltics <ArrowUpRight /></a>
         </section>
       </main>
 
-      {/* ── Footer ── */}
-      <footer className="border-t border-white/[0.04] px-5 py-10 sm:px-8 sm:py-12">
-        <div className="mx-auto max-w-6xl">
-          {/* Brand */}
-          <div className="flex flex-col items-center text-center md:flex-row md:items-start md:justify-between md:text-left">
-            <div className="max-w-xs">
-              <div className="flex items-center justify-center gap-2 md:justify-start">
-                <Image src="/icon.png" alt="" width={24} height={24} className="rounded-md" />
-                <span className="text-[12px] font-semibold tracking-[0.2em]">VERCELTICS</span>
-              </div>
-              <p className="mt-3 text-[12px] leading-5 text-white/25">
-                An open source companion for hosting platforms and domain registrars.
-              </p>
-            </div>
-
-            {/* Links — wrapping row on mobile, 3-col on desktop */}
-            <div className="mt-8 flex flex-wrap justify-center gap-x-8 gap-y-2 text-[12px] text-white/30 md:mt-0 md:gap-x-12">
-              <a href="#features" className="transition-colors hover:text-white/70">Features</a>
-              <a href="#how-it-works" className="transition-colors hover:text-white/70">How it works</a>
-              <a href="#pricing" className="transition-colors hover:text-white/70">Pricing</a>
-              <Link href="/privacy" className="transition-colors hover:text-white/70">Privacy</Link>
-              <Link href="/terms" className="transition-colors hover:text-white/70">Terms</Link>
-              <a href={GITHUB} target="_blank" rel="noreferrer" className="transition-colors hover:text-white/70">GitHub</a>
-              <a href={LINKEDIN} target="_blank" rel="noreferrer" className="transition-colors hover:text-white/70">LinkedIn</a>
-              <a href={TRUSTMRR} target="_blank" rel="noreferrer" className="transition-colors hover:text-white/70">TrustMRR</a>
-              <a href="https://github.com/apoorvdarshan/verceltics/issues" target="_blank" rel="noreferrer" className="transition-colors hover:text-white/70">Report issue</a>
-              <a href="https://x.com/apoorvdarshan" target="_blank" rel="noreferrer" className="transition-colors hover:text-white/70">X</a>
-              <a href="mailto:ad13dtu@gmail.com" className="transition-colors hover:text-white/70">Contact</a>
-              <a href={KOFI} target="_blank" rel="noreferrer" className="transition-colors hover:text-white/70">Support · Ko-fi</a>
-              <a href="https://paypal.me/apoorvdarshan" target="_blank" rel="noreferrer" className="transition-colors hover:text-white/70">Support · PayPal</a>
-            </div>
-          </div>
-
-          <p className="mt-8 text-center text-[11px] text-white/15 md:text-left">
-            Built with <span className="text-white/30">♥</span> by Apoorv Darshan. Independent from all supported providers. &copy; 2026.
-          </p>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
-  );
-}
-
-/* ── Icons ── */
-
-function AppleIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
-    </svg>
-  );
-}
-
-
-function Tick({ className = "text-white/25" }: { className?: string }) {
-  return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className={`flex-none ${className}`} aria-hidden>
-      <path d="M3.5 8.5L6.5 11.5L12.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
   );
 }

@@ -14,7 +14,7 @@ Hosting and Domains on Mobile
 
 ## Promotional Text (170 chars max)
 ```
-Manage hosting, domains, deployments, analytics, search performance, and uptime from one private native dashboard.
+Manage hosting, domains, deployments, analytics, search performance, speed, and uptime from one private native workspace.
 ```
 
 ## Keywords (100 chars max)
@@ -30,7 +30,7 @@ Secondary: Utilities
 
 ## Description
 ```
-Verceltics puts hosting platforms, domain registrars, and site intelligence in one native iPhone and iPad dashboard. Monitor projects and analytics, inspect deployments, manage Cloudflare resources, track domains, and combine search, performance, and uptime signals without sending credentials through a Verceltics server.
+Verceltics puts hosting platforms, domain registrars, and site intelligence in one native iPhone and iPad workspace. Monitor projects and analytics, inspect deployments, manage Cloudflare resources, track domains, and open separate search, analytics, performance, and uptime dashboards without sending credentials through a Verceltics server.
 
 WHAT YOU GET
 • Real-time analytics dashboard with interactive Swift Charts
@@ -38,7 +38,7 @@ WHAT YOU GET
 • Multiple hosting, registrar, and site-service accounts with quick switching
 • Vercel, Cloudflare, Netlify, Railway, Render, DigitalOcean, Heroku, Fly.io, Firebase, and AWS Amplify
 • Name.com, Namecheap, Porkbun, Spaceship, Dynadot, NameSilo, Gandi, and GoDaddy
-• Google Search Console, Google Analytics, PageSpeed & CrUX, Bing Webmaster, Microsoft Clarity, Plausible, Umami, UptimeRobot, and Better Stack
+• Separate provider dashboards for Google Search Console, Google Analytics, PageSpeed & CrUX, Bing Webmaster, Microsoft Clarity, Plausible, Umami, UptimeRobot, and Better Stack
 • Guarded provider API explorers and operation catalogs for advanced operations
 • Referrers, UTMs, countries with flags
 • Device, browser, and OS breakdowns
@@ -85,7 +85,7 @@ Verceltics 2.0 expands beyond Vercel.
 
 • Connect 10 hosting platforms and 8 registrars.
 • Manage Cloudflare zones, DNS, Pages, Workers, storage, security, and analytics.
-• Combine 9 search, analytics, performance, and uptime services in the new Sites tab.
+• Connect 9 separate search, analytics, performance, and uptime services in the Sites tab.
 • Browse guarded provider API catalogs for advanced read and write operations.
 • Separate hosting and registrar account switching with device-only Keychain storage.
 ```
@@ -118,7 +118,7 @@ To test:
 1. Open Add Account and choose Hosting, Registrars, or Sites.
 2. Select Vercel and paste a personal access token from https://vercel.com/account/tokens, or choose another provider and follow its on-screen credential instructions.
 3. Use the top-left account menu to add or switch accounts.
-4. Registrar accounts appear in Registrars, hosting accounts in Projects, and site-intelligence accounts in Sites.
+4. Registrar accounts appear in Registrars, hosting accounts in Hosting, and site-intelligence accounts in Sites.
 
 If you don't have a Vercel account, create a free one at vercel.com and deploy any project to see analytics data.
 

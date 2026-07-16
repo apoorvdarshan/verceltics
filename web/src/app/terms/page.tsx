@@ -1,117 +1,107 @@
-import Link from "next/link";
 import type { Metadata } from "next";
+
+import { LegalShell } from "@/components/legal-shell";
+
+const SITE_URL = "https://verceltics.com";
 
 export const metadata: Metadata = {
   title: "Terms of Service",
   description:
-    "Verceltics terms of service. Subscription plans: $4.99/month, $34.99/year with 7-day free trial, and $59.99 lifetime one-time purchase. Refunds are handled by Apple.",
-  alternates: { canonical: "https://www.verceltics.com/terms" },
+    "Terms for Verceltics provider connections, user-initiated operations, subscriptions, lifetime access, and Apple-handled purchases.",
+  alternates: { canonical: `${SITE_URL}/terms` },
   openGraph: {
     type: "article",
     siteName: "Verceltics",
     title: "Terms of Service — Verceltics",
-    description:
-      "Verceltics terms of service: subscription plans, lifetime purchase, and Apple-handled refunds.",
-    url: "https://www.verceltics.com/terms",
-    images: [{ url: "/og.jpg", width: 1200, height: 630, alt: "Verceltics" }],
+    description: "Terms for using the Verceltics iPhone and iPad app.",
+    url: `${SITE_URL}/terms`,
+    images: [{ url: "/screens/ipad/cloudflare.png", width: 2360, height: 1640, alt: "Verceltics on iPad" }],
   },
 };
 
+const sections = [
+  { id: "acceptance", label: "Acceptance" },
+  { id: "service", label: "The service" },
+  { id: "accounts", label: "Accounts and actions" },
+  { id: "purchases", label: "Purchases" },
+  { id: "source", label: "Building from source" },
+  { id: "availability", label: "Availability" },
+  { id: "disclaimers", label: "Disclaimers" },
+  { id: "changes", label: "Changes" },
+  { id: "contact", label: "Contact" },
+] as const;
+
 export default function Terms() {
   return (
-    <div className="mx-auto max-w-2xl px-6 py-28 sm:px-8">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "BreadcrumbList",
-            itemListElement: [
-              { "@type": "ListItem", position: 1, name: "Home", item: "https://www.verceltics.com" },
-              { "@type": "ListItem", position: 2, name: "Terms of Service", item: "https://www.verceltics.com/terms" },
-            ],
-          }),
-        }}
-      />
-      <Link href="/" className="text-[13px] text-white/30 transition-colors hover:text-white/60">&larr; Back to Verceltics</Link>
-      <h1 className="mt-10 font-serif text-4xl italic tracking-[-0.03em]">Terms of Service</h1>
-      <p className="mt-2 text-[13px] text-white/25">Last updated: July 15, 2026 — applies to v2.0</p>
+    <LegalShell
+      asideDescription="Plain-language terms for using an independent provider workspace."
+      eyebrow="Independent developer tool"
+      sections={sections}
+      summary="These terms cover your use of Verceltics, the provider credentials and operations you control, and purchases processed by Apple."
+      title="Terms of Service"
+      updated="July 17, 2026"
+    >
+      <section id="acceptance">
+        <h2>Acceptance</h2>
+        <p>By downloading, building, or using Verceltics, you agree to these terms and the <a href="/privacy">Privacy Policy</a>. If you do not agree, do not use the app.</p>
+      </section>
 
-      <div className="mt-12 space-y-10 text-[15px] leading-7 text-white/40">
-        <section>
-          <h2 className="text-lg font-semibold text-white/80">Acceptance</h2>
-          <p className="mt-3">By using Verceltics, you agree to these terms. If you don&apos;t agree, don&apos;t use the app.</p>
-        </section>
+      <section id="service">
+        <h2>The service</h2>
+        <p>Verceltics is an independent iPhone and iPad workspace for supported hosting platforms, domain registrars, and site-intelligence services. It uses credentials or OAuth authorization you provide to communicate directly with the provider, display provider data, and perform supported actions you initiate.</p>
+        <p>Verceltics is not affiliated with, endorsed by, or sponsored by any supported provider. Provider names, marks, APIs, plans, data, limits, and availability remain controlled by their respective owners.</p>
+      </section>
 
-        <section>
-          <h2 className="text-lg font-semibold text-white/80">The Service</h2>
-          <p className="mt-3">Verceltics is a mobile dashboard for supported hosting platforms, domain registrars, and site-intelligence services. It uses credentials you provide to communicate directly with the selected provider, display account data, and perform actions you initiate.</p>
-          <p className="mt-3">Advanced API explorers can send requests to provider-relative official API paths. You are responsible for reviewing the method, path, parameters, and body before confirming a write or purchase.</p>
-        </section>
+      <section id="accounts">
+        <h2>Your accounts, credentials, and actions</h2>
+        <p>You are responsible for every credential or Google authorization you connect and for all activity initiated through it. Use the narrowest provider permissions that meet your needs. Revoke or rotate access if you stop using the app or suspect exposure.</p>
+        <p>Provider credentials inherit the permissions granted by that provider and may allow configuration changes, deployment actions, purchases, or destructive operations. Verceltics requires confirmation for detected writes, purchases, and destructive operations, but you remain responsible for reviewing the provider, HTTP method, path, parameters, body, and effect before confirming.</p>
+        <p>You must use Verceltics only with accounts and data you are authorized to access and in accordance with provider terms, applicable law, rate limits, and acceptable-use policies. Do not use the app to evade provider security controls or access another person&apos;s account without permission.</p>
+      </section>
 
-        <section>
-          <h2 className="text-lg font-semibold text-white/80">Your Account</h2>
-          <p className="mt-3">You are responsible for every hosting, registrar, and site-service credential you connect and all activity initiated through it. Keep credentials secure and revoke or rotate them if you stop using the app or suspect exposure. Provider credentials inherit their configured permissions and may allow purchases, configuration changes, or destructive operations.</p>
-        </section>
+      <section id="purchases">
+        <h2>Subscriptions, lifetime access, and tips</h2>
+        <p>Verceltics offers these App Store purchase options:</p>
+        <ul>
+          <li><strong>Monthly:</strong> $4.99 per month, auto-renewable, with no trial</li>
+          <li><strong>Yearly:</strong> $34.99 per year, auto-renewable, with a 7-day introductory trial for eligible first-time subscribers</li>
+          <li><strong>Lifetime:</strong> $59.99 one-time, non-consumable purchase with no recurring charge</li>
+        </ul>
+        <p>Prices may vary by country, currency, tax, or future App Store pricing changes. The price shown by Apple at confirmation controls.</p>
+        <p>Payment is charged to your Apple ID at confirmation. Auto-renewable subscriptions continue unless cancelled at least 24 hours before the end of the current period. Manage or cancel them in <code>Settings → Apple ID → Subscriptions</code>. Any unused trial portion may be forfeited when a subscription is purchased.</p>
+        <p>Optional Coffee, Lunch, Big, and Huge tips are one-time consumable purchases. They support development, unlock no feature or content, and are not subscriptions.</p>
+        <p>Apple processes purchases and decides refund requests under its policies. Verceltics uses RevenueCat for entitlement status, restoration, purchase context, and refund-request handling. Verceltics configures RevenueCat to prefer declining refunds when Apple asks for developer input; Apple makes the final decision. Verceltics does not issue App Store refunds directly.</p>
+      </section>
 
-        <section>
-          <h2 className="text-lg font-semibold text-white/80">Subscriptions &amp; Lifetime</h2>
-          <p className="mt-3">Verceltics offers three purchase options:</p>
-          <ul className="mt-3 list-disc space-y-1 pl-5">
-            <li><strong className="text-white/60">Monthly</strong> — auto-renewable subscription at $4.99/month. No trial.</li>
-            <li><strong className="text-white/60">Yearly</strong> — auto-renewable subscription at $34.99/year, with a 7-day free trial for first-time subscribers.</li>
-            <li><strong className="text-white/60">Lifetime</strong> — one-time non-consumable purchase at $59.99. No recurring charges. Yours forever, restorable across your Apple ID&apos;s devices.</li>
-          </ul>
-          <p className="mt-4">For subscriptions:</p>
-          <ul className="mt-3 list-disc space-y-1 pl-5">
-            <li>Payment is charged to your Apple ID at confirmation of purchase</li>
-            <li>Subscriptions auto-renew unless cancelled at least 24 hours before the end of the current period</li>
-            <li>You can manage and cancel subscriptions in your Apple ID settings (<code className="text-white/60">Settings → Apple ID → Subscriptions</code>)</li>
-            <li>Any unused portion of a free trial is forfeited when you purchase a subscription</li>
-          </ul>
-          <p className="mt-4">Purchases are processed by Apple. Verceltics uses RevenueCat to manage entitlement status, purchase history, refund request handling, and restore purchases for the Verceltics Pro entitlement.</p>
-          <p className="mt-4">Verceltics also offers optional tips — one-time consumable in-app purchases (Coffee, Lunch, Big, and Huge). Tips are voluntary, processed by Apple through the RevenueCat SDK, unlock no content or features, and are not subscriptions.</p>
-          <p className="mt-4">Refunds for App Store purchases are requested through Apple and decided by Apple under its App Store refund policy. When Apple requests developer input, Verceltics may use RevenueCat to send purchase and entitlement context and to prefer that Apple declines the refund request. This preference does not guarantee Apple&apos;s final decision.</p>
-          <p className="mt-4">By using Verceltics and making in-app purchases, you consent to Verceltics and RevenueCat sharing purchase and entitlement context with Apple for refund request review.</p>
-          <p className="mt-4">Verceltics does not issue refunds directly. If you have a purchase issue, contact us before requesting a refund so we can help troubleshoot access, restore purchases, or billing confusion.</p>
-        </section>
+      <section id="source">
+        <h2>Building from source</h2>
+        <p>The source code is available under the MIT license at <a href="https://github.com/apoorvdarshan/verceltics" rel="noreferrer" target="_blank">github.com/apoorvdarshan/verceltics</a>. You may build it for personal use subject to that license, Apple&apos;s developer terms, provider terms, and your own credentials. The App Store version is offered for convenience and to fund ongoing development.</p>
+        <p>Unofficial builds and forks are controlled by their maintainers. Verceltics does not provide warranties or support for modified builds.</p>
+      </section>
 
-        <section>
-          <h2 className="text-lg font-semibold text-white/80">Building From Source</h2>
-          <p className="mt-3">Verceltics is open source under the MIT license. You&apos;re free to clone the repository at <a href="https://github.com/apoorvdarshan/verceltics" className="text-white/60 underline underline-offset-2 transition-colors hover:text-white">github.com/apoorvdarshan/verceltics</a> and build the app yourself for personal use. The App Store version exists for convenience and to fund continued development.</p>
-        </section>
+      <section id="availability">
+        <h2>Availability, updates, and external services</h2>
+        <p>Provider APIs, endpoints, authentication rules, response formats, features, plans, and limits may change without notice. Verceltics may add, change, or remove provider integrations when required to keep the app safe and maintainable.</p>
+        <p>The app may check Apple&apos;s public App Store endpoint for updates. Installing an update is optional, but older builds may stop receiving fixes or working with changed provider APIs.</p>
+        <p>Links to Apple, GitHub, supported providers, Product Hunt, LinkedIn, TrustMRR, Ko-fi, PayPal, X, and other third parties are provided for convenience. Their content, availability, purchases, and policies are outside Verceltics&apos; control.</p>
+      </section>
 
-        <section>
-          <h2 className="text-lg font-semibold text-white/80">External Links and Voluntary Support</h2>
-          <p className="mt-3">Verceltics may link to external services such as GitHub, Product Hunt, LinkedIn, TrustMRR, Ko-fi, PayPal, X, Apple, Vercel, and Cloudflare. We are not responsible for the content, policies, or availability of those third-party services.</p>
-          <p className="mt-3">Ko-fi and PayPal support links are voluntary support options for the developer. They are not a subscription, do not unlock Verceltics Pro, and do not replace App Store purchases.</p>
-        </section>
+      <section id="disclaimers">
+        <h2>Disclaimers and limitation of liability</h2>
+        <p>Verceltics is provided “as is” and “as available,” without warranties of merchantability, fitness for a particular purpose, non-infringement, uninterrupted availability, or accuracy. Provider data and operation results are returned by third parties and may be delayed, incomplete, or incorrect.</p>
+        <p>To the maximum extent permitted by law, Verceltics and its developer are not liable for indirect, incidental, special, exemplary, punitive, or consequential damages; lost revenue, profits, data, or business; provider charges; downtime; or changes resulting from credentials or operations you authorize.</p>
+        <p>If applicable law does not permit a limitation above, liability is limited to the maximum extent allowed by that law.</p>
+      </section>
 
-        <section>
-          <h2 className="text-lg font-semibold text-white/80">Updates</h2>
-          <p className="mt-3">Verceltics may check Apple&apos;s public App Store lookup endpoint to show when a newer version is available. Installing updates is optional, but older versions may stop receiving fixes over time.</p>
-        </section>
+      <section id="changes">
+        <h2>Changes to these terms</h2>
+        <p>We may update these terms when the app, purchases, providers, or legal requirements change. The current version and revision date will remain available at this URL. Continued use after an update means you accept the revised terms.</p>
+      </section>
 
-        <section>
-          <h2 className="text-lg font-semibold text-white/80">Disclaimer</h2>
-          <p className="mt-3">Verceltics is provided &quot;as is&quot; without warranty of any kind. We are not responsible for provider API availability, the accuracy of returned data, or changes resulting from actions you confirm. Verceltics is independent and is not affiliated with, endorsed by, or sponsored by any supported hosting platform, registrar, or site-intelligence service.</p>
-        </section>
-
-        <section>
-          <h2 className="text-lg font-semibold text-white/80">Limitation of Liability</h2>
-          <p className="mt-3">To the maximum extent permitted by law, Verceltics and its developer shall not be liable for any indirect, incidental, special, or consequential damages arising from your use of the app.</p>
-        </section>
-
-        <section>
-          <h2 className="text-lg font-semibold text-white/80">Changes</h2>
-          <p className="mt-3">We may update these terms from time to time. Continued use of the app after changes constitutes acceptance of the new terms.</p>
-        </section>
-
-        <section>
-          <h2 className="text-lg font-semibold text-white/80">Contact</h2>
-          <p className="mt-3">Questions? Email us at <a href="mailto:ad13dtu@gmail.com" className="text-white/60 underline underline-offset-2 transition-colors hover:text-white">ad13dtu@gmail.com</a>.</p>
-        </section>
-      </div>
-    </div>
+      <section id="contact">
+        <h2>Contact</h2>
+        <p>Questions about these terms can be sent to <a href="mailto:ad13dtu@gmail.com">ad13dtu@gmail.com</a>.</p>
+      </section>
+    </LegalShell>
   );
 }

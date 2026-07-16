@@ -33,7 +33,7 @@ You can expect:
 ## In Scope
 
 - Token leakage (Keychain bypass, plaintext storage, accidental logging)
-- Credential transmission outside the selected provider's official API host (other than explicitly documented credential-free image services)
+- Credential transmission outside the selected provider's official API host (credential-free same-origin favicons and provider-hosted avatars never receive credentials)
 - StoreKit verification bypass that grants entitlements without a real receipt
 - Memory disclosure or crashes triggered by malformed provider API responses
 - ATS / TLS misconfiguration
@@ -43,7 +43,7 @@ You can expect:
 ## Out of Scope
 
 - Anything requiring a jailbroken device
-- Vulnerabilities in third-party provider or image services that Verceltics talks to — please report those upstream
+- Vulnerabilities in provider APIs or project sites that Verceltics talks to — please report those upstream
 - Behavior that is documented and intended (for example, a pasted credential being sent directly to its provider API, or an explicitly confirmed Cloudflare write request)
 - Self-inflicted issues (sharing your own token publicly, pasting the wrong token)
 - Theoretical issues without a concrete attack scenario
@@ -59,7 +59,7 @@ Verceltics stores all connected credentials in the iOS Keychain using device-onl
 - `api.cloudflare.com` (Cloudflare profile, accounts, zones, DNS, Pages, Workers, analytics, and user-initiated API operations)
 - `api.netlify.com`, `backboard.railway.com`, `api.render.com`, `api.digitalocean.com`, `api.heroku.com`, `api.machines.dev`, `firebasehosting.googleapis.com`, `oauth2.googleapis.com` (only when exchanging a saved Firebase refresh token), or the selected regional `amplify.*.amazonaws.com` host
 - `api.name.com`, `api.namecheap.com`, `api.porkbun.com`, `spaceship.dev`, `api.dynadot.com`, `www.namesilo.com`, `api.gandi.net`, or `api.godaddy.com`
-- Google OAuth and Sites APIs under `accounts.google.com`, `oauth2.googleapis.com`, `www.googleapis.com`, `searchconsole.googleapis.com`, `analyticsadmin.googleapis.com`, `analyticsdata.googleapis.com`, and `chromeuxreport.googleapis.com`
+- Google OAuth and Sites APIs under `accounts.google.com`, `oauth2.googleapis.com`, `openidconnect.googleapis.com`, `www.googleapis.com`, `searchconsole.googleapis.com`, `analyticsadmin.googleapis.com`, `analyticsdata.googleapis.com`, and `chromeuxreport.googleapis.com`
 - `ssl.bing.com`, `www.clarity.ms`, `plausible.io`, `api.umami.is` (or the user-selected HTTPS Umami host), `api.uptimerobot.com`, and `uptime.betterstack.com`
 
 Favicon fetches are limited to the project site's own HTTPS origin, and Vercel avatar image loads do **not** include credentials. No project domain is sent to a third-party favicon service.

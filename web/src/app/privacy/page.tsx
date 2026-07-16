@@ -1,115 +1,124 @@
-import Link from "next/link";
 import type { Metadata } from "next";
+
+import { LegalShell } from "@/components/legal-shell";
+
+const SITE_URL = "https://verceltics.com";
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
   description:
-    "Verceltics privacy policy. Hosting, registrar, and site-service credentials stay in the device-only iOS Keychain. No app tracking, telemetry, or data proxy.",
-  alternates: { canonical: "https://www.verceltics.com/privacy" },
+    "How Verceltics handles provider credentials, Google OAuth data, local caches, purchases, and website delivery.",
+  alternates: { canonical: `${SITE_URL}/privacy` },
   openGraph: {
     type: "article",
     siteName: "Verceltics",
     title: "Privacy Policy — Verceltics",
-    description:
-      "How Verceltics handles provider credentials and data: device-only Keychain storage, no tracking, no telemetry, and no data proxy.",
-    url: "https://www.verceltics.com/privacy",
-    images: [{ url: "/og.jpg", width: 1200, height: 630, alt: "Verceltics" }],
+    description: "Device-only Keychain storage, direct provider requests, no app tracking, and no Verceltics credential proxy.",
+    url: `${SITE_URL}/privacy`,
+    images: [{ url: "/screens/ipad/cloudflare.png", width: 2360, height: 1640, alt: "Verceltics on iPad" }],
   },
 };
 
+const sections = [
+  { id: "overview", label: "Overview" },
+  { id: "app-data", label: "Data not collected" },
+  { id: "credentials", label: "Credentials and OAuth" },
+  { id: "google-data", label: "Google API data" },
+  { id: "provider-data", label: "Provider data and cache" },
+  { id: "images", label: "Images and update checks" },
+  { id: "website", label: "Website delivery" },
+  { id: "purchases", label: "Purchases" },
+  { id: "controls", label: "Your controls" },
+  { id: "changes", label: "Policy changes" },
+  { id: "contact", label: "Contact" },
+] as const;
+
 export default function Privacy() {
   return (
-    <div className="mx-auto max-w-2xl px-6 py-28 sm:px-8">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "BreadcrumbList",
-            itemListElement: [
-              { "@type": "ListItem", position: 1, name: "Home", item: "https://www.verceltics.com" },
-              { "@type": "ListItem", position: 2, name: "Privacy Policy", item: "https://www.verceltics.com/privacy" },
-            ],
-          }),
-        }}
-      />
-      <Link href="/" className="text-[13px] text-white/30 transition-colors hover:text-white/60">&larr; Back to Verceltics</Link>
-      <h1 className="mt-10 font-serif text-4xl italic tracking-[-0.03em]">Privacy Policy</h1>
-      <p className="mt-2 text-[13px] text-white/25">Last updated: July 15, 2026 — applies to v2.0</p>
+    <LegalShell
+      asideDescription="Plain-language privacy details for a direct-to-provider iOS app."
+      eyebrow="Direct-to-provider architecture"
+      sections={sections}
+      summary="Verceltics is designed so provider credentials and account data do not pass through a Verceltics server. This policy explains the limited local and third-party processing needed to operate the app and website."
+      title="Privacy Policy"
+      updated="July 17, 2026"
+    >
+      <section id="overview">
+        <h2>Overview</h2>
+        <p>Verceltics is an independent iPhone and iPad workspace for supported hosting platforms, domain registrars, and site-intelligence services. The app connects to services you choose using credentials or OAuth authorization you provide.</p>
+        <p><strong>Verceltics does not operate a credential or provider-data proxy.</strong> Requests for provider data go from your device directly to the selected provider&apos;s official HTTPS API.</p>
+      </section>
 
-      <div className="mt-12 space-y-10 text-[15px] leading-7 text-white/40">
-        <section>
-          <h2 className="text-lg font-semibold text-white/80">Overview</h2>
-          <p className="mt-3">Verceltics is a direct-to-provider mobile dashboard for hosting platforms, domain registrars, and site-intelligence services. This policy explains how credentials and provider data are handled.</p>
-        </section>
+      <section id="app-data">
+        <h2>Data the iOS app does not collect</h2>
+        <p>The iOS app does not send provider credentials, account data, projects, domains, DNS records, deployments, logs, analytics, search data, or uptime data to Verceltics infrastructure.</p>
+        <ul>
+          <li>No advertising or cross-app tracking</li>
+          <li>No product-analytics or provider-data telemetry in the app</li>
+          <li>No sale of credentials, provider data, or personal information</li>
+          <li>No use of provider or Google user data for advertising, credit decisions, or training generalized AI models</li>
+        </ul>
+      </section>
 
-        <section>
-          <h2 className="text-lg font-semibold text-white/80">Data We Collect</h2>
-          <p className="mt-3"><strong className="text-white/60">The iOS app does not collect your hosting, registrar, or site-service account data.</strong> Specifically:</p>
-          <ul className="mt-3 list-disc space-y-1 pl-5">
-            <li>We do not track you</li>
-            <li>We do not use product analytics, advertising tracking, or provider-data telemetry inside the app</li>
-            <li>We do not proxy or store your provider account data, configuration, or analytics on our servers</li>
-            <li>We do not sell or share your credentials or provider data with third parties</li>
-          </ul>
-        </section>
+      <section id="credentials">
+        <h2>Credentials and OAuth tokens</h2>
+        <p>Hosting, registrar, and site-service credentials are stored with device-only, when-unlocked iOS Keychain protection. Credentials are attached only to HTTPS requests for the selected provider&apos;s allowed API hosts. Cross-host redirects are blocked.</p>
+        <p>Google Search Console, Google Analytics, and Firebase Hosting connections use Google&apos;s official OAuth authorization and token endpoints. Authorization opens in the system authentication session. Access and refresh tokens returned by Google are stored in the iOS Keychain and are used only to provide the Google feature you connected.</p>
+        <p>Provider credentials inherit the permissions granted by that provider. Supported writes and purchases are initiated by you; detected write, purchase, and destructive requests require confirmation in the app.</p>
+      </section>
 
-        <section>
-          <h2 className="text-lg font-semibold text-white/80">Provider Credentials</h2>
-          <p className="mt-3">Credentials for connected hosting platforms, registrars, and Sites services — Google Search Console, Google Analytics, PageSpeed &amp; CrUX, Bing Webmaster, Microsoft Clarity, Plausible, Umami, UptimeRobot, and Better Stack — are stored locally using device-only, when-unlocked iOS Keychain protection.</p>
-          <p className="mt-3">A credential is attached only to HTTPS requests for its selected provider&apos;s official API host. Firebase refresh-token connections and Google Sites connections use Google&apos;s official OAuth endpoints; Google authorization opens in the system authentication session and the resulting tokens are kept in the Keychain. Redirects to a different host are blocked. Credentials never cross Verceltics infrastructure. Provider keys inherit the permissions configured by the provider; detected writes and purchases require confirmation in the app.</p>
-        </section>
+      <section id="google-data">
+        <h2>Google API data</h2>
+        <p>When you connect a Google service, Verceltics requests your Google account identifier and email address through Google OpenID Connect. The app uses them only to identify the connected account, label it in account controls, and match later OAuth refreshes to the same saved connection. The identifier and email are stored in the iOS Keychain with the connection&apos;s OAuth tokens.</p>
+        <p>Verceltics uses Google API data only to provide the user-facing feature you select:</p>
+        <ul>
+          <li><strong>Google Search Console:</strong> verified properties, search performance, indexing, sitemaps, and URL inspection</li>
+          <li><strong>Google Analytics:</strong> GA4 properties and read-only traffic, engagement, acquisition, geography, device, page, event, and realtime reports</li>
+          <li><strong>Firebase Hosting:</strong> hosting sites, channels, releases, versions, and user-initiated hosting operations supported by the app</li>
+        </ul>
+        <p>Google data is displayed on your device and may be included in the protected local snapshot cache described below. It is not transferred to Verceltics servers, sold, shared for advertising, or used for unrelated purposes.</p>
+        <p>Verceltics&apos; use and transfer of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy" rel="noreferrer" target="_blank">Google API Services User Data Policy</a>, including its Limited Use requirements.</p>
+      </section>
 
-        <section>
-          <h2 className="text-lg font-semibold text-white/80">Analytics Data</h2>
-          <p className="mt-3">All account, project, domain, configuration, deployment, DNS, Worker, search, performance, uptime, and analytics data is fetched directly from the selected provider to your device. API explorer responses are displayed locally. The Sites dashboard keeps a protected, backup-excluded snapshot cache in the app&apos;s local Application Support directory so recently viewed data can reappear without a blank reload. We do not proxy or store this data on our servers.</p>
-        </section>
+      <section id="provider-data">
+        <h2>Provider data and local cache</h2>
+        <p>Account, project, domain, deployment, configuration, DNS, Worker, search, analytics, performance, uptime, and API explorer responses are fetched directly from the selected provider to your device.</p>
+        <p>To avoid a blank dashboard on every launch, the Sites workspace can save recently viewed provider snapshots in the app&apos;s local Application Support directory. These files use iOS file protection and are excluded from device backups. In-memory caches also keep recently loaded screens responsive. Verceltics does not receive these caches.</p>
+      </section>
 
-        <section>
-          <h2 className="text-lg font-semibold text-white/80">Images, Favicons, and Avatars</h2>
-          <p className="mt-3">To display a project favicon, the app may issue bounded plain GET requests only to that project site&apos;s own HTTPS origin. If no safe icon is available, it draws a local letter tile instead; project domains are not sent to third-party favicon services. Vercel profile avatars may be loaded from Vercel. These image requests never include provider credentials or account data.</p>
-        </section>
+      <section id="images">
+        <h2>Favicons, avatars, and update checks</h2>
+        <p>To display a project favicon, the app may make bounded, credential-free GET requests to that project site&apos;s own HTTPS origin. If no safe icon is available, it draws a local letter tile. Project domains are not sent to a third-party favicon service. Vercel profile avatars may be loaded from Vercel without provider credentials.</p>
+        <p>The app may call Apple&apos;s public App Store lookup endpoint with the Verceltics app identifier and country to check whether a newer version is available. This request does not include provider credentials or provider account data.</p>
+      </section>
 
-        <section>
-          <h2 className="text-lg font-semibold text-white/80">App Store Update Checks</h2>
-          <p className="mt-3">To check whether a new version is available, the app may call Apple&apos;s public App Store lookup endpoint with the Verceltics app ID and country. This request never includes provider credentials or provider data.</p>
-        </section>
+      <section id="website">
+        <h2>Website delivery</h2>
+        <p>The Verceltics website is deployed through Cloudflare Workers Static Assets. The site does not include client-side analytics, advertising pixels, account sign-in, or forms that collect provider credentials. Cloudflare may process standard connection, security, and delivery logs under its own policies to serve and protect the website.</p>
+      </section>
 
-        <section>
-          <h2 className="text-lg font-semibold text-white/80">Website Hosting</h2>
-          <p className="mt-3">The marketing website is hosted on Cloudflare Pages. The website does not include client-side analytics. Cloudflare may process standard connection and security data needed to deliver and protect the site under its own privacy policy. This does not include credentials or account data saved in the iOS app.</p>
-        </section>
+      <section id="purchases">
+        <h2>Purchases and RevenueCat</h2>
+        <p>Subscriptions, lifetime access, and optional tips are processed by Apple through the App Store. Verceltics uses RevenueCat to manage the Verceltics Pro entitlement, restore purchases, and provide purchase status to the app. RevenueCat may receive an anonymous app-user identifier, Apple receipt information, product identifiers, purchase history, and subscription or entitlement status.</p>
+        <p>RevenueCat does not receive provider credentials or provider account data from Verceltics. Verceltics does not receive or store payment-card details.</p>
+        <p>Refund decisions are made by Apple. If Apple asks for developer input on a refund request, RevenueCat may send Apple purchase and entitlement context. Verceltics configures RevenueCat to prefer declining refund requests; Apple retains the final decision.</p>
+      </section>
 
-        <section>
-          <h2 className="text-lg font-semibold text-white/80">Subscriptions</h2>
-          <p className="mt-3">Subscriptions and the lifetime in-app purchase are processed by Apple through the App Store. Verceltics uses RevenueCat to manage entitlement status and restore purchases. RevenueCat may receive Apple purchase receipt data, an anonymous RevenueCat app user identifier, and subscription status needed to unlock the app.</p>
-          <p className="mt-3">Optional tips are one-time consumable in-app purchases processed by Apple and requested through the RevenueCat SDK. They unlock no content or features and involve no payment information being shared with Verceltics.</p>
-          <p className="mt-3">RevenueCat does not receive provider credentials, account data, project data, configuration, or analytics from Verceltics. We do not process or store any payment card information. We can&apos;t see your card.</p>
-        </section>
+      <section id="controls">
+        <h2>Your controls and retention</h2>
+        <p>You can remove a connected account or service inside Verceltics to delete its saved credential and associated local snapshot. You can also revoke OAuth access or rotate API credentials from the provider&apos;s own account settings. Provider-side retention is governed by that provider&apos;s policy.</p>
+        <p>External links—including Apple, GitHub, supported providers, Product Hunt, LinkedIn, TrustMRR, Ko-fi, PayPal, and X—open third-party services with their own privacy practices.</p>
+      </section>
 
-        <section>
-          <h2 className="text-lg font-semibold text-white/80">Refund Requests</h2>
-          <p className="mt-3">Refund requests for App Store purchases are handled by Apple. If you request a refund through Apple, RevenueCat may send Apple purchase and entitlement context needed to respond to Apple&apos;s refund review, such as receipt data, product identifiers, purchase history, subscription status, and whether the purchase was delivered or restored.</p>
-          <p className="mt-3">Verceltics configures RevenueCat to prefer that Apple declines refund requests. Apple makes the final refund decision. This refund handling data does not include provider credentials or provider account data.</p>
-          <p className="mt-3">By using Verceltics and making in-app purchases, you consent to Verceltics and RevenueCat sharing this purchase and entitlement context with Apple for refund request review.</p>
-        </section>
+      <section id="changes">
+        <h2>Changes to this policy</h2>
+        <p>We may update this policy when the app, its providers, or legal requirements change. The current version and revision date will remain available at this URL.</p>
+      </section>
 
-        <section>
-          <h2 className="text-lg font-semibold text-white/80">External Links and Support</h2>
-          <p className="mt-3">The app and website may link to GitHub, Product Hunt, LinkedIn, TrustMRR, Ko-fi, PayPal, X, Apple, and supported hosting, registrar, or site-intelligence providers. Opening those links sends you to third-party services with their own privacy practices.</p>
-          <p className="mt-3">Optional support payments through Ko-fi or PayPal are handled outside Verceltics. They do not unlock app features and do not give those services access to provider credentials or provider data.</p>
-        </section>
-
-        <section>
-          <h2 className="text-lg font-semibold text-white/80">Open Source</h2>
-          <p className="mt-3">Verceltics is open source. You can verify everything above by reviewing the source code at <a href="https://github.com/apoorvdarshan/verceltics" className="text-white/60 underline underline-offset-2 transition-colors hover:text-white">github.com/apoorvdarshan/verceltics</a>.</p>
-        </section>
-
-        <section>
-          <h2 className="text-lg font-semibold text-white/80">Contact</h2>
-          <p className="mt-3">If you have questions, contact us at <a href="mailto:ad13dtu@gmail.com" className="text-white/60 underline underline-offset-2 transition-colors hover:text-white">ad13dtu@gmail.com</a>.</p>
-        </section>
-      </div>
-    </div>
+      <section id="contact">
+        <h2>Contact</h2>
+        <p>For privacy questions or requests, email <a href="mailto:ad13dtu@gmail.com">ad13dtu@gmail.com</a>. Security vulnerabilities should follow the private reporting process in the project&apos;s <a href="https://github.com/apoorvdarshan/verceltics/blob/main/SECURITY.md" rel="noreferrer" target="_blank">Security Policy</a>.</p>
+      </section>
+    </LegalShell>
   );
 }

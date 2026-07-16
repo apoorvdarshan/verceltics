@@ -1,96 +1,81 @@
-import type { Metadata } from "next";
-import { DM_Sans, Instrument_Serif } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { IBM_Plex_Mono, Manrope } from "next/font/google";
+
 import "./globals.css";
 
-const dmSans = DM_Sans({
-  variable: "--font-dm-sans",
+const manrope = Manrope({
+  display: "swap",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700", "800"],
+  variable: "--font-manrope",
 });
 
-const instrumentSerif = Instrument_Serif({
-  variable: "--font-instrument-serif",
+const ibmPlexMono = IBM_Plex_Mono({
+  display: "swap",
   subsets: ["latin"],
-  weight: "400",
-  style: ["normal", "italic"],
+  variable: "--font-ibm-plex-mono",
+  weight: ["400", "500", "600"],
 });
+
+const SITE_URL = "https://verceltics.com";
+
+export const viewport: Viewport = {
+  colorScheme: "dark",
+  themeColor: "#050608",
+};
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://www.verceltics.com"),
+  metadataBase: new URL(SITE_URL),
   title: {
-    default: "Verceltics — Hosting and Domains for iPhone and iPad",
+    default: "Verceltics — Hosting, Domains, and Site Intelligence on iOS",
     template: "%s — Verceltics",
   },
   description:
-    "Open-source iOS dashboard for hosting platforms and domain registrars: projects, deployments, analytics, DNS, and domains on iPhone and iPad.",
+    "A private, open-source iPhone and iPad workspace for hosting platforms, domain registrars, deployments, analytics, search performance, speed, and uptime.",
+  applicationName: "Verceltics",
+  category: "Developer Tools",
   keywords: [
-    "Vercel",
-    "analytics",
-    "Vercel Analytics",
-    "Vercel Web Analytics",
-    "Vercel analytics iOS app",
+    "hosting dashboard iOS",
+    "domain registrar app",
+    "DNS management iPhone",
+    "Cloudflare iOS dashboard",
     "Vercel mobile app",
-    "Vercel iPhone app",
-    "Vercel iPad app",
-    "Vercel dashboard mobile",
-    "Vercel project monitoring",
-    "Vercel deployments",
-    "Vercel domains",
-    "Cloudflare mobile dashboard",
-    "hosting dashboard",
-    "domain registrar",
-    "DNS management",
-    "iOS",
-    "iPhone",
-    "iPad",
-    "web analytics",
-    "mobile analytics",
+    "Google Search Console iOS",
+    "Google Analytics iOS dashboard",
+    "Firebase Hosting iOS",
+    "developer tools iPhone",
+    "infrastructure dashboard iPad",
     "SwiftUI",
     "open source",
-    "Vercel dashboard",
-    "page views",
-    "referrers",
-    "Vercel charts",
-    "Swift Charts",
   ],
   authors: [{ name: "Apoorv Darshan", url: "https://x.com/apoorvdarshan" }],
   creator: "Apoorv Darshan",
-  publisher: "Apoorv Darshan",
+  publisher: "Verceltics",
+  alternates: { canonical: SITE_URL },
   openGraph: {
     type: "website",
     locale: "en_US",
     siteName: "Verceltics",
-    title: "Verceltics — Hosting and Domains for iOS",
+    title: "Verceltics — Your infrastructure in one native workspace",
     description:
-      "Manage hosting projects, deployments, analytics, DNS, and registrar domains from your iPhone or iPad.",
-    url: "https://www.verceltics.com",
+      "Hosting, domains, deployments, analytics, search, speed, and uptime on iPhone and iPad—without a credential proxy.",
+    url: SITE_URL,
     images: [
       {
-        url: "/og.jpg",
-        width: 1200,
-        height: 630,
-        alt: "Verceltics — Hosting and Domains for iOS",
-        type: "image/jpeg",
+        url: "/screens/ipad/cloudflare.png",
+        width: 2360,
+        height: 1640,
+        alt: "Verceltics Cloudflare analytics workspace on iPad",
+        type: "image/png",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Verceltics — Hosting and Domains for iOS",
+    title: "Verceltics — Infrastructure on iPhone and iPad",
     description:
-      "Manage hosting projects, deployments, analytics, DNS, and registrar domains from your iPhone.",
+      "A private native workspace for hosting platforms, domains, analytics, search, speed, and uptime.",
     creator: "@apoorvdarshan",
-    images: [
-      {
-        url: "/og.jpg",
-        width: 1200,
-        height: 630,
-        alt: "Verceltics — Hosting and Domains for iOS",
-      },
-    ],
-  },
-  alternates: {
-    canonical: "https://www.verceltics.com",
+    images: ["/screens/ipad/cloudflare.png"],
   },
   robots: {
     index: true,
@@ -98,9 +83,9 @@ export const metadata: Metadata = {
     googleBot: {
       index: true,
       follow: true,
-      "max-video-preview": -1,
       "max-image-preview": "large",
       "max-snippet": -1,
+      "max-video-preview": -1,
     },
   },
 };
@@ -110,10 +95,10 @@ const siteJsonLd = {
   "@graph": [
     {
       "@type": "Organization",
-      "@id": "https://www.verceltics.com/#organization",
+      "@id": `${SITE_URL}/#organization`,
       name: "Verceltics",
-      url: "https://www.verceltics.com",
-      logo: "https://www.verceltics.com/icon.png",
+      url: SITE_URL,
+      logo: `${SITE_URL}/icon.png`,
       founder: { "@type": "Person", name: "Apoorv Darshan", url: "https://x.com/apoorvdarshan" },
       sameAs: [
         "https://github.com/apoorvdarshan/verceltics",
@@ -124,27 +109,21 @@ const siteJsonLd = {
     },
     {
       "@type": "WebSite",
-      "@id": "https://www.verceltics.com/#website",
+      "@id": `${SITE_URL}/#website`,
       name: "Verceltics",
-      url: "https://www.verceltics.com",
+      url: SITE_URL,
+      description: "Hosting, domains, and site intelligence on iPhone and iPad.",
       inLanguage: "en-US",
-      publisher: { "@id": "https://www.verceltics.com/#organization" },
+      publisher: { "@id": `${SITE_URL}/#organization` },
     },
   ],
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${dmSans.variable} ${instrumentSerif.variable} antialiased`}>
-      <body className="min-h-screen bg-black font-[family-name:var(--font-dm-sans)] text-white">
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(siteJsonLd) }}
-        />
+    <html className={`${manrope.variable} ${ibmPlexMono.variable}`} lang="en">
+      <body>
+        <script dangerouslySetInnerHTML={{ __html: JSON.stringify(siteJsonLd) }} type="application/ld+json" />
         {children}
       </body>
     </html>
