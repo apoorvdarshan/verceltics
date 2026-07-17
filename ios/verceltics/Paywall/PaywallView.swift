@@ -4,6 +4,7 @@ import RevenueCat
 struct PaywallView: View {
     @Environment(PaywallManager.self) private var paywall
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.dismiss) private var dismiss
     @State private var selectedPackage: Package?
     @State private var isPurchasing = false
@@ -12,7 +13,8 @@ struct PaywallView: View {
     @State private var transactionAlert: TransactionAlert?
 
     private var subscribeButtonLabel: String {
-        guard let package = selectedPackage else { return "Unlock Pro" }
+        if paywall.isLoading { return "Loading plans…" }
+        guard let package = selectedPackage else { return "Choose a plan" }
         switch package.storeProduct.productIdentifier {
         case PaywallManager.lifetimeProductID:
             return "Buy lifetime access"
@@ -28,8 +30,11 @@ struct PaywallView: View {
     }
 
     private var purchaseDisclosure: String {
+        if paywall.isLoading {
+            return "Loading current prices and eligibility from the App Store."
+        }
         guard let package = selectedPackage else {
-            return "Choose a plan to unlock every connected workspace."
+            return "Choose a plan to open Pro details and tools across every workspace."
         }
         let price = package.localizedPriceString
         switch package.storeProduct.productIdentifier {
@@ -103,18 +108,21 @@ struct PaywallView: View {
                 AppTheme.canvas.ignoresSafeArea()
 
                 ScrollView {
-                    VStack(spacing: 24) {
-                        hero
-                        WholeStackRail()
-                        benefits
-                        plans
-
-                        purchaseFooter
+                    Group {
+                        if dynamicTypeSize.isAccessibilitySize {
+                            compactPaywallLayout
+                        } else {
+                            ViewThatFits(in: .horizontal) {
+                                regularPaywallLayout
+                                    .frame(minWidth: 800)
+                                compactPaywallLayout
+                            }
+                        }
                     }
                     .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
                     .padding(.top, 18)
                     .padding(.bottom, 28)
-                    .frame(maxWidth: horizontalSizeClass == .regular ? 720 : 620)
+                    .frame(maxWidth: horizontalSizeClass == .regular ? 980 : 620)
                     .frame(maxWidth: .infinity)
                 }
             }
@@ -138,7 +146,9 @@ struct PaywallView: View {
                 }
             }
             .safeAreaInset(edge: .bottom) {
-                purchaseBar
+                if paywall.isLoading || selectedPackage != nil {
+                    purchaseBar
+                }
             }
             .alert(item: $transactionAlert) { alert in
                 Alert(
@@ -157,41 +167,80 @@ struct PaywallView: View {
         .interactiveDismissDisabled(isPurchasing || isRestoring)
     }
 
+    private var regularPaywallLayout: some View {
+        HStack(alignment: .top, spacing: 24) {
+            VStack(spacing: 18) {
+                hero
+                ProAccessScope()
+                benefits
+            }
+            .frame(minWidth: 380, maxWidth: .infinity)
+
+            VStack(spacing: 22) {
+                plans
+                purchaseFooter
+            }
+            .frame(minWidth: 360, maxWidth: .infinity)
+        }
+    }
+
+    private var compactPaywallLayout: some View {
+        VStack(spacing: 20) {
+            hero
+            ProAccessScope()
+            benefits
+            plans
+            purchaseFooter
+        }
+    }
+
     private var hero: some View {
-        VStack(spacing: 10) {
-            Image("AppLogo")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 64, height: 64)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .shadow(color: AppTheme.shadowSoft, radius: 12, y: 5)
-                .accessibilityHidden(true)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                Image("AppLogo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 50, height: 50)
+                    .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 13, style: .continuous)
+                            .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.5)
+                    }
+                    .shadow(color: AppTheme.shadowSoft, radius: 10, y: 4)
+                    .accessibilityHidden(true)
 
-            Text("VERCELTICS PRO")
-                .font(.caption2.weight(.bold))
-                .tracking(1.4)
-                .foregroundStyle(AppTheme.signal)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("VERCELTICS PRO")
+                        .font(.caption2.weight(.bold))
+                        .tracking(1.4)
+                        .foregroundStyle(AppTheme.signal)
+                    Text("ONE ENTITLEMENT · EVERY CONNECTION")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(AppTheme.textTertiary)
+                }
+            }
 
-            Text("Your whole web stack, unlocked")
-                .font(.largeTitle.weight(.semibold))
+            Text("Open the whole stack.")
+                .font(.largeTitle.weight(.bold))
+                .fontDesign(.rounded)
                 .foregroundStyle(AppTheme.textPrimary)
-                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
 
-            Text("Open hosting, domains, deployments, analytics, search, speed, uptime, and provider tools from one private workspace.")
+            Text("Open projects, deployments, domains, site services, provider dashboards, and advanced tools across all \(IntegrationCatalogSummary.totalCount) integrations.")
                 .font(.subheadline)
                 .foregroundStyle(AppTheme.textSecondary)
-                .multilineTextAlignment(.center)
                 .lineSpacing(2)
-                .frame(maxWidth: 560)
+                .fixedSize(horizontal: false, vertical: true)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var benefits: some View {
         VStack(alignment: .leading, spacing: 0) {
             ProBenefitRow(
                 icon: "point.3.connected.trianglepath.dotted",
-                title: "Full provider depth",
-                subtitle: "Open dashboards, detail views, reports, and advanced provider operations."
+                title: "Details and provider tools",
+                subtitle: "Open dashboards, reports, API catalogs, and confirmed provider actions."
             )
             AppInsetDivider(leading: 58)
             ProBenefitRow(
@@ -210,7 +259,7 @@ struct PaywallView: View {
                 Text("Choose your access")
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(AppTheme.textPrimary)
-                Text("Every paid option unlocks the same Pro workspace.")
+                Text("Every option unlocks the same Pro features.")
                     .font(.footnote)
                     .foregroundStyle(AppTheme.textSecondary)
             }
@@ -334,7 +383,7 @@ struct PaywallView: View {
 
     private var purchaseBar: some View {
         VStack(spacing: 8) {
-            if let package = selectedPackage {
+            if let package = selectedPackage, !dynamicTypeSize.isAccessibilitySize {
                 ViewThatFits(in: .horizontal) {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         selectedPlanLabel
@@ -365,11 +414,13 @@ struct PaywallView: View {
                 }
             } label: {
                 HStack(spacing: 10) {
-                    if isPurchasing {
-                        ProgressView().tint(AppTheme.canvas)
-                    } else {
-                        Text(subscribeButtonLabel)
-                            .font(.headline)
+                    if isPurchasing || paywall.isLoading {
+                        ProgressView()
+                            .tint(selectedPackage != nil ? AppTheme.canvas : AppTheme.textSecondary)
+                    }
+                    Text(subscribeButtonLabel)
+                        .font(.headline)
+                    if !isPurchasing && !paywall.isLoading {
                         Image(systemName: "arrow.right")
                             .font(.callout.weight(.semibold))
                     }
@@ -385,7 +436,7 @@ struct PaywallView: View {
                 }
             }
             .buttonStyle(PressScaleButtonStyle())
-            .disabled(selectedPackage == nil || isPurchasing || isRestoring)
+            .disabled(paywall.isLoading || selectedPackage == nil || isPurchasing || isRestoring)
             .accessibilityLabel(isPurchasing ? "Completing purchase" : subscribeButtonLabel)
             .accessibilityValue(isPurchasing ? "In progress" : purchaseDisclosure)
 
@@ -437,75 +488,111 @@ struct PaywallView: View {
     }
 }
 
-private struct WholeStackRail: View {
-    private var lanes: [ProWorkspaceLane] { [
-        ProWorkspaceLane(icon: "server.rack", count: AccountProvider.allCases.count, label: "Hosting"),
-        ProWorkspaceLane(icon: "globe.americas.fill", count: RegistrarProvider.allCases.count, label: "Registrars"),
-        ProWorkspaceLane(icon: "chart.xyaxis.line", count: SiteIntegrationProvider.allCases.count, label: "Site services")
-    ] }
-
-    private var integrationCount: Int {
-        lanes.reduce(0) { $0 + $1.count }
-    }
+private struct ProAccessScope: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var isRevealed = false
+    private let lanes = IntegrationCatalogSummary.lanes
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text("ONE CONNECTED WORKSPACE")
-                    .font(.caption2.weight(.bold))
-                    .tracking(1)
-                    .foregroundStyle(AppTheme.textSecondary)
-                Spacer()
-                Text("\(integrationCount) integrations")
-                    .font(.caption.weight(.semibold).monospacedDigit())
-                    .foregroundStyle(AppTheme.signal)
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 5) {
+                    scopeTitle
+                    connectionCount
+                }
+            } else {
+                HStack(alignment: .firstTextBaseline) {
+                    scopeTitle
+                    Spacer(minLength: 10)
+                    connectionCount
+                }
             }
 
-            HStack(spacing: 0) {
-                ForEach(Array(lanes.enumerated()), id: \.offset) { index, lane in
-                    VStack(spacing: 7) {
-                        Image(systemName: lane.icon)
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(AppTheme.signal)
-                            .frame(width: 36, height: 36)
-                            .background(AppTheme.signal.opacity(0.12))
-                            .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
-                        Text("\(lane.count)")
-                            .font(.title2.weight(.semibold).monospacedDigit())
-                            .foregroundStyle(AppTheme.textPrimary)
-                        Text(lane.label)
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(AppTheme.textSecondary)
-                            .multilineTextAlignment(.center)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .accessibilityElement(children: .combine)
-
+            VStack(spacing: 0) {
+                ForEach(Array(lanes.enumerated()), id: \.element.id) { index, lane in
+                    ProAccessScopeRow(lane: lane, isRevealed: isRevealed)
                     if index < lanes.count - 1 {
-                        VStack(spacing: 3) {
-                            Circle().fill(AppTheme.signal).frame(width: 4, height: 4)
-                            Rectangle().fill(AppTheme.signal.opacity(0.35)).frame(width: 1, height: 34)
-                            Circle().fill(AppTheme.signal).frame(width: 4, height: 4)
-                        }
-                        .accessibilityHidden(true)
+                        AppInsetDivider(leading: 46)
                     }
                 }
             }
         }
         .padding(18)
         .appSurface()
+        .overlay(alignment: .leading) {
+            Capsule()
+                .fill(AppTheme.signal)
+                .frame(width: 2)
+                .padding(.vertical, 18)
+                .padding(.leading, 1)
+                .scaleEffect(y: isRevealed ? 1 : 0, anchor: .top)
+                .accessibilityHidden(true)
+        }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(
-            "\(integrationCount) integrations: \(AccountProvider.allCases.count) hosting platforms, \(RegistrarProvider.allCases.count) registrars, and \(SiteIntegrationProvider.allCases.count) site services"
-        )
+        .accessibilityLabel("Pro includes \(IntegrationCatalogSummary.accessibilitySummary)")
+        .task(id: reduceMotion) {
+            isRevealed = reduceMotion
+            guard !reduceMotion else { return }
+            withAnimation(.easeOut(duration: 0.62)) {
+                isRevealed = true
+            }
+        }
+    }
+
+    private var scopeTitle: some View {
+        Text("PRO ACCESS SCOPE")
+            .font(.caption2.weight(.bold))
+            .tracking(1)
+            .foregroundStyle(AppTheme.textSecondary)
+    }
+
+    private var connectionCount: some View {
+        Text("\(IntegrationCatalogSummary.totalCount) CONNECTIONS")
+            .font(.caption.weight(.semibold).monospacedDigit())
+            .foregroundStyle(AppTheme.signal)
     }
 }
 
-private struct ProWorkspaceLane {
-    let icon: String
-    let count: Int
-    let label: String
+private struct ProAccessScopeRow: View {
+    let lane: IntegrationCatalogLane
+    let isRevealed: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: lane.icon)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(AppTheme.signal)
+                .frame(width: 34, height: 34)
+                .background(AppTheme.signal.opacity(0.11))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(lane.label)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.textPrimary)
+                Text(lane.detail)
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 8)
+
+            Text("\(lane.count)")
+                .font(.title3.weight(.bold).monospacedDigit())
+                .foregroundStyle(AppTheme.textPrimary)
+                .contentTransition(.numericText())
+
+            Circle()
+                .fill(AppTheme.signal)
+                .frame(width: 6, height: 6)
+                .scaleEffect(isRevealed ? 1 : 0.01)
+                .opacity(isRevealed ? 1 : 0)
+                .accessibilityHidden(true)
+        }
+        .padding(.vertical, 10)
+    }
 }
 
 private struct TransactionAlert: Identifiable {
@@ -584,12 +671,24 @@ struct PlanCard: View {
                         lineWidth: isSelected ? 1 : 0.5
                     )
             }
+            .overlay(alignment: .leading) {
+                Capsule()
+                    .fill(AppTheme.signal)
+                    .frame(width: 3)
+                    .padding(.vertical, 13)
+                    .padding(.leading, 1)
+                    .opacity(isSelected ? 1 : 0)
+            }
             .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: isSelected)
         }
         .buttonStyle(PressScaleButtonStyle())
         .accessibilityElement(children: .combine)
+        .accessibilityLabel(label)
+        .accessibilityValue(
+            "\(showTrial ? "Free trial, then " : "")\(price), \(detail)\(isSelected ? ", selected" : "")"
+        )
         .accessibilityAddTraits(isSelected ? .isSelected : [])
-        .accessibilityHint("Select this purchase option")
+        .accessibilityHint("Select \(label.lowercased()) access")
     }
 
     private var planTitle: some View {
@@ -617,9 +716,9 @@ struct PlanCard: View {
     @ViewBuilder
     private var planBadge: some View {
         if let badge {
-            Text(badge.uppercased())
+            Text(dynamicTypeSize.isAccessibilitySize ? badge : badge.uppercased())
                 .font(.caption2.weight(.bold))
-                .tracking(0.35)
+                .tracking(dynamicTypeSize.isAccessibilitySize ? 0 : 0.35)
                 .foregroundStyle(AppTheme.success)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)

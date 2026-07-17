@@ -8,13 +8,24 @@ struct VercelticsApp: App {
     @State private var appearanceStore = AppAppearanceStore()
     @State private var registrarStore = RegistrarStore()
     @State private var siteStore = SiteStore()
+    @State private var firstLaunchExperience = FirstLaunchExperienceStore()
+
+    private var hasAnyConnection: Bool {
+        !authManager.accounts.isEmpty
+            || !registrarStore.accounts.isEmpty
+            || !siteStore.accounts.isEmpty
+    }
+
+    private var firstLaunchMigrationState: Int {
+        (paywallManager.hasCheckedEntitlements ? 1 : 0)
+            | (hasAnyConnection ? 2 : 0)
+            | (paywallManager.hasActiveSubscription ? 4 : 0)
+    }
 
     var body: some Scene {
         WindowGroup {
             Group {
-                if !authManager.isAuthenticated && registrarStore.accounts.isEmpty && siteStore.accounts.isEmpty {
-                    LoginView()
-                } else if !paywallManager.hasCheckedEntitlements {
+                if !paywallManager.hasCheckedEntitlements {
                     ZStack {
                         AppTheme.canvas.ignoresSafeArea()
                         VStack(spacing: 14) {
@@ -31,6 +42,12 @@ struct VercelticsApp: App {
                         }
                         .accessibilityElement(children: .combine)
                     }
+                } else if !hasAnyConnection {
+                    FirstConnectionFlow(
+                        experience: firstLaunchExperience,
+                        hasAnyConnection: hasAnyConnection,
+                        hasActiveSubscription: paywallManager.hasActiveSubscription
+                    )
                 } else {
                     // Soft paywall: connection and workspace browsing stay
                     // available; item details and provider actions gate inside
@@ -45,6 +62,13 @@ struct VercelticsApp: App {
             .environment(registrarStore)
             .environment(siteStore)
             .preferredColorScheme(appearanceStore.selection.preferredColorScheme)
+            .task(id: firstLaunchMigrationState) {
+                guard paywallManager.hasCheckedEntitlements else { return }
+                firstLaunchExperience.migrateIfNeeded(
+                    hasAnyConnection: hasAnyConnection,
+                    hasActiveSubscription: paywallManager.hasActiveSubscription
+                )
+            }
         }
     }
 }
