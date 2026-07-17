@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 
-import { SiteFooter, SiteHeader } from "@/components/site-chrome";
+import { SiteFooter } from "@/components/site-footer";
+import { SiteHeader } from "@/components/site-header";
 
 type LegalSection = {
   id: string;
@@ -22,7 +23,7 @@ export function LegalShell({ title, eyebrow, summary, asideDescription, updated,
   return (
     <div className="legal-page site-canvas">
       <SiteHeader />
-      <main className="legal-main">
+      <main className="legal-main" id="main-content">
         <aside className="legal-aside">
           <span className="micro-label">Verceltics legal</span>
           <strong className="legal-aside-title">{title}</strong>

@@ -1,12 +1,12 @@
 import type { Metadata, Viewport } from "next";
-import { IBM_Plex_Mono, Manrope } from "next/font/google";
+import { IBM_Plex_Mono, Instrument_Sans } from "next/font/google";
 
 import "./globals.css";
 
-const manrope = Manrope({
+const instrumentSans = Instrument_Sans({
   display: "swap",
   subsets: ["latin"],
-  variable: "--font-manrope",
+  variable: "--font-instrument-sans",
 });
 
 const ibmPlexMono = IBM_Plex_Mono({
@@ -19,14 +19,14 @@ const ibmPlexMono = IBM_Plex_Mono({
 const SITE_URL = "https://verceltics.com";
 
 export const viewport: Viewport = {
-  colorScheme: "dark",
-  themeColor: "#050608",
+  colorScheme: "light",
+  themeColor: "#eef0f3",
 };
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "Verceltics — Hosting, Domains, and Site Intelligence on iOS",
+    default: "Verceltics — Native Infrastructure for iPhone and iPad",
     template: "%s — Verceltics",
   },
   description:
@@ -55,9 +55,9 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_US",
     siteName: "Verceltics",
-    title: "Verceltics — Your infrastructure in one native workspace",
+    title: "Verceltics — Leave the laptop closed",
     description:
-      "Hosting, domains, deployments, analytics, search, speed, and uptime on iPhone and iPad—without a credential proxy.",
+      "Review deploys, domains, DNS, traffic, search, speed, and uptime from a native iPhone and iPad workspace—without a credential proxy.",
     url: SITE_URL,
     images: [
       {
@@ -71,9 +71,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Verceltics — Infrastructure on iPhone and iPad",
+    title: "Verceltics — Leave the laptop closed",
     description:
-      "A private native workspace for hosting platforms, domains, analytics, search, speed, and uptime.",
+      "Review deploys, domains, DNS, traffic, search, speed, and uptime from a private native workspace.",
     creator: "@apoorvdarshan",
     images: ["/screens/ipad/cloudflare.png"],
   },
@@ -121,7 +121,7 @@ const siteJsonLd = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html className={`${manrope.variable} ${ibmPlexMono.variable}`} lang="en">
+    <html className={`${instrumentSans.variable} ${ibmPlexMono.variable}`} lang="en">
       <body>
         <script dangerouslySetInnerHTML={{ __html: JSON.stringify(siteJsonLd) }} type="application/ld+json" />
         {children}

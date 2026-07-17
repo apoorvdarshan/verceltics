@@ -27,7 +27,7 @@ const groups: readonly ProviderGroup[] = [
     id: "registrars",
     label: "Registrars",
     count: 8,
-    accent: "#f1f3f7",
+    accent: "#565e68",
     providers: [
       { name: "Name.com", icon: "NameDotComMark.svg" },
       { name: "Namecheap", icon: "NamecheapMark.svg" },
@@ -58,6 +58,8 @@ const groups: readonly ProviderGroup[] = [
   },
 ] as const;
 
+const providerImageStyle = { height: 22, maxWidth: 22, width: "auto" } as const;
+
 export function ProviderDirectory() {
   return (
     <div className="provider-groups">
@@ -70,7 +72,7 @@ export function ProviderDirectory() {
           <ul>
             {group.providers.map((provider) => (
               <li key={provider.name} translate="no">
-                <span className="provider-mark"><Image alt="" height={22} src={`/providers/${provider.icon}`} width={22} /></span>
+                <span className="provider-mark"><Image alt="" height={22} src={`/providers/${provider.icon}`} style={providerImageStyle} width={22} /></span>
                 <span>{provider.name}</span>
               </li>
             ))}
