@@ -60,6 +60,33 @@ const faqs = [
   },
 ] as const;
 
+const ipadScreens = [
+  {
+    src: "/screens/ipad/analytics.png",
+    label: "Traffic analytics",
+    detail: "Requests, visitors, cache, threats and HTTPS",
+    alt: "Traffic analytics workspace in Verceltics on iPad",
+  },
+  {
+    src: "/screens/ipad/hosting.png",
+    label: "Hosting",
+    detail: "10 hosting platforms in an adaptive provider sheet",
+    alt: "Hosting platform connections in Verceltics on iPad",
+  },
+  {
+    src: "/screens/ipad/registrars.png",
+    label: "Registrars",
+    detail: "Domains, DNS, renewals, privacy and transfers",
+    alt: "Domain registrar connections in Verceltics on iPad",
+  },
+  {
+    src: "/screens/ipad/sites.png",
+    label: "Site services",
+    detail: "Search, analytics, speed and uptime connections",
+    alt: "Site intelligence service connections in Verceltics on iPad",
+  },
+] as const;
+
 const applicationJsonLd = {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
@@ -72,9 +99,14 @@ const applicationJsonLd = {
   downloadUrl: APP_STORE,
   image: `${SITE_URL}/og-verceltics.png`,
   screenshot: [
-    `${SITE_URL}/screens/ipad/cloudflare.png`,
+    `${SITE_URL}/screens/ios/analytics.png`,
     `${SITE_URL}/screens/ios/hosting.png`,
-    `${SITE_URL}/screens/ios/search.png`,
+    `${SITE_URL}/screens/ios/registrars.png`,
+    `${SITE_URL}/screens/ios/sites.png`,
+    `${SITE_URL}/screens/ipad/analytics.png`,
+    `${SITE_URL}/screens/ipad/hosting.png`,
+    `${SITE_URL}/screens/ipad/registrars.png`,
+    `${SITE_URL}/screens/ipad/sites.png`,
   ],
   sameAs: [APP_STORE, ...PUBLIC_PROFILES],
   offers: plans.map((plan) => ({ "@type": "Offer", price: plan.price.replace("$", ""), priceCurrency: "USD", description: `${plan.name} access` })),
@@ -137,31 +169,47 @@ export default function Home() {
           <div className="ipad-console">
             <div className="console-toolbar">
               <span><i /> Live workspace</span>
-              <strong>Cloudflare / Traffic / Last 7 days</strong>
+              <strong>iPad / Adaptive workspace</strong>
               <span>2360 × 1640</span>
             </div>
-            <figure className="ipad-screen">
-              <Image alt="Cloudflare traffic workspace in Verceltics on iPad" fill sizes="(max-width: 900px) 96vw, 1480px" src="/screens/ipad/cloudflare.webp" />
-            </figure>
+            <div className="ipad-gallery">
+              {ipadScreens.map((screen, index) => (
+                <figure className={`ipad-gallery-item${index === 0 ? " ipad-gallery-item--primary" : ""}`} key={screen.src}>
+                  <div className="ipad-screen">
+                    <Image
+                      alt={screen.alt}
+                      fill
+                      sizes={index === 0 ? "(max-width: 900px) 96vw, 1480px" : "(max-width: 780px) 96vw, (max-width: 1080px) 48vw, 31vw"}
+                      src={screen.src}
+                    />
+                  </div>
+                  <figcaption>
+                    <span>{String(index + 1).padStart(2, "0")}</span>
+                    <strong>{screen.label}</strong>
+                    <p>{screen.detail}</p>
+                  </figcaption>
+                </figure>
+              ))}
+            </div>
             <div className="console-features"><span>Persistent sidebar</span><span>Adaptive metrics</span><span>Full-width charts</span></div>
           </div>
         </section>
 
         <section className="signals-section">
           <header className="signals-copy">
-            <p className="instrument-label"><span>04</span> Independent signals</p>
-            <h2>Search is not traffic.</h2>
-            <p>Two Google services. Two permissions. Two separate dashboards. Verceltics never pretends they are the same thing.</p>
+            <p className="instrument-label"><span>04</span> Connected signals</p>
+            <h2>Connect, then inspect.</h2>
+            <p>The Sites workspace keeps every service separate. Connect the signal you need, then open its native dashboard without mixing provider data.</p>
           </header>
           <div className="signal-rack">
-            <figure className="signal-module signal-module--search">
-              <figcaption><span>Input A</span><strong>Google Search Console</strong><p>Clicks · indexing · URLs</p></figcaption>
-              <div className="signal-screen"><Image alt="Google Search Console dashboard in Verceltics" fill sizes="(max-width: 640px) 86vw, (max-width: 1080px) 44vw, 31vw" src="/screens/ios/search.webp" /></div>
+            <figure className="signal-module signal-module--sites">
+              <figcaption><span>Connection bank</span><strong>Site services</strong><p>Search · analytics · speed · uptime</p></figcaption>
+              <div className="signal-screen"><Image alt="Site service connections in Verceltics" fill sizes="(max-width: 640px) 86vw, (max-width: 1080px) 44vw, 31vw" src="/screens/ios/sites.png" /></div>
             </figure>
-            <div aria-hidden="true" className="signal-separator"><span>≠</span><i /><i /></div>
+            <div aria-hidden="true" className="signal-separator"><span>→</span><i /><i /></div>
             <figure className="signal-module signal-module--analytics">
-              <figcaption><span>Input B</span><strong>Google Analytics</strong><p>Visitors · sessions · events</p></figcaption>
-              <div className="signal-screen"><Image alt="Google Analytics dashboard in Verceltics" fill sizes="(max-width: 640px) 86vw, (max-width: 1080px) 44vw, 31vw" src="/screens/ios/google-analytics.webp" /></div>
+              <figcaption><span>Live surface</span><strong>Traffic analytics</strong><p>Requests · cache · threats · HTTPS</p></figcaption>
+              <div className="signal-screen"><Image alt="Traffic analytics in Verceltics" fill sizes="(max-width: 640px) 86vw, (max-width: 1080px) 44vw, 31vw" src="/screens/ios/analytics.png" /></div>
             </figure>
           </div>
         </section>

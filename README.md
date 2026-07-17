@@ -30,14 +30,12 @@ Verceltics is an independent, open-source operator workspace for the infrastruct
 
 <table>
   <tr>
-    <td align="center"><img src="docs/screenshots/ios/cloudflare.png" width="260" alt="Cloudflare dashboard on iPhone"><br><strong>Cloudflare</strong><br><sub>Zones, DNS, Pages, Workers, security, storage, and analytics</sub></td>
     <td align="center"><img src="docs/screenshots/ios/analytics.png" width="260" alt="Traffic analytics on iPhone"><br><strong>Traffic analytics</strong><br><sub>Requests, visitors, bandwidth, cache, threats, HTTPS, and trend</sub></td>
-    <td align="center"><img src="docs/screenshots/ios/search.png" width="260" alt="Google Search Console on iPhone"><br><strong>Search Console</strong><br><sub>Properties, clicks, impressions, indexing, sitemaps, and inspection</sub></td>
+    <td align="center"><img src="docs/screenshots/ios/hosting.png" width="260" alt="Hosting connection list on iPhone"><br><strong>10 hosting platforms</strong></td>
   </tr>
   <tr>
-    <td align="center"><img src="docs/screenshots/ios/hosting.png" width="260" alt="Hosting connection list on iPhone"><br><strong>10 hosting platforms</strong></td>
     <td align="center"><img src="docs/screenshots/ios/registrars.png" width="260" alt="Registrar connection list on iPhone"><br><strong>8 registrars</strong></td>
-    <td align="center"><img src="docs/screenshots/ios/services.png" width="260" alt="Site services connection list on iPhone"><br><strong>9 site services</strong></td>
+    <td align="center"><img src="docs/screenshots/ios/sites.png" width="260" alt="Site services connection list on iPhone"><br><strong>9 site services</strong></td>
   </tr>
 </table>
 
@@ -45,7 +43,7 @@ Verceltics is an independent, open-source operator workspace for the infrastruct
 
 <table>
   <tr>
-    <td align="center"><img src="docs/screenshots/ipad/cloudflare.png" width="520" alt="Cloudflare analytics workspace on iPad"><br><strong>Cloudflare analytics</strong></td>
+    <td align="center"><img src="docs/screenshots/ipad/analytics.png" width="520" alt="Traffic analytics workspace on iPad"><br><strong>Traffic analytics</strong></td>
     <td align="center"><img src="docs/screenshots/ipad/hosting.png" width="520" alt="Hosting provider sheet on iPad"><br><strong>Hosting providers</strong></td>
   </tr>
   <tr>

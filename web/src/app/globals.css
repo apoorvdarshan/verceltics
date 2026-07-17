@@ -1168,6 +1168,50 @@ main[id] {
   object-position: center;
 }
 
+.ipad-gallery {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.ipad-gallery-item {
+  min-width: 0;
+}
+
+.ipad-gallery-item--primary {
+  grid-column: 1 / -1;
+}
+
+.ipad-gallery-item figcaption {
+  display: grid;
+  min-height: 104px;
+  padding: 17px 12px 20px;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-content: start;
+  column-gap: 10px;
+  color: var(--white);
+  border-top: 1px solid #353a37;
+}
+
+.ipad-gallery-item figcaption span {
+  color: var(--live);
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+}
+
+.ipad-gallery-item figcaption strong {
+  font-size: 0.88rem;
+}
+
+.ipad-gallery-item figcaption p {
+  margin-top: 7px;
+  grid-column: 2;
+  color: #929b95;
+  font-size: 0.7rem;
+  line-height: 1.45;
+}
+
 .console-features {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1226,7 +1270,7 @@ main[id] {
   box-shadow: 0 7px 0 var(--ink);
 }
 
-.signal-module--search { border-top: 12px solid var(--blue); }
+.signal-module--sites { border-top: 12px solid var(--violet); }
 .signal-module--analytics { border-top: 12px solid var(--orange); }
 
 .signal-module figcaption {
@@ -2250,6 +2294,7 @@ main[id] {
 
   .signals-section { grid-template-columns: 1fr; }
   .signals-copy { position: static; }
+  .ipad-gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
   .price-console-head,
   .console-toolbar,
@@ -2390,6 +2435,8 @@ main[id] {
   .console-toolbar > span:last-child { display: none; }
   .ipad-screen { min-height: 0; aspect-ratio: 2360 / 1640; }
   .ipad-screen img { width: 100% !important; height: 100% !important; max-width: 100%; object-fit: contain; object-position: center; }
+  .ipad-gallery { grid-template-columns: 1fr; }
+  .ipad-gallery-item--primary { grid-column: auto; }
   .console-features { grid-template-columns: 1fr; }
   .console-features span { padding: 12px; border-right: 0; border-bottom: 1px solid #353a37; }
   .console-features span:last-child { border-bottom: 0; }
