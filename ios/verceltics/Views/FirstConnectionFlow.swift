@@ -38,8 +38,6 @@ struct FirstConnectionFlow: View {
 struct FirstConnectionWelcomeView: View {
     let onContinue: () -> Void
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var contentIsVisible = false
 
     var body: some View {
         ZStack {
@@ -57,10 +55,10 @@ struct FirstConnectionWelcomeView: View {
                         }
                     }
                 }
-                .padding(.horizontal, 24)
-                .padding(.top, 28)
-                .padding(.bottom, 32)
-                .frame(maxWidth: 1040)
+                .padding(.horizontal, 22)
+                .padding(.top, 22)
+                .padding(.bottom, 28)
+                .frame(maxWidth: 1080)
                 .frame(maxWidth: .infinity)
             }
             .scrollIndicators(.hidden)
@@ -68,107 +66,116 @@ struct FirstConnectionWelcomeView: View {
         .safeAreaInset(edge: .bottom) {
             welcomeActionBar
         }
-        .task(id: reduceMotion) {
-            if reduceMotion {
-                contentIsVisible = true
-            } else {
-                contentIsVisible = false
-                try? await Task.sleep(for: .milliseconds(320))
-                guard !Task.isCancelled else { return }
-                withAnimation(.easeOut(duration: 0.55)) {
-                    contentIsVisible = true
-                }
-            }
-        }
     }
 
     private var regularLayout: some View {
-        HStack(alignment: .center, spacing: 64) {
-            brandMoment(size: 300)
-                .frame(maxWidth: .infinity)
+        HStack(alignment: .center, spacing: 56) {
+            introduction
+                .frame(width: 350, alignment: .leading)
 
-            narrative
-                .frame(width: 430)
+            ProviderCatalogMarquee()
+                .frame(maxWidth: .infinity)
         }
     }
 
     private var compactLayout: some View {
-        VStack(spacing: 30) {
-            brandMoment(size: dynamicTypeSize.isAccessibilitySize ? 156 : 196)
-            narrative
-                .frame(maxWidth: 560)
+        VStack(alignment: .leading, spacing: 26) {
+            introduction
+            ProviderCatalogMarquee()
         }
+        .frame(maxWidth: 680)
     }
 
-    private func brandMoment(size: CGFloat) -> some View {
-        VStack(spacing: 16) {
-            RouteActivationLogo(size: size)
-
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(AppTheme.success)
-                    .frame(width: 7, height: 7)
-                Text("STACK READY")
-                    .font(.caption2.weight(.bold))
-                    .tracking(1.2)
-                    .foregroundStyle(AppTheme.textSecondary)
-            }
-            .opacity(contentIsVisible ? 1 : 0)
-        }
-        .accessibilityHidden(true)
-    }
-
-    private var narrative: some View {
+    private var introduction: some View {
         VStack(alignment: .leading, spacing: 24) {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("VERCELTICS")
-                    .font(.caption2.weight(.bold))
-                    .tracking(1.6)
-                    .foregroundStyle(AppTheme.signal)
+            masthead
 
-                Text("Your whole web stack, in your pocket.")
-                    .font(.largeTitle.weight(.bold))
-                    .fontDesign(.rounded)
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Check your whole stack. Close the laptop.")
+                    .font(.largeTitle.weight(.semibold))
                     .foregroundStyle(AppTheme.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text("Connect hosting, domains, analytics, search, speed, and uptime in one private workspace.")
+                Text("Hosting, domains, search, analytics, speed, and uptime—from one native iPhone and iPad workspace.")
                     .font(.body)
                     .foregroundStyle(AppTheme.textSecondary)
                     .lineSpacing(3)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            WelcomeIntegrationSummary()
-            trustProof
+            privacyNote
+
+            if dynamicTypeSize.isAccessibilitySize {
+                Text("No Verceltics account required.")
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.textTertiary)
+            }
         }
-        .opacity(contentIsVisible ? 1 : 0)
-        .offset(y: contentIsVisible ? 0 : 8)
     }
 
-    private var trustProof: some View {
-        VStack(spacing: 0) {
-            WelcomeTrustRow(
-                icon: "lock.shield.fill",
-                title: "Private connections",
-                detail: "Credentials stay on this device"
-            )
-            AppInsetDivider(leading: 52)
-            WelcomeTrustRow(
-                icon: "chevron.left.forwardslash.chevron.right",
-                title: "Open source",
-                detail: "MIT-licensed and built in the open"
-            )
+    private var masthead: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 12) {
+                    brandLockup
+                    openSourceLabel
+                }
+            } else {
+                HStack(spacing: 11) {
+                    brandLockup
+                    Spacer(minLength: 10)
+                    openSourceLabel
+                }
+            }
         }
-        .appSurface()
+    }
+
+    private var brandLockup: some View {
+        HStack(spacing: 11) {
+            Image("AppLogo")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 40, height: 40)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.5)
+                }
+                .accessibilityHidden(true)
+
+            Text("Verceltics")
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(AppTheme.textPrimary)
+        }
+    }
+
+    private var openSourceLabel: some View {
+        Text("OPEN SOURCE")
+            .font(.caption2.weight(.bold))
+            .tracking(1.1)
+            .foregroundStyle(AppTheme.textTertiary)
+    }
+
+    private var privacyNote: some View {
+        Label {
+            Text("Credentials stay in Keychain. Requests go directly to provider APIs.")
+                .fixedSize(horizontal: false, vertical: true)
+        } icon: {
+            Image(systemName: "lock.shield.fill")
+                .foregroundStyle(AppTheme.signal)
+        }
+        .font(.footnote)
+        .foregroundStyle(AppTheme.textSecondary)
     }
 
     private var welcomeActionBar: some View {
         VStack(spacing: 7) {
             continueButton
-            Text("No Verceltics account required.")
-                .font(.caption)
-                .foregroundStyle(AppTheme.textTertiary)
+            if !dynamicTypeSize.isAccessibilitySize {
+                Text("No Verceltics account required.")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.textTertiary)
+            }
         }
         .padding(.horizontal, 24)
         .padding(.top, 10)
@@ -185,14 +192,15 @@ struct FirstConnectionWelcomeView: View {
                 .fill(AppTheme.divider)
                 .frame(height: 0.5)
         }
-        .opacity(contentIsVisible ? 1 : 0)
     }
 
     private var continueButton: some View {
         Button(action: onContinue) {
             HStack(spacing: 12) {
-                Text("Connect your stack")
+                Text(dynamicTypeSize.isAccessibilitySize ? "Connect services" : "Choose what to connect")
                     .font(.headline)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer()
                 Image(systemName: "arrow.right")
                     .font(.callout.weight(.bold))
@@ -201,6 +209,7 @@ struct FirstConnectionWelcomeView: View {
                     .accessibilityHidden(true)
             }
             .padding(.horizontal, 18)
+            .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? 10 : 0)
             .frame(maxWidth: .infinity)
             .frame(minHeight: 58)
             .foregroundStyle(AppTheme.canvas)
@@ -216,215 +225,238 @@ struct FirstConnectionWelcomeView: View {
     }
 }
 
-private struct RouteActivationLogo: View {
-    private enum Lane {
-        case top
-        case middle
-        case bottom
-    }
-
-    let size: CGFloat
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var tileIsVisible = false
-    @State private var topLaneIsVisible = false
-    @State private var middleLaneIsVisible = false
-    @State private var bottomLaneIsVisible = false
-
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: size * 0.23, style: .continuous)
-                .fill(.black)
-
-            Image("AppLogo")
-                .resizable()
-                .scaledToFit()
-                .mask {
-                    VStack(spacing: 0) {
-                        laneMask(isVisible: topLaneIsVisible)
-                        laneMask(isVisible: middleLaneIsVisible)
-                        laneMask(isVisible: bottomLaneIsVisible)
-                    }
-                }
-        }
-        .frame(width: size, height: size)
-        .clipShape(RoundedRectangle(cornerRadius: size * 0.23, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: size * 0.23, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
-        }
-        .shadow(color: AppTheme.shadow, radius: 28, y: 16)
-        .scaleEffect(tileIsVisible ? 1 : 0.94)
-        .opacity(tileIsVisible ? 1 : 0)
-        .task(id: reduceMotion) {
-            resetAnimation()
-            guard !reduceMotion else {
-                showFinalState()
-                return
-            }
-
-            withAnimation(.easeOut(duration: 0.42)) {
-                tileIsVisible = true
-            }
-            await revealLane(.top, delay: 100)
-            await revealLane(.middle, delay: 105)
-            await revealLane(.bottom, delay: 105)
-        }
-    }
-
-    private func laneMask(isVisible: Bool) -> some View {
-        Rectangle()
-            .scaleEffect(x: isVisible ? 1 : 0, anchor: .leading)
-    }
-
-    @MainActor
-    private func revealLane(
-        _ lane: Lane,
-        delay: Int64
-    ) async {
-        try? await Task.sleep(for: .milliseconds(delay))
-        guard !Task.isCancelled else { return }
-        withAnimation(.easeOut(duration: 0.38)) {
-            switch lane {
-            case .top: topLaneIsVisible = true
-            case .middle: middleLaneIsVisible = true
-            case .bottom: bottomLaneIsVisible = true
-            }
-        }
-    }
-
-    private func resetAnimation() {
-        tileIsVisible = false
-        topLaneIsVisible = false
-        middleLaneIsVisible = false
-        bottomLaneIsVisible = false
-    }
-
-    private func showFinalState() {
-        tileIsVisible = true
-        topLaneIsVisible = true
-        middleLaneIsVisible = true
-        bottomLaneIsVisible = true
-    }
-}
-
-private struct WelcomeIntegrationSummary: View {
+private struct ProviderCatalogMarquee: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    private let lanes = IntegrationCatalogSummary.lanes
+    private let totalCount = AccountProvider.allCases.count
+        + RegistrarProvider.allCases.count
+        + SiteIntegrationProvider.allCases.count
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: 5) {
-                    summaryTitle
-                    summaryCount
-                }
-            } else {
-                HStack(alignment: .firstTextBaseline) {
-                    summaryTitle
-                    Spacer(minLength: 12)
-                    summaryCount
+        VStack(alignment: .leading, spacing: 18) {
+            Group {
+                if dynamicTypeSize >= .xxLarge {
+                    VStack(alignment: .leading, spacing: 5) {
+                        catalogTitle
+                        integrationCount
+                    }
+                } else {
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                        catalogTitle
+                        Spacer(minLength: 8)
+                        integrationCount
+                    }
                 }
             }
 
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(spacing: 12) {
-                    ForEach(lanes) { lane in
-                        WelcomeIntegrationLane(lane: lane, horizontal: true)
-                    }
-                }
-            } else {
-                HStack(spacing: 8) {
-                    ForEach(lanes) { lane in
-                        WelcomeIntegrationLane(lane: lane, horizontal: false)
-                    }
-                }
+            ProviderMarqueeLane(
+                title: "HOSTING",
+                items: AccountProvider.allCases,
+                duration: 54,
+                direction: .left,
+                standardChipWidth: 150,
+                name: \AccountProvider.displayName
+            ) { provider in
+                ProviderMark(provider: provider, size: 21)
+            }
+
+            ProviderMarqueeLane(
+                title: "DOMAINS",
+                items: RegistrarProvider.allCases,
+                duration: 48,
+                direction: .right,
+                standardChipWidth: 156,
+                name: \RegistrarProvider.displayName
+            ) { provider in
+                RegistrarMark(provider: provider, size: 32)
+            }
+
+            ProviderMarqueeLane(
+                title: "SITE SERVICES",
+                items: SiteIntegrationProvider.allCases,
+                duration: 52,
+                direction: .left,
+                standardChipWidth: 208,
+                name: \SiteIntegrationProvider.displayName
+            ) { provider in
+                SiteProviderMark(provider: provider, size: 21)
             }
         }
-        .padding(17)
-        .appSurface(raised: true)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(IntegrationCatalogSummary.accessibilitySummary)
     }
 
-    private var summaryTitle: some View {
-        Text("ONE CONNECTED WORKSPACE")
+    private var catalogTitle: some View {
+        Text("WORKS WITH YOUR STACK")
             .font(.caption2.weight(.bold))
-            .tracking(0.9)
+            .tracking(1.05)
             .foregroundStyle(AppTheme.textSecondary)
     }
 
-    private var summaryCount: some View {
-        Text("\(IntegrationCatalogSummary.totalCount) integrations")
-            .font(.caption.weight(.semibold).monospacedDigit())
+    private var integrationCount: some View {
+        Text("\(totalCount) INTEGRATIONS")
+            .font(.caption2.weight(.bold).monospacedDigit())
+            .tracking(0.6)
             .foregroundStyle(AppTheme.signal)
     }
 }
 
-private struct WelcomeIntegrationLane: View {
-    let lane: IntegrationCatalogLane
-    let horizontal: Bool
+private enum MarqueeDirection {
+    case left
+    case right
+}
+
+private struct ProviderMarqueeLane<Item: Identifiable, Mark: View>: View {
+    let title: String
+    let items: [Item]
+    let duration: TimeInterval
+    let direction: MarqueeDirection
+    let standardChipWidth: CGFloat
+    let name: KeyPath<Item, String>
+    let mark: (Item) -> Mark
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.scenePhase) private var scenePhase
+
+    private let chipSpacing: CGFloat = 10
 
     var body: some View {
-        Group {
-            if horizontal {
-                HStack(spacing: 12) {
-                    icon
-                    Text("\(lane.count)")
-                        .font(.title3.weight(.bold).monospacedDigit())
-                    Text(lane.label)
-                        .font(.subheadline.weight(.semibold))
-                    Spacer()
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Text(title)
+                    .font(.caption2.weight(.bold))
+                    .tracking(0.9)
+                Text("\(items.count)")
+                    .font(.caption2.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(AppTheme.textTertiary)
+            }
+            .foregroundStyle(AppTheme.textSecondary)
+
+            Group {
+                if shouldAutoMove {
+                    automaticLane
+                        .mask(edgeFadeMask)
+                } else {
+                    manualLane
                 }
-            } else {
-                VStack(spacing: 7) {
-                    icon
-                    Text("\(lane.count)")
-                        .font(.title3.weight(.bold).monospacedDigit())
-                    Text(lane.label)
-                        .font(.caption2.weight(.semibold))
-                        .multilineTextAlignment(.center)
+            }
+            .frame(height: laneHeight)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(title.capitalized), \(items.count) integrations: \(providerNames)")
+    }
+
+    private var automaticLane: some View {
+        GeometryReader { proxy in
+            TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
+                let progress = context.date.timeIntervalSinceReferenceDate
+                    .truncatingRemainder(dividingBy: duration) / duration
+                let travel = progress * cycleWidth
+                let offset: CGFloat = switch direction {
+                case .left: -travel
+                case .right: -cycleWidth + travel
                 }
-                .frame(maxWidth: .infinity)
+
+                HStack(spacing: 0) {
+                    ForEach(0..<3, id: \.self) { _ in
+                        laneCycle
+                    }
+                }
+                .offset(x: offset)
+                .frame(width: proxy.size.width, alignment: .leading)
             }
         }
-        .foregroundStyle(AppTheme.textPrimary)
+        .clipped()
     }
 
-    private var icon: some View {
-        Image(systemName: lane.icon)
-            .font(.system(size: 14, weight: .semibold))
-            .foregroundStyle(AppTheme.signal)
-            .frame(width: 32, height: 32)
-            .background(AppTheme.signal.opacity(0.12))
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-    }
-}
-
-private struct WelcomeTrustRow: View {
-    let icon: String
-    let title: String
-    let detail: String
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(AppTheme.signal)
-                .frame(width: 34, height: 34)
-                .background(AppTheme.signal.opacity(0.10))
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(AppTheme.textPrimary)
-                Text(detail)
-                    .font(.footnote)
-                    .foregroundStyle(AppTheme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
+    private var manualLane: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: chipSpacing) {
+                ForEach(items) { item in
+                    providerChip(item)
+                }
             }
+            .padding(.horizontal, 1)
+        }
+        .scrollIndicators(.hidden)
+    }
+
+    private var laneCycle: some View {
+        HStack(spacing: chipSpacing) {
+            ForEach(items) { item in
+                providerChip(item)
+            }
+        }
+        .padding(.trailing, chipSpacing)
+    }
+
+    private func providerChip(_ item: Item) -> some View {
+        HStack(spacing: 9) {
+            mark(item)
+                .frame(width: 32, height: 32)
+
+            Text(item[keyPath: name])
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(AppTheme.textPrimary)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                .minimumScaleFactor(0.84)
+                .fixedSize(horizontal: false, vertical: true)
+
             Spacer(minLength: 0)
         }
-        .padding(15)
+        .padding(.horizontal, 10)
+        .frame(width: chipWidth, height: laneHeight, alignment: .leading)
+        .background(AppTheme.surface.opacity(0.82), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(AppTheme.strokeSoft, lineWidth: 0.5)
+        }
+    }
+
+    private var edgeFadeMask: some View {
+        LinearGradient(
+            stops: [
+                .init(color: .clear, location: 0),
+                .init(color: .black, location: 0.035),
+                .init(color: .black, location: 0.965),
+                .init(color: .clear, location: 1)
+            ],
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+    }
+
+    private var shouldAutoMove: Bool {
+        !reduceMotion
+            && !voiceOverEnabled
+            && dynamicTypeSize < .xxLarge
+            && scenePhase == .active
+    }
+
+    private var chipWidth: CGFloat {
+        if dynamicTypeSize.isAccessibilitySize {
+            max(210, standardChipWidth + 24)
+        } else if dynamicTypeSize >= .xxLarge {
+            standardChipWidth + 12
+        } else {
+            standardChipWidth
+        }
+    }
+
+    private var laneHeight: CGFloat {
+        if dynamicTypeSize.isAccessibilitySize {
+            90
+        } else if dynamicTypeSize >= .xxLarge {
+            58
+        } else {
+            48
+        }
+    }
+
+    private var cycleWidth: CGFloat {
+        CGFloat(items.count) * (chipWidth + chipSpacing)
+    }
+
+    private var providerNames: String {
+        items.map { $0[keyPath: name] }.joined(separator: ", ")
     }
 }
