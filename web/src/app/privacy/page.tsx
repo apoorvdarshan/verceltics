@@ -107,7 +107,7 @@ export default function Privacy() {
       <section id="controls">
         <h2>Your controls and retention</h2>
         <p>You can remove a connected account or service inside Verceltics to delete its saved credential and associated local snapshot. You can also revoke OAuth access or rotate API credentials from the provider&apos;s own account settings. Provider-side retention is governed by that provider&apos;s policy.</p>
-        <p>External links—including Apple, GitHub, supported providers, Product Hunt, LinkedIn, TrustMRR, Ko-fi, PayPal, and X—open third-party services with their own privacy practices.</p>
+        <p>External links—including Apple, GitHub, supported providers, Product Hunt, LinkedIn, Instagram, TrustMRR, Ko-fi, PayPal, and X—open third-party services with their own privacy practices.</p>
       </section>
 
       <section id="changes">

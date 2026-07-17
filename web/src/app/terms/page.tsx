@@ -83,7 +83,7 @@ export default function Terms() {
         <h2>Availability, updates, and external services</h2>
         <p>Provider APIs, endpoints, authentication rules, response formats, features, plans, and limits may change without notice. Verceltics may add, change, or remove provider integrations when required to keep the app safe and maintainable.</p>
         <p>The app may check Apple&apos;s public App Store endpoint for updates. Installing an update is optional, but older builds may stop receiving fixes or working with changed provider APIs.</p>
-        <p>Links to Apple, GitHub, supported providers, Product Hunt, LinkedIn, TrustMRR, Ko-fi, PayPal, X, and other third parties are provided for convenience. Their content, availability, purchases, and policies are outside Verceltics&apos; control.</p>
+        <p>Links to Apple, GitHub, supported providers, Product Hunt, LinkedIn, Instagram, TrustMRR, Ko-fi, PayPal, X, and other third parties are provided for convenience. Their content, availability, purchases, and policies are outside Verceltics&apos; control.</p>
       </section>
 
       <section id="disclaimers">

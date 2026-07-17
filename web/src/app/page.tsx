@@ -10,6 +10,15 @@ import { SiteHeader } from "@/components/site-header";
 const SITE_URL = "https://verceltics.com";
 const APP_STORE = "https://apps.apple.com/us/app/verceltics/id6761645656";
 const GITHUB = "https://github.com/apoorvdarshan/verceltics";
+const PUBLIC_PROFILES = [
+  GITHUB,
+  "https://www.producthunt.com/products/verceltics",
+  "https://trustmrr.com/startup/vercel-analytics-verceltics",
+  "https://www.linkedin.com/company/verceltics",
+  "https://www.instagram.com/verceltics/",
+  "https://ko-fi.com/apoorvdarshan",
+  "https://x.com/apoorvdarshan",
+] as const;
 
 export const metadata: Metadata = { alternates: { canonical: SITE_URL } };
 
@@ -67,7 +76,7 @@ const applicationJsonLd = {
     `${SITE_URL}/screens/ios/hosting.png`,
     `${SITE_URL}/screens/ios/search.png`,
   ],
-  sameAs: [APP_STORE, GITHUB],
+  sameAs: [APP_STORE, ...PUBLIC_PROFILES],
   offers: plans.map((plan) => ({ "@type": "Offer", price: plan.price.replace("$", ""), priceCurrency: "USD", description: `${plan.name} access` })),
 };
 
