@@ -400,7 +400,11 @@ struct PaywallView: View {
         .padding(.bottom, 8)
         .frame(maxWidth: horizontalSizeClass == .regular ? 720 : 620)
         .frame(maxWidth: .infinity)
-        .background(AppTheme.surface.shadow(color: AppTheme.shadowSoft, radius: 12, y: -4))
+        .background(
+            AppTheme.surface
+                .shadow(color: AppTheme.shadowSoft, radius: 12, y: -4)
+                .ignoresSafeArea(edges: .bottom)
+        )
         .overlay(alignment: .top) {
             Rectangle().fill(AppTheme.divider).frame(height: 0.5)
         }
