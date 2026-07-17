@@ -33,11 +33,11 @@ The README highlights the iPhone experience. Verceltics also has a fully adaptiv
 <table>
   <tr>
     <td align="center"><img src="docs/screenshots/ios/analytics.png" width="260" alt="Traffic analytics on iPhone"><br><strong>Traffic analytics</strong><br><sub>Requests, visitors, bandwidth, cache, threats, HTTPS, and trend</sub></td>
-    <td align="center"><img src="docs/screenshots/ios/hosting.png" width="260" alt="Hosting connection list on iPhone"><br><strong>10 hosting platforms</strong></td>
+    <td align="center"><img src="docs/screenshots/ios/hosting.png" width="260" alt="Hosting connection list on iPhone"><br><strong>10 hosting platforms</strong><br><sub>Projects, deployments, domains, DNS, logs, storage, and provider operations</sub><br><sub>Vercel · Cloudflare · Netlify · Railway · Render · DigitalOcean · Heroku · Fly.io · Firebase Hosting · AWS Amplify</sub></td>
   </tr>
   <tr>
-    <td align="center"><img src="docs/screenshots/ios/registrars.png" width="260" alt="Registrar connection list on iPhone"><br><strong>8 registrars</strong></td>
-    <td align="center"><img src="docs/screenshots/ios/sites.png" width="260" alt="Site services connection list on iPhone"><br><strong>9 site services</strong></td>
+    <td align="center"><img src="docs/screenshots/ios/registrars.png" width="260" alt="Registrar connection list on iPhone"><br><strong>8 domain registrars</strong><br><sub>Domains, DNS, renewals, transfers, contacts, certificates, and privacy</sub><br><sub>Name.com · Namecheap · Porkbun · Spaceship · Dynadot · NameSilo · Gandi · GoDaddy</sub></td>
+    <td align="center"><img src="docs/screenshots/ios/sites.png" width="260" alt="Site services connection list on iPhone"><br><strong>9 site services</strong><br><sub>Search, analytics, performance, behavioral insights, and uptime</sub><br><sub>Google Search Console · Google Analytics · PageSpeed &amp; CrUX · Bing Webmaster · Microsoft Clarity · Plausible · Umami · UptimeRobot · Better Stack</sub></td>
   </tr>
 </table>
 
