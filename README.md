@@ -246,7 +246,11 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Report sec
 ## Star History
 
 <a href="https://www.star-history.com/?repos=apoorvdarshan%2Fverceltics&type=date&legend=top-left">
-  <img src="docs/star-history.svg" alt="Verceltics GitHub star history chart" width="720" />
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=apoorvdarshan/verceltics&type=date&theme=dark&legend=top-left&sealed_token=DwXYLjTue4rdo7cn1p8qwQo08vbXrdJjAzQvLP7dCR8FmYlWU0xbnYxZcceEqenzxHmWVnYukXgzUdhFozwZFiF01DWMu9Kbr8HOGhfTHo7dXTsB-WAI8b2tdKMQf5U-1nMjuCkavC3ySKBymks0EbOxCt2chNurnGGIgvHMuOG4-2tLTy5Duq7rqc_y" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=apoorvdarshan/verceltics&type=date&legend=top-left&sealed_token=DwXYLjTue4rdo7cn1p8qwQo08vbXrdJjAzQvLP7dCR8FmYlWU0xbnYxZcceEqenzxHmWVnYukXgzUdhFozwZFiF01DWMu9Kbr8HOGhfTHo7dXTsB-WAI8b2tdKMQf5U-1nMjuCkavC3ySKBymks0EbOxCt2chNurnGGIgvHMuOG4-2tLTy5Duq7rqc_y" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=apoorvdarshan/verceltics&type=date&legend=top-left&sealed_token=DwXYLjTue4rdo7cn1p8qwQo08vbXrdJjAzQvLP7dCR8FmYlWU0xbnYxZcceEqenzxHmWVnYukXgzUdhFozwZFiF01DWMu9Kbr8HOGhfTHo7dXTsB-WAI8b2tdKMQf5U-1nMjuCkavC3ySKBymks0EbOxCt2chNurnGGIgvHMuOG4-2tLTy5Duq7rqc_y" />
+ </picture>
 </a>
 
 ---
