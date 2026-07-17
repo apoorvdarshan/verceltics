@@ -24,7 +24,6 @@ const channelGroups = [
     links: [
       { label: "LinkedIn", detail: "Company page", href: "https://www.linkedin.com/company/verceltics", mark: "/brands/linkedin.svg", newTab: true },
       { label: "X", detail: "Founder notes", href: "https://x.com/apoorvdarshan", mark: "/brands/x.svg", newTab: true },
-      { label: "Instagram", detail: "Product visuals", href: "https://www.instagram.com/verceltics/", mark: "/brands/instagram.svg", newTab: true },
     ],
   },
   {
