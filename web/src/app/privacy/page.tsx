@@ -15,7 +15,7 @@ export const metadata: Metadata = {
     title: "Privacy Policy — Verceltics",
     description: "Device-only Keychain storage, direct provider requests, no app tracking, and no Verceltics credential proxy.",
     url: `${SITE_URL}/privacy`,
-    images: [{ url: "/screens/ipad/cloudflare.png", width: 2360, height: 1640, alt: "Verceltics on iPad" }],
+    images: [{ url: "/og-verceltics.png", width: 1200, height: 630, alt: "Verceltics mobile operations instrument" }],
   },
 };
 

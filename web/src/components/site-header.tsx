@@ -13,12 +13,12 @@ export function SiteHeader() {
       <header className="site-header">
         <div className="header-inner">
           <Link aria-label="Verceltics home" className="header-brand" href="/" translate="no">
-            <Image alt="" height={38} priority src="/icon.png" width={38} />
-            <span>Verceltics</span>
+            <span className="brand-mark"><Image alt="" height={34} priority src="/icon.png" width={34} /></span>
+            <span><strong>Verceltics</strong><small>Mobile operations</small></span>
           </Link>
 
           <nav aria-label="Primary navigation" className="header-nav">
-            <Link href="/#connections">Connections</Link>
+            <Link href="/#patchbay">Connections</Link>
             <Link href="/#workflows">Workflows</Link>
             <Link href="/#privacy">Privacy</Link>
             <Link href="/#pricing">Pricing</Link>
@@ -27,7 +27,7 @@ export function SiteHeader() {
           <details className="mobile-menu">
             <summary>Menu</summary>
             <nav aria-label="Mobile navigation">
-              <Link href="/#connections">Connections</Link>
+              <Link href="/#patchbay">Connections</Link>
               <Link href="/#workflows">Workflows</Link>
               <Link href="/#privacy">Privacy</Link>
               <Link href="/#pricing">Pricing</Link>
@@ -36,7 +36,7 @@ export function SiteHeader() {
           </details>
 
           <div className="header-actions">
-            <a className="source-link" href={GITHUB} rel="noreferrer" target="_blank">Source <ArrowUpRight /></a>
+            <a className="source-link" href={GITHUB} rel="noreferrer" target="_blank">Open source <ArrowUpRight /></a>
             <a className="header-store" href={APP_STORE} rel="noreferrer" target="_blank">Get the app <ArrowUpRight /></a>
           </div>
         </div>

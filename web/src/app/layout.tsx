@@ -1,19 +1,12 @@
 import type { Metadata, Viewport } from "next";
-import { Antonio, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
+import { IBM_Plex_Mono, Space_Grotesk } from "next/font/google";
 
 import "./globals.css";
 
-const antonio = Antonio({
+const spaceGrotesk = Space_Grotesk({
   display: "swap",
   subsets: ["latin"],
-  variable: "--font-antonio",
-  weight: ["600", "700"],
-});
-
-const ibmPlexSans = IBM_Plex_Sans({
-  display: "swap",
-  subsets: ["latin"],
-  variable: "--font-ibm-plex-sans",
+  variable: "--font-space-grotesk",
   weight: ["400", "500", "600", "700"],
 });
 
@@ -27,18 +20,18 @@ const ibmPlexMono = IBM_Plex_Mono({
 const SITE_URL = "https://verceltics.com";
 
 export const viewport: Viewport = {
-  colorScheme: "dark",
-  themeColor: "#07090d",
+  colorScheme: "light",
+  themeColor: "#dce3e0",
 };
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "Verceltics — Your Stack Under One Thumb",
+    default: "Verceltics — Check the Whole Stack. Close the Laptop.",
     template: "%s — Verceltics",
   },
   description:
-    "A private, open-source iPhone and iPad workspace for hosting platforms, domain registrars, deployments, analytics, search performance, speed, and uptime.",
+    "A private native iPhone and iPad instrument for deploys, domains, DNS, analytics, search, speed, and uptime across 27 direct provider connections.",
   applicationName: "Verceltics",
   category: "Developer Tools",
   keywords: [
@@ -63,38 +56,22 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_US",
     siteName: "Verceltics",
-    title: "Verceltics — Your stack under one thumb",
-    description:
-      "Review deploys, domains, DNS, traffic, search, speed, and uptime from a native iPhone and iPad workspace—without a credential proxy.",
+    title: "Verceltics — Check the whole stack. Close the laptop.",
+    description: "Deploys, domains, DNS, analytics, search, speed and uptime in one private native workspace.",
     url: SITE_URL,
-    images: [
-      {
-        url: "/screens/ipad/cloudflare.png",
-        width: 2360,
-        height: 1640,
-        alt: "Verceltics Cloudflare analytics workspace on iPad",
-        type: "image/png",
-      },
-    ],
+    images: [{ url: "/og-verceltics.png", width: 1200, height: 630, alt: "Verceltics mobile operations instrument" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Verceltics — Your stack under one thumb",
-    description:
-      "Review deploys, domains, DNS, traffic, search, speed, and uptime from a private native workspace.",
+    title: "Verceltics — Check the whole stack. Close the laptop.",
+    description: "27 direct provider connections in one private native iPhone and iPad workspace.",
     creator: "@apoorvdarshan",
-    images: ["/screens/ipad/cloudflare.png"],
+    images: ["/og-verceltics.png"],
   },
   robots: {
     index: true,
     follow: true,
-    googleBot: {
-      index: true,
-      follow: true,
-      "max-image-preview": "large",
-      "max-snippet": -1,
-      "max-video-preview": -1,
-    },
+    googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1, "max-video-preview": -1 },
   },
 };
 
@@ -120,7 +97,7 @@ const siteJsonLd = {
       "@id": `${SITE_URL}/#website`,
       name: "Verceltics",
       url: SITE_URL,
-      description: "Hosting, domains, and site intelligence on iPhone and iPad.",
+      description: "A private native mobile operations instrument for infrastructure and site intelligence.",
       inLanguage: "en-US",
       publisher: { "@id": `${SITE_URL}/#organization` },
     },
@@ -129,7 +106,7 @@ const siteJsonLd = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html className={`${antonio.variable} ${ibmPlexSans.variable} ${ibmPlexMono.variable}`} lang="en">
+    <html className={`${spaceGrotesk.variable} ${ibmPlexMono.variable}`} lang="en">
       <body>
         <script dangerouslySetInnerHTML={{ __html: JSON.stringify(siteJsonLd) }} type="application/ld+json" />
         {children}

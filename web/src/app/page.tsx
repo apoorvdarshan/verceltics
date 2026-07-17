@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Image from "next/image";
 
 import { ArrowUpRight } from "@/components/arrow-up-right";
-import { HeroSwitcher } from "@/components/hero-switcher";
-import { ProviderDirectory } from "@/components/provider-directory";
+import { InstrumentHero } from "@/components/instrument-hero";
+import { ProviderPatchbay } from "@/components/provider-directory";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 
@@ -13,19 +13,19 @@ const GITHUB = "https://github.com/apoorvdarshan/verceltics";
 
 export const metadata: Metadata = { alternates: { canonical: SITE_URL } };
 
-const workflows = [
-  ["Deploy", "Review status, environment, releases & logs."],
-  ["DNS", "Inspect zones, records, nameservers & changes."],
-  ["Renew", "Check expiry, privacy, forwarding & transfers."],
-  ["Traffic", "Read visitors, cache, threats & HTTPS."],
-  ["Index", "Check clicks, sitemaps, coverage & URLs."],
-  ["Uptime", "Confirm monitor state, latency & availability."],
+const checks = [
+  { number: "01", name: "Deploy", detail: "Status, environments, releases and logs" },
+  { number: "02", name: "DNS", detail: "Zones, records, nameservers and changes" },
+  { number: "03", name: "Renew", detail: "Expiry, privacy, forwarding and transfers" },
+  { number: "04", name: "Traffic", detail: "Visitors, cache, threats and HTTPS" },
+  { number: "05", name: "Index", detail: "Clicks, sitemaps, coverage and URLs" },
+  { number: "06", name: "Uptime", detail: "Monitor state, latency and availability" },
 ] as const;
 
 const plans = [
-  { name: "Monthly", price: "$4.99", detail: "per month" },
-  { name: "Yearly", price: "$34.99", detail: "per year · 7-day trial" },
-  { name: "Lifetime", price: "$59.99", detail: "one-time purchase" },
+  { code: "M", name: "Monthly", price: "$4.99", detail: "per month" },
+  { code: "Y", name: "Yearly", price: "$34.99", detail: "per year · 7-day trial" },
+  { code: "∞", name: "Lifetime", price: "$59.99", detail: "one-time purchase" },
 ] as const;
 
 const faqs = [
@@ -58,10 +58,10 @@ const applicationJsonLd = {
   operatingSystem: "iOS 18 or later",
   applicationCategory: "DeveloperApplication",
   softwareVersion: "2.0",
-  description: "A native iPhone and iPad workspace for hosting, domains, analytics, search performance, speed, and uptime.",
+  description: "A private native iPhone and iPad workspace for hosting, domains, analytics, search performance, speed, and uptime.",
   url: SITE_URL,
   downloadUrl: APP_STORE,
-  image: `${SITE_URL}/screens/ipad/cloudflare.png`,
+  image: `${SITE_URL}/og-verceltics.png`,
   screenshot: [
     `${SITE_URL}/screens/ipad/cloudflare.png`,
     `${SITE_URL}/screens/ios/hosting.png`,
@@ -85,98 +85,149 @@ export default function Home() {
       <SiteHeader />
 
       <main id="main-content">
-        <HeroSwitcher />
+        <InstrumentHero />
 
-        <section className="connections-section" id="connections">
-          <header className="section-heading section-heading--connections">
-            <p className="section-kicker">Every account stays independent</p>
-            <h2>27 connections.<br />No detours.</h2>
-            <p>Connect the providers you already use. Each keeps its own account context, controls, and official API.</p>
+        <section className="patchbay-section" id="patchbay">
+          <header className="section-intro patchbay-intro">
+            <div>
+              <p className="instrument-label"><span>01</span> Connection patchbay</p>
+              <h2>Plug in what you already run.</h2>
+            </div>
+            <p>Every account keeps its own context, controls and official API. Verceltics supplies the native interface—not a data soup.</p>
           </header>
-          <ProviderDirectory />
+          <ProviderPatchbay />
         </section>
 
-        <section className="workflow-section" id="workflows">
-          <header className="section-heading section-heading--workflow">
-            <p className="section-kicker">Worth opening your phone for</p>
-            <h2>From deploy<br />to uptime.</h2>
-          </header>
-          <div className="workflow-list">
-            {workflows.map(([name, detail]) => (
-              <article key={name}>
-                <strong>{name}</strong>
-                <p>{detail}</p>
-              </article>
+        <section className="inspection-section" id="workflows">
+          <div className="inspection-copy">
+            <p className="instrument-label instrument-label--light"><span>02</span> Field checklist</p>
+            <h2>One sweep before you move.</h2>
+            <p>Verceltics is tuned for fast, specific checks: the production questions that arrive while you are away from a desk.</p>
+            <p className="confirmation-note"><i /> Writes, purchases and destructive requests ask for confirmation.</p>
+          </div>
+          <ol className="check-tape">
+            {checks.map((check) => (
+              <li key={check.name}>
+                <span>{check.number}</span>
+                <strong>{check.name}</strong>
+                <p>{check.detail}</p>
+                <i aria-hidden="true" />
+              </li>
             ))}
-          </div>
-          <p className="workflow-note">Changes and destructive requests always ask first.</p>
-        </section>
-
-        <section className="signal-section">
-          <div className="signal-heading">
-            <p className="section-kicker">Sites keeps signals separate</p>
-            <h2>Search <span>≠</span> traffic.</h2>
-            <p>Connect each independently. Search performance stays in Search Console. Traffic and engagement stay in Analytics.</p>
-          </div>
-          <div className="signal-comparison">
-            <figure>
-              <div className="signal-phone signal-phone--search"><Image alt="Google Search Console dashboard in Verceltics" fill sizes="(max-width: 720px) 78vw, 330px" src="/screens/ios/search.webp" /></div>
-              <figcaption><span>Search Console</span><strong>Clicks, indexing & URLs</strong></figcaption>
-            </figure>
-            <span aria-hidden="true" className="not-equal">≠</span>
-            <figure>
-              <div className="signal-phone signal-phone--analytics"><Image alt="Google Analytics dashboard in Verceltics" fill sizes="(max-width: 720px) 78vw, 330px" src="/screens/ios/google-analytics.webp" /></div>
-              <figcaption><span>Google Analytics</span><strong>Visitors, sessions & events</strong></figcaption>
-            </figure>
-          </div>
+          </ol>
         </section>
 
         <section className="ipad-section">
-          <header className="section-heading section-heading--ipad">
-            <p className="section-kicker">Built wide on iPad</p>
-            <h2>Not stretched.<br />Re-composed.</h2>
-            <p>A persistent sidebar, adaptive metric grid, wider detail surfaces, and full-width charts make iPad a real operations workspace.</p>
+          <header className="section-intro ipad-intro">
+            <div>
+              <p className="instrument-label"><span>03</span> Wide instrument</p>
+              <h2>iPad is re-composed. Not stretched.</h2>
+            </div>
+            <p>A persistent sidebar, adaptive metric grids, wider detail surfaces and full-width charts turn quick checks into a real operations workspace.</p>
           </header>
-          <figure className="ipad-screen"><Image alt="Cloudflare analytics dashboard in Verceltics on iPad" fill sizes="(max-width: 900px) 96vw, 1500px" src="/screens/ipad/cloudflare.webp" /></figure>
-          <div className="ipad-facts"><span>Persistent sidebar</span><span>Adaptive metrics</span><span>Full-width charts</span></div>
+          <div className="ipad-console">
+            <div className="console-toolbar">
+              <span><i /> Live workspace</span>
+              <strong>Cloudflare / Traffic / Last 7 days</strong>
+              <span>2360 × 1640</span>
+            </div>
+            <figure className="ipad-screen">
+              <Image alt="Cloudflare traffic workspace in Verceltics on iPad" fill sizes="(max-width: 900px) 96vw, 1480px" src="/screens/ipad/cloudflare.webp" />
+            </figure>
+            <div className="console-features"><span>Persistent sidebar</span><span>Adaptive metrics</span><span>Full-width charts</span></div>
+          </div>
         </section>
 
-        <section className="privacy-section" id="privacy">
-          <div className="privacy-copy">
-            <p className="section-kicker">Private by architecture</p>
-            <h2>Your credentials<br />never visit us.</h2>
+        <section className="signals-section">
+          <header className="signals-copy">
+            <p className="instrument-label"><span>04</span> Independent signals</p>
+            <h2>Search is not traffic.</h2>
+            <p>Two Google services. Two permissions. Two separate dashboards. Verceltics never pretends they are the same thing.</p>
+          </header>
+          <div className="signal-rack">
+            <figure className="signal-module signal-module--search">
+              <figcaption><span>Input A</span><strong>Google Search Console</strong><p>Clicks · indexing · URLs</p></figcaption>
+              <div className="signal-screen"><Image alt="Google Search Console dashboard in Verceltics" fill sizes="(max-width: 720px) 86vw, 380px" src="/screens/ios/search.webp" /></div>
+            </figure>
+            <div aria-hidden="true" className="signal-separator"><span>≠</span><i /><i /></div>
+            <figure className="signal-module signal-module--analytics">
+              <figcaption><span>Input B</span><strong>Google Analytics</strong><p>Visitors · sessions · events</p></figcaption>
+              <div className="signal-screen"><Image alt="Google Analytics dashboard in Verceltics" fill sizes="(max-width: 720px) 86vw, 380px" src="/screens/ios/google-analytics.webp" /></div>
+            </figure>
+          </div>
+        </section>
+
+        <section className="circuit-section" id="privacy">
+          <header className="circuit-heading">
+            <p className="instrument-label instrument-label--light"><span>05</span> Sealed circuit</p>
+            <h2>Your credentials never route through us.</h2>
             <p>Tokens stay in the device-only iOS Keychain. Provider data moves between your device and the provider’s official HTTPS API.</p>
+          </header>
+          <div aria-label="Your device connects directly to an official provider API" className="circuit-path" role="group">
+            <div className="circuit-node circuit-node--device">
+              <span className="node-icon"><Image alt="" height={46} src="/icon.png" width={46} /></span>
+              <span><small>Origin</small><strong>Your device</strong><p>Keychain + protected cache</p></span>
+            </div>
+            <div className="cable"><i /><span>Encrypted HTTPS</span><i /></div>
+            <div className="circuit-node circuit-node--provider">
+              <span className="node-icon">API</span>
+              <span><small>Destination</small><strong>Official provider</strong><p>Direct request and response</p></span>
+            </div>
           </div>
-          <div aria-label="Your device connects directly to official provider APIs" className="direct-diagram">
-            <div><Image alt="" height={56} src="/icon.png" width={56} /><span><strong>Your device</strong><small>Keychain + protected cache</small></span></div>
-            <span aria-hidden="true" className="direct-line"><i /><i /><i /></span>
-            <div><b>API</b><span><strong>Official provider</strong><small>Encrypted HTTPS request</small></span></div>
+          <div className="missing-port">
+            <span><i /> Port not fitted</span>
+            <strong>Verceltics credential server</strong>
+            <b>NOT PRESENT</b>
           </div>
-          <div className="proxy-proof"><span>Verceltics credential proxy</span><strong>None.</strong><div><a href="/privacy">Privacy policy <ArrowUpRight /></a><a href={GITHUB} rel="noreferrer" target="_blank">Audit the source <ArrowUpRight /></a></div></div>
+          <div className="circuit-links">
+            <a href="/privacy">Read the privacy policy <ArrowUpRight /></a>
+            <a href={GITHUB} rel="noreferrer" target="_blank">Audit the source <ArrowUpRight /></a>
+          </div>
         </section>
 
         <section className="pricing-section" id="pricing">
-          <header className="section-heading section-heading--pricing">
-            <p className="section-kicker">Verceltics Pro</p>
-            <h2>One app.<br />Every connection.</h2>
+          <header className="section-intro pricing-intro">
+            <div>
+              <p className="instrument-label"><span>06</span> Ownership plate</p>
+              <h2>One unlock. Every connection.</h2>
+            </div>
+            <p>Every paid option unlocks all 27 connections on iPhone and iPad. The MIT-licensed source stays available for personal builds.</p>
           </header>
-          <div className="price-strip">
-            {plans.map((plan) => <div key={plan.name}><span>{plan.name}</span><strong>{plan.price}</strong><small>{plan.detail}</small></div>)}
-            <a className="button button--store" href={APP_STORE} rel="noreferrer" target="_blank">View in the App Store <ArrowUpRight /></a>
+          <div className="price-console">
+            <div className="price-console-head"><span>Verceltics Pro</span><span>Choose access term</span><span>All ports enabled</span></div>
+            <div className="price-options">
+              {plans.map((plan) => (
+                <div className="price-row" key={plan.name}>
+                  <span>{plan.code}</span><strong>{plan.name}</strong><p>{plan.detail}</p><b>{plan.price}</b>
+                </div>
+              ))}
+            </div>
+            <a className="price-cta" href={APP_STORE} rel="noreferrer" target="_blank">View in the App Store <ArrowUpRight /></a>
           </div>
-          <p className="source-note">Every paid option unlocks all 27 connections on iPhone and iPad. The MIT-licensed source remains available for personal builds.</p>
         </section>
 
         <section className="faq-section">
-          <header><p className="section-kicker">Before connecting</p><h2>Questions.</h2></header>
-          <div className="faq-list">
-            {faqs.map((faq) => <details key={faq.question}><summary>{faq.question}<span aria-hidden="true">+</span></summary><p>{faq.answer}</p></details>)}
+          <header>
+            <p className="instrument-label"><span>07</span> Operator notes</p>
+            <h2>Before connecting.</h2>
+          </header>
+          <div className="faq-manual">
+            {faqs.map((faq, index) => (
+              <details key={faq.question}>
+                <summary><span>{String(index + 1).padStart(2, "0")}</span><strong>{faq.question}</strong><i aria-hidden="true">+</i></summary>
+                <p>{faq.answer}</p>
+              </details>
+            ))}
           </div>
         </section>
 
-        <section className="closing-billboard">
-          <div><p>Verceltics 2.0 / iPhone + iPad</p><h2>Your stack<br />is already<br />waiting.</h2></div>
-          <a className="button button--closing" href={APP_STORE} rel="noreferrer" target="_blank">Get Verceltics <ArrowUpRight /></a>
+        <section className="closing-section">
+          <div className="closing-copy">
+            <p>Verceltics 2.0 / iPhone + iPad / 27 direct connections</p>
+            <h2>Production called.<br />You can answer from here.</h2>
+          </div>
+          <a className="closing-control" href={APP_STORE} rel="noreferrer" target="_blank">Get Verceltics <ArrowUpRight /></a>
+          <span aria-hidden="true" className="closing-lamp"><i /></span>
         </section>
       </main>
 

@@ -15,7 +15,7 @@ export const metadata: Metadata = {
     title: "Terms of Service — Verceltics",
     description: "Terms for using the Verceltics iPhone and iPad app.",
     url: `${SITE_URL}/terms`,
-    images: [{ url: "/screens/ipad/cloudflare.png", width: 2360, height: 1640, alt: "Verceltics on iPad" }],
+    images: [{ url: "/og-verceltics.png", width: 1200, height: 630, alt: "Verceltics mobile operations instrument" }],
   },
 };
 

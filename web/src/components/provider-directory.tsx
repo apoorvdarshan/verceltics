@@ -2,15 +2,15 @@ import Image from "next/image";
 import type { CSSProperties } from "react";
 
 type Provider = { name: string; icon: string };
-type ProviderGroup = { id: string; label: string; count: number; accent: string; tagline: string; providers: readonly Provider[] };
+type ProviderGroup = { id: string; label: string; count: number; accent: string; detail: string; providers: readonly Provider[] };
 
 const groups: readonly ProviderGroup[] = [
   {
     id: "hosting",
     label: "Hosting",
     count: 10,
-    accent: "#146cff",
-    tagline: "Deploys, logs, DNS, jobs & releases",
+    accent: "#2450ff",
+    detail: "Deploys, logs, DNS, jobs and releases",
     providers: [
       { name: "Vercel", icon: "VercelMark.svg" },
       { name: "Cloudflare", icon: "CloudflareMark.svg" },
@@ -20,7 +20,7 @@ const groups: readonly ProviderGroup[] = [
       { name: "DigitalOcean", icon: "DigitalOceanMark.svg" },
       { name: "Heroku", icon: "HerokuMark.svg" },
       { name: "Fly.io", icon: "FlyMark.svg" },
-      { name: "Firebase Hosting", icon: "FirebaseMark.svg" },
+      { name: "Firebase", icon: "FirebaseMark.svg" },
       { name: "AWS Amplify", icon: "AWSAmplifyMark.svg" },
     ],
   },
@@ -28,8 +28,8 @@ const groups: readonly ProviderGroup[] = [
     id: "registrars",
     label: "Registrars",
     count: 8,
-    accent: "#d9dee7",
-    tagline: "Domains, renewals, contacts & transfers",
+    accent: "#ff5637",
+    detail: "Domains, renewals, contacts and transfers",
     providers: [
       { name: "Name.com", icon: "NameDotComMark.svg" },
       { name: "Namecheap", icon: "NamecheapMark.svg" },
@@ -43,16 +43,16 @@ const groups: readonly ProviderGroup[] = [
   },
   {
     id: "sites",
-    label: "Sites",
+    label: "Site services",
     count: 9,
-    accent: "#9747ff",
-    tagline: "Search, traffic, speed & uptime",
+    accent: "#8050f5",
+    detail: "Search, traffic, speed and uptime",
     providers: [
-      { name: "Google Search Console", icon: "GoogleSearchConsoleMark.svg" },
+      { name: "Search Console", icon: "GoogleSearchConsoleMark.svg" },
       { name: "Google Analytics", icon: "GoogleAnalyticsMark.svg" },
-      { name: "PageSpeed & CrUX", icon: "PageSpeedMark.svg" },
+      { name: "PageSpeed", icon: "PageSpeedMark.svg" },
       { name: "Bing Webmaster", icon: "BingWebmasterMark.svg" },
-      { name: "Microsoft Clarity", icon: "MicrosoftClarityMark.svg" },
+      { name: "Clarity", icon: "MicrosoftClarityMark.svg" },
       { name: "Plausible", icon: "PlausibleMark.svg" },
       { name: "Umami", icon: "UmamiMark.svg" },
       { name: "UptimeRobot", icon: "UptimeRobotMark.svg" },
@@ -61,20 +61,27 @@ const groups: readonly ProviderGroup[] = [
   },
 ] as const;
 
-export function ProviderDirectory() {
+export function ProviderPatchbay() {
   return (
-    <div className="provider-banks">
-      {groups.map((group) => (
-        <section className={`provider-bank provider-bank--${group.id}`} key={group.id} style={{ "--bank-accent": group.accent } as CSSProperties}>
-          <header>
-            <p>{group.label} / {group.count}</p>
-            <h3>{group.tagline}</h3>
+    <div className="patchbay">
+      {groups.map((group, groupIndex) => (
+        <section
+          className={`patch-rail patch-rail--${group.id}`}
+          key={group.id}
+          style={{ "--rail-accent": group.accent } as CSSProperties}
+        >
+          <header className="rail-label">
+            <span>Bank 0{groupIndex + 1}</span>
+            <h3>{group.label}</h3>
+            <p>{group.detail}</p>
+            <strong>{String(group.count).padStart(2, "0")} ports</strong>
           </header>
-          <ul>
-            {group.providers.map((provider) => (
+          <ul aria-label={`${group.label} providers. Scroll horizontally to inspect every connection.`} className="provider-ports" role="region" tabIndex={0}>
+            {group.providers.map((provider, index) => (
               <li key={provider.name} translate="no">
-                <span className="provider-mark"><span className="provider-icon-slot"><Image alt="" fill sizes="22px" src={`/providers/${provider.icon}`} /></span></span>
-                <span>{provider.name}</span>
+                <span className="port-number">{String(index + 1).padStart(2, "0")}</span>
+                <span className="port-socket"><span><Image alt="" fill sizes="28px" src={`/providers/${provider.icon}`} /></span></span>
+                <strong>{provider.name}</strong>
               </li>
             ))}
           </ul>
