@@ -1156,7 +1156,7 @@ main[id] {
 
 .ipad-screen {
   position: relative;
-  aspect-ratio: 2360 / 1640;
+  aspect-ratio: 1640 / 2360;
   overflow: hidden;
   background: #000;
   border: 1px solid #3a403c;
@@ -1170,16 +1170,12 @@ main[id] {
 
 .ipad-gallery {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
 .ipad-gallery-item {
   min-width: 0;
-}
-
-.ipad-gallery-item--primary {
-  grid-column: 1 / -1;
 }
 
 .ipad-gallery-item figcaption {
@@ -2433,10 +2429,9 @@ main[id] {
   .console-toolbar { grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: 8px; }
   .console-toolbar strong { min-width: 0; justify-self: end; overflow-wrap: anywhere; text-align: right; }
   .console-toolbar > span:last-child { display: none; }
-  .ipad-screen { min-height: 0; aspect-ratio: 2360 / 1640; }
+  .ipad-screen { min-height: 0; aspect-ratio: 1640 / 2360; }
   .ipad-screen img { width: 100% !important; height: 100% !important; max-width: 100%; object-fit: contain; object-position: center; }
   .ipad-gallery { grid-template-columns: 1fr; }
-  .ipad-gallery-item--primary { grid-column: auto; }
   .console-features { grid-template-columns: 1fr; }
   .console-features span { padding: 12px; border-right: 0; border-bottom: 1px solid #353a37; }
   .console-features span:last-child { border-bottom: 0; }

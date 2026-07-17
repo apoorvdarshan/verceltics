@@ -43,12 +43,12 @@ Verceltics is an independent, open-source operator workspace for the infrastruct
 
 <table>
   <tr>
-    <td align="center"><img src="docs/screenshots/ipad/analytics.png" width="520" alt="Traffic analytics workspace on iPad"><br><strong>Traffic analytics</strong></td>
-    <td align="center"><img src="docs/screenshots/ipad/hosting.png" width="520" alt="Hosting provider sheet on iPad"><br><strong>Hosting providers</strong></td>
+    <td align="center"><img src="docs/screenshots/ipad/analytics.png" width="360" alt="Traffic analytics workspace on iPad in portrait orientation"><br><strong>Traffic analytics</strong></td>
+    <td align="center"><img src="docs/screenshots/ipad/hosting.png" width="360" alt="Hosting platform connections on iPad in portrait orientation"><br><strong>10 hosting platforms</strong></td>
   </tr>
   <tr>
-    <td align="center"><img src="docs/screenshots/ipad/registrars.png" width="520" alt="Registrar provider sheet on iPad"><br><strong>Registrars</strong></td>
-    <td align="center"><img src="docs/screenshots/ipad/sites.png" width="520" alt="Site service sheet on iPad"><br><strong>Site services</strong></td>
+    <td align="center"><img src="docs/screenshots/ipad/registrars.png" width="360" alt="Registrar connections on iPad in portrait orientation"><br><strong>8 registrars</strong></td>
+    <td align="center"><img src="docs/screenshots/ipad/sites.png" width="360" alt="Site service connections on iPad in portrait orientation"><br><strong>9 site services</strong></td>
   </tr>
 </table>
 

@@ -161,25 +161,25 @@ export default function Home() {
         <section className="ipad-section">
           <header className="section-intro ipad-intro">
             <div>
-              <p className="instrument-label"><span>03</span> Wide instrument</p>
+              <p className="instrument-label"><span>03</span> Adaptive instrument</p>
               <h2>iPad is re-composed. Not stretched.</h2>
             </div>
-            <p>A persistent sidebar, adaptive metric grids, wider detail surfaces and full-width charts turn quick checks into a real operations workspace.</p>
+            <p>Adaptive navigation, two-column provider grids and full-width charts turn the portrait canvas into a real operations workspace.</p>
           </header>
           <div className="ipad-console">
             <div className="console-toolbar">
               <span><i /> Live workspace</span>
-              <strong>iPad / Adaptive workspace</strong>
-              <span>2360 × 1640</span>
+              <strong>iPad / Portrait workspace</strong>
+              <span>1640 × 2360</span>
             </div>
             <div className="ipad-gallery">
               {ipadScreens.map((screen, index) => (
-                <figure className={`ipad-gallery-item${index === 0 ? " ipad-gallery-item--primary" : ""}`} key={screen.src}>
+                <figure className="ipad-gallery-item" key={screen.src}>
                   <div className="ipad-screen">
                     <Image
                       alt={screen.alt}
                       fill
-                      sizes={index === 0 ? "(max-width: 900px) 96vw, 1480px" : "(max-width: 780px) 96vw, (max-width: 1080px) 48vw, 31vw"}
+                      sizes="(max-width: 780px) 96vw, 46vw"
                       src={screen.src}
                     />
                   </div>
@@ -191,7 +191,7 @@ export default function Home() {
                 </figure>
               ))}
             </div>
-            <div className="console-features"><span>Persistent sidebar</span><span>Adaptive metrics</span><span>Full-width charts</span></div>
+            <div className="console-features"><span>Adaptive navigation</span><span>Two-column grids</span><span>Full-width charts</span></div>
           </div>
         </section>
 
