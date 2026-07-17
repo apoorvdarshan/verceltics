@@ -174,6 +174,12 @@ final class ProjectsViewModel {
     }
 }
 
+private enum ProjectProRoute: Hashable {
+    case analytics(String)
+    case openURL(URL)
+    case copyURL(String)
+}
+
 struct ProjectsView: View {
     var startWithSearch = false
     var searchRequestID = 0
@@ -186,9 +192,8 @@ struct ProjectsView: View {
     @State private var vm: ProjectsViewModel
     @State private var searchText = ""
     @State private var isSearching = false
-    @State private var showPaywall = false
+    @State private var proGate = ProAccessGate<ProjectProRoute>()
     @State private var navigationProjectId: String?
-    @State private var pendingProjectId: String?
 
     init(
         startWithSearch: Bool = false,
@@ -274,20 +279,19 @@ struct ProjectsView: View {
                     AnalyticsView(project: project, initialToken: authManager.token)
                 }
             }
-            .sheet(isPresented: $showPaywall, onDismiss: handlePaywallDismiss) {
-                PaywallView()
-                    .presentationSizing(.form)
-            }
+            .proPaywall(
+                isPresented: $proGate.isPaywallPresented,
+                onDismiss: handlePaywallDismiss
+            )
         }
     }
 
     private func handlePaywallDismiss() {
-        // If the user just subscribed (or owns lifetime), continue into the
-        // analytics they originally tapped.
-        if paywallManager.hasActiveSubscription, let id = pendingProjectId {
-            navigationProjectId = id
+        if let route = proGate.resumeAfterDismiss(
+            hasProAccess: paywallManager.hasActiveSubscription
+        ) {
+            perform(route)
         }
-        pendingProjectId = nil
     }
 
     private var gridColumns: [GridItem] {
@@ -350,16 +354,16 @@ struct ProjectsView: View {
     @ViewBuilder
     private func projectContextMenu(_ project: Project) -> some View {
         if let domain = project.primaryDomain, let url = URL(string: "https://\(domain)") {
-            Button { UIApplication.shared.open(url) } label: {
+            Button { request(.openURL(url)) } label: {
                 Label("Open website", systemImage: "globe")
             }
-            Button { UIPasteboard.general.string = "https://\(domain)" } label: {
+            Button { request(.copyURL("https://\(domain)")) } label: {
                 Label("Copy URL", systemImage: "doc.on.doc")
             }
         }
 
         if let url = URL(string: "https://vercel.com/\(authManager.activeAccount?.name ?? "")/\(project.name)") {
-            Button { UIApplication.shared.open(url) } label: {
+            Button { request(.openURL(url)) } label: {
                 Label("View on Vercel", systemImage: "triangle.fill")
             }
         }
@@ -371,11 +375,27 @@ struct ProjectsView: View {
     }
 
     private func openProject(_ project: Project) {
-        if paywallManager.hasActiveSubscription {
-            navigationProjectId = project.id
-        } else {
-            pendingProjectId = project.id
-            showPaywall = true
+        request(.analytics(project.id))
+    }
+
+    private func request(_ route: ProjectProRoute) {
+        if let route = proGate.request(
+            route,
+            hasProAccess: paywallManager.hasActiveSubscription
+        ) {
+            perform(route)
+        }
+    }
+
+    private func perform(_ route: ProjectProRoute) {
+        switch route {
+        case .analytics(let projectID):
+            guard vm.projects.contains(where: { $0.id == projectID }) else { return }
+            navigationProjectId = projectID
+        case .openURL(let url):
+            UIApplication.shared.open(url)
+        case .copyURL(let value):
+            UIPasteboard.general.string = value
         }
     }
 

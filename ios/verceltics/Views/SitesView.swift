@@ -1,9 +1,15 @@
 import SwiftUI
 
+private enum SiteProRoute: Hashable {
+    case service(UUID)
+    case resource(accountID: UUID, resourceID: String)
+}
+
 struct SitesView: View {
     @Environment(SiteStore.self) private var store
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(PaywallManager.self) private var paywallManager
 
     var startWithSearch = false
     var searchRequestID = 0
@@ -13,6 +19,8 @@ struct SitesView: View {
     @State private var isSearching = false
     @State private var showingConnection = false
     @State private var refreshSpin = 0.0
+    @State private var proGate = ProAccessGate<SiteProRoute>()
+    @State private var navigationRoute: SiteProRoute?
 
     private var selection: SiteDashboardSelection? {
         SiteDashboardSelection.active(
@@ -110,6 +118,13 @@ struct SitesView: View {
                     .presentationSizing(.page)
                     .presentationDragIndicator(.visible)
             }
+            .navigationDestination(item: $navigationRoute) { route in
+                destination(for: route)
+            }
+            .proPaywall(
+                isPresented: $proGate.isPaywallPresented,
+                onDismiss: handlePaywallDismiss
+            )
         }
         .id(siteAccountIdentity)
         .onChange(of: store.activeAccountID) { _, _ in
@@ -121,8 +136,8 @@ struct SitesView: View {
         ScrollView {
             LazyVStack(spacing: 18) {
                 if let account = activeAccount {
-                    NavigationLink {
-                        SiteServiceDetailView(accountID: account.id)
+                    Button {
+                        request(.service(account.id))
                     } label: {
                         serviceOverview(account)
                     }
@@ -180,12 +195,9 @@ struct SitesView: View {
                 } else {
                     LazyVGrid(columns: siteColumns, spacing: 14) {
                         ForEach(resources) { resource in
-                            NavigationLink {
+                            Button {
                                 if let account = activeAccount {
-                                    SiteServiceDetailView(
-                                        accountID: account.id,
-                                        initialResourceID: resource.id
-                                    )
+                                    request(.resource(accountID: account.id, resourceID: resource.id))
                                 }
                             } label: {
                                 resourceCard(resource)
@@ -230,6 +242,54 @@ struct SitesView: View {
         }
         .padding(.horizontal, AppLayout.pagePadding(for: horizontalSizeClass))
         .appContentWidth(560, horizontalSizeClass: horizontalSizeClass)
+    }
+
+    @ViewBuilder
+    private func destination(for route: SiteProRoute) -> some View {
+        switch route {
+        case .service(let accountID):
+            if store.accounts.contains(where: { $0.id == accountID }) {
+                SiteServiceDetailView(accountID: accountID)
+            }
+        case .resource(let accountID, let resourceID):
+            if store.accounts.contains(where: { $0.id == accountID }),
+               store.snapshot(for: accountID)?.resources.contains(where: { $0.id == resourceID }) == true {
+                SiteServiceDetailView(
+                    accountID: accountID,
+                    initialResourceID: resourceID
+                )
+            }
+        }
+    }
+
+    private func request(_ route: SiteProRoute) {
+        if let route = proGate.request(
+            route,
+            hasProAccess: paywallManager.hasActiveSubscription
+        ) {
+            perform(route)
+        }
+    }
+
+    private func handlePaywallDismiss() {
+        if let route = proGate.resumeAfterDismiss(
+            hasProAccess: paywallManager.hasActiveSubscription
+        ) {
+            perform(route)
+        }
+    }
+
+    private func perform(_ route: SiteProRoute) {
+        switch route {
+        case .service(let accountID):
+            guard store.accounts.contains(where: { $0.id == accountID }) else { return }
+        case .resource(let accountID, let resourceID):
+            guard store.accounts.contains(where: { $0.id == accountID }),
+                  store.snapshot(for: accountID)?.resources.contains(where: { $0.id == resourceID }) == true else {
+                return
+            }
+        }
+        navigationRoute = route
     }
 
     private func serviceOverview(_ account: SiteIntegrationAccount) -> some View {

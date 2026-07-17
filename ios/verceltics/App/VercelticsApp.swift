@@ -32,8 +32,9 @@ struct VercelticsApp: App {
                         .accessibilityElement(children: .combine)
                     }
                 } else {
-                    // Soft paywall: everyone sees the projects list. Analytics
-                    // taps gate via PaywallView sheet inside ProjectsView.
+                    // Soft paywall: connection and workspace browsing stay
+                    // available; item details and provider actions gate inside
+                    // their owning views.
                     MainTabView()
                 }
             }

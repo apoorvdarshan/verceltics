@@ -55,7 +55,7 @@ Thanks for your interest in contributing! Here's how to get started.
 ## Architecture Notes
 
 - **Connection routing**: `VercelticsApp` opens `MainTabView` when at least one hosting, registrar, or site-service account exists. With no connections it opens the provider catalog in `LoginView`.
-- **Soft paywall**: the paywall is presented as a sheet from `ProjectsView` only when a user opens a Vercel project's analytics without an active entitlement. Don't add launch-time paywall gates.
+- **Soft paywall**: connection, account switching, search, refresh, scrolling, and workspace-list browsing stay available without Pro. Opening item details, provider dashboards, API catalogs, or guarded actions presents the reusable paywall sheet when there is no active entitlement. Don't add launch-time paywall gates.
 - **Rate prompt**: lives in `ProjectsView` and fires once via `@AppStorage("hasShownOnboardingRatePrompt")` after a successful project load — works for both free and paid users.
 - **Favicon chain**: `ProjectIcon` performs bounded, credential-free discovery against the project site's own HTTPS origin and otherwise draws a local fallback. Do not add third-party favicon services or probes for `www.<sub>.vercel.app`; Vercel's wildcard certificate does not cover sub-subdomains and ATS will fail.
 - **Domain resolution**: when a project's bulk listing only shows `*.vercel.app`, `enrichProjectsNeedingDomainRefresh` calls `/v9/projects/{id}/domains` and merges the verified entries into the project's alias array so `primaryDomain` picks the best one.

@@ -77,6 +77,12 @@ final class HostingDashboardViewModel {
     }
 }
 
+private enum HostingProRoute: Hashable {
+    case resource(String)
+    case completeAPI
+    case providerDashboard
+}
+
 struct HostingDashboardView: View {
     let account: VercelAccount
     var startWithSearch = false
@@ -87,9 +93,12 @@ struct HostingDashboardView: View {
     @State private var searchText = ""
     @State private var isSearching = false
     @State private var refreshSpin = 0.0
+    @State private var proGate = ProAccessGate<HostingProRoute>()
+    @State private var navigationRoute: HostingProRoute?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(AuthManager.self) private var authManager
+    @Environment(PaywallManager.self) private var paywallManager
 
     init(
         account: VercelAccount,
@@ -161,6 +170,13 @@ struct HostingDashboardView: View {
             .onChange(of: searchRequestID) { _, _ in
                 isSearching = true
             }
+            .navigationDestination(item: $navigationRoute) { route in
+                destination(for: route)
+            }
+            .proPaywall(
+                isPresented: $proGate.isPaywallPresented,
+                onDismiss: handlePaywallDismiss
+            )
         }
     }
 
@@ -205,8 +221,8 @@ struct HostingDashboardView: View {
                 } else {
                     LazyVGrid(columns: resourceColumns, spacing: 14) {
                         ForEach(filteredResources) { resource in
-                            NavigationLink {
-                                HostingResourceDetailView(account: account, resource: resource)
+                            Button {
+                                request(.resource(resource.id))
                             } label: {
                                 resourceRow(resource)
                             }
@@ -269,12 +285,12 @@ struct HostingDashboardView: View {
     private var actionGrid: some View {
         HStack(spacing: 10) {
             Button {
-                if let url = viewModel.api.dashboardURL() { UIApplication.shared.open(url) }
+                request(.providerDashboard)
             } label: {
                 dashboardAction(icon: "safari.fill", title: "Dashboard")
             }
-            NavigationLink {
-                ProviderFullAPICatalogView(account: account)
+            Button {
+                request(.completeAPI)
             } label: {
                 dashboardAction(icon: "list.bullet.rectangle.fill", title: "Complete API")
             }
@@ -293,6 +309,51 @@ struct HostingDashboardView: View {
         .frame(maxWidth: .infinity)
         .frame(height: 48)
         .appSurface(raised: true)
+    }
+
+    @ViewBuilder
+    private func destination(for route: HostingProRoute) -> some View {
+        switch route {
+        case .resource(let resourceID):
+            if let resource = viewModel.resources.first(where: { $0.id == resourceID }) {
+                HostingResourceDetailView(account: account, resource: resource)
+            }
+        case .completeAPI:
+            ProviderFullAPICatalogView(account: account)
+        case .providerDashboard:
+            EmptyView()
+        }
+    }
+
+    private func request(_ route: HostingProRoute) {
+        if let route = proGate.request(
+            route,
+            hasProAccess: paywallManager.hasActiveSubscription
+        ) {
+            perform(route)
+        }
+    }
+
+    private func handlePaywallDismiss() {
+        if let route = proGate.resumeAfterDismiss(
+            hasProAccess: paywallManager.hasActiveSubscription
+        ) {
+            perform(route)
+        }
+    }
+
+    private func perform(_ route: HostingProRoute) {
+        switch route {
+        case .resource(let resourceID):
+            guard viewModel.resources.contains(where: { $0.id == resourceID }) else { return }
+            navigationRoute = route
+        case .completeAPI:
+            navigationRoute = route
+        case .providerDashboard:
+            if let url = viewModel.api.dashboardURL() {
+                UIApplication.shared.open(url)
+            }
+        }
     }
 
     private func resourceRow(_ resource: HostingResource) -> some View {

@@ -458,6 +458,18 @@ final class CloudflareDashboardViewModel {
     }
 }
 
+private enum CloudflareProRoute: Hashable {
+    case account(String)
+    case zone(String)
+    case pagesProject(accountID: String, projectID: String)
+    case worker(accountID: String, workerID: String)
+    case completeAPI(accountID: String)
+    case graphQL(accountID: String)
+    case productCenter(accountID: String)
+    case storage(accountID: String)
+    case apiExplorer(accountID: String?)
+}
+
 struct CloudflareDashboardView: View {
     let authenticationMode: CloudflareAuthenticationMode
     let email: String?
@@ -469,10 +481,13 @@ struct CloudflareDashboardView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(AuthManager.self) private var authManager
+    @Environment(PaywallManager.self) private var paywallManager
     @State private var viewModel: CloudflareDashboardViewModel
     @State private var searchText = ""
     @State private var isSearching = false
     @State private var refreshSpin = 0.0
+    @State private var proGate = ProAccessGate<CloudflareProRoute>()
+    @State private var navigationRoute: CloudflareProRoute?
     @AppStorage("cloudflare.selectedNestedAccountID") private var persistedAccountID = ""
 
     init(
@@ -611,6 +626,13 @@ struct CloudflareDashboardView: View {
                 viewModel.invalidateForExternalMutation()
                 Task { await viewModel.refresh() }
             }
+            .navigationDestination(item: $navigationRoute) { route in
+                destination(for: route)
+            }
+            .proPaywall(
+                isPresented: $proGate.isPaywallPresented,
+                onDismiss: handlePaywallDismiss
+            )
         }
         .tint(CloudflareStyle.orange)
     }
@@ -706,16 +728,9 @@ struct CloudflareDashboardView: View {
 
     private func accountHeader(_ account: CloudflareAccountSummary) -> some View {
         VStack(spacing: 12) {
-            if let api = viewModel.api {
-                NavigationLink {
-                    CloudflareAccountDetailView(
-                        api: api,
-                        account: account,
-                        email: credentialLabel,
-                        zoneCount: viewModel.zones.count,
-                        pagesCount: viewModel.pagesProjects.count,
-                        workerCount: viewModel.workers.count
-                    )
+            if viewModel.api != nil {
+                Button {
+                    request(.account(account.id))
                 } label: {
                     CloudflareEdgeHeader(
                         accountName: account.name,
@@ -783,12 +798,8 @@ struct CloudflareDashboardView: View {
                 : "No zones match your search."
         ) {
             ForEach(filteredZones, id: \.id) { zone in
-                NavigationLink {
-                    if let api = viewModel.api {
-                        CloudflareZoneDetailView(api: api, zone: zone) { updatedZone in
-                            viewModel.reconcileZone(updatedZone)
-                        }
-                    }
+                Button {
+                    request(.zone(zone.id))
                 } label: {
                     CloudflareResourceRow(
                         icon: "globe",
@@ -823,15 +834,9 @@ struct CloudflareDashboardView: View {
                 : "No Pages projects match your search."
         ) {
             ForEach(filteredPagesProjects, id: \.id) { project in
-                NavigationLink {
-                    if let api = viewModel.api, let accountID = viewModel.selectedAccountID {
-                        CloudflarePagesProjectDetailView(
-                            api: api,
-                            accountID: accountID,
-                            project: project
-                        ) { updatedProject in
-                            viewModel.reconcilePagesProject(updatedProject, projectID: project.id)
-                        }
+                Button {
+                    if let accountID = viewModel.selectedAccountID {
+                        request(.pagesProject(accountID: accountID, projectID: project.id))
                     }
                 } label: {
                     CloudflareResourceRow(
@@ -857,15 +862,9 @@ struct CloudflareDashboardView: View {
                 : "No Workers match your search."
         ) {
             ForEach(filteredWorkers, id: \.id) { worker in
-                NavigationLink {
-                    if let api = viewModel.api, let accountID = viewModel.selectedAccountID {
-                        CloudflareWorkerDetailView(
-                            api: api,
-                            accountID: accountID,
-                            worker: worker
-                        ) { updatedWorker in
-                            viewModel.reconcileWorker(updatedWorker, workerID: worker.id)
-                        }
+                Button {
+                    if let accountID = viewModel.selectedAccountID {
+                        request(.worker(accountID: accountID, workerID: worker.id))
                     }
                 } label: {
                     CloudflareResourceRow(
@@ -929,16 +928,11 @@ struct CloudflareDashboardView: View {
             CloudflareSectionHeader(title: "Advanced", icon: "terminal.fill")
             Divider().overlay(AppTheme.divider)
 
-            if let api = viewModel.api {
+            if viewModel.api != nil {
                 if let accountID = viewModel.selectedAccountID,
-                   let account = viewModel.selectedAccount {
-                    NavigationLink {
-                        CloudflareFullAPICatalogView(
-                            api: api,
-                            accountID: accountID,
-                            zones: viewModel.zones,
-                            authenticationMode: authenticationMode
-                        )
+                   viewModel.selectedAccount != nil {
+                    Button {
+                        request(.completeAPI(accountID: accountID))
                     } label: {
                         CloudflareResourceRow(
                             icon: "point.3.filled.connected.trianglepath.dotted",
@@ -951,12 +945,8 @@ struct CloudflareDashboardView: View {
 
                     Divider().overlay(AppTheme.divider).padding(.leading, 64)
 
-                    NavigationLink {
-                        CloudflareGraphQLDatasetCatalogView(
-                            api: api,
-                            accountID: accountID,
-                            zones: viewModel.zones
-                        )
+                    Button {
+                        request(.graphQL(accountID: accountID))
                     } label: {
                         CloudflareResourceRow(
                             icon: "chart.xyaxis.line",
@@ -969,14 +959,8 @@ struct CloudflareDashboardView: View {
 
                     Divider().overlay(AppTheme.divider).padding(.leading, 64)
 
-                    NavigationLink {
-                        CloudflareProductCenterView(
-                            api: api,
-                            accountID: accountID,
-                            accountName: account.name,
-                            zones: viewModel.zones,
-                            authenticationMode: authenticationMode
-                        )
+                    Button {
+                        request(.productCenter(accountID: accountID))
                     } label: {
                         CloudflareResourceRow(
                             icon: "cloud.bolt.rain.fill",
@@ -989,13 +973,8 @@ struct CloudflareDashboardView: View {
 
                     Divider().overlay(AppTheme.divider).padding(.leading, 64)
 
-                    NavigationLink {
-                        CloudflareStorageDashboardView(
-                            api: api,
-                            accountID: accountID,
-                            accountName: account.name,
-                            allowsR2: authenticationMode == .apiToken
-                        )
+                    Button {
+                        request(.storage(accountID: accountID))
                     } label: {
                         CloudflareResourceRow(
                             icon: "externaldrive.fill",
@@ -1011,8 +990,8 @@ struct CloudflareDashboardView: View {
                     Divider().overlay(AppTheme.divider).padding(.leading, 64)
                 }
 
-                NavigationLink {
-                    CloudflareAPIExplorerView(api: api, accountID: viewModel.selectedAccountID)
+                Button {
+                    request(.apiExplorer(accountID: viewModel.selectedAccountID))
                 } label: {
                     CloudflareResourceRow(
                         icon: "terminal",
@@ -1025,6 +1004,140 @@ struct CloudflareDashboardView: View {
             }
         }
         .cloudflarePanel(accentOpacity: 0.045)
+    }
+
+    @ViewBuilder
+    private func destination(for route: CloudflareProRoute) -> some View {
+        switch route {
+        case .account(let accountID):
+            if let api = viewModel.api,
+               let account = viewModel.accounts.first(where: { $0.id == accountID }) {
+                CloudflareAccountDetailView(
+                    api: api,
+                    account: account,
+                    email: credentialLabel,
+                    zoneCount: viewModel.zones.count,
+                    pagesCount: viewModel.pagesProjects.count,
+                    workerCount: viewModel.workers.count
+                )
+            }
+        case .zone(let zoneID):
+            if let api = viewModel.api,
+               let zone = viewModel.zones.first(where: { $0.id == zoneID }) {
+                CloudflareZoneDetailView(api: api, zone: zone) { updatedZone in
+                    viewModel.reconcileZone(updatedZone)
+                }
+            }
+        case .pagesProject(let accountID, let projectID):
+            if let api = viewModel.api,
+               let project = viewModel.pagesProjects.first(where: { $0.id == projectID }) {
+                CloudflarePagesProjectDetailView(
+                    api: api,
+                    accountID: accountID,
+                    project: project
+                ) { updatedProject in
+                    viewModel.reconcilePagesProject(updatedProject, projectID: projectID)
+                }
+            }
+        case .worker(let accountID, let workerID):
+            if let api = viewModel.api,
+               let worker = viewModel.workers.first(where: { $0.id == workerID }) {
+                CloudflareWorkerDetailView(
+                    api: api,
+                    accountID: accountID,
+                    worker: worker
+                ) { updatedWorker in
+                    viewModel.reconcileWorker(updatedWorker, workerID: workerID)
+                }
+            }
+        case .completeAPI(let accountID):
+            if let api = viewModel.api {
+                CloudflareFullAPICatalogView(
+                    api: api,
+                    accountID: accountID,
+                    zones: viewModel.zones,
+                    authenticationMode: authenticationMode
+                )
+            }
+        case .graphQL(let accountID):
+            if let api = viewModel.api {
+                CloudflareGraphQLDatasetCatalogView(
+                    api: api,
+                    accountID: accountID,
+                    zones: viewModel.zones
+                )
+            }
+        case .productCenter(let accountID):
+            if let api = viewModel.api,
+               let account = viewModel.accounts.first(where: { $0.id == accountID }) {
+                CloudflareProductCenterView(
+                    api: api,
+                    accountID: accountID,
+                    accountName: account.name,
+                    zones: viewModel.zones,
+                    authenticationMode: authenticationMode
+                )
+            }
+        case .storage(let accountID):
+            if let api = viewModel.api,
+               let account = viewModel.accounts.first(where: { $0.id == accountID }) {
+                CloudflareStorageDashboardView(
+                    api: api,
+                    accountID: accountID,
+                    accountName: account.name,
+                    allowsR2: authenticationMode == .apiToken
+                )
+            }
+        case .apiExplorer(let accountID):
+            if let api = viewModel.api {
+                CloudflareAPIExplorerView(api: api, accountID: accountID)
+            }
+        }
+    }
+
+    private func request(_ route: CloudflareProRoute) {
+        if let route = proGate.request(
+            route,
+            hasProAccess: paywallManager.hasActiveSubscription
+        ) {
+            perform(route)
+        }
+    }
+
+    private func handlePaywallDismiss() {
+        if let route = proGate.resumeAfterDismiss(
+            hasProAccess: paywallManager.hasActiveSubscription
+        ) {
+            perform(route)
+        }
+    }
+
+    private func perform(_ route: CloudflareProRoute) {
+        guard destinationStillExists(for: route) else { return }
+        navigationRoute = route
+    }
+
+    private func destinationStillExists(for route: CloudflareProRoute) -> Bool {
+        guard viewModel.api != nil else { return false }
+        switch route {
+        case .account(let accountID):
+            return viewModel.accounts.contains(where: { $0.id == accountID })
+        case .zone(let zoneID):
+            return viewModel.zones.contains(where: { $0.id == zoneID })
+        case .pagesProject(let accountID, let projectID):
+            return viewModel.accounts.contains(where: { $0.id == accountID })
+                && viewModel.pagesProjects.contains(where: { $0.id == projectID })
+        case .worker(let accountID, let workerID):
+            return viewModel.accounts.contains(where: { $0.id == accountID })
+                && viewModel.workers.contains(where: { $0.id == workerID })
+        case .completeAPI(let accountID),
+             .graphQL(let accountID),
+             .productCenter(let accountID),
+             .storage(let accountID):
+            return viewModel.accounts.contains(where: { $0.id == accountID })
+        case .apiExplorer(let accountID):
+            return accountID == nil || viewModel.accounts.contains(where: { $0.id == accountID })
+        }
     }
 
     @ViewBuilder

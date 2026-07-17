@@ -65,7 +65,7 @@ PRICING
 • Yearly: $34.99/year with a 7-day introductory trial for eligible first-time subscribers (save 42%)
 • Lifetime: $59.99 one-time purchase
 • Optional tips: Coffee $2.99, Lunch $5.99, Big Tip $9.99, Huge Supporter $19.99 — support development and unlock nothing
-• Monthly and yearly subscriptions auto-renew unless canceled at least 24 hours before renewal; manage them in Apple ID settings
+• Monthly and yearly subscriptions auto-renew unless canceled at least 24 hours before renewal; manage them in Apple Account settings
 • Prices can vary by storefront, currency, and tax. The price shown by Apple at purchase confirmation applies.
 
 Built with SwiftUI and Swift Charts, with StoreKit and RevenueCat for subscriptions, lifetime access, optional tips, and restoration.
@@ -83,7 +83,7 @@ Not affiliated with any supported hosting platform, registrar, or site-intellige
 ```
 Verceltics 2.0 expands beyond Vercel.
 
-• Connect 27 integrations across 10 hosting platforms, 8 registrars, and 9 site services.
+• Connect 25+ integrations across hosting platforms, domain registrars, and site services.
 • Manage Cloudflare zones, DNS, Pages, Workers, storage, security, and analytics.
 • Open separate search, analytics, performance, and uptime dashboards in the new Sites workspace.
 • Browse guarded provider API catalogs for advanced read and write operations.
@@ -120,7 +120,7 @@ To test:
 3. Google Search Console, Google Analytics, and Firebase Hosting use Google's OAuth authorization flow instead of a pasted password.
 4. Hosting accounts appear in Hosting, registrar accounts in Registrars, and site-service accounts in Sites.
 
-A free Vercel account with a deployed project is enough to review connection and the project list. Opening a project presents Verceltics Pro unless a sandbox entitlement is active; use an Apple sandbox/TestFlight Monthly, Yearly, or Lifetime purchase to review analytics, domains, and deployments. To review Web Analytics, enable it for the project and generate traffic; availability and history depend on the Vercel plan and configuration.
+Connection, account switching, search, refresh, scrolling, and workspace-list browsing are available without a purchase. Opening a project, hosting resource, domain, site-service detail, provider dashboard, API catalog, or guarded provider action presents Verceltics Pro unless a sandbox entitlement is active. Use an Apple sandbox/TestFlight Monthly, Yearly, or Lifetime purchase to review those details and actions. To review Vercel Web Analytics, connect a free Vercel account with a deployed project, enable Web Analytics, and generate traffic; availability and history depend on the Vercel plan and configuration.
 
 Some Vercel Web Analytics fields, add-ons, and historical ranges depend on the connected account's plan and Web Analytics configuration. When analytics are unavailable, Verceltics shows an explanatory state and continues to display project, domain, and deployment details.
 

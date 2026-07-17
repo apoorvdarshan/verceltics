@@ -137,6 +137,12 @@ struct RegistrarsView: View {
     }
 }
 
+private enum RegistrarProRoute: Hashable {
+    case domain(String)
+    case completeAPI
+    case providerDashboard
+}
+
 struct RegistrarDashboardView: View {
     let account: RegistrarAccount
     var startWithSearch = false
@@ -146,9 +152,12 @@ struct RegistrarDashboardView: View {
     @State private var searchText = ""
     @State private var isSearching = false
     @State private var refreshSpin = 0.0
+    @State private var proGate = ProAccessGate<RegistrarProRoute>()
+    @State private var navigationRoute: RegistrarProRoute?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(RegistrarStore.self) private var store
+    @Environment(PaywallManager.self) private var paywallManager
 
     init(
         account: RegistrarAccount,
@@ -217,6 +226,13 @@ struct RegistrarDashboardView: View {
             .onChange(of: searchRequestID) { _, _ in
                 isSearching = true
             }
+            .navigationDestination(item: $navigationRoute) { route in
+                destination(for: route)
+            }
+            .proPaywall(
+                isPresented: $proGate.isPaywallPresented,
+                onDismiss: handlePaywallDismiss
+            )
         }
     }
 
@@ -261,8 +277,8 @@ struct RegistrarDashboardView: View {
                 } else {
                     LazyVGrid(columns: domainColumns, spacing: 14) {
                         ForEach(filteredDomains) { domain in
-                            NavigationLink {
-                                RegistrarDomainDetailView(account: account, domain: domain)
+                            Button {
+                                request(.domain(domain.id))
                             } label: { domainRow(domain) }
                             .buttonStyle(PressScaleButtonStyle())
                         }
@@ -362,9 +378,11 @@ struct RegistrarDashboardView: View {
     private var actions: some View {
         HStack(spacing: 10) {
             Button {
-                if let url = provider.dashboardURL { UIApplication.shared.open(url) }
+                request(.providerDashboard)
             } label: { actionLabel("Dashboard", icon: "safari.fill") }
-            NavigationLink { ProviderFullAPICatalogView(account: account) } label: { actionLabel("Complete API", icon: "list.bullet.rectangle.fill") }
+            Button {
+                request(.completeAPI)
+            } label: { actionLabel("Complete API", icon: "list.bullet.rectangle.fill") }
         }
         .buttonStyle(PressScaleButtonStyle())
         .frame(maxWidth: horizontalSizeClass == .regular ? 470 : .infinity, alignment: .leading)
@@ -377,6 +395,51 @@ struct RegistrarDashboardView: View {
             .foregroundStyle(AppTheme.textPrimary)
             .frame(maxWidth: .infinity).frame(height: 47)
             .appSurface(raised: true)
+    }
+
+    @ViewBuilder
+    private func destination(for route: RegistrarProRoute) -> some View {
+        switch route {
+        case .domain(let domainID):
+            if let domain = viewModel.domains.first(where: { $0.id == domainID }) {
+                RegistrarDomainDetailView(account: account, domain: domain)
+            }
+        case .completeAPI:
+            ProviderFullAPICatalogView(account: account)
+        case .providerDashboard:
+            EmptyView()
+        }
+    }
+
+    private func request(_ route: RegistrarProRoute) {
+        if let route = proGate.request(
+            route,
+            hasProAccess: paywallManager.hasActiveSubscription
+        ) {
+            perform(route)
+        }
+    }
+
+    private func handlePaywallDismiss() {
+        if let route = proGate.resumeAfterDismiss(
+            hasProAccess: paywallManager.hasActiveSubscription
+        ) {
+            perform(route)
+        }
+    }
+
+    private func perform(_ route: RegistrarProRoute) {
+        switch route {
+        case .domain(let domainID):
+            guard viewModel.domains.contains(where: { $0.id == domainID }) else { return }
+            navigationRoute = route
+        case .completeAPI:
+            navigationRoute = route
+        case .providerDashboard:
+            if let url = provider.dashboardURL {
+                UIApplication.shared.open(url)
+            }
+        }
     }
 
     private func domainRow(_ domain: RegistrarDomain) -> some View {
