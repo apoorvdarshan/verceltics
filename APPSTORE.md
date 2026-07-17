@@ -9,17 +9,17 @@ Verceltics — Hosting & Domains
 
 ## Subtitle (30 chars max)
 ```
-Hosting and Domains on Mobile
+Deployments, Analytics, Uptime
 ```
 
 ## Promotional Text (170 chars max)
 ```
-Manage hosting, domains, deployments, analytics, search performance, speed, and uptime from one private native workspace.
+Check hosting, domains, deployments, analytics, search, speed, and uptime from one private, open-source iPhone and iPad workspace.
 ```
 
 ## Keywords (100 chars max)
 ```
-hosting,domains,dns,registrar,deployments,analytics,cloudflare,vercel,developer,server
+dns,registrar,cloudflare,vercel,monitoring,speed,devops,website,server,traffic,search,performance
 ```
 
 ## Category
@@ -33,42 +33,42 @@ Secondary: Utilities
 Verceltics puts hosting platforms, domain registrars, and site intelligence in one native iPhone and iPad workspace. Monitor projects and analytics, inspect deployments, manage Cloudflare resources, track domains, and open separate search, analytics, performance, and uptime dashboards without sending credentials through a Verceltics server.
 
 WHAT YOU GET
-• Real-time analytics dashboard with interactive Swift Charts
-• Period comparisons: 24h, 7d, 30d, 3 months, 12 months
+• 27 separate integrations: 10 hosting platforms, 8 registrars, and 9 site services
 • Multiple hosting, registrar, and site-service accounts with quick switching
-• Vercel, Cloudflare, Netlify, Railway, Render, DigitalOcean, Heroku, Fly.io, Firebase, and AWS Amplify
+• Vercel, Cloudflare, Netlify, Railway, Render, DigitalOcean, Heroku, Fly.io, Firebase Hosting, and AWS Amplify
 • Name.com, Namecheap, Porkbun, Spaceship, Dynadot, NameSilo, Gandi, and GoDaddy
 • Separate provider dashboards for Google Search Console, Google Analytics, PageSpeed & CrUX, Bing Webmaster, Microsoft Clarity, Plausible, Umami, UptimeRobot, and Better Stack
+• Vercel Web Analytics with interactive Swift Charts; 24-hour, 7-day, 30-day, 3-month, and 12-month ranges; referrers; UTMs; geography; devices; browsers; operating systems; pages; routes; hostnames; events; feature flags; and query parameters; availability depends on the connected Vercel plan and Web Analytics configuration
 • Guarded provider API explorers and operation catalogs for advanced operations
-• Referrers, UTMs, countries with flags
-• Device, browser, and OS breakdowns
-• Pages, routes, hostnames, events, feature flags, and query params
-• Multi-project switching with search and favicon detection
-• Pull to refresh for live data
-• iPad layout — adaptive grid + sidebar tab style on regular size class
+• Vercel project switching with search and privacy-preserving favicon detection
+• Pull to refresh for current provider data
+• iPad layout — sidebar-adaptable navigation, adaptive grids, wider detail views, and full-width charts
+• System, light, and dark appearances
 • App Store update checks from About
 • About tab — optional tips, rate/share links, contact, legal, updates, and subscription management
 
 PRIVATE BY DESIGN
-• Provider credentials stay in the device-only iOS Keychain
-• No tracking, no telemetry, no data proxy in between
-• Credentials go directly to official provider HTTPS endpoints; Google connections use Google's OAuth endpoints
+• Provider credentials and Google OAuth tokens stay in the device-only, when-unlocked iOS Keychain
+• No advertising, cross-app tracking, product analytics, or provider-data telemetry; provider data is not sent to Verceltics infrastructure
+• Requests go directly to provider HTTPS APIs or an explicitly selected HTTPS host for supported self-hosted services; Google Search Console, Google Analytics, and Firebase Hosting use Google OAuth
+• Apple processes purchases; RevenueCat receives purchase and entitlement context but no provider credentials or provider account data
 • Fully open source on GitHub
 
 HOW IT WORKS
 1. Choose Hosting, Registrars, or Sites
-2. Select a supported provider and enter its API credential
-3. Add more accounts from either account switcher
+2. Select a provider and follow its API credential or OAuth connection flow
+3. Add or switch accounts from the account menu in each workspace
 4. Manage provider resources from the native dashboard
 
 PRICING
-• Monthly: $4.99/month
-• Yearly: $34.99/year with a 7-day free trial (save 42%)
+• Monthly: $4.99/month, no trial
+• Yearly: $34.99/year with a 7-day introductory trial for eligible first-time subscribers (save 42%)
 • Lifetime: $59.99 one-time purchase
-• Optional tips: Coffee $2.99, Lunch $5.99, Big $9.99, Huge $19.99 — support development, unlock nothing
-• Cancel subscriptions anytime from Apple ID settings
+• Optional tips: Coffee $2.99, Lunch $5.99, Big Tip $9.99, Huge Supporter $19.99 — support development and unlock nothing
+• Monthly and yearly subscriptions auto-renew unless canceled at least 24 hours before renewal; manage them in Apple ID settings
+• Prices can vary by storefront, currency, and tax. The price shown by Apple at purchase confirmation applies.
 
-Built with SwiftUI, Swift Charts, and RevenueCat for App Store purchase entitlement checks.
+Built with SwiftUI and Swift Charts, with StoreKit and RevenueCat for subscriptions, lifetime access, optional tips, and restoration.
 
 Website: https://verceltics.com
 GitHub: https://github.com/apoorvdarshan/verceltics
@@ -83,11 +83,11 @@ Not affiliated with any supported hosting platform, registrar, or site-intellige
 ```
 Verceltics 2.0 expands beyond Vercel.
 
-• Connect 10 hosting platforms and 8 registrars.
+• Connect 27 integrations across 10 hosting platforms, 8 registrars, and 9 site services.
 • Manage Cloudflare zones, DNS, Pages, Workers, storage, security, and analytics.
-• Connect 9 separate search, analytics, performance, and uptime services in the Sites tab.
+• Open separate search, analytics, performance, and uptime dashboards in the new Sites workspace.
 • Browse guarded provider API catalogs for advanced read and write operations.
-• Separate hosting and registrar account switching with device-only Keychain storage.
+• Switch hosting, registrar, and site-service accounts independently with device-only Keychain storage.
 ```
 
 ## Privacy URL
@@ -112,23 +112,23 @@ https://verceltics.com
 
 ## Reviewer Notes
 ```
-This app uses user-provided provider API credentials and does not collect provider passwords.
+This app uses provider API credentials or Google OAuth and does not ask for provider account passwords. Credentials and OAuth tokens are stored locally with device-only Keychain protection and are not sent to Verceltics infrastructure.
 
 To test:
-1. Open Add Account and choose Hosting, Registrars, or Sites.
+1. On first launch, choose Hosting, Registrars, or Sites. After connecting an account, use that workspace's top-left account menu to add or switch accounts.
 2. Select Vercel and paste a personal access token from https://vercel.com/account/tokens, or choose another provider and follow its on-screen credential instructions.
-3. Use the top-left account menu to add or switch accounts.
-4. Registrar accounts appear in Registrars, hosting accounts in Hosting, and site-intelligence accounts in Sites.
+3. Google Search Console, Google Analytics, and Firebase Hosting use Google's OAuth authorization flow instead of a pasted password.
+4. Hosting accounts appear in Hosting, registrar accounts in Registrars, and site-service accounts in Sites.
 
-If you don't have a Vercel account, create a free one at vercel.com and deploy any project to see analytics data.
+A free Vercel account with a deployed project is enough to review connection and the project list. Opening a project presents Verceltics Pro unless a sandbox entitlement is active; use an Apple sandbox/TestFlight Monthly, Yearly, or Lifetime purchase to review analytics, domains, and deployments. To review Web Analytics, enable it for the project and generate traffic; availability and history depend on the Vercel plan and configuration.
 
-Note: Some analytics features (UTM parameters, custom events, flags) require a Vercel Pro or Enterprise plan. These sections will show a lock icon or "Requires Pro" message on Hobby (free) accounts. This is expected behavior.
+Some Vercel Web Analytics fields, add-ons, and historical ranges depend on the connected account's plan and Web Analytics configuration. When analytics are unavailable, Verceltics shows an explanatory state and continues to display project, domain, and deployment details.
 
-The app offers Monthly ($4.99), Yearly ($34.99 with a 7-day free trial), and Lifetime ($59.99 one-time) purchase options. Purchases are processed by Apple and entitlement state is managed through RevenueCat. Subscriptions can be tested with Apple sandbox/TestFlight.
+The app offers Monthly ($4.99 with no trial), Yearly ($34.99 with a 7-day introductory trial for eligible first-time subscribers), and Lifetime ($59.99 one-time) purchase options in the US storefront. Apple localizes prices for other storefronts. Purchases are processed by Apple and entitlement state is managed through RevenueCat.
 
-The app also offers four optional consumable "tip" in-app purchases (Coffee $2.99, Lunch $5.99, Big $9.99, Huge $19.99) in the About tab. Tips are voluntary, processed by Apple through the RevenueCat SDK, and unlock no content, features, or functionality.
+The app also offers four optional consumable tip purchases in the About tab: Coffee ($2.99), Lunch ($5.99), Big Tip ($9.99), and Huge Supporter ($19.99) in the US storefront. Tips are voluntary, processed by Apple through the RevenueCat SDK, and unlock no content, features, or functionality.
 
-Refund requests are handled by Apple. Verceltics uses RevenueCat refund request handling and sets its Apple refund handling preference to prefer declining refund requests when Apple asks for developer input. Apple makes the final refund decision.
+Refund decisions are made by Apple under its policies; Verceltics does not issue App Store refunds directly.
 
-This app is universal — designed for both iPhone and iPad, with an adaptive grid and sidebar tab style on regular size class.
+Verceltics supports iPhone and iPad and requires iOS 18 or iPadOS 18 or later. iPad uses sidebar-adaptable navigation, adaptive grids, and wider detail layouts.
 ```

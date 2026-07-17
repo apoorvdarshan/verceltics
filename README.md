@@ -24,9 +24,9 @@
   <a href="https://github.com/apoorvdarshan/verceltics/stargazers"><img src="https://img.shields.io/github/stars/apoorvdarshan/verceltics?style=flat&color=yellow" alt="GitHub stars" /></a>
 </p>
 
-Verceltics is an independent, open-source operator workspace for the infrastructure and site services developers already use. Each provider keeps its own dashboard and capabilities; Verceltics supplies the native navigation, secure local credential storage, responsive caching, and iPhone/iPad interface around them.
+Verceltics is an independent, open-source operator workspace for the infrastructure and site services developers already use. Each provider keeps its own dashboard and capabilities; Verceltics supplies the native navigation, secure local credential storage, responsive caching, and iPhone/iPad interface around them. The `main` branch documents the current source build and can be ahead of the latest App Store release.
 
-## Current iPhone app
+## Verceltics 2.0 on iPhone
 
 <table>
   <tr>
@@ -39,7 +39,7 @@ Verceltics is an independent, open-source operator workspace for the infrastruct
   </tr>
 </table>
 
-## Current iPad app
+## Verceltics 2.0 on iPad
 
 <table>
   <tr>
@@ -54,7 +54,7 @@ Verceltics is an independent, open-source operator workspace for the infrastruct
 
 ## Supported providers
 
-Verceltics separates providers by the job they perform. Google Search Console and Google Analytics, for example, are separate connections and separate dashboards inside the Sites workspace.
+Verceltics 2.0 includes 27 separate integrations: 10 hosting platforms, 8 registrars, and 9 site services. Providers stay separated by the job they perform; Google Search Console and Google Analytics, for example, are independent connections and dashboards inside the Sites workspace. Available data and operations vary with each provider API, credential scope, account plan, and enabled service.
 
 ### Hosting — 10
 
@@ -100,7 +100,7 @@ Verceltics separates providers by the job they perform. Google Search Console an
 - **Registrar dashboards** — Domains, expiry and renewal state, nameservers, DNS, contacts, transfers, privacy, certificates, and provider operation catalogs where supported.
 - **Separate site dashboards** — Search Console, Google Analytics, PageSpeed, Bing, Clarity, Plausible, Umami, UptimeRobot, and Better Stack each open independently.
 - **Deep provider data** — Search performance, indexing, sitemaps, URL inspection, GA4 reporting, Lighthouse and CrUX, uptime, response time, and availability.
-- **Responsive caching** — Recently viewed dashboards open from protected local snapshots or in-memory cache, then refresh quietly when the app becomes active. Pull to refresh remains available.
+- **Responsive caching** — Sites can reopen from protected, backup-excluded local snapshots; other recently viewed dashboards use in-memory cache. Data refreshes when the app becomes active, and pull to refresh remains available.
 - **iPad layout** — Sidebar-adaptable navigation, adaptive grids, wider detail surfaces, and full-width charts on regular size class.
 - **Appearance** — System, light, and dark modes.
 - **Guarded operations** — Cross-host redirects are blocked; detected writes, purchases, and destructive requests require confirmation.
@@ -108,7 +108,7 @@ Verceltics separates providers by the job they perform. Google Search Console an
 
 ## Privacy architecture
 
-Provider credentials and Google OAuth tokens are stored with device-only, when-unlocked iOS Keychain protection. Requests go directly from the app to official provider HTTPS endpoints.
+Provider credentials and Google OAuth tokens are stored with device-only, when-unlocked iOS Keychain protection. Requests go directly from the app to provider HTTPS APIs or an explicitly selected HTTPS host for supported self-hosted services.
 
 ```text
 iPhone / iPad
@@ -135,7 +135,7 @@ Read the complete [Privacy Policy](https://verceltics.com/privacy) and [Security
 | Yearly | $34.99/year | 7 days for eligible first-time subscribers |
 | Lifetime | $59.99 once | Not applicable |
 
-All paid options unlock the same Verceltics Pro entitlement. App Store pricing can vary by country, currency, and tax. Building the MIT-licensed source for personal use remains free with your own provider credentials.
+All paid options unlock the same Verceltics Pro entitlement. App Store pricing can vary by country, currency, and tax. The source is MIT-licensed and may be built or modified for personal use; personal builds require their own provider credentials and any OAuth configuration needed by the selected Google integrations.
 
 ## Tech stack
 
@@ -178,7 +178,7 @@ verceltics/
 
 2. Open `ios/verceltics.xcodeproj` in Xcode.
 3. Select your Apple development team in Signing & Capabilities.
-4. Choose an iPhone or iPad running iOS 18 or later.
+4. Choose an iPhone running iOS 18 or later, or an iPad running iPadOS 18 or later.
 5. Build and run.
 
 Production App Store entitlements are managed by Apple and RevenueCat. A source build still needs your own provider credentials and any OAuth configuration required by the Google integrations you intend to test.

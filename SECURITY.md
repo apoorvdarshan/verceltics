@@ -33,12 +33,12 @@ You can expect:
 ## In Scope
 
 - Token leakage (Keychain bypass, plaintext storage, accidental logging)
-- Credential transmission outside the selected provider's official API host (credential-free same-origin favicons and provider-hosted avatars never receive credentials)
-- StoreKit verification bypass that grants entitlements without a real receipt
+- Credential transmission outside the selected provider's allowed API host, including an explicitly selected HTTPS host where supported (credential-free same-origin favicons and provider-hosted avatars never receive credentials)
+- RevenueCat or StoreKit entitlement bypass that grants Pro access without a valid purchase
 - Memory disclosure or crashes triggered by malformed provider API responses
 - ATS / TLS misconfiguration
 - Deep link or URL scheme injection
-- Vulnerabilities in the landing page (`web/`) that could affect users (XSS, CSRF on any form, etc.)
+- Vulnerabilities in the static website (`web/`) that could affect users, such as XSS, malicious link injection, or compromised static assets
 
 ## Out of Scope
 
@@ -50,16 +50,22 @@ You can expect:
 - Outdated or unsupported iOS versions
 - Social engineering
 
-## Token Safety
+## Local Data Protection
 
-Verceltics stores all connected credentials in the iOS Keychain using device-only, when-unlocked accessibility. Credentials are sent **only** to the corresponding provider host:
+Connected credentials and Google OAuth tokens use device-only, when-unlocked iOS Keychain protection. Site-service snapshots may be cached in the app's Application Support directory using iOS file protection; that cache is excluded from device backups and contains provider responses, not credentials.
+
+RevenueCat receives purchase and entitlement context for App Store transactions but does not receive provider credentials or provider account data from Verceltics. Apple processes payments; Verceltics does not receive payment-card details.
+
+## Credential and Endpoint Safety
+
+Credentials are sent **only** to the corresponding allowed provider endpoint:
 
 - `api.vercel.com` (user profile, project listing, project detail, domain list)
 - `vercel.com/api` (analytics endpoints)
 - `api.cloudflare.com` (Cloudflare profile, accounts, zones, DNS, Pages, Workers, analytics, and user-initiated API operations)
-- `api.netlify.com`, `backboard.railway.com`, `api.render.com`, `api.digitalocean.com`, `api.heroku.com`, `api.machines.dev`, `firebasehosting.googleapis.com`, `oauth2.googleapis.com` (only when exchanging a saved Firebase refresh token), or the selected regional `amplify.*.amazonaws.com` host
+- `api.netlify.com`, `backboard.railway.com`, `api.render.com`, `api.digitalocean.com`, `api.heroku.com`, `api.machines.dev`, `firebasehosting.googleapis.com`, or the selected regional `amplify.*.amazonaws.com` host
 - `api.name.com`, `api.namecheap.com`, `api.porkbun.com`, `spaceship.dev`, `api.dynadot.com`, `www.namesilo.com`, `api.gandi.net`, or `api.godaddy.com`
-- Google OAuth and Sites APIs under `accounts.google.com`, `oauth2.googleapis.com`, `openidconnect.googleapis.com`, `www.googleapis.com`, `searchconsole.googleapis.com`, `analyticsadmin.googleapis.com`, `analyticsdata.googleapis.com`, and `chromeuxreport.googleapis.com`
+- Google OAuth, identity, and Sites APIs under `accounts.google.com`, `oauth2.googleapis.com`, `openidconnect.googleapis.com`, `www.googleapis.com`, `searchconsole.googleapis.com`, `analyticsadmin.googleapis.com`, `analyticsdata.googleapis.com`, and `chromeuxreport.googleapis.com`; the OAuth token endpoint handles exchange and refresh for Firebase Hosting, Search Console, and Analytics
 - `ssl.bing.com`, `www.clarity.ms`, `plausible.io`, `api.umami.is` (or the user-selected HTTPS Umami host), `api.uptimerobot.com`, and `uptime.betterstack.com`
 
 Favicon fetches are limited to the project site's own HTTPS origin, and Vercel avatar image loads do **not** include credentials. No project domain is sent to a third-party favicon service.
@@ -72,6 +78,6 @@ We follow a coordinated disclosure model. Once a fix ships in the App Store and 
 
 - Credit the reporter (with permission) in the release notes
 - Publish a brief writeup if the issue was severe
-- Add a CHANGELOG entry
+- Document the fix in the release notes or public project history
 
 Thanks again for helping keep Verceltics safe.
