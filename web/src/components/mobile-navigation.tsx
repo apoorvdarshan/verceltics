@@ -29,7 +29,7 @@ export function MobileNavigation({ githubUrl }: MobileNavigationProps) {
       <nav aria-label="Mobile navigation">
         <Link href="/#patchbay" onClick={closeMenu}>Connections</Link>
         <Link href="/#workflows" onClick={closeMenu}>Workflows</Link>
-        <Link href="/#privacy" onClick={closeMenu}>Privacy</Link>
+        <Link href="/privacy" onClick={closeMenu}>Privacy</Link>
         <Link href="/#pricing" onClick={closeMenu}>Pricing</Link>
         <a href={githubUrl} onClick={closeMenu} rel="noreferrer" target="_blank">Source <ArrowUpRight /></a>
       </nav>

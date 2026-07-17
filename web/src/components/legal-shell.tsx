@@ -28,6 +28,7 @@ export function LegalShell({ title, eyebrow, summary, asideDescription, updated,
           <span className="micro-label">Verceltics legal</span>
           <strong className="legal-aside-title">{title}</strong>
           <p>{asideDescription}</p>
+          <span aria-hidden="true" className="legal-nav-cue">Section index →</span>
           <nav aria-label={`${title} sections`} className="legal-nav">
             {sections.map((section) => <a href={`#${section.id}`} key={section.id}>{section.label}</a>)}
           </nav>
