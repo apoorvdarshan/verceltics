@@ -147,12 +147,12 @@ export default function Home() {
           <div className="signal-rack">
             <figure className="signal-module signal-module--search">
               <figcaption><span>Input A</span><strong>Google Search Console</strong><p>Clicks · indexing · URLs</p></figcaption>
-              <div className="signal-screen"><Image alt="Google Search Console dashboard in Verceltics" fill sizes="(max-width: 720px) 86vw, 380px" src="/screens/ios/search.webp" /></div>
+              <div className="signal-screen"><Image alt="Google Search Console dashboard in Verceltics" fill sizes="(max-width: 640px) 86vw, (max-width: 1080px) 44vw, 31vw" src="/screens/ios/search.webp" /></div>
             </figure>
             <div aria-hidden="true" className="signal-separator"><span>≠</span><i /><i /></div>
             <figure className="signal-module signal-module--analytics">
               <figcaption><span>Input B</span><strong>Google Analytics</strong><p>Visitors · sessions · events</p></figcaption>
-              <div className="signal-screen"><Image alt="Google Analytics dashboard in Verceltics" fill sizes="(max-width: 720px) 86vw, 380px" src="/screens/ios/google-analytics.webp" /></div>
+              <div className="signal-screen"><Image alt="Google Analytics dashboard in Verceltics" fill sizes="(max-width: 640px) 86vw, (max-width: 1080px) 44vw, 31vw" src="/screens/ios/google-analytics.webp" /></div>
             </figure>
           </div>
         </section>

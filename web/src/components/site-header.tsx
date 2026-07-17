@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { ArrowUpRight } from "@/components/arrow-up-right";
+import { MobileNavigation } from "@/components/mobile-navigation";
 
 const APP_STORE = "https://apps.apple.com/us/app/verceltics/id6761645656";
 const GITHUB = "https://github.com/apoorvdarshan/verceltics";
@@ -24,16 +25,7 @@ export function SiteHeader() {
             <Link href="/#pricing">Pricing</Link>
           </nav>
 
-          <details className="mobile-menu">
-            <summary>Menu</summary>
-            <nav aria-label="Mobile navigation">
-              <Link href="/#patchbay">Connections</Link>
-              <Link href="/#workflows">Workflows</Link>
-              <Link href="/#privacy">Privacy</Link>
-              <Link href="/#pricing">Pricing</Link>
-              <a href={GITHUB} rel="noreferrer" target="_blank">Source <ArrowUpRight /></a>
-            </nav>
-          </details>
+          <MobileNavigation githubUrl={GITHUB} />
 
           <div className="header-actions">
             <a className="source-link" href={GITHUB} rel="noreferrer" target="_blank">Open source <ArrowUpRight /></a>
