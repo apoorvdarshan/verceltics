@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="520" viewBox="0 0 960 520" role="img" aria-labelledby="title description">
+  <title id="title">Verceltics GitHub star history</title>
+  <desc id="description">A cumulative chart showing Verceltics growing from zero to 22 GitHub stars between April and July 2026.</desc>
+  <defs>
+    <linearGradient id="line" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#1689FF" />
+      <stop offset="1" stop-color="#A65CFF" />
+    </linearGradient>
+    <linearGradient id="area" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#745EFF" stop-opacity="0.34" />
+      <stop offset="1" stop-color="#1689FF" stop-opacity="0.02" />
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="4" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="960" height="520" rx="24" fill="#08090D" />
+  <rect x="1" y="1" width="958" height="518" rx="23" fill="none" stroke="#252833" stroke-width="2" />
+
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+    <text x="56" y="58" fill="#F8FAFC" font-size="27" font-weight="700">Verceltics Star History</text>
+    <text x="56" y="84" fill="#8E95A5" font-size="15">GitHub stars · April–July 2026</text>
+    <rect x="802" y="37" width="106" height="48" rx="24" fill="#151822" stroke="#34394A" />
+    <text x="855" y="68" fill="#F8FAFC" font-size="19" font-weight="700" text-anchor="middle">22 stars</text>
+
+    <g stroke="#252833" stroke-width="1">
+      <line x1="92" y1="430" x2="908" y2="430" />
+      <line x1="92" y1="364" x2="908" y2="364" />
+      <line x1="92" y1="298" x2="908" y2="298" />
+      <line x1="92" y1="232" x2="908" y2="232" />
+      <line x1="92" y1="166" x2="908" y2="166" />
+      <line x1="92" y1="100" x2="908" y2="100" />
+      <line x1="92" y1="100" x2="92" y2="430" />
+      <line x1="321" y1="100" x2="321" y2="430" />
+      <line x1="557" y1="100" x2="557" y2="430" />
+      <line x1="788" y1="100" x2="788" y2="430" />
+      <line x1="908" y1="100" x2="908" y2="430" />
+    </g>
+
+    <g fill="#737B8C" font-size="13">
+      <text x="72" y="434" text-anchor="end">0</text>
+      <text x="72" y="368" text-anchor="end">5</text>
+      <text x="72" y="302" text-anchor="end">10</text>
+      <text x="72" y="236" text-anchor="end">15</text>
+      <text x="72" y="170" text-anchor="end">20</text>
+      <text x="72" y="104" text-anchor="end">25</text>
+      <text x="92" y="462" text-anchor="middle">Apr 2026</text>
+      <text x="321" y="462" text-anchor="middle">May</text>
+      <text x="557" y="462" text-anchor="middle">Jun</text>
+      <text x="788" y="462" text-anchor="middle">Jul</text>
+    </g>
+
+    <path d="M92 430 L115 417 L184 404 L321 390 L336 324 L344 285 L420 258 L428 245 L435 232 L443 219 L496 206 L649 192 L664 179 L710 166 L771 153 L840 140 L908 140 L908 430 Z" fill="url(#area)" />
+    <polyline points="92,430 115,417 184,404 321,390 336,324 344,285 420,258 428,245 435,232 443,219 496,206 649,192 664,179 710,166 771,153 840,140 908,140" fill="none" stroke="url(#line)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)" />
+
+    <g fill="#08090D" stroke="#A65CFF" stroke-width="4">
+      <circle cx="115" cy="417" r="5" />
+      <circle cx="184" cy="404" r="5" />
+      <circle cx="321" cy="390" r="5" />
+      <circle cx="336" cy="324" r="5" />
+      <circle cx="344" cy="285" r="5" />
+      <circle cx="420" cy="258" r="5" />
+      <circle cx="496" cy="206" r="5" />
+      <circle cx="649" cy="192" r="5" />
+      <circle cx="710" cy="166" r="5" />
+      <circle cx="771" cy="153" r="5" />
+      <circle cx="840" cy="140" r="6" fill="#F8FAFC" />
+    </g>
+
+    <text x="56" y="495" fill="#5F6675" font-size="12">Snapshot from GitHub · 17 July 2026</text>
+    <text x="908" y="495" fill="#5F6675" font-size="12" text-anchor="end">github.com/apoorvdarshan/verceltics</text>
+  </g>
+</svg>

@@ -254,6 +254,12 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Report sec
   <img src="https://contrib.rocks/image?repo=apoorvdarshan/verceltics" alt="Verceltics contributors" />
 </a>
 
+## Star History
+
+<a href="https://www.star-history.com/?repos=apoorvdarshan%2Fverceltics&type=date&legend=top-left">
+  <img src="docs/star-history.svg" alt="Verceltics GitHub star history chart" width="720" />
+</a>
+
 ---
 
 <p align="center">Built with care by <a href="https://x.com/apoorvdarshan">Apoorv Darshan</a>.</p>
