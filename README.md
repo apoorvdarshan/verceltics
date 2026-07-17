@@ -26,7 +26,9 @@
 
 Verceltics is an independent, open-source operator workspace for the infrastructure and site services developers already use. Each provider keeps its own dashboard and capabilities; Verceltics supplies the native navigation, secure local credential storage, responsive caching, and iPhone/iPad interface around them. The `main` branch documents the current source build and can be ahead of the latest App Store release.
 
-## Verceltics 2.0 on iPhone
+## Screenshots
+
+The README highlights the iPhone experience. Verceltics also has a fully adaptive iPad interface; visit the [website](https://verceltics.com) for the complete iPad gallery.
 
 <table>
   <tr>
@@ -36,19 +38,6 @@ Verceltics is an independent, open-source operator workspace for the infrastruct
   <tr>
     <td align="center"><img src="docs/screenshots/ios/registrars.png" width="260" alt="Registrar connection list on iPhone"><br><strong>8 registrars</strong></td>
     <td align="center"><img src="docs/screenshots/ios/sites.png" width="260" alt="Site services connection list on iPhone"><br><strong>9 site services</strong></td>
-  </tr>
-</table>
-
-## Verceltics 2.0 on iPad
-
-<table>
-  <tr>
-    <td align="center"><img src="docs/screenshots/ipad/analytics.png" width="360" alt="Traffic analytics workspace on iPad in portrait orientation"><br><strong>Traffic analytics</strong></td>
-    <td align="center"><img src="docs/screenshots/ipad/hosting.png" width="360" alt="Hosting platform connections on iPad in portrait orientation"><br><strong>10 hosting platforms</strong></td>
-  </tr>
-  <tr>
-    <td align="center"><img src="docs/screenshots/ipad/registrars.png" width="360" alt="Registrar connections on iPad in portrait orientation"><br><strong>8 registrars</strong></td>
-    <td align="center"><img src="docs/screenshots/ipad/sites.png" width="360" alt="Site service connections on iPad in portrait orientation"><br><strong>9 site services</strong></td>
   </tr>
 </table>
 
@@ -162,7 +151,7 @@ verceltics/
 ├── ios/                     # SwiftUI iPhone and iPad app
 ├── web/                     # Next.js website, privacy, and terms
 ├── docs/screenshots/ios/    # Current iPhone screenshots used by this README
-├── docs/screenshots/ipad/   # Current iPad screenshots used by this README
+├── docs/screenshots/ipad/   # Current iPad screenshot source assets
 ├── scripts/                 # Provider catalog generation and updates
 └── tests/                   # Catalog and request-integrity tests
 ```
