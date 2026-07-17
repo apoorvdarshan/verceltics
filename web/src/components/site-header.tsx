@@ -6,52 +6,40 @@ import { ArrowUpRight } from "@/components/arrow-up-right";
 const APP_STORE = "https://apps.apple.com/us/app/verceltics/id6761645656";
 const GITHUB = "https://github.com/apoorvdarshan/verceltics";
 
-function RouteThreads() {
-  return (
-    <span aria-hidden="true" className="route-threads">
-      <i className="route-thread route-thread--hosting" />
-      <i className="route-thread route-thread--registrars" />
-      <i className="route-thread route-thread--sites" />
-    </span>
-  );
-}
-
 export function SiteHeader() {
   return (
     <>
       <a className="skip-link" href="#main-content">Skip to content</a>
+      <header className="site-header">
+        <div className="header-inner">
+          <Link aria-label="Verceltics home" className="header-brand" href="/" translate="no">
+            <Image alt="" height={38} priority src="/icon.png" width={38} />
+            <span>Verceltics</span>
+          </Link>
 
-      <aside aria-label="Primary navigation" className="route-rail">
-        <Link aria-label="Verceltics home" className="rail-brand" href="/" translate="no">
-          <Image alt="" height={42} priority src="/icon.png" width={42} />
-          <strong>Verceltics</strong>
-        </Link>
+          <nav aria-label="Primary navigation" className="header-nav">
+            <Link href="/#connections">Connections</Link>
+            <Link href="/#workflows">Workflows</Link>
+            <Link href="/#privacy">Privacy</Link>
+            <Link href="/#pricing">Pricing</Link>
+          </nav>
 
-        <nav aria-label="Workspaces" className="rail-workspaces">
-          <Link className="rail-route rail-route--hosting" href="/#hosting"><i />Hosting</Link>
-          <Link className="rail-route rail-route--registrars" href="/#registrars"><i />Registrars</Link>
-          <Link className="rail-route rail-route--sites" href="/#sites"><i />Sites</Link>
-        </nav>
+          <details className="mobile-menu">
+            <summary>Menu</summary>
+            <nav aria-label="Mobile navigation">
+              <Link href="/#connections">Connections</Link>
+              <Link href="/#workflows">Workflows</Link>
+              <Link href="/#privacy">Privacy</Link>
+              <Link href="/#pricing">Pricing</Link>
+              <a href={GITHUB} rel="noreferrer" target="_blank">Source <ArrowUpRight /></a>
+            </nav>
+          </details>
 
-        <nav aria-label="Site links" className="rail-secondary">
-          <Link href="/#providers">Providers</Link>
-          <Link href="/#privacy">Privacy</Link>
-          <a href={GITHUB} rel="noreferrer" target="_blank">Source</a>
-        </nav>
-
-        <a aria-label="Get Verceltics on the App Store" className="rail-store" href={APP_STORE} rel="noreferrer" target="_blank">
-          <span>Get app</span>
-          <ArrowUpRight />
-        </a>
-      </aside>
-
-      <header className="mobile-header">
-        <Link aria-label="Verceltics home" className="mobile-brand" href="/" translate="no">
-          <Image alt="" height={38} priority src="/icon.png" width={38} />
-          <span>Verceltics</span>
-        </Link>
-        <RouteThreads />
-        <a className="mobile-store" href={APP_STORE} rel="noreferrer" target="_blank">Get app <ArrowUpRight /></a>
+          <div className="header-actions">
+            <a className="source-link" href={GITHUB} rel="noreferrer" target="_blank">Source <ArrowUpRight /></a>
+            <a className="header-store" href={APP_STORE} rel="noreferrer" target="_blank">Get the app <ArrowUpRight /></a>
+          </div>
+        </div>
       </header>
     </>
   );

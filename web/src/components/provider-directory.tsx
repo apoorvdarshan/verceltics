@@ -2,14 +2,15 @@ import Image from "next/image";
 import type { CSSProperties } from "react";
 
 type Provider = { name: string; icon: string };
-type ProviderGroup = { id: string; label: string; count: number; accent: string; providers: readonly Provider[] };
+type ProviderGroup = { id: string; label: string; count: number; accent: string; tagline: string; providers: readonly Provider[] };
 
 const groups: readonly ProviderGroup[] = [
   {
     id: "hosting",
     label: "Hosting",
     count: 10,
-    accent: "#2c91ff",
+    accent: "#146cff",
+    tagline: "Deploys, logs, DNS, jobs & releases",
     providers: [
       { name: "Vercel", icon: "VercelMark.svg" },
       { name: "Cloudflare", icon: "CloudflareMark.svg" },
@@ -27,7 +28,8 @@ const groups: readonly ProviderGroup[] = [
     id: "registrars",
     label: "Registrars",
     count: 8,
-    accent: "#565e68",
+    accent: "#d9dee7",
+    tagline: "Domains, renewals, contacts & transfers",
     providers: [
       { name: "Name.com", icon: "NameDotComMark.svg" },
       { name: "Namecheap", icon: "NamecheapMark.svg" },
@@ -43,7 +45,8 @@ const groups: readonly ProviderGroup[] = [
     id: "sites",
     label: "Sites",
     count: 9,
-    accent: "#a154ff",
+    accent: "#9747ff",
+    tagline: "Search, traffic, speed & uptime",
     providers: [
       { name: "Google Search Console", icon: "GoogleSearchConsoleMark.svg" },
       { name: "Google Analytics", icon: "GoogleAnalyticsMark.svg" },
@@ -58,21 +61,19 @@ const groups: readonly ProviderGroup[] = [
   },
 ] as const;
 
-const providerImageStyle = { height: 22, maxWidth: 22, width: "auto" } as const;
-
 export function ProviderDirectory() {
   return (
-    <div className="provider-groups">
+    <div className="provider-banks">
       {groups.map((group) => (
-        <section className={`provider-group provider-group--${group.id}`} key={group.id} style={{ "--group-accent": group.accent } as CSSProperties}>
+        <section className={`provider-bank provider-bank--${group.id}`} key={group.id} style={{ "--bank-accent": group.accent } as CSSProperties}>
           <header>
-            <span aria-hidden="true" className="group-route" />
-            <div><h3>{group.label}</h3><p>{group.count} direct connections</p></div>
+            <p>{group.label} / {group.count}</p>
+            <h3>{group.tagline}</h3>
           </header>
           <ul>
             {group.providers.map((provider) => (
               <li key={provider.name} translate="no">
-                <span className="provider-mark"><Image alt="" height={22} src={`/providers/${provider.icon}`} style={providerImageStyle} width={22} /></span>
+                <span className="provider-mark"><span className="provider-icon-slot"><Image alt="" fill sizes="22px" src={`/providers/${provider.icon}`} /></span></span>
                 <span>{provider.name}</span>
               </li>
             ))}

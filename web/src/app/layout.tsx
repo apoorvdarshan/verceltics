@@ -1,12 +1,20 @@
 import type { Metadata, Viewport } from "next";
-import { IBM_Plex_Mono, Instrument_Sans } from "next/font/google";
+import { Antonio, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 
 import "./globals.css";
 
-const instrumentSans = Instrument_Sans({
+const antonio = Antonio({
   display: "swap",
   subsets: ["latin"],
-  variable: "--font-instrument-sans",
+  variable: "--font-antonio",
+  weight: ["600", "700"],
+});
+
+const ibmPlexSans = IBM_Plex_Sans({
+  display: "swap",
+  subsets: ["latin"],
+  variable: "--font-ibm-plex-sans",
+  weight: ["400", "500", "600", "700"],
 });
 
 const ibmPlexMono = IBM_Plex_Mono({
@@ -19,14 +27,14 @@ const ibmPlexMono = IBM_Plex_Mono({
 const SITE_URL = "https://verceltics.com";
 
 export const viewport: Viewport = {
-  colorScheme: "light",
-  themeColor: "#eef0f3",
+  colorScheme: "dark",
+  themeColor: "#07090d",
 };
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "Verceltics — Native Infrastructure for iPhone and iPad",
+    default: "Verceltics — Your Stack Under One Thumb",
     template: "%s — Verceltics",
   },
   description:
@@ -55,7 +63,7 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_US",
     siteName: "Verceltics",
-    title: "Verceltics — Leave the laptop closed",
+    title: "Verceltics — Your stack under one thumb",
     description:
       "Review deploys, domains, DNS, traffic, search, speed, and uptime from a native iPhone and iPad workspace—without a credential proxy.",
     url: SITE_URL,
@@ -71,7 +79,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Verceltics — Leave the laptop closed",
+    title: "Verceltics — Your stack under one thumb",
     description:
       "Review deploys, domains, DNS, traffic, search, speed, and uptime from a private native workspace.",
     creator: "@apoorvdarshan",
@@ -121,7 +129,7 @@ const siteJsonLd = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html className={`${instrumentSans.variable} ${ibmPlexMono.variable}`} lang="en">
+    <html className={`${antonio.variable} ${ibmPlexSans.variable} ${ibmPlexMono.variable}`} lang="en">
       <body>
         <script dangerouslySetInnerHTML={{ __html: JSON.stringify(siteJsonLd) }} type="application/ld+json" />
         {children}
