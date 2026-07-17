@@ -496,6 +496,14 @@ main[id] {
   letter-spacing: -0.075em;
 }
 
+.instrument-copy h1 > span {
+  display: block;
+  margin-bottom: 0.16em;
+  color: var(--blue);
+  font-size: 0.74em;
+  letter-spacing: -0.055em;
+}
+
 .hero-deck {
   max-width: 630px;
   margin-top: 34px;
@@ -504,9 +512,76 @@ main[id] {
   line-height: 1.62;
 }
 
+.google-data-plate {
+  width: 100%;
+  max-width: 650px;
+  margin-top: 28px;
+  padding: 16px 18px 0;
+  background: #edf2ef;
+  border: 1px solid #7e8983;
+  border-left: 5px solid var(--blue);
+  border-radius: 7px;
+  box-shadow: 0 3px 0 rgba(16, 18, 16, 0.16);
+}
+
+.google-data-plate header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.google-data-plate header span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+}
+
+.google-data-plate header i {
+  flex: 0 0 8px;
+  width: 8px;
+  height: 8px;
+  background: var(--live);
+  border: 1px solid var(--ink);
+  border-radius: 50%;
+}
+
+.google-data-plate header b {
+  color: var(--muted);
+  font-weight: 500;
+  text-align: right;
+}
+
+.google-data-plate > p {
+  margin-top: 12px;
+  color: #454d48;
+  font-size: 0.82rem;
+  line-height: 1.58;
+  text-wrap: pretty;
+}
+
+.google-data-plate > a {
+  display: flex;
+  min-height: 44px;
+  margin-top: 12px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--rule);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.google-data-plate > a:hover { color: var(--blue); }
+
 .hero-actions {
   display: flex;
-  margin-top: 38px;
+  margin-top: 32px;
   align-items: center;
   gap: 25px;
 }
@@ -529,7 +604,7 @@ main[id] {
 .hero-specs {
   display: grid;
   width: 100%;
-  margin-top: 64px;
+  margin-top: 52px;
   grid-template-columns: repeat(3, 1fr);
   border-top: 2px solid var(--ink);
   border-bottom: 2px solid var(--ink);
@@ -2264,6 +2339,7 @@ main[id] {
   .serial-plate { margin-bottom: 40px; }
   .instrument-copy h1 { font-size: clamp(3.45rem, 15vw, 5.4rem); }
   .hero-deck { font-size: 1rem; }
+  .google-data-plate { padding-inline: 16px; }
   .hero-actions { align-items: flex-start; flex-direction: column; }
   .hero-specs { grid-template-columns: 1fr; }
   .hero-specs div,
@@ -2506,6 +2582,8 @@ main[id] {
   .mobile-menu nav { position: fixed; top: 82px; right: 12px; width: min(226px, calc(100vw - 24px)); }
   .hero-chassis { padding-inline: 20px; }
   .instrument-copy h1 { font-size: clamp(3.15rem, 15vw, 4.2rem); }
+  .google-data-plate header { align-items: flex-start; flex-direction: column; gap: 5px; }
+  .google-data-plate header b { text-align: left; }
   .serial-plate span:last-child { display: none; }
   .deck-header > div span { display: none; }
   .mode-switch { gap: 6px; padding: 6px; }
@@ -2549,6 +2627,8 @@ main[id] {
   .console-toolbar { grid-template-columns: 1fr 1fr; font-size: 0.55rem; }
   .hero-chassis { padding: 46px 16px; }
   .instrument-copy h1 { font-size: clamp(2.75rem, 14vw, 3.6rem); }
+  .google-data-plate { padding-inline: 13px; }
+  .google-data-plate > p { font-size: 0.78rem; }
   .section-intro h2,
   .signals-copy h2,
   .circuit-heading h2,

@@ -68,10 +68,18 @@ export function InstrumentHero() {
             <span>Mobile operations instrument</span>
           </div>
           <p className="hero-eyebrow"><i /> Native on iPhone and iPad</p>
-          <h1>Check the whole stack. Close the laptop.</h1>
+          <h1><span translate="no">Verceltics:</span>{" "}Check the whole stack. Close the laptop.</h1>
           <p className="hero-deck">
-            Deploys, domains, DNS, analytics, search and uptime—inside one private native workspace built for the checks that cannot wait for a desk.
+            Verceltics is a native iPhone and iPad app for monitoring and managing hosting, domains, deployments, DNS, analytics, search performance, speed, and uptime from the services you connect.
           </p>
+          <aside aria-label="How Verceltics uses Google account data" className="google-data-plate">
+            <header>
+              <span><i aria-hidden="true" /> How Verceltics uses Google data</span>
+              <b>Connected features only</b>
+            </header>
+            <p>When you connect Google, Verceltics uses read-only Google Search Console and Google Analytics access to display your verified sites, search performance, and GA4 reports. Firebase Hosting access displays hosting resources and performs only actions you initiate. Google user data is used only to provide these app features. OAuth tokens stay in your device&apos;s iOS Keychain, and requests go directly to Google&apos;s official APIs—not through a Verceltics server.</p>
+            <a href="/privacy#google-data">How Google data is handled <span aria-hidden="true">→</span></a>
+          </aside>
           <div className="hero-actions">
             <a className="primary-control" href={APP_STORE} rel="noreferrer" target="_blank">
               Get Verceltics <ArrowUpRight />

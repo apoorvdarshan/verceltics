@@ -67,7 +67,7 @@ const applicationJsonLd = {
   operatingSystem: "iOS 18 or later",
   applicationCategory: "DeveloperApplication",
   softwareVersion: "2.0",
-  description: "A private native iPhone and iPad workspace for hosting, domains, analytics, search performance, speed, and uptime.",
+  description: "Verceltics is a private native iPhone and iPad app for hosting, domains, analytics, search performance, speed, and uptime.",
   url: SITE_URL,
   downloadUrl: APP_STORE,
   image: `${SITE_URL}/og-verceltics.png`,
