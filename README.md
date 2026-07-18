@@ -112,7 +112,7 @@ No Verceltics credential proxy or provider-data server sits in between.
 - No app tracking or advertising SDK
 - No provider-data telemetry
 - No third-party favicon service; favicon checks stay on the project site's own HTTPS origin
-- Registrar setup can request the device network's public IPv4 from ipify without credentials or provider data; Namecheap uses the accepted address as required connection metadata
+- Registrar setup can request the device network's public IPv4 from ipify without credentials or provider data. Namecheap stores the explicitly accepted address as required `ClientIp` connection metadata and sends it with Namecheap API requests; Name.com only copies it to the system pasteboard after an explicit action and never saves or sends it as a Name.com credential.
 - Google API data is used only for the connected user-facing feature and handled under Google's Limited Use requirements
 - The website has no client-side analytics and is delivered through Cloudflare Workers Static Assets
 

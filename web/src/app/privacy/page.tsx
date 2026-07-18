@@ -42,12 +42,12 @@ export default function Privacy() {
       sections={sections}
       summary="Verceltics is designed so provider credentials and account data do not pass through a Verceltics server. This policy explains the limited local and third-party processing needed to operate the app and website."
       title="Privacy Policy"
-      updated="July 18, 2026"
+      updated="July 19, 2026"
     >
       <section id="overview">
         <h2>Overview</h2>
         <p>Verceltics is an independent iPhone and iPad workspace for supported hosting platforms, domain registrars, and site-intelligence services. The app connects to services you choose using credentials or OAuth authorization you provide.</p>
-        <p><strong>Verceltics does not operate a credential or provider-data proxy.</strong> Requests for provider data go from your device directly to the selected provider&apos;s official HTTPS API.</p>
+        <p><strong>Verceltics does not operate a credential or provider-data proxy.</strong> Requests for provider data go from your device directly to the selected provider&apos;s HTTPS API or an explicitly selected HTTPS host for a supported self-hosted service.</p>
       </section>
 
       <section id="app-data">
@@ -55,7 +55,7 @@ export default function Privacy() {
         <p>The iOS app does not send provider credentials, account data, projects, domains, DNS records, deployments, logs, analytics, search data, or uptime data to Verceltics infrastructure.</p>
         <ul>
           <li>No advertising or cross-app tracking</li>
-          <li>No product-analytics or provider-data telemetry in the app</li>
+          <li>No Verceltics-operated product analytics and no provider-data telemetry; RevenueCat processes limited purchase history and technical context for App Store purchase functionality and purchase analytics as described below</li>
           <li>No sale of credentials, provider data, or personal information</li>
           <li>No use of provider or Google user data for advertising, credit decisions, or training generalized AI models</li>
         </ul>
@@ -106,9 +106,9 @@ export default function Privacy() {
 
       <section id="purchases">
         <h2>Purchases and RevenueCat</h2>
-        <p>Subscriptions, lifetime access, and optional tips are processed by Apple through the App Store. Verceltics uses RevenueCat to manage the Verceltics Pro entitlement, restore purchases, and provide purchase status to the app. RevenueCat may receive an anonymous app-user identifier, Apple receipt information, product identifiers, purchase history, and subscription or entitlement status.</p>
+        <p>Subscriptions, lifetime access, and optional tips are processed by Apple through the App Store. Verceltics uses RevenueCat to manage the Verceltics Pro entitlement, restore purchases, and provide purchase status to the app. RevenueCat may receive an anonymous app-user identifier; device type, operating-system, platform, app-version, and locale context; Apple receipt information; product identifiers; purchase history; subscription or entitlement status; and purchase-service timestamps such as first-seen or last-seen app use. RevenueCat uses purchase history for app functionality and purchase analytics.</p>
         <p>RevenueCat does not receive provider credentials or provider account data from Verceltics. Verceltics does not receive or store payment-card details.</p>
-        <p>Refund decisions are made by Apple. If Apple asks for developer input on a refund request, RevenueCat may send Apple purchase and entitlement context. Verceltics configures RevenueCat to prefer declining refund requests; Apple retains the final decision.</p>
+        <p>Refund decisions are made by Apple. If refund-request handling is enabled, RevenueCat may send Apple limited purchase delivery and consumption context in response to a refund request, subject to the consent described in the Terms of Service. Apple retains the final decision.</p>
       </section>
 
       <section id="controls">

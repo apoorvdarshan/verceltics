@@ -154,7 +154,7 @@
           "internalID" : "A1B2C3D4-E5F6-7A8B-9C0D-1E2F3A4B5C6D",
           "localizations" : [
             {
-              "description" : "Full access to Verceltics analytics",
+              "description" : "Full access to Verceltics Pro details and provider tools",
               "displayName" : "Verceltics Pro Monthly",
               "locale" : "en_US"
             }
@@ -184,7 +184,7 @@
           },
           "localizations" : [
             {
-              "description" : "Full access to Verceltics analytics — save 42%",
+              "description" : "Full access to Verceltics Pro details and provider tools — save 42%",
               "displayName" : "Verceltics Pro Yearly",
               "locale" : "en_US"
             }

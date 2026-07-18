@@ -58,7 +58,7 @@ export function SiteFooter() {
         <section className="footer-readout">
           <span><i /> Architecture status</span>
           <strong>No credential proxy.</strong>
-          <p>Your device talks directly to official provider APIs.</p>
+          <p>Your device talks directly to provider APIs or your selected self-hosted endpoint.</p>
           <span className="footer-encryption"><i /> Device-only tokens</span>
         </section>
 

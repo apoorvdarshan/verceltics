@@ -50,17 +50,18 @@ WHAT YOU GET
 
 PRIVATE BY DESIGN
 • Provider credentials and Google OAuth tokens stay in the device-only, when-unlocked iOS Keychain
-• No advertising, cross-app tracking, product analytics, or provider-data telemetry; provider data is not sent to Verceltics infrastructure
+• No advertising, cross-app tracking, Verceltics-operated product analytics, or provider-data telemetry; RevenueCat processes limited purchase history for purchase functionality and purchase analytics, and provider data is not sent to Verceltics infrastructure
 • Requests go directly to provider HTTPS APIs or an explicitly selected HTTPS host for supported self-hosted services; Google Search Console, Google Analytics, and Firebase Hosting use Google OAuth
 • The registrar IP helper calls ipify without provider credentials or provider account data
 • Apple processes purchases; RevenueCat receives purchase and entitlement context but no provider credentials or provider account data
 • Fully open source on GitHub
 
 HOW IT WORKS
-1. Choose Hosting, Registrars, or Sites
-2. Select a provider and follow its API credential or OAuth connection flow
-3. Add or switch accounts from the account menu in each workspace
-4. Manage provider resources from the native dashboard
+1. Review the welcome screen and tap Choose what to connect
+2. Choose Hosting, Registrars, or Sites
+3. Select a provider and follow its API credential or OAuth connection flow
+4. Add or switch accounts from the account menu in each workspace
+5. Manage provider resources from the native dashboard
 
 PRICING
 • Monthly: $4.99/month, no trial
@@ -85,11 +86,27 @@ Not affiliated with any supported hosting platform, registrar, or site-intellige
 ```
 Verceltics 2.0 expands beyond Vercel.
 
-• Connect 25+ integrations across hosting platforms, domain registrars, and site services.
+• Connect 27 integrations: 10 hosting platforms, 8 domain registrars, and 9 site services.
+• Start with a redesigned welcome and animated provider catalog.
 • Manage Cloudflare zones, DNS, Pages, Workers, storage, security, and analytics.
 • Open separate search, analytics, performance, and uptime dashboards in the new Sites workspace.
 • Browse guarded provider API catalogs for advanced read and write operations.
 • Switch hosting, registrar, and site-service accounts independently with device-only Keychain storage.
+• Detect the current public IPv4 for Namecheap ClientIp setup or explicitly copy it for Name.com's optional allowlist.
+• Browse connections and workspace lists for free, then dismiss or reopen the whole-stack Pro sheet when you choose a gated detail or provider tool.
+```
+
+## App Privacy Answers
+```
+Data type: Purchases → Purchase History
+Collected: Yes
+Purposes: App Functionality and Analytics
+Linked to the user's identity: No
+Used for tracking: No
+
+Reason: RevenueCat uses an anonymous app-user ID to validate receipts, restore purchases, manage the Verceltics Pro entitlement, and provide purchase reporting. Verceltics has no account login and does not attach a name, email address, provider credential, or provider account data to that RevenueCat ID.
+
+Do not select "Data Not Collected" while RevenueCat is enabled.
 ```
 
 ## Privacy URL
@@ -117,10 +134,10 @@ https://verceltics.com
 This app uses provider API credentials or Google OAuth and does not ask for provider account passwords. Credentials and OAuth tokens are stored locally with device-only Keychain protection and are not sent to Verceltics infrastructure.
 
 To test:
-1. On first launch, choose Hosting, Registrars, or Sites. After connecting an account, use that workspace's top-left account menu to add or switch accounts.
+1. On a clean first launch, tap "Choose what to connect" on the welcome screen, then choose Hosting, Registrars, or Sites. Existing connected users skip this one-time welcome.
 2. Select Vercel and paste a personal access token from https://vercel.com/account/tokens, or choose another provider and follow its on-screen credential instructions.
 3. Google Search Console, Google Analytics, and Firebase Hosting use Google's OAuth authorization flow instead of a pasted password.
-4. Hosting accounts appear in Hosting, registrar accounts in Registrars, and site-service accounts in Sites.
+4. Hosting accounts appear in Hosting, registrar accounts in Registrars, and site-service accounts in Sites. After connecting an account, use that workspace's top-left account menu to add or switch accounts.
 
 Connection, account switching, search, refresh, scrolling, and workspace-list browsing are available without a purchase. Opening a project, hosting resource, domain, site-service detail, provider dashboard, API catalog, or guarded provider action presents Verceltics Pro unless a sandbox entitlement is active. Use an Apple sandbox/TestFlight Monthly, Yearly, or Lifetime purchase to review those details and actions. To review Vercel Web Analytics, connect a free Vercel account with a deployed project, enable Web Analytics, and generate traffic; availability and history depend on the Vercel plan and configuration.
 

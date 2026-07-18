@@ -32,7 +32,7 @@ const checks = [
 
 const plans = [
   { code: "M", name: "Monthly", price: "$4.99", detail: "per month" },
-  { code: "Y", name: "Yearly", price: "$34.99", detail: "per year · 7-day trial" },
+  { code: "Y", name: "Yearly", price: "$34.99", detail: "per year · eligible 7-day trial" },
   { code: "∞", name: "Lifetime", price: "$59.99", detail: "one-time purchase" },
 ] as const;
 
@@ -47,7 +47,7 @@ const faqs = [
   },
   {
     question: "Where are credentials stored?",
-    answer: "Credentials and OAuth tokens use device-only, when-unlocked iOS Keychain protection. Requests go directly to each provider’s official HTTPS API; Verceltics does not run a credential proxy.",
+    answer: "Credentials and OAuth tokens use device-only, when-unlocked iOS Keychain protection. Requests go directly to the provider’s HTTPS API or an explicitly selected HTTPS host for a supported self-hosted service; Verceltics does not run a credential proxy.",
   },
   {
     question: "Does it work on iPad?",
@@ -217,9 +217,9 @@ export default function Home() {
           <header className="circuit-heading">
             <p className="instrument-label instrument-label--light"><span>05</span> Sealed circuit</p>
             <h2>Your credentials never route through us.</h2>
-            <p>Tokens stay in the device-only iOS Keychain. Provider data moves between your device and the provider’s official HTTPS API.</p>
+            <p>Tokens stay in the device-only iOS Keychain. Provider data moves directly between your device and the provider API or an explicitly selected HTTPS host for a supported self-hosted service.</p>
           </header>
-          <div aria-label="Your device connects directly to an official provider API" className="circuit-path" role="group">
+          <div aria-label="Your device connects directly to the selected provider endpoint" className="circuit-path" role="group">
             <div className="circuit-node circuit-node--device">
               <span className="node-icon"><Image alt="" height={46} src="/icon.png" width={46} /></span>
               <span><small>Origin</small><strong>Your device</strong><p>Keychain + protected cache</p></span>
@@ -227,7 +227,7 @@ export default function Home() {
             <div className="cable"><i /><span>Encrypted HTTPS</span><i /></div>
             <div className="circuit-node circuit-node--provider">
               <span className="node-icon">API</span>
-              <span><small>Destination</small><strong>Official provider</strong><p>Direct request and response</p></span>
+              <span><small>Destination</small><strong>Provider endpoint</strong><p>Direct request and response</p></span>
             </div>
           </div>
           <div className="missing-port">
@@ -247,10 +247,10 @@ export default function Home() {
               <p className="instrument-label"><span>06</span> Ownership plate</p>
               <h2>One unlock. Every connection.</h2>
             </div>
-            <p>Every paid option unlocks all 27 connections on iPhone and iPad. The MIT-licensed source stays available for personal builds.</p>
+            <p>Connections, lists, search, refresh, and account switching stay available. Every paid option unlocks the same Pro details and provider tools across all 27 integrations. US reference prices are shown; Apple displays the current local price and trial eligibility.</p>
           </header>
           <div className="price-console">
-            <div className="price-console-head"><span>Verceltics Pro</span><span>Choose access term</span><span>All ports enabled</span></div>
+            <div className="price-console-head"><span>Verceltics Pro</span><span>Choose access term</span><span>Details + tools</span></div>
             <div className="price-options">
               {plans.map((plan) => (
                 <div className="price-row" key={plan.name}>

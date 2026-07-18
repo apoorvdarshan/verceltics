@@ -39,7 +39,7 @@ export default function Terms() {
       sections={sections}
       summary="These terms cover your use of Verceltics, the provider credentials and operations you control, and purchases processed by Apple."
       title="Terms of Service"
-      updated="July 17, 2026"
+      updated="July 19, 2026"
     >
       <section id="acceptance">
         <h2>Acceptance</h2>
@@ -68,9 +68,9 @@ export default function Terms() {
           <li><strong>Lifetime:</strong> $59.99 one-time, non-consumable purchase with no recurring charge</li>
         </ul>
         <p>Prices may vary by country, currency, tax, or future App Store pricing changes. The price shown by Apple at confirmation controls.</p>
-        <p>Payment is charged to your Apple ID at confirmation. Auto-renewable subscriptions continue unless cancelled at least 24 hours before the end of the current period. Manage or cancel them in <code>Settings → Apple ID → Subscriptions</code>. Any unused trial portion may be forfeited when a subscription is purchased.</p>
+        <p>Payment is charged to your Apple Account at confirmation. Auto-renewable subscriptions continue unless cancelled at least 24 hours before the end of the current period. Manage or cancel them in <code>Settings → [your name] → Subscriptions</code>. Any unused trial portion may be forfeited when a subscription is purchased.</p>
         <p>Optional Coffee, Lunch, Big, and Huge tips are one-time consumable purchases. They support development, unlock no feature or content, and are not subscriptions.</p>
-        <p>Apple processes purchases and decides refund requests under its policies. Verceltics uses RevenueCat for entitlement status, restoration, purchase context, and refund-request handling. Verceltics configures RevenueCat to prefer declining refunds when Apple asks for developer input; Apple makes the final decision. Verceltics does not issue App Store refunds directly.</p>
+        <p>Apple processes purchases and decides refund requests under its policies. Verceltics uses RevenueCat for entitlement status, restoration, purchase context, and optional refund-request handling. Where that handling is enabled, RevenueCat may send Apple limited purchase delivery and consumption context in response to a refund request. By making an in-app purchase after accepting these terms, you consent to that limited sharing solely for Apple&apos;s refund evaluation. Apple makes the final decision, and Verceltics does not issue App Store refunds directly.</p>
       </section>
 
       <section id="source">
