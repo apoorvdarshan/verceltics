@@ -33,7 +33,7 @@ You can expect:
 ## In Scope
 
 - Token leakage (Keychain bypass, plaintext storage, accidental logging)
-- Credential transmission outside the selected provider's allowed API host, including an explicitly selected HTTPS host where supported (credential-free same-origin favicons and provider-hosted avatars never receive credentials)
+- Credential transmission outside the selected provider's allowed API host, including an explicitly selected HTTPS host where supported (credential-free same-origin favicons, provider-hosted avatars, and the public IPv4 setup helper never receive credentials)
 - RevenueCat or StoreKit entitlement bypass that grants Pro access without a valid purchase
 - Memory disclosure or crashes triggered by malformed provider API responses
 - ATS / TLS misconfiguration
@@ -69,6 +69,8 @@ Credentials are sent **only** to the corresponding allowed provider endpoint:
 - `ssl.bing.com`, `www.clarity.ms`, `plausible.io`, `api.umami.is` (or the user-selected HTTPS Umami host), `api.uptimerobot.com`, and `uptime.betterstack.com`
 
 Favicon fetches are limited to the project site's own HTTPS origin, and Vercel avatar image loads do **not** include credentials. No project domain is sent to a third-party favicon service.
+
+Registrar setup may make a bounded, credential-free request to `api.ipify.org` to display the current public IPv4 required by Namecheap or optionally allowlisted in Name.com. This request never includes a provider credential or provider account data.
 
 Provider credentials inherit their configured permissions and can make destructive changes or purchases. The app blocks cross-host redirects and requires confirmation before detected write or purchase requests. If a credential may be exposed, revoke or rotate it immediately in that provider's dashboard.
 

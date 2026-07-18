@@ -83,7 +83,8 @@ struct RegistrarAPI {
         additionalHeaders: [String: String] = [:],
         contentType: String? = nil,
         bodyIsBase64: Bool = false,
-        returnHTTPErrorResponse: Bool = false
+        returnHTTPErrorResponse: Bool = false,
+        requestSession: URLSession? = nil
     ) async throws -> RegistrarRawResponse {
         let normalizedMethod = method.uppercased()
         guard ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].contains(normalizedMethod) else {
@@ -103,7 +104,12 @@ struct RegistrarAPI {
         switch provider {
         case .namecheap:
             let username = try requiredMetadata("username", label: "Namecheap API username")
-            let clientIP = try requiredMetadata("clientIP", label: "whitelisted client IP")
+            let rawClientIP = try requiredMetadata("clientIP", label: "whitelisted client IP")
+            guard let clientIP = PublicIPv4Lookup.normalizedPublicIPv4(rawClientIP) else {
+                throw RegistrarAPIError.invalidConfiguration(
+                    "Enter a valid public IPv4 address that is whitelisted in Namecheap."
+                )
+            }
             items += [
                 URLQueryItem(name: "ApiUser", value: username),
                 URLQueryItem(name: "ApiKey", value: primaryCredential),
@@ -168,7 +174,10 @@ struct RegistrarAPI {
             request.setValue(value, forHTTPHeaderField: name)
         }
 
-        let (data, response) = try await ProviderRequestSecurity.data(for: request)
+        let (data, response) = try await ProviderRequestSecurity.data(
+            for: request,
+            using: requestSession
+        )
         guard let http = response as? HTTPURLResponse else { throw RegistrarAPIError.invalidResponse }
         let text = String(data: data, encoding: .utf8) ?? data.base64EncodedString()
         if !(200...299).contains(http.statusCode), !returnHTTPErrorResponse {

@@ -13,6 +13,12 @@ struct RegistrarConnectionView: View {
     @State private var apiSecret = ""
     @State private var clientIP = ""
     @State private var organization = ""
+    @State private var detectedPublicIPv4: String?
+    @State private var isDetectingPublicIPv4 = false
+    @State private var publicIPv4Error: String?
+    @State private var copiedPublicIPv4 = false
+    @State private var publicIPv4RequestID: UUID?
+    @State private var lastPrefilledNamecheapIPv4: String?
     @FocusState private var focusedField: Field?
 
     private enum Field: Hashable { case username, apiKey, apiSecret, clientIP, organization }
@@ -57,6 +63,7 @@ struct RegistrarConnectionView: View {
                     ForEach(RegistrarProvider.allCases) { provider in
                         Button {
                             store.error = nil
+                            resetPublicIPv4LookupState()
                             if reduceMotion { selectedProvider = provider }
                             else { withAnimation(.spring(duration: 0.35)) { selectedProvider = provider } }
                         } label: {
@@ -103,6 +110,7 @@ struct RegistrarConnectionView: View {
                         HStack {
                             Button {
                                 store.error = nil
+                                resetPublicIPv4LookupState()
                                 if let onBack {
                                     onBack()
                                 } else if reduceMotion {
@@ -158,6 +166,10 @@ struct RegistrarConnectionView: View {
                         }
                         .buttonStyle(PressScaleButtonStyle())
 
+                        if [.namecheap, .nameDotCom].contains(provider) {
+                            publicIPv4Helper(provider)
+                        }
+
                         fields(provider)
 
                         Button {
@@ -188,6 +200,14 @@ struct RegistrarConnectionView: View {
                 }
             }
             .scrollDismissesKeyboard(.interactively)
+            .task(id: provider) {
+                guard provider == .namecheap else { return }
+                await detectPublicIPv4(for: provider, force: true)
+            }
+            .onDisappear {
+                publicIPv4RequestID = nil
+                isDetectingPublicIPv4 = false
+            }
         }
     }
 
@@ -209,6 +229,113 @@ struct RegistrarConnectionView: View {
         .providerPanel(accent: provider.accentColor)
     }
 
+    private func publicIPv4Helper(_ provider: RegistrarProvider) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 10) {
+                Image(systemName: "network")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(provider.accentColor)
+                    .frame(width: 32, height: 32)
+                    .background(provider.accentColor.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("PUBLIC NETWORK ADDRESS")
+                        .font(.caption2.weight(.bold))
+                        .tracking(1.2)
+                        .foregroundStyle(AppTheme.textTertiary)
+                    Text(provider == .namecheap ? "Required by Namecheap" : "Optional Name.com allowlist")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(AppTheme.textPrimary)
+                }
+                Spacer()
+                if isDetectingPublicIPv4 {
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(provider.accentColor)
+                }
+            }
+
+            if let address = detectedPublicIPv4 {
+                HStack(spacing: 10) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("This network")
+                            .font(.caption)
+                            .foregroundStyle(AppTheme.textTertiary)
+                        Text(address)
+                            .font(.title3.monospaced().weight(.semibold))
+                            .foregroundStyle(AppTheme.textPrimary)
+                            .textSelection(.enabled)
+                    }
+                    Spacer()
+                    Button {
+                        copyPublicIPv4(address)
+                    } label: {
+                        Image(systemName: copiedPublicIPv4 ? "checkmark" : "doc.on.doc")
+                            .font(.system(size: 14, weight: .semibold))
+                            .frame(width: 38, height: 38)
+                            .background(AppTheme.surfaceRaised)
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(PressScaleButtonStyle())
+                    .accessibilityLabel(copiedPublicIPv4 ? "Public IPv4 copied" : "Copy public IPv4")
+
+                    Button {
+                        Task { await detectPublicIPv4(for: provider, force: true) }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 14, weight: .semibold))
+                            .frame(width: 38, height: 38)
+                            .background(AppTheme.surfaceRaised)
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(PressScaleButtonStyle())
+                    .disabled(isDetectingPublicIPv4)
+                    .accessibilityLabel("Detect public IPv4 again")
+                }
+            } else if isDetectingPublicIPv4 {
+                Text("Detecting the public IPv4 used by this network…")
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.textSecondary)
+            } else {
+                Button {
+                    Task { await detectPublicIPv4(for: provider, force: true) }
+                } label: {
+                    Label(
+                        publicIPv4Error == nil ? "Detect IP to whitelist" : "Try detection again",
+                        systemImage: "scope"
+                    )
+                    .font(.footnote.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: 42)
+                    .foregroundStyle(provider.accentColor)
+                    .background(provider.accentColor.opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+                .buttonStyle(PressScaleButtonStyle())
+            }
+
+            if let publicIPv4Error {
+                Label(publicIPv4Error, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.warning)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Divider().overlay(AppTheme.stroke)
+
+            Text(publicIPv4Explanation(provider))
+                .font(.caption)
+                .foregroundStyle(AppTheme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Label("Wi-Fi, cellular, or VPN changes can change this address.", systemImage: "arrow.triangle.2.circlepath")
+                .font(.caption)
+                .foregroundStyle(AppTheme.textTertiary)
+        }
+        .padding(17)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .providerPanel(accent: provider.accentColor)
+    }
+
     @ViewBuilder
     private func fields(_ provider: RegistrarProvider) -> some View {
         switch provider {
@@ -220,6 +347,13 @@ struct RegistrarConnectionView: View {
             field("API key", text: $apiKey, field: .apiKey, secure: true)
             field("Whitelisted public IPv4 address", text: $clientIP, field: .clientIP)
                 .keyboardType(.numbersAndPunctuation)
+            if !clientIP.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+               PublicIPv4Lookup.normalizedPublicIPv4(clientIP) == nil {
+                Label("Enter a public IPv4 address that is also allowed in Namecheap.", systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.warning)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         case .porkbun, .spaceship, .goDaddy:
             field("API key", text: $apiKey, field: .apiKey, secure: true)
             field("API secret", text: $apiSecret, field: .apiSecret, secure: true)
@@ -274,8 +408,11 @@ struct RegistrarConnectionView: View {
 
     private func metadata(_ provider: RegistrarProvider) -> [String: String] {
         switch provider {
-        case .nameDotCom: ["username": username]
-        case .namecheap: ["username": username, "clientIP": clientIP]
+        case .nameDotCom: ["username": username.trimmingCharacters(in: .whitespacesAndNewlines)]
+        case .namecheap: [
+            "username": username.trimmingCharacters(in: .whitespacesAndNewlines),
+            "clientIP": PublicIPv4Lookup.normalizedPublicIPv4(clientIP) ?? clientIP.trimmingCharacters(in: .whitespacesAndNewlines)
+        ]
         case .gandi: ["organization": organization]
         default: [:]
         }
@@ -288,8 +425,10 @@ struct RegistrarConnectionView: View {
     private func canConnect(_ provider: RegistrarProvider) -> Bool {
         guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
         switch provider {
-        case .nameDotCom: return !username.isEmpty
-        case .namecheap: return !username.isEmpty && !clientIP.isEmpty
+        case .nameDotCom: return !username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case .namecheap:
+            return !username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && PublicIPv4Lookup.normalizedPublicIPv4(clientIP) != nil
         case .porkbun, .spaceship, .goDaddy: return !apiSecret.isEmpty
         default: return true
         }
@@ -298,10 +437,80 @@ struct RegistrarConnectionView: View {
     private func connectionNote(_ provider: RegistrarProvider) -> String {
         switch provider {
         case .nameDotCom: "Use a CORE API username and production token. If two-step verification is enabled, also turn Name.com API Access ON under Security Settings; that toggle authorizes API calls without a 2FA code."
-        case .namecheap: "Enable API access and whitelist the same public IPv4 address you enter here. Namecheap signs every request with that address."
+        case .namecheap: "Enable API access and whitelist the same public IPv4 address you enter here. Namecheap requires that address on every API call."
         case .goDaddy: "GoDaddy may require portfolio size or a paid Discount Domain Club plan before production Domains API access is enabled."
         case .gandi: "Create a scoped personal access token for the organization and domains you want available in the app."
         default: "Create a key with read access for domain lists and add write permissions only for operations you want to run."
+        }
+    }
+
+    private func publicIPv4Explanation(_ provider: RegistrarProvider) -> String {
+        switch provider {
+        case .namecheap:
+            "Add this exact address to Namecheap’s API whitelist. Verceltics prefills it below because Namecheap also requires ClientIp on each request."
+        case .nameDotCom:
+            "Only copy this into Name.com if you enable its optional IP allowlist. It is not saved or sent as a Name.com API credential."
+        default:
+            ""
+        }
+    }
+
+    private func detectPublicIPv4(for provider: RegistrarProvider, force: Bool = false) async {
+        guard [.namecheap, .nameDotCom].contains(provider) else { return }
+        if !force, detectedPublicIPv4 != nil { return }
+
+        let requestID = UUID()
+        publicIPv4RequestID = requestID
+        isDetectingPublicIPv4 = true
+        publicIPv4Error = nil
+        detectedPublicIPv4 = nil
+        defer {
+            if publicIPv4RequestID == requestID {
+                isDetectingPublicIPv4 = false
+            }
+        }
+
+        do {
+            let address = try await PublicIPv4Lookup.resolve()
+            guard !Task.isCancelled,
+                  publicIPv4RequestID == requestID,
+                  selectedProvider == provider else { return }
+            detectedPublicIPv4 = address
+            if provider == .namecheap {
+                prefillNamecheapAddress(address)
+            }
+        } catch is CancellationError {
+            return
+        } catch {
+            guard !Task.isCancelled,
+                  publicIPv4RequestID == requestID,
+                  selectedProvider == provider else { return }
+            publicIPv4Error = "Couldn’t detect this network. You can still enter the address manually."
+        }
+    }
+
+    private func prefillNamecheapAddress(_ address: String) {
+        let currentAddress = clientIP.trimmingCharacters(in: .whitespacesAndNewlines)
+        if currentAddress.isEmpty || currentAddress == lastPrefilledNamecheapIPv4 {
+            clientIP = address
+            lastPrefilledNamecheapIPv4 = address
+        }
+    }
+
+    private func resetPublicIPv4LookupState() {
+        publicIPv4RequestID = nil
+        detectedPublicIPv4 = nil
+        publicIPv4Error = nil
+        copiedPublicIPv4 = false
+        isDetectingPublicIPv4 = false
+    }
+
+    private func copyPublicIPv4(_ address: String) {
+        UIPasteboard.general.string = address
+        copiedPublicIPv4 = true
+        Task {
+            try? await Task.sleep(for: .seconds(1.4))
+            copiedPublicIPv4 = false
         }
     }
 }

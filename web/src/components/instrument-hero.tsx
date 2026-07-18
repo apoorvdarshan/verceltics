@@ -165,7 +165,7 @@ export function InstrumentHero() {
                   </button>
                 ))}
               </div>
-              <div className="safety-note"><b>Direct</b><span>Official provider APIs only</span></div>
+              <div className="safety-note"><b>Private</b><span>Credentials stay provider-bound</span></div>
             </div>
           </div>
 

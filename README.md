@@ -97,13 +97,14 @@ Verceltics 2.0 includes 27 separate integrations: 10 hosting platforms, 8 regist
 
 ## Privacy architecture
 
-Provider credentials and Google OAuth tokens are stored with device-only, when-unlocked iOS Keychain protection. Requests go directly from the app to provider HTTPS APIs or an explicitly selected HTTPS host for supported self-hosted services.
+Provider credentials and Google OAuth tokens are stored with device-only, when-unlocked iOS Keychain protection. Provider-data requests go directly from the app to provider HTTPS APIs or an explicitly selected HTTPS host for supported self-hosted services.
 
 ```text
 iPhone / iPad
   ├─ device-only iOS Keychain
   ├─ protected, backup-excluded local snapshots
-  └─ HTTPS ───────────────────────────────> selected provider API
+  ├─ HTTPS ───────────────────────────────> selected provider API
+  └─ credential-free public IPv4 lookup ─> api.ipify.org (registrar setup only)
 
 No Verceltics credential proxy or provider-data server sits in between.
 ```
@@ -111,6 +112,7 @@ No Verceltics credential proxy or provider-data server sits in between.
 - No app tracking or advertising SDK
 - No provider-data telemetry
 - No third-party favicon service; favicon checks stay on the project site's own HTTPS origin
+- Registrar setup can request the device network's public IPv4 from ipify without credentials or provider data; Namecheap uses the accepted address as required connection metadata
 - Google API data is used only for the connected user-facing feature and handled under Google's Limited Use requirements
 - The website has no client-side analytics and is delivered through Cloudflare Workers Static Assets
 

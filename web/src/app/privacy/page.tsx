@@ -23,6 +23,7 @@ const sections = [
   { id: "overview", label: "Overview" },
   { id: "app-data", label: "Data not collected" },
   { id: "credentials", label: "Credentials and OAuth" },
+  { id: "network-address", label: "Network address helper" },
   { id: "google-data", label: "Google API data" },
   { id: "provider-data", label: "Provider data and cache" },
   { id: "images", label: "Images and update checks" },
@@ -41,7 +42,7 @@ export default function Privacy() {
       sections={sections}
       summary="Verceltics is designed so provider credentials and account data do not pass through a Verceltics server. This policy explains the limited local and third-party processing needed to operate the app and website."
       title="Privacy Policy"
-      updated="July 17, 2026"
+      updated="July 18, 2026"
     >
       <section id="overview">
         <h2>Overview</h2>
@@ -65,6 +66,12 @@ export default function Privacy() {
         <p>Hosting, registrar, and site-service credentials are stored with device-only, when-unlocked iOS Keychain protection. Credentials are attached only to HTTPS requests for the selected provider&apos;s allowed API hosts. Cross-host redirects are blocked.</p>
         <p>Google Search Console, Google Analytics, and Firebase Hosting connections use Google&apos;s official OAuth authorization and token endpoints. Authorization opens in the system authentication session. Access and refresh tokens returned by Google are stored in the iOS Keychain and are used only to provide the Google feature you connected.</p>
         <p>Provider credentials inherit the permissions granted by that provider. Supported writes and purchases are initiated by you; detected write, purchase, and destructive requests require confirmation in the app.</p>
+      </section>
+
+      <section id="network-address">
+        <h2>Public network address helper</h2>
+        <p>When you open Namecheap connection setup, Verceltics may make a credential-free HTTPS request to <a href="https://www.ipify.org/" rel="noreferrer" target="_blank">ipify</a> to display the current network&apos;s public IPv4 address and prefill Namecheap&apos;s required ClientIp field. In Name.com setup, this lookup runs only if you choose to detect an address for Name.com&apos;s optional IP allowlist.</p>
+        <p>The lookup does not include provider credentials, provider account data, or device identifiers added by Verceltics. Because ipify must reply to your network, it necessarily receives the source public IP as part of the request; any server-side processing or retention is governed by ipify&apos;s own policy. The detected address remains editable. It is not saved for Name.com; if you connect Namecheap, the address you accept is stored with that connection because Namecheap requires the same whitelisted ClientIp on its API requests.</p>
       </section>
 
       <section id="google-data">

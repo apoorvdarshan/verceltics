@@ -37,6 +37,7 @@ WHAT YOU GET
 • Multiple hosting, registrar, and site-service accounts with quick switching
 • Vercel, Cloudflare, Netlify, Railway, Render, DigitalOcean, Heroku, Fly.io, Firebase Hosting, and AWS Amplify
 • Name.com, Namecheap, Porkbun, Spaceship, Dynadot, NameSilo, Gandi, and GoDaddy
+• Guided public IPv4 detection for Namecheap ClientIp setup and optional Name.com IP allowlisting
 • Separate provider dashboards for Google Search Console, Google Analytics, PageSpeed & CrUX, Bing Webmaster, Microsoft Clarity, Plausible, Umami, UptimeRobot, and Better Stack
 • Vercel Web Analytics with interactive Swift Charts; 24-hour, 7-day, 30-day, 3-month, and 12-month ranges; referrers; UTMs; geography; devices; browsers; operating systems; pages; routes; hostnames; events; feature flags; and query parameters; availability depends on the connected Vercel plan and Web Analytics configuration
 • Guarded provider API explorers and operation catalogs for advanced operations
@@ -51,6 +52,7 @@ PRIVATE BY DESIGN
 • Provider credentials and Google OAuth tokens stay in the device-only, when-unlocked iOS Keychain
 • No advertising, cross-app tracking, product analytics, or provider-data telemetry; provider data is not sent to Verceltics infrastructure
 • Requests go directly to provider HTTPS APIs or an explicitly selected HTTPS host for supported self-hosted services; Google Search Console, Google Analytics, and Firebase Hosting use Google OAuth
+• The registrar IP helper calls ipify without provider credentials or provider account data
 • Apple processes purchases; RevenueCat receives purchase and entitlement context but no provider credentials or provider account data
 • Fully open source on GitHub
 
