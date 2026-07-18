@@ -49,7 +49,8 @@ export function SiteFooter() {
             <div><strong>Verceltics</strong><p>Check production without opening the laptop.</p></div>
           </div>
           <nav aria-label="Product links" className="footer-local-links">
-            <Link href="/#patchbay">27 connections</Link>
+            <Link href="/integrations">27 integrations</Link>
+            <Link href="/vercel-analytics-ios">Vercel Analytics for iOS</Link>
             <Link href="/#workflows">Workflows</Link>
             <a href={APP_STORE} rel="noreferrer" target="_blank">App Store <ArrowUpRight /></a>
           </nav>

@@ -14,7 +14,7 @@ const modes = [
     label: "Hosting",
     count: "10",
     accent: "blue",
-    screenshot: "/screens/ios/hosting.png",
+    screenshot: "/screens/ios/hosting.webp",
     alt: "Hosting platforms in Verceltics on iPhone",
     summary: "Deploys, releases, logs and DNS",
   },
@@ -24,7 +24,7 @@ const modes = [
     label: "Registrars",
     count: "08",
     accent: "orange",
-    screenshot: "/screens/ios/registrars.png",
+    screenshot: "/screens/ios/registrars.webp",
     alt: "Domain registrars in Verceltics on iPhone",
     summary: "Domains, renewals and transfers",
   },
@@ -34,7 +34,7 @@ const modes = [
     label: "Site services",
     count: "09",
     accent: "violet",
-    screenshot: "/screens/ios/sites.png",
+    screenshot: "/screens/ios/sites.webp",
     alt: "Site intelligence services in Verceltics on iPhone",
     summary: "Search, traffic, speed and uptime",
   },
@@ -67,10 +67,10 @@ export function InstrumentHero() {
             <span>VRC-27</span>
             <span>Mobile operations instrument</span>
           </div>
-          <p className="hero-eyebrow"><i /> Native on iPhone and iPad</p>
-          <h1><span translate="no">Verceltics:</span>{" "}Check the whole stack. Close the laptop.</h1>
+          <p className="hero-eyebrow"><i /> Check the whole stack. Close the laptop.</p>
+          <h1><span translate="no">Verceltics:</span>{" "}Hosting, domains, DNS, and analytics on iPhone and iPad.</h1>
           <p className="hero-deck">
-            Verceltics is a native iPhone and iPad app for monitoring and managing hosting, domains, deployments, DNS, analytics, search performance, speed, and uptime from the services you connect.
+            A private, open-source native app with 27 direct integrations across hosting platforms, domain registrars, analytics, search performance, speed, and uptime. Providers stay separate, and credentials stay on your device.
           </p>
           <aside aria-label="How Verceltics uses Google account data" className="google-data-plate">
             <header>
@@ -84,7 +84,7 @@ export function InstrumentHero() {
             <a className="primary-control" href={APP_STORE} rel="noreferrer" target="_blank">
               Get Verceltics <ArrowUpRight />
             </a>
-            <a className="text-control" href="#patchbay">Inspect all 27 connections <span aria-hidden="true">↓</span></a>
+            <a className="text-control" href="/integrations">Explore all 27 integrations <span aria-hidden="true">→</span></a>
           </div>
           <dl className="hero-specs">
             <div><dt>Connections</dt><dd>27</dd></div>

@@ -17,6 +17,12 @@ export const metadata: Metadata = {
     url: `${SITE_URL}/terms`,
     images: [{ url: "/og-verceltics.png", width: 1200, height: 630, alt: "Verceltics mobile operations instrument" }],
   },
+  twitter: {
+    card: "summary_large_image",
+    title: "Terms of Service — Verceltics",
+    description: "Terms for using the Verceltics iPhone and iPad app.",
+    images: ["/og-verceltics.png"],
+  },
 };
 
 const sections = [

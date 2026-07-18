@@ -17,6 +17,12 @@ export const metadata: Metadata = {
     url: `${SITE_URL}/privacy`,
     images: [{ url: "/og-verceltics.png", width: 1200, height: 630, alt: "Verceltics mobile operations instrument" }],
   },
+  twitter: {
+    card: "summary_large_image",
+    title: "Privacy Policy — Verceltics",
+    description: "Device-only Keychain storage, direct provider requests, no app tracking, and no Verceltics credential proxy.",
+    images: ["/og-verceltics.png"],
+  },
 };
 
 const sections = [

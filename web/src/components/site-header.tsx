@@ -19,7 +19,7 @@ export function SiteHeader() {
           </Link>
 
           <nav aria-label="Primary navigation" className="header-nav">
-            <Link href="/#patchbay">Connections</Link>
+            <Link href="/integrations">Integrations</Link>
             <Link href="/#workflows">Workflows</Link>
             <Link href="/privacy">Privacy</Link>
             <Link href="/#pricing">Pricing</Link>

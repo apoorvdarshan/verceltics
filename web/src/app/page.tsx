@@ -19,7 +19,11 @@ const PUBLIC_PROFILES = [
   "https://x.com/apoorvdarshan",
 ] as const;
 
-export const metadata: Metadata = { alternates: { canonical: SITE_URL } };
+export const metadata: Metadata = {
+  title: { absolute: "Verceltics — Hosting, Domains & Web Analytics for iPhone" },
+  description: "Open-source iPhone and iPad app for Vercel Analytics, hosting, domains, DNS, deployments, Search Console, site speed and uptime across 27 integrations.",
+  alternates: { canonical: SITE_URL },
+};
 
 const checks = [
   { number: "01", name: "Deploy", detail: "Status, environments, releases and logs" },
@@ -57,29 +61,41 @@ const faqs = [
     question: "Can I build it myself?",
     answer: "Yes. The complete SwiftUI app and website are open source under the MIT license. A source build uses your own provider credentials and OAuth configuration.",
   },
+  {
+    question: "Which hosting platforms does Verceltics support?",
+    answer: "Verceltics supports Vercel, Cloudflare, Netlify, Railway, Render, DigitalOcean, Heroku, Fly.io, Firebase Hosting, and AWS Amplify. Available data and operations depend on each provider API and account permissions.",
+  },
+  {
+    question: "Which domain registrars does Verceltics support?",
+    answer: "Verceltics supports Name.com, Namecheap, Porkbun, Spaceship, Dynadot, NameSilo, Gandi, and GoDaddy for provider-specific domain and DNS features where their APIs allow them.",
+  },
+  {
+    question: "Is Verceltics affiliated with Vercel or another supported provider?",
+    answer: "No. Verceltics is an independent, open-source app and is not affiliated with, endorsed by, or sponsored by any supported provider.",
+  },
 ] as const;
 
 const ipadScreens = [
   {
-    src: "/screens/ipad/analytics.png",
+    src: "/screens/ipad/analytics.webp",
     label: "Traffic analytics",
     detail: "Requests, visitors, cache, threats and HTTPS",
     alt: "Traffic analytics workspace in Verceltics on iPad",
   },
   {
-    src: "/screens/ipad/hosting.png",
+    src: "/screens/ipad/hosting.webp",
     label: "Hosting",
     detail: "10 hosting platforms in an adaptive provider sheet",
     alt: "Hosting platform connections in Verceltics on iPad",
   },
   {
-    src: "/screens/ipad/registrars.png",
+    src: "/screens/ipad/registrars.webp",
     label: "Registrars",
     detail: "Domains, DNS, renewals, privacy and transfers",
     alt: "Domain registrar connections in Verceltics on iPad",
   },
   {
-    src: "/screens/ipad/sites.png",
+    src: "/screens/ipad/sites.webp",
     label: "Site services",
     detail: "Search, analytics, speed and uptime connections",
     alt: "Site intelligence service connections in Verceltics on iPad",
@@ -89,23 +105,34 @@ const ipadScreens = [
 const applicationJsonLd = {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
-  name: "Verceltics",
-  operatingSystem: "iOS 18 or later",
+  name: "Vercel Analytics — Verceltics",
+  alternateName: "Verceltics",
+  operatingSystem: "iOS 18.0 or later; iPadOS 18.0 or later",
   applicationCategory: "DeveloperApplication",
+  applicationSubCategory: "Infrastructure monitoring and management",
   softwareVersion: "2.0",
   description: "Verceltics is a private native iPhone and iPad app for hosting, domains, analytics, search performance, speed, and uptime.",
   url: SITE_URL,
   downloadUrl: APP_STORE,
   image: `${SITE_URL}/og-verceltics.png`,
+  publisher: { "@id": `${SITE_URL}/#organization` },
+  featureList: [
+    "Hosting platform dashboards",
+    "Domain and DNS management",
+    "Deployment and release monitoring",
+    "Website analytics and search performance",
+    "Page speed and uptime monitoring",
+    "Device-only credential storage",
+  ],
   screenshot: [
-    `${SITE_URL}/screens/ios/analytics.png`,
-    `${SITE_URL}/screens/ios/hosting.png`,
-    `${SITE_URL}/screens/ios/registrars.png`,
-    `${SITE_URL}/screens/ios/sites.png`,
-    `${SITE_URL}/screens/ipad/analytics.png`,
-    `${SITE_URL}/screens/ipad/hosting.png`,
-    `${SITE_URL}/screens/ipad/registrars.png`,
-    `${SITE_URL}/screens/ipad/sites.png`,
+    `${SITE_URL}/screens/ios/analytics.webp`,
+    `${SITE_URL}/screens/ios/hosting.webp`,
+    `${SITE_URL}/screens/ios/registrars.webp`,
+    `${SITE_URL}/screens/ios/sites.webp`,
+    `${SITE_URL}/screens/ipad/analytics.webp`,
+    `${SITE_URL}/screens/ipad/hosting.webp`,
+    `${SITE_URL}/screens/ipad/registrars.webp`,
+    `${SITE_URL}/screens/ipad/sites.webp`,
   ],
   sameAs: [APP_STORE, ...PUBLIC_PROFILES],
   offers: plans.map((plan) => ({ "@type": "Offer", price: plan.price.replace("$", ""), priceCurrency: "USD", description: `${plan.name} access` })),
@@ -128,21 +155,24 @@ export default function Home() {
         <InstrumentHero />
 
         <section className="patchbay-section" id="patchbay">
+          <span aria-hidden="true" className="anchor-alias" id="features" />
           <header className="section-intro patchbay-intro">
             <div>
               <p className="instrument-label"><span>01</span> Connection patchbay</p>
-              <h2>Plug in what you already run.</h2>
+              <h2>27 integrations for hosting, domains, and site intelligence.</h2>
             </div>
-            <p>Every account keeps its own context, controls and official API. Verceltics supplies the native interface—not a data soup.</p>
+            <p>Connect 10 hosting platforms, 8 domain registrars, and 9 site services. Each account keeps its own credentials, API scope, dashboard, and supported operations.</p>
           </header>
           <ProviderPatchbay />
+          <a className="directory-control" href="/integrations">Read capabilities for all 27 integrations <span aria-hidden="true">→</span></a>
         </section>
 
         <section className="inspection-section" id="workflows">
+          <span aria-hidden="true" className="anchor-alias" id="how-it-works" />
           <div className="inspection-copy">
             <p className="instrument-label instrument-label--light"><span>02</span> Field checklist</p>
-            <h2>One sweep before you move.</h2>
-            <p>Verceltics is tuned for fast, specific checks: the production questions that arrive while you are away from a desk.</p>
+            <h2>Check deployments, DNS, traffic, search, speed, and uptime.</h2>
+            <p>Inspect deployment status, DNS records, domain renewals, traffic, indexing, performance, and uptime without opening a desktop dashboard.</p>
             <p className="confirmation-note"><i /> Writes, purchases and destructive requests ask for confirmation.</p>
           </div>
           <ol className="check-tape">
@@ -161,7 +191,7 @@ export default function Home() {
           <header className="section-intro ipad-intro">
             <div>
               <p className="instrument-label"><span>03</span> Adaptive instrument</p>
-              <h2>iPad is re-composed. Not stretched.</h2>
+              <h2>An iPad operations dashboard—not a stretched iPhone view.</h2>
             </div>
             <p>Adaptive navigation, two-column provider grids and full-width charts turn the portrait canvas into a real operations workspace.</p>
           </header>
@@ -197,18 +227,18 @@ export default function Home() {
         <section className="signals-section">
           <header className="signals-copy">
             <p className="instrument-label"><span>04</span> Connected signals</p>
-            <h2>Connect, then inspect.</h2>
-            <p>The Sites workspace keeps every service separate. Connect the signal you need, then open its native dashboard without mixing provider data.</p>
+            <h2>Analytics, search, speed, and uptime stay provider-specific.</h2>
+            <p>Search Console, GA4, PageSpeed, Bing, Clarity, Plausible, Umami, UptimeRobot, and Better Stack open as independent dashboards; Verceltics does not merge their data.</p>
           </header>
           <div className="signal-rack">
             <figure className="signal-module signal-module--sites">
               <figcaption><span>Connection bank</span><strong>Site services</strong><p>Search · analytics · speed · uptime</p></figcaption>
-              <div className="signal-screen"><Image alt="Site service connections in Verceltics" fill sizes="(max-width: 640px) 86vw, (max-width: 1080px) 44vw, 31vw" src="/screens/ios/sites.png" /></div>
+              <div className="signal-screen"><Image alt="Site service connections in Verceltics" fill sizes="(max-width: 640px) 86vw, (max-width: 1080px) 44vw, 31vw" src="/screens/ios/sites.webp" /></div>
             </figure>
             <div aria-hidden="true" className="signal-separator"><span>→</span><i /><i /></div>
             <figure className="signal-module signal-module--analytics">
               <figcaption><span>Live surface</span><strong>Traffic analytics</strong><p>Requests · cache · threats · HTTPS</p></figcaption>
-              <div className="signal-screen"><Image alt="Traffic analytics in Verceltics" fill sizes="(max-width: 640px) 86vw, (max-width: 1080px) 44vw, 31vw" src="/screens/ios/analytics.png" /></div>
+              <div className="signal-screen"><Image alt="Traffic analytics in Verceltics" fill sizes="(max-width: 640px) 86vw, (max-width: 1080px) 44vw, 31vw" src="/screens/ios/analytics.webp" /></div>
             </figure>
           </div>
         </section>
@@ -216,7 +246,7 @@ export default function Home() {
         <section className="circuit-section" id="privacy">
           <header className="circuit-heading">
             <p className="instrument-label instrument-label--light"><span>05</span> Sealed circuit</p>
-            <h2>Your credentials never route through us.</h2>
+            <h2>Credentials stay on your device—not on a Verceltics server.</h2>
             <p>Tokens stay in the device-only iOS Keychain. Provider data moves directly between your device and the provider API or an explicitly selected HTTPS host for a supported self-hosted service.</p>
           </header>
           <div aria-label="Your device connects directly to the selected provider endpoint" className="circuit-path" role="group">
@@ -245,7 +275,7 @@ export default function Home() {
           <header className="section-intro pricing-intro">
             <div>
               <p className="instrument-label"><span>06</span> Ownership plate</p>
-              <h2>One unlock. Every connection.</h2>
+              <h2>One Pro unlock across every integration.</h2>
             </div>
             <p>Connections, lists, search, refresh, and account switching stay available. Every paid option unlocks the same Pro details and provider tools across all 27 integrations. US reference prices are shown; Apple displays the current local price and trial eligibility.</p>
           </header>
@@ -265,7 +295,7 @@ export default function Home() {
         <section className="faq-section">
           <header>
             <p className="instrument-label"><span>07</span> Operator notes</p>
-            <h2>Before connecting.</h2>
+            <h2>Questions about Verceltics.</h2>
           </header>
           <div className="faq-manual">
             {faqs.map((faq, index) => (

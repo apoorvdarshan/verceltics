@@ -27,7 +27,7 @@ export function MobileNavigation({ githubUrl }: MobileNavigationProps) {
     <details className="mobile-menu" onKeyDown={handleKeyDown} ref={detailsRef}>
       <summary>Menu</summary>
       <nav aria-label="Mobile navigation">
-        <Link href="/#patchbay" onClick={closeMenu}>Connections</Link>
+        <Link href="/integrations" onClick={closeMenu}>Integrations</Link>
         <Link href="/#workflows" onClick={closeMenu}>Workflows</Link>
         <Link href="/privacy" onClick={closeMenu}>Privacy</Link>
         <Link href="/#pricing" onClick={closeMenu}>Pricing</Link>
