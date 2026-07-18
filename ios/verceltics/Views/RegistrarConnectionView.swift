@@ -17,8 +17,8 @@ struct RegistrarConnectionView: View {
     @State private var isDetectingPublicIPv4 = false
     @State private var publicIPv4Error: String?
     @State private var copiedPublicIPv4 = false
+    @State private var copiedPublicIPv4RequestID: UUID?
     @State private var publicIPv4RequestID: UUID?
-    @State private var lastPrefilledNamecheapIPv4: String?
     @FocusState private var focusedField: Field?
 
     private enum Field: Hashable { case username, apiKey, apiSecret, clientIP, organization }
@@ -201,7 +201,7 @@ struct RegistrarConnectionView: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .task(id: provider) {
-                guard provider == .namecheap else { return }
+                guard [.namecheap, .nameDotCom].contains(provider) else { return }
                 await detectPublicIPv4(for: provider, force: true)
             }
             .onDisappear {
@@ -256,41 +256,63 @@ struct RegistrarConnectionView: View {
             }
 
             if let address = detectedPublicIPv4 {
-                HStack(spacing: 10) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("This network")
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.textTertiary)
-                        Text(address)
-                            .font(.title3.monospaced().weight(.semibold))
-                            .foregroundStyle(AppTheme.textPrimary)
-                            .textSelection(.enabled)
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 10) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("This network")
+                                .font(.caption)
+                                .foregroundStyle(AppTheme.textTertiary)
+                            Text(address)
+                                .font(.title3.monospaced().weight(.semibold))
+                                .foregroundStyle(AppTheme.textPrimary)
+                                .textSelection(.enabled)
+                        }
+                        Spacer()
+                        Button {
+                            Task { await detectPublicIPv4(for: provider, force: true) }
+                        } label: {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.system(size: 14, weight: .semibold))
+                                .frame(width: 44, height: 44)
+                                .background(AppTheme.surfaceRaised)
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(PressScaleButtonStyle())
+                        .disabled(isDetectingPublicIPv4)
+                        .accessibilityLabel("Detect public IPv4 again")
                     }
-                    Spacer()
-                    Button {
-                        copyPublicIPv4(address)
-                    } label: {
-                        Image(systemName: copiedPublicIPv4 ? "checkmark" : "doc.on.doc")
-                            .font(.system(size: 14, weight: .semibold))
-                            .frame(width: 38, height: 38)
-                            .background(AppTheme.surfaceRaised)
-                            .clipShape(Circle())
-                    }
-                    .buttonStyle(PressScaleButtonStyle())
-                    .accessibilityLabel(copiedPublicIPv4 ? "Public IPv4 copied" : "Copy public IPv4")
 
-                    Button {
-                        Task { await detectPublicIPv4(for: provider, force: true) }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 14, weight: .semibold))
-                            .frame(width: 38, height: 38)
-                            .background(AppTheme.surfaceRaised)
-                            .clipShape(Circle())
+                    HStack(spacing: 10) {
+                        Button {
+                            useDetectedPublicIPv4(address, for: provider)
+                        } label: {
+                            Label(
+                                detectedIPv4ActionTitle(provider, address: address),
+                                systemImage: detectedIPv4ActionIcon(provider, address: address)
+                            )
+                            .font(.footnote.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                            .frame(minHeight: 44)
+                            .foregroundStyle(provider.accentColor)
+                            .background(provider.accentColor.opacity(0.12))
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        }
+                        .buttonStyle(PressScaleButtonStyle())
+
+                        if provider == .namecheap {
+                            Button {
+                                copyPublicIPv4(address)
+                            } label: {
+                                Image(systemName: copiedPublicIPv4 ? "checkmark" : "doc.on.doc")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .frame(width: 44, height: 44)
+                                    .background(AppTheme.surfaceRaised)
+                                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            }
+                            .buttonStyle(PressScaleButtonStyle())
+                            .accessibilityLabel(copiedPublicIPv4 ? "Public IPv4 copied" : "Copy public IPv4")
+                        }
                     }
-                    .buttonStyle(PressScaleButtonStyle())
-                    .disabled(isDetectingPublicIPv4)
-                    .accessibilityLabel("Detect public IPv4 again")
                 }
             } else if isDetectingPublicIPv4 {
                 Text("Detecting the public IPv4 used by this network…")
@@ -306,7 +328,7 @@ struct RegistrarConnectionView: View {
                     )
                     .font(.footnote.weight(.semibold))
                     .frame(maxWidth: .infinity)
-                    .frame(minHeight: 42)
+                    .frame(minHeight: 44)
                     .foregroundStyle(provider.accentColor)
                     .background(provider.accentColor.opacity(0.1))
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -447,7 +469,7 @@ struct RegistrarConnectionView: View {
     private func publicIPv4Explanation(_ provider: RegistrarProvider) -> String {
         switch provider {
         case .namecheap:
-            "Add this exact address to Namecheap’s API whitelist. Verceltics prefills it below because Namecheap also requires ClientIp on each request."
+            "Add this exact address to Namecheap’s API whitelist, then choose Use this IP to place it in the required ClientIp field."
         case .nameDotCom:
             "Only copy this into Name.com if you enable its optional IP allowlist. It is not saved or sent as a Name.com API credential."
         default:
@@ -464,6 +486,7 @@ struct RegistrarConnectionView: View {
         isDetectingPublicIPv4 = true
         publicIPv4Error = nil
         detectedPublicIPv4 = nil
+        copiedPublicIPv4 = false
         defer {
             if publicIPv4RequestID == requestID {
                 isDetectingPublicIPv4 = false
@@ -476,25 +499,42 @@ struct RegistrarConnectionView: View {
                   publicIPv4RequestID == requestID,
                   selectedProvider == provider else { return }
             detectedPublicIPv4 = address
-            if provider == .namecheap {
-                prefillNamecheapAddress(address)
-            }
         } catch is CancellationError {
             return
         } catch {
             guard !Task.isCancelled,
                   publicIPv4RequestID == requestID,
                   selectedProvider == provider else { return }
-            publicIPv4Error = "Couldn’t detect this network. You can still enter the address manually."
+            publicIPv4Error = provider == .namecheap
+                ? "Couldn’t detect this network. You can still enter the address manually."
+                : "Couldn’t detect this network. Retry here or manage Name.com’s optional allowlist in its API settings."
         }
     }
 
-    private func prefillNamecheapAddress(_ address: String) {
-        let currentAddress = clientIP.trimmingCharacters(in: .whitespacesAndNewlines)
-        if currentAddress.isEmpty || currentAddress == lastPrefilledNamecheapIPv4 {
+    private func useDetectedPublicIPv4(_ address: String, for provider: RegistrarProvider) {
+        if provider == .namecheap {
             clientIP = address
-            lastPrefilledNamecheapIPv4 = address
+            focusedField = nil
+        } else if provider == .nameDotCom {
+            copyPublicIPv4(address)
         }
+    }
+
+    private func detectedIPv4ActionTitle(_ provider: RegistrarProvider, address: String) -> String {
+        if provider == .namecheap {
+            return PublicIPv4Lookup.normalizedPublicIPv4(clientIP) == address
+                ? "Using this IP"
+                : "Use this IP"
+        }
+        return copiedPublicIPv4 ? "Copied for Name.com" : "Copy for Name.com"
+    }
+
+    private func detectedIPv4ActionIcon(_ provider: RegistrarProvider, address: String) -> String {
+        if provider == .namecheap,
+           PublicIPv4Lookup.normalizedPublicIPv4(clientIP) == address {
+            return "checkmark.circle.fill"
+        }
+        return provider == .namecheap ? "arrow.down.to.line" : "doc.on.doc"
     }
 
     private func resetPublicIPv4LookupState() {
@@ -502,15 +542,20 @@ struct RegistrarConnectionView: View {
         detectedPublicIPv4 = nil
         publicIPv4Error = nil
         copiedPublicIPv4 = false
+        copiedPublicIPv4RequestID = nil
         isDetectingPublicIPv4 = false
     }
 
     private func copyPublicIPv4(_ address: String) {
+        let requestID = UUID()
+        copiedPublicIPv4RequestID = requestID
         UIPasteboard.general.string = address
         copiedPublicIPv4 = true
         Task {
             try? await Task.sleep(for: .seconds(1.4))
+            guard copiedPublicIPv4RequestID == requestID else { return }
             copiedPublicIPv4 = false
+            copiedPublicIPv4RequestID = nil
         }
     }
 }
