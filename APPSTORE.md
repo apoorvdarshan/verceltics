@@ -17,11 +17,6 @@ Deployments, Analytics, Uptime
 Check hosting, domains, deployments, analytics, search, speed, and uptime from one private, open-source iPhone and iPad workspace.
 ```
 
-## Keywords (100 chars max)
-```
-dns,registrar,cloudflare,vercel,monitoring,speed,devops,website,server,traffic,search,performance
-```
-
 ## Category
 ```
 Primary: Developer Tools
@@ -96,17 +91,9 @@ Verceltics 2.0 expands beyond Vercel.
 • Browse connections and workspace lists for free, then dismiss or reopen the whole-stack Pro sheet when you choose a gated detail or provider tool.
 ```
 
-## App Privacy Answers
+## Keywords (100 chars max)
 ```
-Data type: Purchases → Purchase History
-Collected: Yes
-Purposes: App Functionality and Analytics
-Linked to the user's identity: No
-Used for tracking: No
-
-Reason: RevenueCat uses an anonymous app-user ID to validate receipts, restore purchases, manage the Verceltics Pro entitlement, and provide purchase reporting. Verceltics has no account login and does not attach a name, email address, provider credential, or provider account data to that RevenueCat ID.
-
-Do not select "Data Not Collected" while RevenueCat is enabled.
+dns,registrar,cloudflare,vercel,monitoring,speed,devops,website,server,traffic,search,performance
 ```
 
 ## Privacy URL
