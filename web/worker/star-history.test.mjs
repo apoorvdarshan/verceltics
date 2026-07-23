@@ -32,11 +32,33 @@ test("renderStarHistorySvg creates matching light and dark charts", () => {
 
 test("fetchStarHistory paginates and sorts timestamps", async () => {
   const firstPage = Array.from({ length: 100 }, (_, index) => ({
-    starred_at: `2026-06-${String((index % 28) + 1).padStart(2, "0")}T00:00:00Z`,
+    starredAt: `2026-06-${String((index % 28) + 1).padStart(2, "0")}T00:00:00Z`,
   }));
   const responses = [
-    new Response(JSON.stringify(firstPage)),
-    new Response(JSON.stringify([{ starred_at: "2026-05-01T00:00:00Z" }])),
+    new Response(
+      JSON.stringify({
+        data: {
+          repository: {
+            stargazers: {
+              edges: firstPage,
+              pageInfo: { hasNextPage: true, endCursor: "next-page" },
+            },
+          },
+        },
+      }),
+    ),
+    new Response(
+      JSON.stringify({
+        data: {
+          repository: {
+            stargazers: {
+              edges: [{ starredAt: "2026-05-01T00:00:00Z" }],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
+        },
+      }),
+    ),
   ];
   const requests = [];
   const fakeFetch = async (url, options) => {
@@ -47,8 +69,12 @@ test("fetchStarHistory paginates and sorts timestamps", async () => {
   const stars = await fetchStarHistory("test-token", fakeFetch);
 
   assert.equal(requests.length, 2);
-  assert.match(requests[1].url, /page=2/);
+  assert.equal(requests[1].url, "https://api.github.com/graphql");
   assert.equal(requests[0].options.headers.Authorization, "Bearer test-token");
+  assert.equal(
+    JSON.parse(requests[1].options.body).variables.cursor,
+    "next-page",
+  );
   assert.equal(stars[0], "2026-05-01T00:00:00Z");
   assert.equal(stars.length, 101);
 });

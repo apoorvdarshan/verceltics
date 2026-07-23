@@ -1,7 +1,21 @@
 const OWNER = "apoorvdarshan";
 const REPOSITORY = "verceltics";
-const API_VERSION = "2026-03-10";
 const CACHE_SECONDS = 6 * 60 * 60;
+const STAR_HISTORY_QUERY = `
+  query StarHistory($owner: String!, $repository: String!, $cursor: String) {
+    repository(owner: $owner, name: $repository) {
+      stargazers(first: 100, after: $cursor) {
+        edges {
+          starredAt
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+      }
+    }
+  }
+`;
 
 const THEMES = {
   dark: {
@@ -75,44 +89,57 @@ export async function fetchStarHistory(token, fetchImplementation = fetch) {
   }
 
   const stars = [];
-  let page = 1;
+  let cursor = null;
+  let page = 0;
 
   while (true) {
-    const endpoint =
-      `https://api.github.com/repos/${OWNER}/${REPOSITORY}/stargazers` +
-      `?per_page=100&page=${page}`;
-    const response = await fetchImplementation(endpoint, {
+    const response = await fetchImplementation("https://api.github.com/graphql", {
+      method: "POST",
       headers: {
-        Accept: "application/vnd.github.star+json",
+        Accept: "application/vnd.github+json",
         Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
         "User-Agent": "verceltics-star-history",
-        "X-GitHub-Api-Version": API_VERSION,
       },
+      body: JSON.stringify({
+        query: STAR_HISTORY_QUERY,
+        variables: {
+          owner: OWNER,
+          repository: REPOSITORY,
+          cursor,
+        },
+      }),
     });
 
     if (!response.ok) {
       throw new Error(`GitHub returned ${response.status}`);
     }
 
-    const batch = await response.json();
+    const payload = await response.json();
+    const connection = payload?.data?.repository?.stargazers;
 
-    if (!Array.isArray(batch)) {
+    if (Array.isArray(payload?.errors) && payload.errors.length > 0) {
+      throw new Error("GitHub GraphQL returned an error");
+    }
+
+    if (!connection || !Array.isArray(connection.edges)) {
       throw new Error("GitHub returned an unexpected response");
     }
 
-    for (const item of batch) {
-      if (typeof item.starred_at === "string") {
-        stars.push(item.starred_at);
+    for (const edge of connection.edges) {
+      if (typeof edge.starredAt === "string") {
+        stars.push(edge.starredAt);
       }
     }
 
-    if (batch.length < 100) {
+    if (!connection.pageInfo?.hasNextPage) {
       break;
     }
 
     page += 1;
+    cursor = connection.pageInfo.endCursor;
 
-    if (page > 100) {
+    if (!cursor || page > 100) {
       throw new Error("Star history exceeded the pagination safety limit");
     }
   }
