@@ -51,7 +51,7 @@ export default {
 
     const themeName = url.searchParams.get("theme") === "dark" ? "dark" : "light";
     const cacheUrl = new URL(url);
-    cacheUrl.search = `?theme=${themeName}&v=1`;
+    cacheUrl.search = `?theme=${themeName}&v=2`;
     const cacheKey = new Request(cacheUrl.toString(), { method: "GET" });
     const cache = caches.default;
     const cached = await cache.match(cacheKey);
