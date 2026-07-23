@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   fetchStarHistory,
+  monotoneCurvePath,
   niceMaximum,
   renderStarHistorySvg,
 } from "./index.mjs";
@@ -11,8 +12,8 @@ test("niceMaximum creates readable chart ceilings", () => {
   assert.equal(niceMaximum(0), 5);
   assert.equal(niceMaximum(5), 5);
   assert.equal(niceMaximum(6), 10);
-  assert.equal(niceMaximum(22), 50);
-  assert.equal(niceMaximum(101), 200);
+  assert.equal(niceMaximum(22), 25);
+  assert.equal(niceMaximum(101), 125);
 });
 
 test("renderStarHistorySvg creates matching light and dark charts", () => {
@@ -25,9 +26,23 @@ test("renderStarHistorySvg creates matching light and dark charts", () => {
   const dark = renderStarHistorySvg(stars, "dark");
 
   assert.match(light, /3 GitHub stars over time/);
-  assert.match(light, /fill="#FFFFFF"/);
-  assert.match(dark, /fill="#0D1117"/);
+  assert.match(light, /fill="#FBFCFE"/);
+  assert.match(dark, /fill="#090A0E"/);
   assert.match(dark, /linearGradient id="line-gradient"/);
+  assert.match(dark, / C[\d.]+ [\d.]+/);
+});
+
+test("monotoneCurvePath renders a smooth cubic curve without sharp steps", () => {
+  const path = monotoneCurvePath([
+    [0, 100],
+    [50, 80],
+    [100, 80],
+    [150, 40],
+  ]);
+
+  assert.match(path, /^M0\.00 100\.00 C/);
+  assert.equal((path.match(/ C/g) ?? []).length, 3);
+  assert.doesNotMatch(path, / L/);
 });
 
 test("fetchStarHistory paginates and sorts timestamps", async () => {

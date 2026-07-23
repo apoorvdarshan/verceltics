@@ -19,18 +19,18 @@ const STAR_HISTORY_QUERY = `
 
 const THEMES = {
   dark: {
-    background: "#0D1117",
-    border: "#30363D",
-    grid: "#21262D",
-    text: "#F0F6FC",
-    muted: "#8B949E",
+    background: "#090A0E",
+    border: "#272A35",
+    grid: "#252833",
+    text: "#F7F8FA",
+    muted: "#8D95A5",
   },
   light: {
-    background: "#FFFFFF",
-    border: "#D0D7DE",
-    grid: "#D8DEE4",
-    text: "#1F2328",
-    muted: "#656D76",
+    background: "#FBFCFE",
+    border: "#D9DEE8",
+    grid: "#E3E7EF",
+    text: "#141820",
+    muted: "#6D7482",
   },
 };
 
@@ -51,7 +51,7 @@ export default {
 
     const themeName = url.searchParams.get("theme") === "dark" ? "dark" : "light";
     const cacheUrl = new URL(url);
-    cacheUrl.search = `?theme=${themeName}&v=2`;
+    cacheUrl.search = `?theme=${themeName}&v=3`;
     const cacheKey = new Request(cacheUrl.toString(), { method: "GET" });
     const cache = caches.default;
     const cached = await cache.match(cacheKey);
@@ -150,8 +150,8 @@ export async function fetchStarHistory(token, fetchImplementation = fetch) {
 export function renderStarHistorySvg(starredAtValues, themeName = "light") {
   const theme = THEMES[themeName] ?? THEMES.light;
   const width = 960;
-  const height = 560;
-  const plot = { left: 84, top: 108, right: 912, bottom: 470 };
+  const height = 520;
+  const plot = { left: 76, top: 138, right: 904, bottom: 424 };
   const now = Date.now();
   const parsedDates = starredAtValues
     .map((value) => new Date(value).getTime())
@@ -169,27 +169,17 @@ export function renderStarHistorySvg(starredAtValues, themeName = "light") {
       (plot.right - plot.left);
   const y = (count) =>
     plot.bottom - (count / yMax) * (plot.bottom - plot.top);
-
-  const linePoints = [[rangeStart, 0]];
-
-  parsedDates.forEach((timestamp, index) => {
-    linePoints.push([timestamp, index]);
-    linePoints.push([timestamp, index + 1]);
-  });
-
-  linePoints.push([rangeEnd, parsedDates.length]);
-
-  const linePath = linePoints
-    .map(([timestamp, count], index) => {
-      const command = index === 0 ? "M" : "L";
-      return `${command}${x(timestamp).toFixed(2)} ${y(count).toFixed(2)}`;
-    })
-    .join(" ");
+  const samples = cumulativeSamples(parsedDates, rangeStart, rangeEnd, 32);
+  const linePoints = samples.map(([timestamp, count]) => [
+    x(timestamp),
+    y(count),
+  ]);
+  const linePath = monotoneCurvePath(linePoints);
   const areaPath =
     `${linePath} L${plot.right} ${plot.bottom} ` +
     `L${plot.left} ${plot.bottom} Z`;
-  const yTicks = tickValues(yMax, 5);
-  const xTicks = dateTicks(rangeStart, rangeEnd, 5);
+  const yTicks = tickValues(yMax, 6);
+  const xTicks = dateTicks(rangeStart, rangeEnd, 4);
   const currentStars = parsedDates.length;
   const currentX = x(rangeEnd);
   const currentY = y(currentStars);
@@ -199,7 +189,7 @@ export function renderStarHistorySvg(starredAtValues, themeName = "light") {
       const yPosition = y(value);
       return `
         <line x1="${plot.left}" y1="${yPosition}" x2="${plot.right}" y2="${yPosition}" class="grid" />
-        <text x="${plot.left - 18}" y="${yPosition + 5}" text-anchor="end" class="axis">${value}</text>`;
+        <text x="${plot.left - 16}" y="${yPosition + 5}" text-anchor="end" class="axis">${value}</text>`;
     })
     .join("");
   const xLabels = xTicks
@@ -216,41 +206,59 @@ export function renderStarHistorySvg(starredAtValues, themeName = "light") {
   <defs>
     <linearGradient id="line-gradient" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0%" stop-color="#1687FF" />
+      <stop offset="52%" stop-color="#557BFF" />
       <stop offset="100%" stop-color="#B65CFF" />
     </linearGradient>
     <linearGradient id="area-gradient" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#1687FF" stop-opacity="0.24" />
-      <stop offset="100%" stop-color="#B65CFF" stop-opacity="0.02" />
+      <stop offset="0%" stop-color="#6177FF" stop-opacity="0.26" />
+      <stop offset="72%" stop-color="#7B69FF" stop-opacity="0.06" />
+      <stop offset="100%" stop-color="#B65CFF" stop-opacity="0" />
     </linearGradient>
-    <filter id="point-glow" x="-100%" y="-100%" width="300%" height="300%">
-      <feGaussianBlur stdDeviation="5" result="blur" />
+    <radialGradient id="ambient-glow" cx="82%" cy="15%" r="68%">
+      <stop offset="0%" stop-color="#B65CFF" stop-opacity="${themeName === "dark" ? "0.11" : "0.07"}" />
+      <stop offset="55%" stop-color="#1687FF" stop-opacity="${themeName === "dark" ? "0.04" : "0.025"}" />
+      <stop offset="100%" stop-color="#1687FF" stop-opacity="0" />
+    </radialGradient>
+    <filter id="curve-glow" x="-15%" y="-35%" width="130%" height="170%">
+      <feGaussianBlur stdDeviation="7" result="blur" />
       <feMerge>
         <feMergeNode in="blur" />
         <feMergeNode in="SourceGraphic" />
       </feMerge>
     </filter>
+    <clipPath id="plot-clip">
+      <rect x="${plot.left}" y="${plot.top - 12}" width="${plot.right - plot.left}" height="${plot.bottom - plot.top + 12}" />
+    </clipPath>
     <style>
-      .axis { fill: ${theme.muted}; font: 500 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-      .grid { stroke: ${theme.grid}; stroke-width: 1; }
-      .label { fill: ${theme.text}; font: 650 17px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-      .muted { fill: ${theme.muted}; font: 500 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .axis { fill: ${theme.muted}; font: 500 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .grid { stroke: ${theme.grid}; stroke-width: 1; stroke-dasharray: 2 8; stroke-linecap: round; }
+      .label { fill: ${theme.text}; font: 670 17px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .muted { fill: ${theme.muted}; font: 500 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .eyebrow { fill: ${theme.muted}; font: 650 11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: 1.8px; }
     </style>
   </defs>
-  <rect x="0.5" y="0.5" width="${width - 1}" height="${height - 1}" rx="12" fill="${theme.background}" stroke="${theme.border}" />
-  <g transform="translate(48 34)">
-    <path d="M0 4 C11 4 14 18 26 18 H44" fill="none" stroke="#1687FF" stroke-width="4" stroke-linecap="round" />
-    <path d="M0 18 H22" fill="none" stroke="${theme.text}" stroke-width="4" stroke-linecap="round" />
-    <path d="M0 32 H16 C27 32 29 22 38 22" fill="none" stroke="#B65CFF" stroke-width="4" stroke-linecap="round" />
+  <rect x="0.5" y="0.5" width="${width - 1}" height="${height - 1}" rx="20" fill="${theme.background}" stroke="${theme.border}" />
+  <rect x="1" y="1" width="${width - 2}" height="${height - 2}" rx="19" fill="url(#ambient-glow)" />
+  <g transform="translate(42 32)">
+    <rect width="48" height="48" rx="14" fill="${themeName === "dark" ? "#111521" : "#F0F4FB"}" stroke="${theme.border}" />
+    <path d="M10 13 C20 13 21 25 31 25 H38" fill="none" stroke="#1687FF" stroke-width="3.4" stroke-linecap="round" />
+    <path d="M10 24 H27" fill="none" stroke="${theme.text}" stroke-width="3.4" stroke-linecap="round" />
+    <path d="M10 35 H21 C29 35 30 29 36 29" fill="none" stroke="#B65CFF" stroke-width="3.4" stroke-linecap="round" />
   </g>
-  <text x="112" y="54" class="label">${OWNER}/${REPOSITORY}</text>
-  <text x="112" y="78" class="muted">GitHub star history</text>
-  <text x="${plot.right}" y="58" text-anchor="end" fill="${theme.text}" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="30" font-weight="700">${currentStars}</text>
-  <text x="${plot.right}" y="80" text-anchor="end" class="muted">stars</text>
+  <text x="108" y="50" class="label">${OWNER}/${REPOSITORY}</text>
+  <text x="108" y="72" class="muted">Star momentum on GitHub</text>
+  <text x="${plot.right}" y="41" text-anchor="end" class="eyebrow">CURRENT</text>
+  <text x="${plot.right}" y="76" text-anchor="end" fill="${theme.text}" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="34" font-weight="730">${currentStars}<tspan dx="8" fill="${theme.muted}" font-size="15" font-weight="550">STARS</tspan></text>
+  <line x1="${plot.left}" y1="106" x2="${plot.right}" y2="106" stroke="${theme.border}" />
   ${yGrid}
   ${xLabels}
-  <path d="${areaPath}" fill="url(#area-gradient)" />
-  <path d="${linePath}" fill="none" stroke="url(#line-gradient)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
-  <circle cx="${currentX}" cy="${currentY}" r="6" fill="#B65CFF" stroke="${theme.background}" stroke-width="3" filter="url(#point-glow)" />
+  <g clip-path="url(#plot-clip)">
+    <path d="${areaPath}" fill="url(#area-gradient)" />
+    <path d="${linePath}" fill="none" stroke="url(#line-gradient)" stroke-width="4.5" stroke-linecap="round" filter="url(#curve-glow)" opacity="0.42" />
+    <path d="${linePath}" fill="none" stroke="url(#line-gradient)" stroke-width="4.5" stroke-linecap="round" />
+  </g>
+  <circle cx="${currentX}" cy="${currentY}" r="12" fill="#B65CFF" opacity="0.13" />
+  <circle cx="${currentX}" cy="${currentY}" r="6.5" fill="#B65CFF" stroke="${theme.background}" stroke-width="3" />
   <line x1="${plot.left}" y1="${plot.bottom}" x2="${plot.right}" y2="${plot.bottom}" stroke="${theme.border}" />
 </svg>`;
 }
@@ -260,9 +268,101 @@ export function niceMaximum(value) {
 
   const exponent = 10 ** Math.floor(Math.log10(value));
   const fraction = value / exponent;
-  const niceFraction = fraction <= 1 ? 1 : fraction <= 2 ? 2 : fraction <= 5 ? 5 : 10;
+  const niceFraction = [1, 1.25, 2, 2.5, 5, 10].find(
+    (candidate) => candidate >= fraction,
+  );
 
   return niceFraction * exponent;
+}
+
+export function monotoneCurvePath(points) {
+  if (points.length === 0) return "";
+  if (points.length === 1) {
+    return `M${points[0][0].toFixed(2)} ${points[0][1].toFixed(2)}`;
+  }
+
+  const segmentWidths = [];
+  const segmentSlopes = [];
+
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const width = points[index + 1][0] - points[index][0];
+    segmentWidths.push(width);
+    segmentSlopes.push(
+      width === 0 ? 0 : (points[index + 1][1] - points[index][1]) / width,
+    );
+  }
+
+  const tangents = new Array(points.length);
+  tangents[0] = segmentSlopes[0];
+  tangents[points.length - 1] = segmentSlopes.at(-1);
+
+  for (let index = 1; index < points.length - 1; index += 1) {
+    const previousSlope = segmentSlopes[index - 1];
+    const nextSlope = segmentSlopes[index];
+
+    if (previousSlope === 0 || nextSlope === 0 || previousSlope * nextSlope < 0) {
+      tangents[index] = 0;
+      continue;
+    }
+
+    const previousWidth = segmentWidths[index - 1];
+    const nextWidth = segmentWidths[index];
+    const previousWeight = 2 * nextWidth + previousWidth;
+    const nextWeight = nextWidth + 2 * previousWidth;
+    tangents[index] =
+      (previousWeight + nextWeight) /
+      (previousWeight / previousSlope + nextWeight / nextSlope);
+  }
+
+  for (let index = 0; index < segmentSlopes.length; index += 1) {
+    const slope = segmentSlopes[index];
+
+    if (slope === 0) {
+      tangents[index] = 0;
+      tangents[index + 1] = 0;
+      continue;
+    }
+
+    const startRatio = tangents[index] / slope;
+    const endRatio = tangents[index + 1] / slope;
+    const magnitude = Math.hypot(startRatio, endRatio);
+
+    if (magnitude > 3) {
+      const scale = 3 / magnitude;
+      tangents[index] = scale * startRatio * slope;
+      tangents[index + 1] = scale * endRatio * slope;
+    }
+  }
+
+  let path = `M${points[0][0].toFixed(2)} ${points[0][1].toFixed(2)}`;
+
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const [startX, startY] = points[index];
+    const [endX, endY] = points[index + 1];
+    const controlWidth = (endX - startX) / 3;
+
+    path +=
+      ` C${(startX + controlWidth).toFixed(2)} ${(startY + tangents[index] * controlWidth).toFixed(2)}` +
+      ` ${(endX - controlWidth).toFixed(2)} ${(endY - tangents[index + 1] * controlWidth).toFixed(2)}` +
+      ` ${endX.toFixed(2)} ${endY.toFixed(2)}`;
+  }
+
+  return path;
+}
+
+function cumulativeSamples(starredAtValues, start, end, count) {
+  let starIndex = 0;
+
+  return dateTicks(start, end, count).map((timestamp) => {
+    while (
+      starIndex < starredAtValues.length &&
+      starredAtValues[starIndex] <= timestamp
+    ) {
+      starIndex += 1;
+    }
+
+    return [timestamp, starIndex];
+  });
 }
 
 function tickValues(maximum, count) {

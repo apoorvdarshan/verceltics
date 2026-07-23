@@ -249,9 +249,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Report sec
 
 <a href="https://github.com/apoorvdarshan/verceltics/stargazers">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://verceltics.com/api/star-history.svg?theme=dark&amp;v=2" />
-   <source media="(prefers-color-scheme: light)" srcset="https://verceltics.com/api/star-history.svg?theme=light&amp;v=2" />
-   <img alt="Verceltics GitHub star history" src="https://verceltics.com/api/star-history.svg?theme=light&amp;v=2" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://verceltics.com/api/star-history.svg?theme=dark&amp;v=3" />
+   <source media="(prefers-color-scheme: light)" srcset="https://verceltics.com/api/star-history.svg?theme=light&amp;v=3" />
+   <img alt="Verceltics GitHub star history" src="https://verceltics.com/api/star-history.svg?theme=light&amp;v=3" />
  </picture>
 </a>
 
