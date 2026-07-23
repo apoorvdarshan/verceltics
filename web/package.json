@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "wrangler dev",
     "preview": "npm run build && wrangler dev",
-    "deploy": "npm run build && wrangler deploy"
+    "deploy": "npm run build && wrangler deploy",
+    "test:worker": "node --test worker/*.test.mjs"
   },
   "dependencies": {
     "next": "16.2.10",
