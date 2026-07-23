@@ -205,7 +205,7 @@ export function renderStarHistorySvg(starredAtValues, themeName = "light") {
   const xLabels = xTicks
     .map((timestamp, index) => {
       const anchor = index === 0 ? "start" : index === xTicks.length - 1 ? "end" : "middle";
-      return `<text x="${x(timestamp)}" y="${plot.bottom + 38}" text-anchor="${anchor}" class="axis">${formatDate(timestamp)}</text>`;
+      return `<text x="${x(timestamp)}" y="${plot.bottom + 38}" text-anchor="${anchor}" class="axis">${formatDate(timestamp, rangeEnd - rangeStart)}</text>`;
     })
     .join("");
 
@@ -278,10 +278,12 @@ function dateTicks(start, end, count) {
   );
 }
 
-function formatDate(timestamp) {
+function formatDate(timestamp, range) {
   return new Intl.DateTimeFormat("en", {
     month: "short",
-    year: "numeric",
+    ...(range >= 365 * 24 * 60 * 60 * 1000
+      ? { year: "numeric" }
+      : { day: "numeric" }),
     timeZone: "UTC",
   }).format(new Date(timestamp));
 }
