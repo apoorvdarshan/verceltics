@@ -182,7 +182,7 @@ class SearchConsoleDataSourceTest {
             analyticsOffsets += query.startRow
             val callNumber = analyticsOffsets.size
             if (failAnalyticsAtCall == callNumber) return failingCall(IOException("offline"))
-            return valueCall(analyticsPages.removeFirst())
+            return valueCall(analyticsPages.removeAt(0))
         }
 
         override fun newListSitemapsCall(

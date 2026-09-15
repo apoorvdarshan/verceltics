@@ -57,12 +57,28 @@ jobs:
       - name: Test iOS app
         run: |
           set -o pipefail
-          xcodebuild test \
-            -project ios/verceltics.xcodeproj \
-            -scheme verceltics \
-            -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
-            -derivedDataPath /tmp/verceltics-ci-derived-data \
-            CODE_SIGNING_ALLOWED=NO
+          DESTINATION='platform=iOS Simulator,name=iPhone 17 Pro,OS=latest'
+          # Avoid parallel simulator clones; they often time out on shared CI runners.
+          xcrun simctl boot "iPhone 17 Pro" 2>/dev/null || true
+          xcrun simctl bootstatus "iPhone 17 Pro" -b || true
+          run_tests() {
+            xcodebuild test \
+              -project ios/verceltics.xcodeproj \
+              -scheme verceltics \
+              -destination "$DESTINATION" \
+              -derivedDataPath /tmp/verceltics-ci-derived-data \
+              -parallel-testing-enabled NO \
+              -maximum-concurrent-test-simulator-destinations 1 \
+              CODE_SIGNING_ALLOWED=NO
+          }
+          if ! run_tests; then
+            echo "iOS tests failed; retrying once after resetting the simulator."
+            xcrun simctl shutdown "iPhone 17 Pro" 2>/dev/null || true
+            xcrun simctl erase "iPhone 17 Pro" 2>/dev/null || true
+            xcrun simctl boot "iPhone 17 Pro"
+            xcrun simctl bootstatus "iPhone 17 Pro" -b
+            run_tests
+          fi
 
   android-tests:
     runs-on: ubuntu-latest
