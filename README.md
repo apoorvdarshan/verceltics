@@ -23,6 +23,7 @@
   <a href="https://developer.apple.com/ios/"><img src="https://img.shields.io/badge/Platform-iOS%2018%2B-black.svg" alt="iOS 18 or later" /></a>
   <a href="https://github.com/apoorvdarshan/verceltics/stargazers"><img src="https://img.shields.io/github/stars/apoorvdarshan/verceltics?style=flat&color=yellow" alt="GitHub stars" /></a>
   <a href="https://www.bestpractices.dev/projects/14649"><img src="https://www.bestpractices.dev/projects/14649/badge" alt="OpenSSF Best Practices" /></a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/apoorvdarshan/verceltics"><img src="https://api.scorecard.dev/projects/github.com/apoorvdarshan/verceltics/badge" alt="OpenSSF Scorecard" /></a>
 </p>
 
 Verceltics is an independent, open-source operator workspace for the infrastructure and site services developers already use. Each provider keeps its own dashboard and capabilities; Verceltics supplies the native navigation, secure local credential storage, responsive caching, and iPhone/iPad interface around them. The `main` branch documents the current source build and can be ahead of the latest App Store release.
