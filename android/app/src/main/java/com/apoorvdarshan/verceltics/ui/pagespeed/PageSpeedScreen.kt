@@ -1,5 +1,10 @@
 package com.apoorvdarshan.verceltics.ui.pagespeed
 
+import androidx.compose.ui.text.style.TextAlign
+import com.apoorvdarshan.verceltics.ui.components.ProviderSummaryCard
+import com.apoorvdarshan.verceltics.ui.components.AccountMenuButton
+import com.apoorvdarshan.verceltics.ui.components.AppToolbarAction
+import com.apoorvdarshan.verceltics.ui.components.AppToolbar
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
@@ -326,11 +331,12 @@ private fun PageSpeedTopBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 18.dp, vertical = 12.dp),
+            .heightIn(min = 56.dp)
+            .padding(horizontal = 12.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ThemedGlassControl(
-            modifier = Modifier.size(50.dp),
+        AppToolbarAction(
+            modifier = Modifier.size(48.dp),
             onClick = onBack,
             testTag = "pagespeed.back",
         ) {
@@ -344,14 +350,15 @@ private fun PageSpeedTopBar(
                 .weight(1f)
                 .padding(horizontal = 12.dp)
                 .semantics { heading() },
-            style = MaterialTheme.typography.headlineMedium,
+            style = MaterialTheme.typography.titleLarge,
+            textAlign = TextAlign.Center,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
         val canRefresh = state.status == PageSpeedConnectionStatus.CONNECTED ||
             state.status == PageSpeedConnectionStatus.SAVED_UNAVAILABLE
-        ThemedGlassControl(
-            modifier = Modifier.size(50.dp),
+        AppToolbarAction(
+            modifier = Modifier.size(48.dp),
             onClick = if (
                 state.operation == PageSpeedOperation.CONNECTING ||
                 state.operation == PageSpeedOperation.REFRESHING
@@ -667,8 +674,9 @@ private fun AuditHero(dashboard: PageSpeedDashboardUi) {
         OffsetPanel(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 224.dp),
-            color = MaterialTheme.colorScheme.primary,
+                .heightIn(min = 0.dp),
+            color = MaterialTheme.colorScheme.surface,
+            borderColor = PageSpeedAccent.copy(alpha = 0.20f),
             testTag = "pagespeed.hero",
         ) {
             Column(
@@ -722,11 +730,11 @@ private fun AuditHero(dashboard: PageSpeedDashboardUi) {
 @Composable
 private fun HeroMetric(label: String, value: String, modifier: Modifier = Modifier) {
     Surface(
-        modifier = modifier.heightIn(min = 90.dp),
+        modifier = modifier.heightIn(min = 72.dp),
         shape = RoundedCornerShape(10.dp),
         color = MaterialTheme.colorScheme.surface,
         contentColor = MaterialTheme.colorScheme.onSurface,
-        border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         tonalElevation = 0.dp,
     ) {
         Column(
@@ -1258,7 +1266,7 @@ private fun PageSpeedProviderMark() {
         color = Color.Black,
         contentColor = PageSpeedAccent,
         shape = RoundedCornerShape(10.dp),
-        border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Box(Modifier.padding(13.dp), contentAlignment = Alignment.Center) {
             ProviderLogo(provider = provider, modifier = Modifier.fillMaxSize())
@@ -1318,7 +1326,7 @@ private fun formatTimestamp(timestampMillis: Long): String =
 internal fun shouldStackPageSpeedLayout(
     availableWidthDp: Float,
     fontScale: Float,
-): Boolean = availableWidthDp < 340f || fontScale >= 1.3f
+): Boolean = availableWidthDp < 280f || fontScale >= 1.3f
 
 private fun statusColor(status: String): Color = when (status.lowercase(Locale.ROOT)) {
     "good" -> PageSpeedAccent

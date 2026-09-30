@@ -1,5 +1,10 @@
 package com.apoorvdarshan.verceltics.ui.netlify
 
+import androidx.compose.ui.text.style.TextAlign
+import com.apoorvdarshan.verceltics.ui.components.ProviderSummaryCard
+import com.apoorvdarshan.verceltics.ui.components.AccountMenuButton
+import com.apoorvdarshan.verceltics.ui.components.AppToolbarAction
+import com.apoorvdarshan.verceltics.ui.components.AppToolbar
 import android.graphics.Typeface
 import android.text.Editable
 import android.text.InputType
@@ -260,7 +265,7 @@ fun NetlifyConnectionCard(
     OffsetPanel(
         modifier = modifier.heightIn(min = 88.dp),
         color = MaterialTheme.colorScheme.surface,
-        borderColor = NetlifyAccent,
+        borderColor = NetlifyAccent.copy(alpha = 0.20f),
         shadowColor = NetlifyAccent,
         onClick = {
             haptic.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -346,11 +351,12 @@ private fun NetlifyTopBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 18.dp, vertical = 12.dp),
+            .heightIn(min = 56.dp)
+            .padding(horizontal = 12.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ThemedGlassControl(
-            modifier = Modifier.size(50.dp),
+        AppToolbarAction(
+            modifier = Modifier.size(48.dp),
             onClick = onBack,
             testTag = "netlify.back",
         ) {
@@ -364,14 +370,15 @@ private fun NetlifyTopBar(
                 .weight(1f)
                 .padding(horizontal = 12.dp)
                 .semantics { heading() },
-            style = MaterialTheme.typography.headlineMedium,
+            style = MaterialTheme.typography.titleLarge,
+            textAlign = TextAlign.Center,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
         val isCancelable = operation == NetlifyOperation.CONNECTING ||
             operation == NetlifyOperation.REFRESHING
-        ThemedGlassControl(
-            modifier = Modifier.size(50.dp),
+        AppToolbarAction(
+            modifier = Modifier.size(48.dp),
             enabled = isCancelable || (canRefresh && operation == null && !isLoadingSite),
             onClick = if (isCancelable) onCancel else onRefresh,
             testTag = "netlify.refreshOrCancel",
@@ -429,7 +436,7 @@ private fun NetlifyConnectionForm(
         item("intro") {
             OffsetPanel(
                 modifier = Modifier.fillMaxWidth(),
-                color = NetlifyAccent,
+                color = MaterialTheme.colorScheme.surface,
                 borderColor = MaterialTheme.colorScheme.outline,
                 shadowColor = MaterialTheme.colorScheme.outline,
             ) {
@@ -444,17 +451,17 @@ private fun NetlifyConnectionForm(
                         )
                         Spacer(Modifier.width(14.dp))
                         Column(Modifier.weight(1f)) {
-                            Text("NETLIFY", color = Color.Black, style = MaterialTheme.typography.labelSmall)
+                            Text("NETLIFY", color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.labelSmall)
                             Text(
                                 "Sites, deployments, and builds",
-                                color = Color.Black,
-                                style = MaterialTheme.typography.headlineMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                style = MaterialTheme.typography.titleMedium,
                             )
                         }
                     }
                     Text(
                         "Your token is encrypted and stored only on this device. You can view deployments and builds; changes are unavailable.",
-                        color = Color.Black,
+                        color = MaterialTheme.colorScheme.onSurface,
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
@@ -602,72 +609,16 @@ private fun NetlifyDashboard(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item("summary") {
-            BoxWithConstraints {
-                val stacked = shouldStackNetlifySummary(
-                    availableWidthDp = maxWidth.value,
-                    fontScale = LocalDensity.current.fontScale,
-                )
-                val attention = state.error != null || dashboard.isPartial || dashboard.warnings.isNotEmpty()
-                OffsetPanel(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = NetlifyAccent,
-                    borderColor = MaterialTheme.colorScheme.outline,
-                    shadowColor = MaterialTheme.colorScheme.outline,
-                    testTag = "netlify.summary",
-                ) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                        ProviderMark(
-                            provider = checkNotNull(IntegrationCatalog.provider("netlify")),
-                            size = 52.dp,
-                        )
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                dashboard.account.displayName,
-                                color = Color.Black,
-                                style = MaterialTheme.typography.titleLarge,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            dashboard.account.email?.let {
-                                Text(
-                                    it,
-                                    color = Color.Black.copy(alpha = 0.72f),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                            Text(
-                                "${cacheLabel(dashboard.cacheState)} data · read-only",
-                                color = Color.Black.copy(alpha = 0.66f),
-                                style = MaterialTheme.typography.labelSmall,
-                            )
-                        }
-                            if (!stacked) {
-                                StatusPill(if (attention) "Attention" else "Connected", if (attention) NetlifyWarning else Color(0xFF2F9B55))
-                            }
-                        }
-                        if (stacked) {
-                            StatusPill(if (attention) "Attention" else "Connected", if (attention) NetlifyWarning else Color(0xFF2F9B55))
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                MetricTile("${dashboard.loadedSiteCount}", "LOADED SITES", Modifier.fillMaxWidth())
-                                MetricTile(if (dashboard.providerInventoryComplete) "YES" else "NO", "COMPLETE", Modifier.fillMaxWidth())
-                            }
-                        } else {
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                MetricTile("${dashboard.loadedSiteCount}", "LOADED SITES", Modifier.weight(1f))
-                                MetricTile(
-                                    if (dashboard.providerInventoryComplete) "YES" else "NO",
-                                    "COMPLETE",
-                                    Modifier.weight(1f),
-                                )
-                            }
-                        }
-                    }
-                }
-            }
+            val attention = state.error != null || dashboard.isPartial || dashboard.warnings.isNotEmpty()
+            ProviderSummaryCard(
+                provider = requireNotNull(IntegrationCatalog.provider("netlify")),
+                title = dashboard.account.displayName,
+                subtitle = dashboard.account.email ?: "Netlify account",
+                status = if (attention) "Attention" else "Connected",
+                statusColor = if (attention) NetlifyWarning else MaterialTheme.colorScheme.tertiary,
+                detail = "${cacheLabel(dashboard.cacheState)} data · read-only",
+                testTag = "netlify.summary",
+            )
         }
         state.error?.let { item("error") { FeedbackPanel(it, true) } }
         state.notice?.let { item("notice") { FeedbackPanel(it, false) } }
@@ -695,7 +646,7 @@ private fun NetlifyDashboard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("Sites", style = MaterialTheme.typography.headlineMedium)
+                Text("Sites", style = MaterialTheme.typography.titleMedium)
                 Text(
                     if (dashboard.inventoryTruncatedForDisplay) {
                         "${dashboard.sites.size} of ${dashboard.loadedSiteCount}"
@@ -749,7 +700,7 @@ private fun NetlifySiteRow(site: NetlifySiteUi, onClick: () -> Unit) {
             .fillMaxWidth()
             .heightIn(min = 78.dp),
         color = MaterialTheme.colorScheme.surface,
-        borderColor = NetlifyAccent,
+        borderColor = NetlifyAccent.copy(alpha = 0.20f),
         shadowColor = MaterialTheme.colorScheme.outline,
         shadowOffset = 3.dp,
         onClick = onClick,
@@ -812,18 +763,18 @@ private fun NetlifySiteDetail(state: NetlifyUiState, modifier: Modifier = Modifi
         item("site-summary") {
             OffsetPanel(
                 modifier = Modifier.fillMaxWidth(),
-                color = NetlifyAccent,
+                color = MaterialTheme.colorScheme.surface,
                 borderColor = MaterialTheme.colorScheme.outline,
                 shadowColor = MaterialTheme.colorScheme.outline,
             ) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Text("NETLIFY SITE", color = Color.Black, style = MaterialTheme.typography.labelSmall)
+                    Text("NETLIFY SITE", color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.labelSmall)
                     Text(
                         selected?.name ?: state.selectedSiteId.orEmpty(),
-                        color = Color.Black,
-                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        style = MaterialTheme.typography.titleMedium,
                     )
-                    selected?.url?.let { Text(it, color = Color.Black.copy(alpha = 0.72f)) }
+                    selected?.url?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 }
             }
         }

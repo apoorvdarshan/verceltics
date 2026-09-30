@@ -83,9 +83,9 @@ fun OffsetPanel(
             shape = shape,
             color = color,
             tonalElevation = 0.dp,
-            shadowElevation = 5.dp,
+            shadowElevation = 0.dp,
             border = BorderStroke(1.dp, borderColor),
-            content = { Box(Modifier.fillMaxSize(), content = content) },
+            content = { Box(Modifier.fillMaxWidth(), content = content) },
         )
     } else {
         Surface(
@@ -94,10 +94,10 @@ fun OffsetPanel(
             shape = shape,
             color = color,
             tonalElevation = 0.dp,
-            shadowElevation = 5.dp,
+            shadowElevation = 0.dp,
             border = BorderStroke(1.dp, borderColor),
             interactionSource = remember { MutableInteractionSource() },
-            content = { Box(Modifier.fillMaxSize(), content = content) },
+            content = { Box(Modifier.fillMaxWidth(), content = content) },
         )
     }
 }
@@ -124,12 +124,12 @@ fun ControlSearchField(
     }
     Surface(
         modifier = modifier
-            .defaultMinSize(minHeight = 54.dp)
+            .defaultMinSize(minHeight = 44.dp)
             .testTag("$testTag.container"),
         color = colors.surface,
         shape = PanelShape,
         tonalElevation = 0.dp,
-        shadowElevation = 3.dp,
+        shadowElevation = 0.dp,
         border = BorderStroke(1.dp, colors.outline),
     ) {
         BasicTextField(
@@ -137,7 +137,7 @@ fun ControlSearchField(
             onValueChange = onValueChange,
             modifier = Modifier
                 .fillMaxWidth()
-                .defaultMinSize(minHeight = 54.dp)
+                .defaultMinSize(minHeight = 44.dp)
                 .testTag(testTag)
                 .then(if (focusRequester == null) Modifier else Modifier.focusRequester(focusRequester))
                 .semantics { contentDescription = placeholder },
@@ -145,7 +145,7 @@ fun ControlSearchField(
             singleLine = true,
             textStyle = MaterialTheme.typography.bodyLarge.copy(
                 color = colors.onSurface,
-                fontWeight = FontWeight.SemiBold,
+                fontWeight = FontWeight.Normal,
             ),
             cursorBrush = SolidColor(colors.primary),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
@@ -157,7 +157,7 @@ fun ControlSearchField(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .defaultMinSize(minHeight = 54.dp)
+                        .defaultMinSize(minHeight = 44.dp)
                         .padding(start = 16.dp, end = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -165,7 +165,7 @@ fun ControlSearchField(
                         imageVector = Icons.Rounded.Search,
                         contentDescription = null,
                         tint = colors.primary,
-                        modifier = Modifier.size(27.dp),
+                        modifier = Modifier.size(20.dp),
                     )
                     Spacer(Modifier.width(12.dp))
                     Box(Modifier.weight(1f)) {
@@ -289,10 +289,10 @@ fun ThemedGlassControl(
         contentColor = colors.onSurface.copy(alpha = if (enabled) 1f else 0.38f),
         border = BorderStroke(
             1.dp,
-            colors.outline.copy(alpha = if (enabled) 1f else 0.34f),
+            colors.outline.copy(alpha = colors.outline.alpha * if (enabled) 1f else 0.34f),
         ),
         tonalElevation = 0.dp,
-        shadowElevation = 8.dp,
+        shadowElevation = 0.dp,
         interactionSource = interactionSource,
     ) {
         Box(

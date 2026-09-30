@@ -1,6 +1,7 @@
 package com.apoorvdarshan.verceltics.ui.sample
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -9,18 +10,23 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.apoorvdarshan.verceltics.domain.IntegrationCatalog
 import com.apoorvdarshan.verceltics.ui.components.ControlSearchField
+import com.apoorvdarshan.verceltics.ui.components.AppToolbar
+import com.apoorvdarshan.verceltics.ui.components.AppToolbarAction
+import com.apoorvdarshan.verceltics.ui.components.AccountMenuButton
 import com.apoorvdarshan.verceltics.ui.components.ProviderLogo
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -43,7 +49,9 @@ fun SampleRegistrarScreen(
     var selectedName by rememberSaveable(providerId) { mutableStateOf<String?>(null) }
     var query by rememberSaveable(providerId) { mutableStateOf("") }
     val provider = requireNotNull(IntegrationCatalog.provider(providerId))
-    val domains = SamplePortfolios.getValue(providerId)
+    var accountMenuExpanded by rememberSaveable { mutableStateOf(false) }
+    var refreshVersion by remember { mutableIntStateOf(0) }
+    val domains = remember(providerId, refreshVersion) { SamplePortfolios.getValue(providerId) }
     val selected = domains.firstOrNull { it.name == selectedName }
     val accent = Color(provider.accentColor)
     val focusRequester = remember { FocusRequester() }
@@ -58,41 +66,54 @@ fun SampleRegistrarScreen(
     }
     BackHandler(enabled = selected != null) { selectedName = null }
     Column(modifier.fillMaxSize().testTag("sample.registrars")) {
-        Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (selected != null || onBack != null) {
-                IconButton(onClick = { if (selected != null) selectedName = null else onBack?.invoke() }) {
-                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back")
-                }
-            }
-            Text(if (selected == null) "Registrars" else "Domain details", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-            ProviderLogo(provider, Modifier.size(28.dp))
-        }
-        LazyColumn(
-            modifier = Modifier.fillMaxWidth().weight(1f),
-            contentPadding = PaddingValues(18.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            if (selected == null) {
-                item {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        listOf("nameDotCom", "namecheap").forEach { id ->
-                            FilterChip(selected = providerId == id, onClick = { providerId = id }, label = { Text(requireNotNull(IntegrationCatalog.provider(id)).displayName) })
+        AppToolbar(
+            title = if (selected == null) "Registrars" else "Domain details",
+            leading = {
+                if (selected != null || onBack != null) {
+                    AppToolbarAction(onClick = { if (selected != null) selectedName = null else onBack?.invoke() }) {
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back")
+                    }
+                } else {
+                    Box {
+                        AccountMenuButton(provider, onClick = { accountMenuExpanded = true }, contentDescription = "Switch connected registrar", testTag = "sample.registrars.account")
+                        DropdownMenu(expanded = accountMenuExpanded, onDismissRequest = { accountMenuExpanded = false }) {
+                            listOf("nameDotCom", "namecheap").forEach { id ->
+                                val accountProvider = requireNotNull(IntegrationCatalog.provider(id))
+                                DropdownMenuItem(
+                                    text = { Text("Studio · ${accountProvider.displayName}") },
+                                    leadingIcon = { ProviderLogo(accountProvider, Modifier.size(22.dp)) },
+                                    onClick = { providerId = id; accountMenuExpanded = false },
+                                )
+                            }
                         }
                     }
                 }
+            },
+            trailing = {
+                AppToolbarAction(onClick = { refreshVersion += 1 }) { Icon(Icons.Rounded.Refresh, "Refresh registrar domains") }
+            },
+        )
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            contentPadding = PaddingValues(start = 18.dp, top = 8.dp, end = 18.dp, bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            if (selected == null) {
                 item {
                     PreviewCard {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                            ProviderLogo(provider, Modifier.size(44.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            ProviderLogo(provider, Modifier.size(36.dp))
                             Column(Modifier.weight(1f)) {
                                 Text("Studio · ${provider.displayName}", style = MaterialTheme.typography.titleMedium)
-                                Text("Domain portfolio", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("Domain portfolio", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                         Text("EXPIRY HEALTH", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         val expiring = domains.count { it.expiresInDays <= 30 }
-                        Text(if (expiring == 1) "1 domain expires within 30 days" else "$expiring domains expire within 30 days", color = Color(0xFFFFB74D))
-                        LinearProgressIndicator(progress = { domains.count { it.expiresInDays > 30 }.toFloat() / domains.size }, modifier = Modifier.fillMaxWidth(), color = accent)
+                        Text(if (expiring == 1) "1 domain expires within 30 days" else "$expiring domains expire within 30 days", style = MaterialTheme.typography.bodySmall, color = Color(0xFFFFB74D))
+                        Box(Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.outlineVariant)) {
+                            Box(Modifier.fillMaxWidth(domains.count { it.expiresInDays > 30 }.toFloat() / domains.size).height(4.dp).background(Color(0xFFFFB74D)))
+                        }
                     }
                 }
                 item {
@@ -100,7 +121,7 @@ fun SampleRegistrarScreen(
                         listOf("Domains" to domains.size, "Attention" to domains.count { it.expiresInDays <= 30 }, "Auto renew" to domains.count { it.autoRenew }).forEach { (label, count) ->
                             Surface(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
                                 Column(Modifier.padding(12.dp)) {
-                                    Text(count.toString(), style = MaterialTheme.typography.headlineSmall, color = accent)
+                                    Text(count.toString(), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onSurface)
                                     Text(label, style = MaterialTheme.typography.labelSmall)
                                 }
                             }
@@ -112,10 +133,11 @@ fun SampleRegistrarScreen(
                 }
                 items(domains.filter { it.name.contains(query.trim(), true) }, key = { it.name }) { domain ->
                     Surface(onClick = { selectedName = domain.name; keyboard?.hide() }, modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(18.dp), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
-                        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Column {
-                                Text(domain.expiresInDays.toString(), style = MaterialTheme.typography.titleLarge, color = if (domain.expiresInDays <= 30) Color(0xFFFFB74D) else accent)
-                                Text("DAYS", style = MaterialTheme.typography.labelSmall)
+                        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            val expiryColor = if (domain.expiresInDays <= 30) Color(0xFFFFB74D) else MaterialTheme.colorScheme.tertiary
+                            Column(Modifier.widthIn(min = 42.dp).background(expiryColor.copy(alpha = 0.10f), RoundedCornerShape(10.dp)).padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(domain.expiresInDays.toString(), style = MaterialTheme.typography.titleMedium, color = expiryColor)
+                                Text("DAYS", style = MaterialTheme.typography.labelSmall, color = expiryColor)
                             }
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Text(domain.name, style = MaterialTheme.typography.titleSmall)
@@ -164,7 +186,7 @@ private fun expiryDate(domain: SampleDomain) = LocalDate.now().plusDays(domain.e
 @Composable
 private fun PreviewCard(content: @Composable ColumnScope.() -> Unit) {
     Surface(modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(20.dp), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
-        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
     }
 }
 

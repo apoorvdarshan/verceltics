@@ -267,8 +267,8 @@ fun VercelticsApp(
                         .padding(horizontal = 18.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("Sample data", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
-                    TextButton(onClick = { onToggleSampleData?.invoke() }) { Text("Exit preview") }
+                    Text("Sample data", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { onToggleSampleData?.invoke() }) { Text("Exit preview", style = MaterialTheme.typography.labelMedium) }
                 }
             }
         },
@@ -343,6 +343,10 @@ fun VercelticsApp(
                             searchRequestId = hostingSearchRequestId,
                             refreshRequestId = hostingRefreshRequestId,
                             onConnectProvider = { providerId = it.id },
+                            connectedProviderIds = buildSet {
+                                if (cloudflareState.isConnected) add(CLOUDFLARE_PROVIDER_ID)
+                                if (netlifyState.isConnected) add(NETLIFY_PROVIDER_ID)
+                            },
                             connectedProviderContent = if (
                                 netlifyState.isConnected || cloudflareState.isConnected
                             ) {

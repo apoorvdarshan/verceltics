@@ -540,6 +540,7 @@ class VercelticsNavigationTest {
         configureGateway(DebugVercelScenario.CONNECTED)
         waitForTag("workspace.hosting.connected")
 
+        compose.onNodeWithTag("workspace.hosting.account").performClick()
         compose.onNodeWithTag("workspace.hosting.connectNetlify").performClick()
 
         waitForTag("netlify.connectionForm")
@@ -551,6 +552,7 @@ class VercelticsNavigationTest {
         configureGateway(DebugVercelScenario.CONNECTED)
         waitForTag("workspace.hosting.connected")
 
+        compose.onNodeWithTag("workspace.hosting.account").performClick()
         compose.onNodeWithTag("workspace.hosting.connectCloudflare").performClick()
 
         waitForTag("cloudflare.connectionForm")

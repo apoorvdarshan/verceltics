@@ -9,12 +9,12 @@ class VercelWorkspaceStateTest {
     @Test
     fun standardPhoneWidthKeepsDenseVercelRowsSideBySide() {
         assertFalse(shouldUseStackedVercelLayout(availableWidthDp = 390f, fontScale = 1f))
-        assertFalse(shouldUseStackedVercelLayout(availableWidthDp = 344f, fontScale = 1.29f))
+        assertFalse(shouldUseStackedVercelLayout(availableWidthDp = 280f, fontScale = 1.29f))
     }
 
     @Test
     fun narrowWidthOrLargeTextStacksVercelRows() {
-        assertTrue(shouldUseStackedVercelLayout(availableWidthDp = 343f, fontScale = 1f))
+        assertTrue(shouldUseStackedVercelLayout(availableWidthDp = 279f, fontScale = 1f))
         assertTrue(shouldUseStackedVercelLayout(availableWidthDp = 390f, fontScale = 1.30f))
     }
 

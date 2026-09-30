@@ -1,5 +1,10 @@
 package com.apoorvdarshan.verceltics.ui.cloudflare
 
+import androidx.compose.ui.text.style.TextAlign
+import com.apoorvdarshan.verceltics.ui.components.ProviderSummaryCard
+import com.apoorvdarshan.verceltics.ui.components.AccountMenuButton
+import com.apoorvdarshan.verceltics.ui.components.AppToolbarAction
+import com.apoorvdarshan.verceltics.ui.components.AppToolbar
 import android.graphics.Typeface
 import android.text.Editable
 import android.text.InputType
@@ -257,7 +262,7 @@ fun CloudflareConnectionCard(
     OffsetPanel(
         modifier = modifier.heightIn(min = 88.dp),
         color = MaterialTheme.colorScheme.surface,
-        borderColor = CloudflareAccent,
+        borderColor = CloudflareAccent.copy(alpha = 0.20f),
         shadowColor = CloudflareAccent,
         onClick = {
             haptic.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -344,11 +349,12 @@ private fun CloudflareTopBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 18.dp, vertical = 12.dp),
+            .heightIn(min = 56.dp)
+            .padding(horizontal = 12.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ThemedGlassControl(
-            modifier = Modifier.size(50.dp),
+        AppToolbarAction(
+            modifier = Modifier.size(48.dp),
             onClick = onBack,
             testTag = "cloudflare.back",
         ) {
@@ -362,15 +368,16 @@ private fun CloudflareTopBar(
                 .weight(1f)
                 .padding(horizontal = 12.dp)
                 .semantics { heading() },
-            style = MaterialTheme.typography.headlineMedium,
+            style = MaterialTheme.typography.titleLarge,
+            textAlign = TextAlign.Center,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
         val isCancelable = operation == CloudflareOperation.CONNECTING ||
             operation == CloudflareOperation.REFRESHING ||
             operation == CloudflareOperation.SWITCHING_ACCOUNT
-        ThemedGlassControl(
-            modifier = Modifier.size(50.dp),
+        AppToolbarAction(
+            modifier = Modifier.size(48.dp),
             enabled = isCancelable || (canRefresh && operation == null),
             onClick = if (isCancelable) onCancel else onRefresh,
             testTag = "cloudflare.refreshOrCancel",
@@ -425,31 +432,31 @@ private fun CloudflareConnectionForm(
         item("intro") {
             OffsetPanel(
                 modifier = Modifier.fillMaxWidth(),
-                color = CloudflareAccent,
+                color = MaterialTheme.colorScheme.surface,
                 borderColor = MaterialTheme.colorScheme.outline,
                 shadowColor = MaterialTheme.colorScheme.outline,
             ) {
                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        ProviderMark(checkNotNull(IntegrationCatalog.provider("cloudflare")), size = 58.dp)
+                        ProviderMark(checkNotNull(IntegrationCatalog.provider("cloudflare")), size = 40.dp)
                         Spacer(Modifier.width(14.dp))
                         Column(Modifier.weight(1f)) {
-                            Text("CLOUDFLARE", color = Color.Black, style = MaterialTheme.typography.labelSmall)
+                            Text("CLOUDFLARE", color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.labelSmall)
                             Text(
                                 "Zones, Pages, and Workers",
-                                color = Color.Black,
-                                style = MaterialTheme.typography.headlineMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                style = MaterialTheme.typography.titleMedium,
                             )
                         }
                     }
                     Text(
                         "Use a scoped API token with Account Settings:Read, Zone:Read, Workers Scripts:Read and Cloudflare Pages:Read. Your token is encrypted and stored only on this device.",
-                        color = Color.Black,
+                        color = MaterialTheme.colorScheme.onSurface,
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Text(
                         "Connect using a scoped API token. Email and Global API Key connections are unavailable.",
-                        color = Color.Black.copy(alpha = 0.72f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
@@ -705,51 +712,27 @@ private fun CloudflareDashboard(
 @Composable
 private fun CloudflareCommandCard(dashboard: CloudflareDashboardUi, hasOperationError: Boolean) {
     val inventory = dashboard.inventory
-    val stacked = LocalDensity.current.fontScale >= 1.45f
-    val needsAttention = hasOperationError || dashboard.isPartial || dashboard.warnings.isNotEmpty() ||
-        inventory?.warnings?.isNotEmpty() == true
-    val connectionLabel = if (needsAttention) "Attention" else "Connected"
-    val connectionColor = if (needsAttention) CloudflareWarning else CloudflareSuccess
-    OffsetPanel(
-        modifier = Modifier.fillMaxWidth(),
-        color = CloudflareAccent,
-        borderColor = MaterialTheme.colorScheme.outline,
-        shadowColor = MaterialTheme.colorScheme.outline,
+    val attention = hasOperationError || dashboard.isPartial || dashboard.warnings.isNotEmpty() || inventory?.warnings?.isNotEmpty() == true
+    ProviderSummaryCard(
+        provider = requireNotNull(IntegrationCatalog.provider("cloudflare")),
+        title = dashboard.selectedAccount?.name ?: dashboard.profile.displayName,
+        subtitle = "Token ${dashboard.profile.tokenStatus.lowercase()} · read-only",
+        status = if (attention) "Attention" else "Connected",
+        statusColor = if (attention) CloudflareWarning else CloudflareSuccess,
+        detail = "${cacheLabel(dashboard.cacheState)} data",
         testTag = "cloudflare.summary",
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Row(verticalAlignment = Alignment.Top) {
-                ProviderMark(checkNotNull(IntegrationCatalog.provider("cloudflare")), size = 56.dp)
-                Spacer(Modifier.width(13.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        dashboard.selectedAccount?.name ?: dashboard.profile.displayName,
-                        color = Color.Black,
-                        style = MaterialTheme.typography.headlineMedium,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        "Token ${dashboard.profile.tokenStatus.lowercase()} · read-only · ${cacheLabel(dashboard.cacheState)} data",
-                        color = Color.Black.copy(alpha = 0.72f),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-                if (!stacked) StatusPill(connectionLabel, connectionColor)
+        if (LocalDensity.current.fontScale >= 1.45f) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                CloudflareMetric("${inventory?.loadedZoneCount ?: 0}", "Zones", Modifier.fillMaxWidth())
+                CloudflareMetric("${inventory?.loadedPagesProjectCount ?: 0}", "Pages", Modifier.fillMaxWidth())
+                CloudflareMetric("${inventory?.loadedWorkerCount ?: 0}", "Workers", Modifier.fillMaxWidth())
             }
-            if (stacked) StatusPill(connectionLabel, connectionColor)
-            if (stacked) {
-                Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                    CloudflareMetric("${inventory?.loadedZoneCount ?: 0}", "ZONES", Modifier.fillMaxWidth())
-                    CloudflareMetric("${inventory?.loadedPagesProjectCount ?: 0}", "PAGES", Modifier.fillMaxWidth())
-                    CloudflareMetric("${inventory?.loadedWorkerCount ?: 0}", "WORKERS", Modifier.fillMaxWidth())
-                }
-            } else {
-                Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                    CloudflareMetric("${inventory?.loadedZoneCount ?: 0}", "ZONES", Modifier.weight(1f))
-                    CloudflareMetric("${inventory?.loadedPagesProjectCount ?: 0}", "PAGES", Modifier.weight(1f))
-                    CloudflareMetric("${inventory?.loadedWorkerCount ?: 0}", "WORKERS", Modifier.weight(1f))
-                }
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                CloudflareMetric("${inventory?.loadedZoneCount ?: 0}", "Zones", Modifier.weight(1f))
+                CloudflareMetric("${inventory?.loadedPagesProjectCount ?: 0}", "Pages", Modifier.weight(1f))
+                CloudflareMetric("${inventory?.loadedWorkerCount ?: 0}", "Workers", Modifier.weight(1f))
             }
         }
     }
@@ -757,22 +740,10 @@ private fun CloudflareCommandCard(dashboard: CloudflareDashboardUi, hasOperation
 
 @Composable
 private fun CloudflareMetric(value: String, label: String, modifier: Modifier = Modifier) {
-    Surface(
-        modifier = modifier.heightIn(min = 78.dp),
-        color = Color(0xFFFFA062),
-        shape = RoundedCornerShape(10.dp),
-        border = BorderStroke(2.dp, Color.Black),
-        tonalElevation = 0.dp,
-    ) {
-        Column(
-            Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Text(value, color = Color.Black, style = MaterialTheme.typography.headlineLarge)
-            Box(Modifier.fillMaxWidth().height(2.dp).background(Color.Black))
-            Spacer(Modifier.height(4.dp))
-            Text(label, color = Color.Black, style = MaterialTheme.typography.labelSmall)
+    Surface(modifier = modifier, color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(12.dp)) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(value, style = MaterialTheme.typography.headlineMedium)
+            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -867,7 +838,7 @@ private fun CloudflareListHeading(label: String, visible: Int, loaded: Int, test
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.Bottom,
     ) {
-        Text(label, style = MaterialTheme.typography.headlineMedium)
+        Text(label, style = MaterialTheme.typography.titleMedium)
         Text(
             if (visible == loaded) visible.toString() else "$visible of $loaded",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -891,7 +862,7 @@ private fun CloudflareResourceRow(
             .fillMaxWidth()
             .heightIn(min = 82.dp),
         color = MaterialTheme.colorScheme.surface,
-        borderColor = CloudflareAccent,
+        borderColor = CloudflareAccent.copy(alpha = 0.20f),
         shadowColor = MaterialTheme.colorScheme.outline,
         shadowOffset = 3.dp,
         onClick = {
@@ -904,7 +875,7 @@ private fun CloudflareResourceRow(
             Surface(
                 modifier = Modifier.size(44.dp),
                 shape = RoundedCornerShape(10.dp),
-                color = Color.Black,
+                color = CloudflareAccent.copy(alpha = 0.10f).compositeOver(MaterialTheme.colorScheme.surface),
                 contentColor = CloudflareAccent,
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                 tonalElevation = 0.dp,
@@ -1009,39 +980,19 @@ private fun CloudflareResourceDetail(state: CloudflareUiState, modifier: Modifie
 }
 
 @Composable
-private fun CloudflareDetailHero(
-    eyebrow: String,
-    title: String,
-    icon: ImageVector,
-    status: String?,
-    statusColor: Color,
-) {
-    val stacked = LocalDensity.current.fontScale >= 1.45f
-    OffsetPanel(
-        modifier = Modifier.fillMaxWidth(),
-        color = CloudflareAccent,
-        borderColor = MaterialTheme.colorScheme.outline,
-        shadowColor = MaterialTheme.colorScheme.outline,
-    ) {
-        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(58.dp).background(Color.Black), contentAlignment = Alignment.Center) {
-                    Icon(icon, contentDescription = null, tint = CloudflareAccent, modifier = Modifier.size(30.dp))
+private fun CloudflareDetailHero(eyebrow: String, title: String, icon: ImageVector, status: String?, statusColor: Color) {
+    OffsetPanel(modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surface, borderColor = CloudflareAccent.copy(alpha = 0.20f)) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(Modifier.size(36.dp).background(CloudflareAccent.copy(alpha = 0.10f), RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) {
+                    Icon(icon, null, tint = CloudflareAccent, modifier = Modifier.size(22.dp))
                 }
-                Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(eyebrow, color = Color.Black, style = MaterialTheme.typography.labelSmall)
-                    Text(
-                        title,
-                        color = Color.Black,
-                        style = MaterialTheme.typography.headlineMedium,
-                        maxLines = if (stacked) 5 else 3,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    Text(eyebrow, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = TextOverflow.Ellipsis)
                 }
-                if (!stacked) status?.let { StatusPill(it, statusColor) }
             }
-            if (stacked) status?.let { StatusPill(it, statusColor) }
+            status?.let { StatusPill(it, statusColor) }
         }
     }
 }

@@ -1,5 +1,9 @@
 package com.apoorvdarshan.verceltics.ui.screens
 
+import com.apoorvdarshan.verceltics.ui.components.ProviderSummaryCard
+import com.apoorvdarshan.verceltics.ui.components.AccountMenuButton
+import com.apoorvdarshan.verceltics.ui.components.AppToolbarAction
+import com.apoorvdarshan.verceltics.ui.components.AppToolbar
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
@@ -33,6 +37,8 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -124,6 +130,8 @@ fun WorkspaceScreen(
     ) {
         WorkspaceTopBar(
             workspace = workspace,
+            connectedProviders = IntegrationCatalog.providers(workspace).filter { it.id in connectedProviderIds },
+            onSelectProvider = onConnectProvider,
             onAccountAction = {
                 selectedCategoryId = workspace.id
                 showsConnectionCatalog = true
@@ -322,75 +330,29 @@ private fun WorkspaceAdditionalConnectionState(
 private fun WorkspaceTopBar(
     workspace: Workspace,
     onAccountAction: () -> Unit,
+    connectedProviders: List<IntegrationProvider>,
+    onSelectProvider: (IntegrationProvider) -> Unit,
 ) {
     val haptic = LocalHapticFeedback.current
-    val fontScale = LocalDensity.current.fontScale
-    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-        val usesAdaptiveLayout = usesAdaptiveWorkspaceTopBar(
-            availableWidthDp = maxWidth.value,
-            fontScale = fontScale,
-        )
-        val accountAction = {
-            haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-            onAccountAction()
-        }
-
-        if (usesAdaptiveLayout) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 70.dp)
-                    .padding(horizontal = 18.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                WorkspaceAccountControl(
-                    workspace = workspace,
-                    onClick = accountAction,
-                    modifier = Modifier
-                        .width(68.dp)
-                        .height(50.dp),
-                )
-                Spacer(Modifier.width(12.dp))
-                Text(
-                    text = workspace.displayName,
-                    modifier = Modifier
-                        .weight(1f)
-                        .semantics { heading() },
-                    color = MaterialTheme.colorScheme.onBackground,
-                    style = MaterialTheme.typography.headlineMedium,
-                    textAlign = TextAlign.Start,
-                )
-            }
-        } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 70.dp)
-                    .padding(horizontal = 18.dp, vertical = 8.dp),
-            ) {
-                WorkspaceAccountControl(
-                    workspace = workspace,
-                    onClick = accountAction,
-                    modifier = Modifier
-                        .width(68.dp)
-                        .height(50.dp)
-                        .align(Alignment.CenterStart),
-                )
-
-                Text(
-                    text = workspace.displayName,
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .padding(horizontal = 78.dp)
-                        .semantics { heading() },
-                    color = MaterialTheme.colorScheme.onBackground,
-                    style = MaterialTheme.typography.headlineMedium,
-                    maxLines = 1,
-                    textAlign = TextAlign.Center,
-                )
+    var expanded by rememberSaveable(workspace.id) { mutableStateOf(false) }
+    AppToolbar(title = workspace.displayName, leading = {
+        Box {
+            if (connectedProviders.isEmpty()) {
+                WorkspaceAccountControl(workspace, onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                    onAccountAction()
+                })
+            } else {
+                AccountMenuButton(connectedProviders.first(), onClick = { expanded = true }, contentDescription = "Switch connected ${workspace.displayName.lowercase()} account", testTag = "workspace.${workspace.id}.account")
+                DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                    connectedProviders.forEach { provider ->
+                        DropdownMenuItem(text = { Text(provider.displayName) }, onClick = { expanded = false; onSelectProvider(provider) })
+                    }
+                    DropdownMenuItem(text = { Text("Add account") }, onClick = { expanded = false; onAccountAction() })
+                }
             }
         }
-    }
+    })
 }
 
 /** Pure layout policy so accessibility and narrow-window behavior can be regression tested. */
@@ -400,48 +362,14 @@ internal fun usesAdaptiveWorkspaceTopBar(
 ): Boolean = availableWidthDp < 340f || fontScale >= 1.3f
 
 @Composable
-private fun WorkspaceAccountControl(
-    workspace: Workspace,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    ThemedGlassControl(
-        modifier = modifier,
-        onClick = onClick,
-        testTag = "workspace.${workspace.id}.account",
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .semantics {
-                    contentDescription = "Manage ${workspace.displayName.lowercase()} accounts"
-                    role = Role.Button
-                },
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Surface(
-                modifier = Modifier.size(28.dp),
-                shape = RoundedCornerShape(10.dp),
-                color = MaterialTheme.colorScheme.onSurface,
-                contentColor = MaterialTheme.colorScheme.primary,
-                border = BorderStroke(1.25.dp, MaterialTheme.colorScheme.primary),
-                tonalElevation = 0.dp,
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = workspaceIcon(workspace),
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
-            }
-            Icon(
-                imageVector = Icons.Rounded.KeyboardArrowDown,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(18.dp),
-            )
+private fun WorkspaceAccountControl(workspace: Workspace, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    AppToolbarAction(onClick = onClick, modifier = modifier.size(48.dp), testTag = "workspace.${workspace.id}.account") {
+        Row(Modifier.fillMaxSize().semantics {
+            contentDescription = "Manage ${workspace.displayName.lowercase()} accounts"
+            role = Role.Button
+        }, horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
+            Icon(workspaceIcon(workspace), null, Modifier.size(22.dp))
+            Icon(Icons.Rounded.KeyboardArrowDown, null, Modifier.size(12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

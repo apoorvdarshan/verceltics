@@ -1,5 +1,10 @@
 package com.apoorvdarshan.verceltics.ui.screens
 
+import androidx.compose.ui.text.style.TextAlign
+import com.apoorvdarshan.verceltics.ui.components.ProviderSummaryCard
+import com.apoorvdarshan.verceltics.ui.components.AccountMenuButton
+import com.apoorvdarshan.verceltics.ui.components.AppToolbarAction
+import com.apoorvdarshan.verceltics.ui.components.AppToolbar
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
@@ -130,96 +135,23 @@ fun ProviderDetailScreen(
 }
 
 @Composable
-private fun DetailHeader(
-    provider: IntegrationProvider,
-    onBack: () -> Unit,
-) {
+private fun DetailHeader(provider: IntegrationProvider, onBack: () -> Unit) {
     val haptic = LocalHapticFeedback.current
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        ThemedGlassControl(
-            onClick = {
-                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                onBack()
-            },
-            modifier = Modifier
-                .width(68.dp)
-                .heightIn(min = 48.dp)
-                .testTag("providerDetail.back"),
-        ) {
-            Box(
-                modifier = Modifier.fillMaxWidth(),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    Icons.AutoMirrored.Rounded.ArrowBack,
-                    contentDescription = "Back",
-                    tint = MaterialTheme.colorScheme.onSurface,
-                )
-            }
+    AppToolbar(title = provider.displayName, leading = {
+        AppToolbarAction(onClick = { haptic.performHapticFeedback(HapticFeedbackType.Confirm); onBack() }, testTag = "providerDetail.back") {
+            Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back")
         }
-        Spacer(Modifier.width(14.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = provider.workspace.displayName.uppercase(),
-                style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
-                color = MaterialTheme.colorScheme.primary,
-            )
-            Text(
-                text = provider.displayName,
-                style = MaterialTheme.typography.headlineLarge,
-                color = MaterialTheme.colorScheme.onBackground,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
+    })
 }
 
 @Composable
 private fun ProviderHero(provider: IntegrationProvider) {
-    val accent = Color(provider.accentColor)
-    val accentContent = contrastingContentColor(accent)
-    OffsetPanel(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 188.dp),
-        color = accent,
-        testTag = "providerDetail.hero",
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top,
-            ) {
-                ProviderMark(
-                    provider = provider,
-                    size = 68.dp,
-                )
-            }
-            Column {
-                Text(
-                    text = provider.displayName,
-                    style = MaterialTheme.typography.displayMedium,
-                    color = accentContent,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = provider.description,
-                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
-                    color = accentContent,
-                    maxLines = 4,
-                    overflow = TextOverflow.Ellipsis,
-                )
+    OffsetPanel(modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surface, borderColor = Color(provider.accentColor).copy(alpha = 0.20f), testTag = "providerDetail.hero") {
+        Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ProviderMark(provider, size = 40.dp)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(provider.displayName, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(provider.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 4, overflow = TextOverflow.Ellipsis)
             }
         }
     }

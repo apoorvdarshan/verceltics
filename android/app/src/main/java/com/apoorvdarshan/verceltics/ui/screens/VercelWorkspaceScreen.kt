@@ -1,5 +1,10 @@
 package com.apoorvdarshan.verceltics.ui.screens
 
+import androidx.compose.ui.text.style.TextAlign
+import com.apoorvdarshan.verceltics.ui.components.ProviderSummaryCard
+import com.apoorvdarshan.verceltics.ui.components.AccountMenuButton
+import com.apoorvdarshan.verceltics.ui.components.AppToolbarAction
+import com.apoorvdarshan.verceltics.ui.components.AppToolbar
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -101,6 +106,7 @@ fun VercelWorkspaceScreen(
     refreshRequestId: Int,
     onConnectProvider: (IntegrationProvider) -> Unit,
     connectedProviderContent: (@Composable () -> Unit)? = null,
+    connectedProviderIds: Set<String> = emptySet(),
     modifier: Modifier = Modifier,
 ) {
     val state by vercelConnectionViewModel.uiState.collectAsStateWithLifecycle()
@@ -199,6 +205,7 @@ fun VercelWorkspaceScreen(
             onAccountAction = {},
             persistenceError = state.error,
             connectedContent = connectedProviderContent,
+            connectedProviderIds = connectedProviderIds,
             searchRequestId = searchRequestId,
             modifier = modifier,
         )
@@ -222,7 +229,7 @@ fun VercelWorkspaceScreen(
                 selectedProjectId = project.id
                 vercelConnectionViewModel.openProjectAnalytics(project)
             },
-            connectedProviderContent = connectedProviderContent,
+            connectedProviderIds = connectedProviderIds,
             onConnectNetlify = {
                 IntegrationCatalog.provider("netlify")?.let(onConnectProvider)
             },
@@ -334,7 +341,7 @@ private fun ConnectedVercelWorkspace(
     onManageConnection: () -> Unit,
     onDisconnect: () -> Unit,
     onProjectSelected: (VercelProjectUi) -> Unit,
-    connectedProviderContent: (@Composable () -> Unit)?,
+    connectedProviderIds: Set<String>,
     onConnectNetlify: () -> Unit,
     onConnectCloudflare: () -> Unit,
     modifier: Modifier = Modifier,
@@ -379,18 +386,13 @@ private fun ConnectedVercelWorkspace(
             .fillMaxSize()
             .testTag("workspace.hosting.connected"),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 70.dp)
-                .padding(horizontal = 18.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+        AppToolbar(
+            title = "Hosting",
+            leading = {
             Box {
-                ThemedGlassControl(
+                AppToolbarAction(
                     modifier = Modifier
-                        .width(68.dp)
-                        .height(50.dp),
+                        .size(48.dp),
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                         accountMenuExpanded = true
@@ -408,25 +410,13 @@ private fun ConnectedVercelWorkspace(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         IntegrationCatalog.provider("vercel")?.let { provider ->
-                            Surface(
-                                modifier = Modifier.size(28.dp),
-                                shape = RoundedCornerShape(10.dp),
-                                color = MaterialTheme.colorScheme.onSurface,
-                                border = BorderStroke(1.25.dp, MaterialTheme.colorScheme.primary),
-                                tonalElevation = 0.dp,
-                            ) {
-                                ProviderLogo(
-                                    provider = provider,
-                                    modifier = Modifier.padding(6.dp),
-                                    tint = MaterialTheme.colorScheme.primary,
-                                )
-                            }
+                            ProviderLogo(provider, Modifier.size(24.dp), monochrome = true)
                         }
                         Icon(
                             Icons.Rounded.KeyboardArrowDown,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(12.dp),
                         )
                     }
                 }
@@ -479,6 +469,15 @@ private fun ConnectedVercelWorkspace(
                             accountMenuExpanded = false
                         },
                     )
+                    listOf("cloudflare" to onConnectCloudflare, "netlify" to onConnectNetlify).forEach { (id, openProvider) ->
+                        val provider = requireNotNull(IntegrationCatalog.provider(id))
+                        DropdownMenuItem(
+                            modifier = Modifier.testTag("workspace.hosting.connect${if (id == "cloudflare") "Cloudflare" else "Netlify"}"),
+                            text = { Text(if (id in connectedProviderIds) provider.displayName else "Connect ${provider.displayName}") },
+                            leadingIcon = { ProviderLogo(provider, Modifier.size(22.dp)) },
+                            onClick = { accountMenuExpanded = false; openProvider() },
+                        )
+                    }
                     DropdownMenuItem(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -488,7 +487,7 @@ private fun ConnectedVercelWorkspace(
                             Icon(
                                 Icons.Rounded.AddCircle,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         },
                         colors = MenuDefaults.itemColors(
@@ -526,57 +525,25 @@ private fun ConnectedVercelWorkspace(
                     )
                 }
             }
-
-            Text(
-                text = "Hosting",
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 12.dp)
-                    .semantics { heading() },
-                style = MaterialTheme.typography.headlineMedium,
-                maxLines = 1,
-            )
-
-            ThemedGlassControl(
-                modifier = Modifier.size(50.dp),
-                enabled = !isRefreshing,
-                onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                    onRefresh()
-                },
-                testTag = "workspace.hosting.refresh",
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .semantics {
-                            contentDescription = if (isRefreshing) {
-                                "Refreshing hosting projects"
-                            } else {
-                                "Refresh hosting projects"
-                            }
-                            role = Role.Button
-                            if (isRefreshing) {
-                                progressBarRangeInfo = ProgressBarRangeInfo.Indeterminate
-                            }
-                        },
-                    contentAlignment = Alignment.Center,
+            },
+            trailing = {
+                AppToolbarAction(
+                    modifier = Modifier.size(48.dp),
+                    enabled = !isRefreshing,
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                        onRefresh()
+                    },
+                    testTag = "workspace.hosting.refresh",
                 ) {
                     if (isRefreshing) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(21.dp),
-                            strokeWidth = 2.dp,
-                        )
+                        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                     } else {
-                        Icon(
-                            Icons.Rounded.Refresh,
-                            contentDescription = null,
-                            modifier = Modifier.size(25.dp),
-                        )
+                        Icon(Icons.Rounded.Refresh, "Refresh hosting projects", Modifier.size(22.dp))
                     }
                 }
-            }
-        }
+            },
+        )
 
         ControlSearchField(
             value = query,
@@ -597,83 +564,14 @@ private fun ConnectedVercelWorkspace(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item(key = "account-summary") {
-                OffsetPanel(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 98.dp),
-                    color = MaterialTheme.colorScheme.primary,
+                ProviderSummaryCard(
+                    provider = requireNotNull(IntegrationCatalog.provider("vercel")),
+                    title = dashboard.account.displayName,
+                    subtitle = dashboard.account.email ?: "Vercel account",
+                    status = "Connected",
+                    detail = "${dashboard.projects.size} projects",
                     testTag = "workspace.hosting.summary",
-                ) {
-                    BoxWithConstraints(Modifier.fillMaxWidth()) {
-                        val useStackedLayout = shouldUseStackedVercelLayout(
-                            availableWidthDp = maxWidth.value,
-                            fontScale = LocalDensity.current.fontScale,
-                        )
-                        if (useStackedLayout) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                verticalArrangement = Arrangement.spacedBy(12.dp),
-                            ) {
-                                VercelAccountSummaryText(
-                                    account = dashboard.account,
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
-                                StatusPill(
-                                    text = "Connected",
-                                    color = MaterialTheme.colorScheme.tertiary,
-                                )
-                            }
-                        } else {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                VercelAccountSummaryText(
-                                    account = dashboard.account,
-                                    modifier = Modifier.weight(1f),
-                                )
-                                StatusPill(
-                                    text = "Connected",
-                                    color = MaterialTheme.colorScheme.tertiary,
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            connectedProviderContent?.let { content ->
-                item(key = "secondary-connected-provider") {
-                    content()
-                }
-            } ?: item(key = "connect-secondary-providers") {
-                Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                    ThemedActionButton(
-                        text = "CONNECT CLOUDFLARE",
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                            onConnectCloudflare()
-                        },
-                        tone = ThemedActionTone.NEUTRAL,
-                        modifier = Modifier.fillMaxWidth(),
-                        testTag = "workspace.hosting.connectCloudflare",
-                    )
-                    ThemedActionButton(
-                        text = "CONNECT NETLIFY",
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                            onConnectNetlify()
-                        },
-                        tone = ThemedActionTone.NEUTRAL,
-                        modifier = Modifier.fillMaxWidth(),
-                        testTag = "workspace.hosting.connectNetlify",
-                    )
-                }
+                )
             }
 
             if (isRefreshing) {
@@ -874,9 +772,9 @@ private fun VercelAccountSummaryText(
 @Composable
 private fun VercelProjectMark() {
     Surface(
-        modifier = Modifier.size(42.dp),
-        color = MaterialTheme.colorScheme.onSurface,
-        contentColor = MaterialTheme.colorScheme.surface,
+        modifier = Modifier.size(34.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        contentColor = MaterialTheme.colorScheme.onSurface,
         shape = RoundedCornerShape(10.dp),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
         tonalElevation = 0.dp,
@@ -886,7 +784,7 @@ private fun VercelProjectMark() {
                 ProviderLogo(
                     provider = provider,
                     modifier = Modifier.padding(10.dp),
-                    tint = MaterialTheme.colorScheme.primary,
+                    tint = MaterialTheme.colorScheme.onSurface,
                 )
             }
         }
@@ -986,7 +884,7 @@ private fun formatProjectDate(timestamp: Long): String =
 internal fun shouldUseStackedVercelLayout(
     availableWidthDp: Float,
     fontScale: Float,
-): Boolean = availableWidthDp < 344f || fontScale >= 1.30f
+): Boolean = availableWidthDp < 280f || fontScale >= 1.30f
 
 internal fun shouldClearSavedProjectSelection(
     status: VercelConnectionStatus,

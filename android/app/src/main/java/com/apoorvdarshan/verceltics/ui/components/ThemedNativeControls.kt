@@ -53,7 +53,7 @@ fun ThemedActionButton(
     val colors = MaterialTheme.colorScheme
     val containerColor = when (tone) {
         ThemedActionTone.PRIMARY -> colors.primary
-        ThemedActionTone.NEUTRAL -> colors.primary.copy(alpha = 0.10f).compositeOver(colors.surface)
+        ThemedActionTone.NEUTRAL -> colors.surfaceVariant
         ThemedActionTone.DESTRUCTIVE -> colors.error.copy(alpha = 0.13f).compositeOver(colors.surface)
     }
     val contentColor = when (tone) {
@@ -70,7 +70,7 @@ fun ThemedActionButton(
         onClick = onClick,
         enabled = enabled && !isBusy,
         modifier = modifier
-            .defaultMinSize(minHeight = 50.dp)
+            .defaultMinSize(minHeight = 48.dp)
             .then(if (testTag == null) Modifier else Modifier.testTag(testTag))
             .then(
                 if (isBusy) {
@@ -84,9 +84,9 @@ fun ThemedActionButton(
         shape = RoundedCornerShape(13.dp),
         color = containerColor,
         contentColor = contentColor.copy(alpha = if (enabled) 1f else 0.38f),
-        border = BorderStroke(1.dp, borderColor.copy(alpha = if (enabled) 1f else 0.34f)),
+        border = BorderStroke(1.dp, borderColor.copy(alpha = borderColor.alpha * if (enabled) 1f else 0.34f)),
         tonalElevation = 0.dp,
-        shadowElevation = 3.dp,
+        shadowElevation = 0.dp,
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),

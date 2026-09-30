@@ -24,6 +24,8 @@ internal val VercelticsTypography = Typography(
         lineHeight = 32.sp,
         letterSpacing = (-0.25).sp,
     ),
+    displaySmall = TextStyle(fontFamily = DisplayFamily, fontWeight = FontWeight.SemiBold, fontSize = 24.sp, lineHeight = 28.sp),
+    headlineSmall = TextStyle(fontFamily = DisplayFamily, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, lineHeight = 23.sp),
     headlineLarge = TextStyle(
         fontFamily = DisplayFamily,
         fontWeight = FontWeight.Bold,
@@ -39,8 +41,8 @@ internal val VercelticsTypography = Typography(
     titleLarge = TextStyle(
         fontFamily = DisplayFamily,
         fontWeight = FontWeight.Bold,
-        fontSize = 20.sp,
-        lineHeight = 24.sp,
+        fontSize = 18.sp,
+        lineHeight = 23.sp,
     ),
     titleMedium = TextStyle(
         fontFamily = BodyFamily,

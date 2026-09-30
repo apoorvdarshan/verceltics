@@ -1,5 +1,10 @@
 package com.apoorvdarshan.verceltics.ui.searchconsole
 
+import androidx.compose.ui.text.style.TextAlign
+import com.apoorvdarshan.verceltics.ui.components.ProviderSummaryCard
+import com.apoorvdarshan.verceltics.ui.components.AccountMenuButton
+import com.apoorvdarshan.verceltics.ui.components.AppToolbarAction
+import com.apoorvdarshan.verceltics.ui.components.AppToolbar
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -143,7 +148,7 @@ fun SearchConsoleConnectionCard(
             .testTag("workspace.sites.searchConsoleConnection")
             .semantics { stateDescription = "$status, $cacheDescription" },
         color = MaterialTheme.colorScheme.surface,
-        borderColor = SearchConsoleAccent,
+        borderColor = SearchConsoleAccent.copy(alpha = 0.20f),
         shadowColor = SearchConsoleAccent,
         onClick = {
             haptic.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -436,11 +441,12 @@ private fun SearchConsoleTopBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 18.dp, vertical = 12.dp),
+            .heightIn(min = 56.dp)
+            .padding(horizontal = 12.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ThemedGlassControl(
-            modifier = Modifier.size(50.dp),
+        AppToolbarAction(
+            modifier = Modifier.size(48.dp),
             onClick = onBack,
             testTag = "searchConsole.back",
         ) {
@@ -454,14 +460,15 @@ private fun SearchConsoleTopBar(
                 .weight(1f)
                 .padding(horizontal = 12.dp)
                 .semantics { heading() },
-            style = MaterialTheme.typography.headlineMedium,
+            style = MaterialTheme.typography.titleLarge,
+            textAlign = TextAlign.Center,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
         val isCancelable = operation == SearchConsoleOperation.AUTHORIZING ||
             operation == SearchConsoleOperation.REFRESHING
-        ThemedGlassControl(
-            modifier = Modifier.size(50.dp),
+        AppToolbarAction(
+            modifier = Modifier.size(48.dp),
             enabled = isCancelable || (canRefresh && operation == null && !isLoadingProperty),
             onClick = if (isCancelable) onCancel else onRefresh,
             testTag = "searchConsole.refreshOrCancel",
@@ -704,46 +711,15 @@ private fun SearchConsoleDashboard(
 
 @Composable
 private fun SearchConsoleAccountPanel(dashboard: SearchConsoleDashboardUi) {
-    OffsetPanel(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 132.dp),
-        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
-            .compositeOver(MaterialTheme.colorScheme.surface),
-        borderColor = MaterialTheme.colorScheme.outline,
-    ) {
-        if (LocalDensity.current.fontScale >= 1.35f) {
-            Column(
-                Modifier.padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                ProviderMark(searchConsoleProvider(), size = 62.dp)
-                SearchConsoleAccountCopy(dashboard, Modifier.fillMaxWidth())
-                StatusPill(
-                    if (dashboard.cacheState == SearchConsoleCacheState.CACHED_STALE) "CACHED" else "CONNECTED",
-                    if (dashboard.cacheState == SearchConsoleCacheState.CACHED_STALE) {
-                        SearchConsoleWarning
-                    } else {
-                        SearchConsoleSuccess
-                    },
-                )
-            }
-        } else {
-            Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-                ProviderMark(searchConsoleProvider(), size = 62.dp)
-                Spacer(Modifier.width(14.dp))
-                SearchConsoleAccountCopy(dashboard, Modifier.weight(1f))
-                StatusPill(
-                    text = if (dashboard.cacheState == SearchConsoleCacheState.CACHED_STALE) "CACHED" else "CONNECTED",
-                    color = if (dashboard.cacheState == SearchConsoleCacheState.CACHED_STALE) {
-                        SearchConsoleWarning
-                    } else {
-                        SearchConsoleSuccess
-                    },
-                )
-            }
-        }
-    }
+    val stale = dashboard.cacheState == SearchConsoleCacheState.CACHED_STALE
+    ProviderSummaryCard(
+        provider = searchConsoleProvider(),
+        title = dashboard.account.displayName,
+        subtitle = "${dashboard.loadedPropertyCount} verified ${if (dashboard.loadedPropertyCount == 1) "property" else "properties"}",
+        status = if (stale) "Cached" else "Connected",
+        statusColor = if (stale) SearchConsoleWarning else SearchConsoleSuccess,
+        detail = "Updated ${formatTimestamp(dashboard.fetchedAtMillis)}",
+    )
 }
 
 @Composable
@@ -1253,50 +1229,18 @@ private fun FilterSummaryRow(filter: SearchConsoleFilterUi, onRemove: () -> Unit
 }
 
 @Composable
-private fun PropertyHeroContent(
-    property: SearchConsolePropertyUi?,
-    selectedPropertyUrl: String?,
-    onSwitch: () -> Unit,
-) {
-    val copy: @Composable (Modifier) -> Unit = { modifier ->
-        Column(modifier, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(
-                property?.displayName ?: selectedPropertyUrl.orEmpty(),
-                style = MaterialTheme.typography.titleLarge,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                property?.permission ?: "Verified property",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Text("READ-ONLY GOOGLE DATA", color = SearchConsoleAccent, style = MaterialTheme.typography.labelSmall)
+private fun PropertyHeroContent(property: SearchConsolePropertyUi?, selectedPropertyUrl: String?, onSwitch: () -> Unit) {
+    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ProviderMark(searchConsoleProvider(), size = 36.dp)
+            Column(Modifier.weight(1f)) {
+                Text(property?.displayName ?: selectedPropertyUrl.orEmpty(), style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(property?.permission ?: "Verified property", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
-    }
-    if (LocalDensity.current.fontScale >= 1.35f) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            ProviderMark(searchConsoleProvider(), size = 58.dp)
-            copy(Modifier.fillMaxWidth())
-            ThemedActionButton(
-                text = "SWITCH PROPERTY",
-                onClick = onSwitch,
-                modifier = Modifier.fillMaxWidth(),
-                tone = ThemedActionTone.NEUTRAL,
-                testTag = "searchConsole.switchProperty",
-            )
-        }
-    } else {
-        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            ProviderMark(searchConsoleProvider(), size = 58.dp)
-            Spacer(Modifier.width(13.dp))
-            copy(Modifier.weight(1f))
-            ThemedActionButton(
-                text = "SWITCH",
-                onClick = onSwitch,
-                tone = ThemedActionTone.NEUTRAL,
-                testTag = "searchConsole.switchProperty",
-            )
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("Read-only Google data", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            ThemedActionButton(text = "Switch property", onClick = onSwitch, tone = ThemedActionTone.NEUTRAL, testTag = "searchConsole.switchProperty")
         }
     }
 }
@@ -1662,7 +1606,7 @@ private fun PerformanceQueryBar(
             .heightIn(min = 88.dp),
         color = SearchConsoleAccent.copy(alpha = 0.12f)
             .compositeOver(MaterialTheme.colorScheme.surface),
-        borderColor = SearchConsoleAccent,
+        borderColor = SearchConsoleAccent.copy(alpha = 0.20f),
         shadowColor = SearchConsoleAccent,
         onClick = onClick,
         testTag = "searchConsole.performance.query",
@@ -1823,7 +1767,7 @@ private fun MetricCard(
             verticalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-            Text(value, style = MaterialTheme.typography.displayMedium)
+            Text(value, style = MaterialTheme.typography.headlineLarge)
         }
     }
 }

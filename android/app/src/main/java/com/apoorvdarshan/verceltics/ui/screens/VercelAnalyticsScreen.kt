@@ -1,5 +1,10 @@
 package com.apoorvdarshan.verceltics.ui.screens
 
+import androidx.compose.ui.text.style.TextAlign
+import com.apoorvdarshan.verceltics.ui.components.ProviderSummaryCard
+import com.apoorvdarshan.verceltics.ui.components.AccountMenuButton
+import com.apoorvdarshan.verceltics.ui.components.AppToolbarAction
+import com.apoorvdarshan.verceltics.ui.components.AppToolbar
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -101,12 +106,12 @@ internal fun VercelAnalyticsScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 70.dp)
-                .padding(horizontal = 18.dp, vertical = 8.dp),
+                .heightIn(min = 56.dp)
+                .padding(horizontal = 12.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            ThemedGlassControl(
-                modifier = Modifier.size(50.dp),
+            AppToolbarAction(
+                modifier = Modifier.size(48.dp),
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                     onBack()
@@ -135,12 +140,13 @@ internal fun VercelAnalyticsScreen(
                     .weight(1f)
                     .padding(horizontal = 14.dp)
                     .semantics { heading() },
-                style = MaterialTheme.typography.headlineMedium,
+                style = MaterialTheme.typography.titleLarge,
+                textAlign = TextAlign.Center,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            ThemedGlassControl(
-                modifier = Modifier.size(50.dp),
+            AppToolbarAction(
+                modifier = Modifier.size(48.dp),
                 enabled = !state.isLoading,
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -266,40 +272,14 @@ internal fun VercelAnalyticsScreen(
 
 @Composable
 private fun ProjectIdentityPanel(project: VercelProjectUi, account: VercelAccountUi) {
-    OffsetPanel(
-        modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.primary,
+    ProviderSummaryCard(
+        provider = requireNotNull(com.apoorvdarshan.verceltics.domain.IntegrationCatalog.provider("vercel")),
+        title = project.name,
+        subtitle = listOfNotNull(project.framework, account.displayName).joinToString(" · "),
+        status = "Connected",
+        detail = "Web Analytics",
         testTag = "workspace.hosting.analytics.identity",
-    ) {
-        BoxWithConstraints(Modifier.fillMaxWidth()) {
-            val useStackedLayout = shouldUseStackedVercelLayout(
-                availableWidthDp = maxWidth.value,
-                fontScale = LocalDensity.current.fontScale,
-            )
-            if (useStackedLayout) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    ProjectIdentityText(project, account, Modifier.fillMaxWidth())
-                    StatusPill(text = "Connected", color = MaterialTheme.colorScheme.tertiary)
-                }
-            } else {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(18.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    ProjectIdentityText(project, account, Modifier.weight(1f))
-                    StatusPill(text = "Connected", color = MaterialTheme.colorScheme.tertiary)
-                }
-            }
-        }
-    }
+    )
 }
 
 @Composable
@@ -598,7 +578,7 @@ private fun AnalyticsStats(data: VercelAnalyticsDataUi) {
 @Composable
 private fun AnalyticsStatPanel(stat: AnalyticsStat, modifier: Modifier) {
     OffsetPanel(
-        modifier = modifier.heightIn(min = 116.dp),
+        modifier = modifier.heightIn(min = 100.dp),
         color = MaterialTheme.colorScheme.surface,
     ) {
         Column(

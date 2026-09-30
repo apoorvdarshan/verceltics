@@ -12,7 +12,7 @@ class PageSpeedLayoutTest {
 
     @Test
     fun `narrow content or accessibility text stacks metrics`() {
-        assertTrue(shouldStackPageSpeedLayout(availableWidthDp = 339f, fontScale = 1f))
+        assertTrue(shouldStackPageSpeedLayout(availableWidthDp = 279f, fontScale = 1f))
         assertTrue(shouldStackPageSpeedLayout(availableWidthDp = 357f, fontScale = 1.3f))
     }
 }
