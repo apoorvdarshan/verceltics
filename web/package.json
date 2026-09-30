@@ -22,7 +22,7 @@
     "@types/react-dom": "19.3.0",
     "tailwindcss": "^4",
     "typescript": "7.0.2",
-    "wrangler": "4.135.0"
+    "wrangler": "4.141.0"
   },
   "overrides": {
     "postcss": "8.5.28",
