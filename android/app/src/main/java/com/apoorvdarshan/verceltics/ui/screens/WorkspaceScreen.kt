@@ -1,6 +1,13 @@
 package com.apoorvdarshan.verceltics.ui.screens
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -35,6 +42,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -46,6 +54,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalDensity
@@ -194,6 +203,35 @@ fun WorkspaceScreen(
     }
 
     if (showsConnectionCatalog) {
+        var dragOffset by remember { mutableFloatStateOf(0f) }
+        var isDragging by remember { mutableStateOf(false) }
+        val density = LocalDensity.current
+        val dismissDistance = with(density) { 80.dp.toPx() }
+        val flingDistance = with(density) { 16.dp.toPx() }
+        val dismissVelocity = with(density) { 1200.dp.toPx() }
+        val animatedOffset by animateFloatAsState(
+            targetValue = dragOffset,
+            animationSpec = if (isDragging) snap() else spring(),
+            label = "connection.catalog.drag",
+        )
+        // Only the header owns dismissal gestures; provider-list scrolling never moves the picker.
+        val dismissGesture = Modifier.draggable(
+            state = rememberDraggableState { delta ->
+                dragOffset = (dragOffset + delta).coerceAtLeast(0f)
+            },
+            orientation = Orientation.Vertical,
+            onDragStarted = { isDragging = true },
+            onDragStopped = { velocity ->
+                isDragging = false
+                if (dragOffset >= dismissDistance ||
+                    (dragOffset >= flingDistance && velocity >= dismissVelocity)
+                ) {
+                    showsConnectionCatalog = false
+                } else {
+                    dragOffset = 0f
+                }
+            },
+        )
         Dialog(
             onDismissRequest = { showsConnectionCatalog = false },
             properties = DialogProperties(
@@ -202,13 +240,17 @@ fun WorkspaceScreen(
             ),
         ) {
             Surface(
-                modifier = Modifier.fillMaxSize().testTag("connection.catalog"),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { translationY = animatedOffset }
+                    .testTag("connection.catalog"),
                 color = MaterialTheme.colorScheme.background,
             ) {
                 ConnectionCatalog(
                     selectedCategory = selectedCategory,
                     onCategorySelected = { selectedCategoryId = it.id },
                     onDismiss = { showsConnectionCatalog = false },
+                    headerModifier = dismissGesture,
                     focusRequestId = catalogFocusRequestId,
                     connectedProviderIds = connectedProviderIds,
                     onProviderSelected = { provider ->
@@ -541,6 +583,7 @@ private fun ConnectionCatalog(
     selectedCategory: Workspace,
     onCategorySelected: (Workspace) -> Unit,
     onDismiss: () -> Unit,
+    headerModifier: Modifier,
     focusRequestId: Int,
     connectedProviderIds: Set<String>,
     onProviderSelected: (IntegrationProvider) -> Unit,
@@ -584,18 +627,30 @@ private fun ConnectionCatalog(
             .safeDrawingPadding()
             .imePadding(),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        Column(
+            modifier = headerModifier.fillMaxWidth().testTag("connection.catalog.dragHandle"),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(
-                text = "Connect an integration",
-                modifier = Modifier.weight(1f).semantics { heading() },
-                color = MaterialTheme.colorScheme.onBackground,
-                style = MaterialTheme.typography.headlineSmall,
+            Box(
+                modifier = Modifier
+                    .padding(top = 8.dp, bottom = 4.dp)
+                    .width(44.dp)
+                    .height(5.dp)
+                    .background(MaterialTheme.colorScheme.outline, RoundedCornerShape(50)),
             )
-            IconButton(onClick = onDismiss, modifier = Modifier.testTag("connection.catalog.close")) {
-                Icon(Icons.Rounded.Close, contentDescription = "Close integration picker")
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "Connect an integration",
+                    modifier = Modifier.weight(1f).semantics { heading() },
+                    color = MaterialTheme.colorScheme.onBackground,
+                    style = MaterialTheme.typography.headlineSmall,
+                )
+                IconButton(onClick = onDismiss, modifier = Modifier.testTag("connection.catalog.close")) {
+                    Icon(Icons.Rounded.Close, contentDescription = "Close integration picker")
+                }
             }
         }
         ConnectionCategoryPicker(
