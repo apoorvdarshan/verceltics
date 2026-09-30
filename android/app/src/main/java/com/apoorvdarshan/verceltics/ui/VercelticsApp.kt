@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import com.apoorvdarshan.verceltics.ui.sample.SampleRegistrarScreen
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -131,6 +133,8 @@ fun VercelticsApp(
     aboutState: AboutScreenState = defaultAboutScreenState(),
     onAboutAction: (AboutScreenAction) -> Unit = {},
     modifier: Modifier = Modifier,
+    isSampleData: Boolean = false,
+    onToggleSampleData: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val preferences = remember(context) {
@@ -183,7 +187,7 @@ fun VercelticsApp(
         destinationId = selected.id
         selected.workspace?.let { workspace ->
             lastWorkspaceId = workspace.id
-            preferences.edit { putString(LAST_PRIMARY_WORKSPACE, workspace.id) }
+            if (!isSampleData) preferences.edit { putString(LAST_PRIMARY_WORKSPACE, workspace.id) }
         }
     }
 
@@ -210,7 +214,7 @@ fun VercelticsApp(
         ) {
             destinationId = MainDestination.SITES.id
             lastWorkspaceId = Workspace.SITES.id
-            preferences.edit { putString(LAST_PRIMARY_WORKSPACE, Workspace.SITES.id) }
+            if (!isSampleData) preferences.edit { putString(LAST_PRIMARY_WORKSPACE, Workspace.SITES.id) }
             providerId = SEARCH_CONSOLE_PROVIDER_ID
             searchConsoleSearchRequestId += 1
             return
@@ -255,6 +259,19 @@ fun VercelticsApp(
         modifier = modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        topBar = {
+            if (isSampleData) {
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
+                        .padding(horizontal = 18.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Sample data", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { onToggleSampleData?.invoke() }) { Text("Exit preview") }
+                }
+            }
+        },
         bottomBar = {
             AppNavigationDock(
                 selectedDestination = destination.navigationDestination,
@@ -272,10 +289,10 @@ fun VercelticsApp(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(bottom = contentPadding.calculateBottomPadding())
+                .padding(top = contentPadding.calculateTopPadding(), bottom = contentPadding.calculateBottomPadding())
                 .windowInsetsPadding(
                     WindowInsets.safeDrawing.only(
-                        WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
+                        if (isSampleData) WindowInsetsSides.Horizontal else WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
                     ),
                 )
                 .background(MaterialTheme.colorScheme.background),
@@ -306,6 +323,11 @@ fun VercelticsApp(
                         searchRequestId = searchConsoleSearchRequestId,
                         modifier = Modifier.fillMaxSize(),
                     )
+                    "nameDotCom", "namecheap" -> if (isSampleData) {
+                        SampleRegistrarScreen(initialProviderId = provider.id, onBack = ::closeProvider, modifier = Modifier.fillMaxSize())
+                    } else {
+                        ProviderDetailScreen(provider = provider, vercelConnectionViewModel = vercelConnectionViewModel, onBack = ::closeProvider, modifier = Modifier.fillMaxSize())
+                    }
                     else -> ProviderDetailScreen(
                         provider = provider,
                         vercelConnectionViewModel = vercelConnectionViewModel,
@@ -374,7 +396,9 @@ fun VercelticsApp(
                             modifier = Modifier.fillMaxSize(),
                         )
 
-                        MainDestination.REGISTRARS -> WorkspaceScreen(
+                        MainDestination.REGISTRARS -> if (isSampleData) {
+                            SampleRegistrarScreen(searchRequestId = registrarSearchRequestId, modifier = Modifier.fillMaxSize())
+                        } else WorkspaceScreen(
                             workspace = Workspace.REGISTRARS,
                             onConnectProvider = { providerId = it.id },
                             onAccountAction = {},
@@ -420,6 +444,8 @@ fun VercelticsApp(
                         MainDestination.ABOUT -> AboutScreen(
                             state = aboutState,
                             onAction = onAboutAction,
+                            isSampleData = isSampleData,
+                            onToggleSampleData = onToggleSampleData,
                             modifier = Modifier.fillMaxSize(),
                         )
                     }

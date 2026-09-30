@@ -9,7 +9,14 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.key
+import com.apoorvdarshan.verceltics.ui.sample.*
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.apoorvdarshan.verceltics.ui.VercelConnectionViewModel
@@ -56,6 +63,21 @@ class MainActivity : ComponentActivity() {
     private val searchConsoleViewModel by viewModels<SearchConsoleViewModel> {
         SearchConsoleViewModel.Factory(searchConsoleGateway)
     }
+    private val sampleVercelViewModel by lazy {
+        ViewModelProvider(this, VercelConnectionViewModel.Factory(SampleVercelGateway))["sample.vercel", VercelConnectionViewModel::class.java]
+    }
+    private val sampleCloudflareViewModel by lazy {
+        ViewModelProvider(this, CloudflareViewModel.Factory(SampleCloudflareGateway))["sample.cloudflare", CloudflareViewModel::class.java]
+    }
+    private val sampleSearchConsoleViewModel by lazy {
+        ViewModelProvider(this, SearchConsoleViewModel.Factory(SampleSearchConsoleGateway))["sample.searchConsole", SearchConsoleViewModel::class.java]
+    }
+    private val samplePageSpeedViewModel by lazy {
+        ViewModelProvider(this, PageSpeedViewModel.Factory(SamplePageSpeedGateway))["sample.pageSpeed", PageSpeedViewModel::class.java]
+    }
+    private val sampleNetlifyViewModel by lazy {
+        ViewModelProvider(this, NetlifyViewModel.Factory(SampleNetlifyGateway))["sample.netlify", NetlifyViewModel::class.java]
+    }
     private var ownsProviderSecureFlag = false
     private val aboutController by lazy(LazyThreadSafetyMode.NONE) {
         AboutScreenController(
@@ -72,16 +94,33 @@ class MainActivity : ComponentActivity() {
         setContent {
             val aboutState = aboutController.state
             val aboutScope = rememberCoroutineScope()
+            val samplePreferences = getSharedPreferences("verceltics.sample", MODE_PRIVATE)
+            var showSampleData by rememberSaveable {
+                mutableStateOf(samplePreferences.getBoolean("enabled", false))
+            }
             VercelticsTheme(appearance = aboutState.appearance) {
-                VercelticsApp(
-                    vercelConnectionViewModel = vercelConnectionViewModel,
-                    pageSpeedViewModel = pageSpeedViewModel,
-                    netlifyViewModel = netlifyViewModel,
-                    cloudflareViewModel = cloudflareViewModel,
-                    searchConsoleViewModel = searchConsoleViewModel,
-                    aboutState = aboutState,
-                    onAboutAction = { dispatchAboutAction(it, aboutScope) },
-                )
+                key(showSampleData) {
+                    VercelticsApp(
+                        vercelConnectionViewModel = if (showSampleData) sampleVercelViewModel else vercelConnectionViewModel,
+                        pageSpeedViewModel = if (showSampleData) samplePageSpeedViewModel else pageSpeedViewModel,
+                        netlifyViewModel = if (showSampleData) sampleNetlifyViewModel else netlifyViewModel,
+                        cloudflareViewModel = if (showSampleData) sampleCloudflareViewModel else cloudflareViewModel,
+                        searchConsoleViewModel = if (showSampleData) sampleSearchConsoleViewModel else searchConsoleViewModel,
+                        aboutState = aboutState,
+                        onAboutAction = { dispatchAboutAction(it, aboutScope) },
+                        isSampleData = showSampleData,
+                        onToggleSampleData = {
+                            if (!showSampleData) {
+                                sampleVercelViewModel.restore()
+                                sampleCloudflareViewModel.restore()
+                                sampleSearchConsoleViewModel.restore()
+                                samplePageSpeedViewModel.restore()
+                            }
+                            showSampleData = !showSampleData
+                            samplePreferences.edit().putBoolean("enabled", showSampleData).apply()
+                        },
+                    )
+                }
             }
         }
     }

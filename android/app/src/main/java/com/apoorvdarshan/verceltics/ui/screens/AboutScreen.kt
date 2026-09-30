@@ -82,6 +82,8 @@ fun AboutScreen(
     state: AboutScreenState,
     onAction: (AboutScreenAction) -> Unit,
     modifier: Modifier = Modifier,
+    isSampleData: Boolean = false,
+    onToggleSampleData: (() -> Unit)? = null,
 ) {
     Column(modifier = modifier.fillMaxSize().testTag("about")) {
         Box(
@@ -110,6 +112,20 @@ fun AboutScreen(
                         onCheck = { onAction(AboutScreenAction.CheckForUpdates) },
                         onOpen = { onAction(AboutScreenAction.OpenExternalUri(it)) },
                     )
+                }
+            }
+
+            if (onToggleSampleData != null) {
+                item(key = "sample-data") {
+                    AboutSectionCard(title = "Preview", testTag = "about.section.sample") {
+                        AboutActionRow(
+                            icon = Icons.Rounded.Language,
+                            title = if (isSampleData) "Exit sample data" else "Show sample data",
+                            subtitle = "Explore example hosting, domains, and site analytics. Your accounts stay separate.",
+                            testTag = "about.sampleData",
+                            onClick = onToggleSampleData,
+                        )
+                    }
                 }
             }
 
