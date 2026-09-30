@@ -9,12 +9,12 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -25,8 +25,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Lock
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -38,15 +39,18 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -61,6 +65,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import kotlinx.coroutines.flow.first
 import com.apoorvdarshan.verceltics.domain.IntegrationCatalog
 import com.apoorvdarshan.verceltics.domain.IntegrationProvider
 import com.apoorvdarshan.verceltics.domain.Workspace
@@ -68,7 +75,6 @@ import com.apoorvdarshan.verceltics.ui.components.OffsetPanel
 import com.apoorvdarshan.verceltics.ui.components.ProviderMark
 import com.apoorvdarshan.verceltics.ui.components.ControlSearchField
 import com.apoorvdarshan.verceltics.ui.components.ThemedGlassControl
-import com.apoorvdarshan.verceltics.ui.components.ThemedModalBottomSheet
 
 /**
  * Native Android counterpart to the SwiftUI workspace roots.
@@ -76,7 +82,6 @@ import com.apoorvdarshan.verceltics.ui.components.ThemedModalBottomSheet
  * Connection state stays outside this view. The app shell can supply truthful connected content
  * without coupling the catalog UI to provider storage or network code.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WorkspaceScreen(
     workspace: Workspace,
@@ -189,20 +194,29 @@ fun WorkspaceScreen(
     }
 
     if (showsConnectionCatalog) {
-        ThemedModalBottomSheet(
+        Dialog(
             onDismissRequest = { showsConnectionCatalog = false },
-            testTag = "connection.catalog",
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = false,
+            ),
         ) {
-            ConnectionCatalog(
-                selectedCategory = selectedCategory,
-                onCategorySelected = { selectedCategoryId = it.id },
-                focusRequestId = catalogFocusRequestId,
-                connectedProviderIds = connectedProviderIds,
-                onProviderSelected = { provider ->
-                    showsConnectionCatalog = false
-                    onConnectProvider(provider)
-                },
-            )
+            Surface(
+                modifier = Modifier.fillMaxSize().testTag("connection.catalog"),
+                color = MaterialTheme.colorScheme.background,
+            ) {
+                ConnectionCatalog(
+                    selectedCategory = selectedCategory,
+                    onCategorySelected = { selectedCategoryId = it.id },
+                    onDismiss = { showsConnectionCatalog = false },
+                    focusRequestId = catalogFocusRequestId,
+                    connectedProviderIds = connectedProviderIds,
+                    onProviderSelected = { provider ->
+                        showsConnectionCatalog = false
+                        onConnectProvider(provider)
+                    },
+                )
+            }
         }
     }
 }
@@ -526,6 +540,7 @@ private fun PersistenceErrorBanner(
 private fun ConnectionCatalog(
     selectedCategory: Workspace,
     onCategorySelected: (Workspace) -> Unit,
+    onDismiss: () -> Unit,
     focusRequestId: Int,
     connectedProviderIds: Set<String>,
     onProviderSelected: (IntegrationProvider) -> Unit,
@@ -537,6 +552,7 @@ private fun ConnectionCatalog(
     }
     val focusRequester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
+    val windowInfo = LocalWindowInfo.current
     val visibleProviders = remember(providers, query) {
         val normalized = query.trim()
         if (normalized.isEmpty()) {
@@ -554,6 +570,8 @@ private fun ConnectionCatalog(
 
     LaunchedEffect(focusRequestId) {
         if (focusRequestId > 0 && focusRequestId != lastHandledFocusRequestId) {
+            // The full-screen dialog must own window focus before it can open the keyboard.
+            snapshotFlow { windowInfo.isWindowFocused }.first { it }
             lastHandledFocusRequestId = focusRequestId
             focusRequester.requestFocus()
             keyboard?.show()
@@ -562,23 +580,24 @@ private fun ConnectionCatalog(
 
     Column(
         modifier = Modifier
-            .fillMaxWidth()
-            // Bound the catalog to the sheet's available viewport. The provider list below owns
-            // the remaining height, so stacked tabs and large text cannot push it off-screen.
-            .fillMaxHeight(0.92f)
-            .imePadding()
-            .padding(top = 4.dp),
+            .fillMaxSize()
+            .safeDrawingPadding()
+            .imePadding(),
     ) {
-        Text(
-            text = "Connect an integration",
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 16.dp)
-                .semantics { heading() },
-            color = MaterialTheme.colorScheme.onBackground,
-            style = MaterialTheme.typography.headlineSmall,
-            textAlign = TextAlign.Center,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Connect an integration",
+                modifier = Modifier.weight(1f).semantics { heading() },
+                color = MaterialTheme.colorScheme.onBackground,
+                style = MaterialTheme.typography.headlineSmall,
+            )
+            IconButton(onClick = onDismiss, modifier = Modifier.testTag("connection.catalog.close")) {
+                Icon(Icons.Rounded.Close, contentDescription = "Close integration picker")
+            }
+        }
         ConnectionCategoryPicker(
             selectedCategory = selectedCategory,
             onSelected = onCategorySelected,
@@ -602,6 +621,7 @@ private fun ConnectionCatalog(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
+                .clipToBounds()
                 .testTag("connection.catalog.${selectedCategory.id}"),
             contentPadding = PaddingValues(start = 18.dp, top = 24.dp, end = 18.dp, bottom = 40.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
