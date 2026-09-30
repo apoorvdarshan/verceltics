@@ -204,11 +204,6 @@ private fun ProviderHero(provider: IntegrationProvider) {
                     provider = provider,
                     size = 68.dp,
                 )
-                LabelChip(
-                    text = "Native Android",
-                    containerColor = MaterialTheme.colorScheme.onBackground,
-                    contentColor = MaterialTheme.colorScheme.background,
-                )
             }
             Column {
                 Text(
@@ -258,9 +253,9 @@ private fun ProviderConnectPlaceholder(provider: IntegrationProvider) {
                 }
                 Spacer(Modifier.width(12.dp))
                 Column {
-                    Text("Android connection planned", style = MaterialTheme.typography.titleLarge)
+                    Text("Connection unavailable", style = MaterialTheme.typography.titleLarge)
                     Text(
-                        "${provider.displayName} is listed for discoverability, but its native Android connection is not available in this build yet.",
+                        "${provider.displayName} connections are not available in this version.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -336,7 +331,7 @@ private fun VercelConnectionPanel(
         ThemedAlertDialog(
             onDismissRequest = { showDisconnectConfirmation = false },
             title = "Disconnect Vercel?",
-            message = "The saved token will be removed from this Android device.",
+            message = "The saved token will be removed from this device.",
             confirmText = "DISCONNECT",
             confirmTone = ThemedActionTone.DESTRUCTIVE,
             dismissText = "KEEP ACCOUNT",

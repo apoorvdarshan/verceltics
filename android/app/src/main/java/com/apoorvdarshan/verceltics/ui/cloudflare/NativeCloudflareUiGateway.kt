@@ -56,7 +56,7 @@ class NativeCloudflareUiGateway internal constructor(
                     CloudflareRestoreProblem.SAVED_RECORD_UNREADABLE ->
                         "The saved Cloudflare connection could not be opened. It was not deleted or replaced."
                     CloudflareRestoreProblem.SECURE_STORAGE_UNAVAILABLE ->
-                        "Android secure storage is unavailable. Unlock the device and try again."
+                        "Secure storage is unavailable. Unlock the device and try again."
                 },
             )
         }
@@ -306,7 +306,7 @@ private suspend inline fun <T> capture(crossinline block: suspend () -> T): Resu
 } catch (error: CloudflareUiException) {
     Result.failure(error)
 } catch (_: SecurityException) {
-    Result.failure(CloudflareUiException("Android secure storage is unavailable."))
+    Result.failure(CloudflareUiException("Secure storage is unavailable."))
 } catch (_: Exception) {
     Result.failure(CloudflareUiException("Cloudflare could not complete this request."))
 }

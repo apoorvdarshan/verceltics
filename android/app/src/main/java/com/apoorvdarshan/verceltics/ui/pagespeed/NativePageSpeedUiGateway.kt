@@ -52,7 +52,7 @@ class NativePageSpeedUiGateway internal constructor(
                     PageSpeedRestoreProblem.SAVED_RECORD_UNREADABLE ->
                         "The saved PageSpeed connection could not be opened. It was not deleted or replaced."
                     PageSpeedRestoreProblem.SECURE_STORAGE_UNAVAILABLE ->
-                        "Android secure storage is unavailable. Unlock the device and try again."
+                        "Secure storage is unavailable. Unlock the device and try again."
                 },
             )
         }
@@ -218,7 +218,7 @@ private suspend inline fun <T> capture(crossinline block: suspend () -> T): Resu
 } catch (error: PageSpeedUiException) {
     Result.failure(error)
 } catch (_: SecurityException) {
-    Result.failure(PageSpeedUiException("Android secure storage is unavailable."))
+    Result.failure(PageSpeedUiException("Secure storage is unavailable."))
 } catch (_: Exception) {
     Result.failure(PageSpeedUiException("PageSpeed & CrUX could not complete this request."))
 }

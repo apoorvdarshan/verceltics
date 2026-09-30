@@ -60,7 +60,7 @@ class NativeNetlifyUiGateway internal constructor(
                     NetlifyRestoreProblem.SAVED_RECORD_UNREADABLE ->
                         "The saved Netlify connection could not be opened. It was not deleted or replaced."
                     NetlifyRestoreProblem.SECURE_STORAGE_UNAVAILABLE ->
-                        "Android secure storage is unavailable. Unlock the device and try again."
+                        "Secure storage is unavailable. Unlock the device and try again."
                 },
             )
         }
@@ -364,7 +364,7 @@ private suspend inline fun <T> capture(crossinline block: suspend () -> T): Resu
 } catch (error: NetlifyUiException) {
     Result.failure(error)
 } catch (_: SecurityException) {
-    Result.failure(NetlifyUiException("Android secure storage is unavailable."))
+    Result.failure(NetlifyUiException("Secure storage is unavailable."))
 } catch (_: Exception) {
     Result.failure(NetlifyUiException("Netlify could not complete this request."))
 }

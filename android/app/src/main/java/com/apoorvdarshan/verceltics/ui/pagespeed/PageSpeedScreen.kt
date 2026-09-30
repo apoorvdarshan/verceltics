@@ -470,7 +470,7 @@ private fun ConnectionForm(
                         onDone = onConnect,
                     )
                     Text(
-                        "The key is encrypted with Android Keystore and stored outside device backups. It is never added to saved app state or logs.",
+                        "Your API key is encrypted, stored only on this device, and excluded from backups.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -1280,7 +1280,7 @@ private fun DisconnectDialog(onDismiss: () -> Unit, onConfirm: () -> Unit) {
             ) {
                 Text("Disconnect PageSpeed & CrUX?", style = MaterialTheme.typography.headlineMedium)
                 Text(
-                    "This removes the encrypted Google API key and saved audit from this Android device.",
+                    "This removes the encrypted Google API key and saved audit from this device.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 BrandedActionButton(

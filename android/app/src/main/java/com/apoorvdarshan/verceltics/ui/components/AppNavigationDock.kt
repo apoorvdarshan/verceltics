@@ -72,8 +72,8 @@ enum class AppNavigationDestination(
     val compactLabel: String,
     val icon: ImageVector,
 ) {
-    HOSTING("hosting", "Hosting", "Host", Icons.Rounded.Storage),
-    REGISTRARS("registrars", "Registrars", "Domains", Icons.Rounded.Language),
+    HOSTING("hosting", "Hosting", "Hosting", Icons.Rounded.Storage),
+    REGISTRARS("registrars", "Registrars", "Registrars", Icons.Rounded.Language),
     SITES("sites", "Sites", "Sites", Icons.Rounded.QueryStats),
     ABOUT("about", "About", "About", Icons.Rounded.Info),
 }
@@ -390,6 +390,13 @@ private fun SearchDockButton(
                         contentDescription = null,
                         modifier = Modifier.size(23.dp),
                     )
+                    if (labelLayout != NavigationLabelLayout.ICON_ONLY) {
+                        Text(
+                            text = "Search",
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1,
+                        )
+                    }
                 }
             }
         }

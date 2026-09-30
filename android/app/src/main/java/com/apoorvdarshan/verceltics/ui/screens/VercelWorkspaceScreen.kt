@@ -252,7 +252,7 @@ private fun SavedVercelUnavailableWorkspace(
         ThemedAlertDialog(
             onDismissRequest = { showDisconnectConfirmation = false },
             title = "Disconnect saved Vercel account?",
-            message = "The encrypted token will be removed from this Android device.",
+            message = "The encrypted token will be removed from this device.",
             confirmText = "DISCONNECT",
             confirmTone = ThemedActionTone.DESTRUCTIVE,
             dismissText = "KEEP ACCOUNT",
@@ -359,7 +359,7 @@ private fun ConnectedVercelWorkspace(
         ThemedAlertDialog(
             onDismissRequest = { showDisconnectConfirmation = false },
             title = "Disconnect Vercel?",
-            message = "The saved token will be removed from this Android device.",
+            message = "The saved token will be removed from this device.",
             confirmText = "DISCONNECT",
             confirmTone = ThemedActionTone.DESTRUCTIVE,
             dismissText = "KEEP ACCOUNT",

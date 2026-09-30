@@ -8,8 +8,8 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
-import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -44,10 +44,10 @@ class AboutScreenTest {
             }
         }
 
-        compose.onNodeWithTag("about.version")
-            .assertIsDisplayed()
-            .assertTextContains("BUILD 42", substring = true)
-            .assertTextContains("VERSION 3.0", substring = true)
+        compose.onNodeWithText("About").assertIsDisplayed()
+        compose.onNodeWithText("Version 3.0 · Update checks unavailable").assertIsDisplayed()
+        compose.onNodeWithText("Built for operators").assertDoesNotExist()
+        compose.onNodeWithText("Android native").assertDoesNotExist()
         compose.onNodeWithTag("about.appearance.system").assertIsSelected()
         compose.onNodeWithTag("about.appearance.dark").performClick()
         assertEquals(

@@ -164,7 +164,7 @@ fun NetlifyScreen(
     if (state.showDisconnectConfirmation) {
         ThemedAlertDialog(
             title = "Disconnect Netlify?",
-            message = "The encrypted personal token and saved Netlify inventory will be removed from this Android device.",
+            message = "The encrypted personal token and saved Netlify inventory will be removed from this device.",
             confirmText = "DISCONNECT",
             confirmTone = ThemedActionTone.DESTRUCTIVE,
             dismissText = "KEEP ACCOUNT",
@@ -444,16 +444,16 @@ private fun NetlifyConnectionForm(
                         )
                         Spacer(Modifier.width(14.dp))
                         Column(Modifier.weight(1f)) {
-                            Text("READ-ONLY WORKSPACE", color = Color.Black, style = MaterialTheme.typography.labelSmall)
+                            Text("NETLIFY", color = Color.Black, style = MaterialTheme.typography.labelSmall)
                             Text(
-                                "Sites, deploys and builds without risky controls",
+                                "Sites, deployments, and builds",
                                 color = Color.Black,
                                 style = MaterialTheme.typography.headlineMedium,
                             )
                         }
                     }
                     Text(
-                        "Your personal token is encrypted in Android Keystore storage. This Android slice does not expose deploy or build mutations.",
+                        "Your token is encrypted and stored only on this device. You can view deployments and builds; changes are unavailable.",
                         color = Color.Black,
                         style = MaterialTheme.typography.bodyMedium,
                     )

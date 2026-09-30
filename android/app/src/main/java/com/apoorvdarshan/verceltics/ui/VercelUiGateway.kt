@@ -123,7 +123,7 @@ object UnconfiguredVercelUiGateway : VercelUiGateway {
         Result.success(VercelRestoreUi.NoSavedAccount)
 
     override suspend fun connect(personalToken: String): Result<VercelDashboardUi> =
-        Result.failure(IllegalStateException("The native Vercel connector is not available yet."))
+        Result.failure(IllegalStateException("Vercel connections are unavailable in this version."))
 
     override suspend fun refresh(): Result<VercelDashboardUi> =
         Result.failure(IllegalStateException("Connect a Vercel account first."))
@@ -133,7 +133,7 @@ object UnconfiguredVercelUiGateway : VercelUiGateway {
         range: VercelAnalyticsRange,
         environment: VercelAnalyticsEnvironment,
     ): Result<VercelAnalyticsLoadUi> =
-        Result.failure(IllegalStateException("The native Vercel connector is not available yet."))
+        Result.failure(IllegalStateException("Vercel connections are unavailable in this version."))
 
     override suspend fun disconnect(): Result<Unit> = Result.success(Unit)
 }

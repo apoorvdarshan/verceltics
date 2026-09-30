@@ -1,17 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="about_eyebrow">About</string>
-    <string name="about_title">Built for operators</string>
-    <string name="about_android_native">Android native</string>
-    <string name="about_brand">VERCELTICS</string>
-    <string name="about_brand_summary">One control desk for hosting, domains, search, analytics, and uptime.</string>
-    <string name="about_build_format">BUILD %1$d  /  VERSION %2$s</string>
+    <string name="about_title">About</string>
 
     <string name="about_section_app">App</string>
     <string name="about_section_appearance">Appearance</string>
     <string name="about_section_links">Links</string>
     <string name="about_section_help">Help</string>
     <string name="about_section_support">Ways to help</string>
+    <string name="about_section_developer_support">Support the developer</string>
     <string name="about_section_legal">Legal</string>
 
     <string name="about_color_mode">Color mode</string>
@@ -22,11 +18,9 @@
     <string name="about_appearance_light_explanation">Keeps the workspace bright on this device.</string>
     <string name="about_appearance_dark_explanation">Keeps the workspace dark on this device.</string>
 
-    <string name="about_updates_android">Android updates</string>
-    <string name="about_updates_not_configured">Version %1$s · A trusted Android release source has not been connected yet.</string>
-    <string name="about_check_updates">Check for updates</string>
+    <string name="about_updates_not_configured">Version %1$s · Update checks unavailable</string>
+    <string name="about_check_updates">Check for Updates</string>
     <string name="about_checking_updates">Checking for updates</string>
-    <string name="about_up_to_date">Verceltics is current</string>
     <string name="about_update_available">Update available</string>
     <string name="about_update_failed">Update check failed</string>
     <string name="about_version_format">Version %1$s</string>
@@ -36,7 +30,7 @@
 
     <string name="about_website">Website</string>
     <string name="about_website_subtitle">verceltics.com</string>
-    <string name="about_source_code">Source code</string>
+    <string name="about_source_code">Source Code</string>
     <string name="about_source_code_subtitle">github.com/apoorvdarshan/verceltics</string>
     <string name="about_linkedin">Follow on LinkedIn</string>
     <string name="about_linkedin_subtitle">linkedin.com/company/verceltics</string>
@@ -49,14 +43,14 @@
     <string name="about_report_issue_subtitle">Open a GitHub issue</string>
 
     <string name="about_share">Share Verceltics</string>
-    <string name="about_share_subtitle">Send the website to a friend</string>
-    <string name="about_share_message">Verceltics — one control desk for hosting, domains, search, analytics, and uptime. https://verceltics.com</string>
+    <string name="about_share_subtitle">Tell others about the app</string>
+    <string name="about_share_message">Verceltics — hosting, domains, deployments, analytics, search, speed, and uptime. Open source, no ads. https://verceltics.com</string>
     <string name="about_star_github">Star on GitHub</string>
     <string name="about_star_github_subtitle">Open the GitHub repository</string>
     <string name="about_product_hunt">Upvote on Product Hunt</string>
     <string name="about_product_hunt_subtitle">producthunt.com/products/verceltics</string>
-    <string name="about_rate_app">Rate the Android app</string>
-    <string name="about_rate_app_subtitle">Open the app listing</string>
+    <string name="about_rate_app">Rate Verceltics</string>
+    <string name="about_rate_app_subtitle">Open the Google Play listing</string>
     <string name="about_support_development">Support development</string>
     <string name="about_support_development_subtitle">Optional contribution through Ko-fi</string>
 

@@ -27,7 +27,7 @@ class SearchConsoleScreenTest {
                 SearchConsoleScreen(
                     state = baseState.copy(
                         oauthReadiness = SearchConsoleOAuthReadinessUi.ConfigurationNeeded(
-                            "Add the Android Google OAuth client configuration.",
+                            "Google sign-in is unavailable in this version. Contact support for help connecting.",
                         ),
                         status = SearchConsoleConnectionStatus.DISCONNECTED,
                         operation = null,
@@ -50,7 +50,7 @@ class SearchConsoleScreenTest {
         }
 
         composeRule.onNodeWithTag("searchConsole.configurationNeeded").assertIsDisplayed()
-        composeRule.onNodeWithText("WAITING FOR ANDROID OAUTH CONFIGURATION").assertExists()
+        composeRule.onNodeWithText("GOOGLE SIGN-IN UNAVAILABLE").assertExists()
         composeRule.onNodeWithTag("searchConsole.connect").assertDoesNotExist()
     }
 

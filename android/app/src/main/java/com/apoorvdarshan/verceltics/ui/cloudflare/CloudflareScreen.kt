@@ -159,7 +159,7 @@ fun CloudflareScreen(
     if (state.showDisconnectConfirmation) {
         ThemedAlertDialog(
             title = "Disconnect Cloudflare?",
-            message = "The encrypted API token and saved Cloudflare inventory will be removed from this Android device.",
+            message = "The encrypted API token and saved Cloudflare inventory will be removed from this device.",
             confirmText = "DISCONNECT",
             confirmTone = ThemedActionTone.DESTRUCTIVE,
             dismissText = "KEEP ACCOUNT",
@@ -434,21 +434,21 @@ private fun CloudflareConnectionForm(
                         ProviderMark(checkNotNull(IntegrationCatalog.provider("cloudflare")), size = 58.dp)
                         Spacer(Modifier.width(14.dp))
                         Column(Modifier.weight(1f)) {
-                            Text("READ-ONLY CONTROL PLANE", color = Color.Black, style = MaterialTheme.typography.labelSmall)
+                            Text("CLOUDFLARE", color = Color.Black, style = MaterialTheme.typography.labelSmall)
                             Text(
-                                "Zones, Pages and Workers in one operational ledger",
+                                "Zones, Pages, and Workers",
                                 color = Color.Black,
                                 style = MaterialTheme.typography.headlineMedium,
                             )
                         }
                     }
                     Text(
-                        "Use a scoped API token with Account Settings:Read, Zone:Read, Workers Scripts:Read and Cloudflare Pages:Read. The token is encrypted with Android Keystore.",
+                        "Use a scoped API token with Account Settings:Read, Zone:Read, Workers Scripts:Read and Cloudflare Pages:Read. Your token is encrypted and stored only on this device.",
                         color = Color.Black,
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Text(
-                        "Email + Global API Key remains available on iOS but is not supported by this Android screen yet.",
+                        "Connect using a scoped API token. Email and Global API Key connections are unavailable.",
                         color = Color.Black.copy(alpha = 0.72f),
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -1000,7 +1000,7 @@ private fun CloudflareResourceDetail(state: CloudflareUiState, modifier: Modifie
         }
         item("disclosure") {
             Text(
-                "Read-only Cloudflare data fetched for ${dashboard.selectedAccount?.name ?: "this account"}. No mutation controls are available.",
+                "Read-only Cloudflare data fetched for ${dashboard.selectedAccount?.name ?: "this account"}. Changes to these resources are unavailable.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall,
             )

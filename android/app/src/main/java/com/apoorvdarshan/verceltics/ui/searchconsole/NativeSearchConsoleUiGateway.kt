@@ -54,9 +54,7 @@ class NativeSearchConsoleUiGateway internal constructor(
     override val oauthReadiness: SearchConsoleOAuthReadinessUi =
         if (authorizer.configuration == null) {
             SearchConsoleOAuthReadinessUi.ConfigurationNeeded(
-                "PKCE sign-in, encrypted token restore, refresh, property discovery, reporting, " +
-                    "sitemaps, and URL inspection are ready. Add the Android Google OAuth client " +
-                    "configuration to enable connecting.",
+                "Google sign-in is unavailable in this version. Contact support for help connecting.",
             )
         } else {
             SearchConsoleOAuthReadinessUi.Ready
@@ -85,7 +83,7 @@ class NativeSearchConsoleUiGateway internal constructor(
                     SearchConsoleRestoreProblem.SAVED_RECORD_UNREADABLE ->
                         "The saved Google connection could not be opened. It was not deleted or replaced."
                     SearchConsoleRestoreProblem.SECURE_STORAGE_UNAVAILABLE ->
-                        "Android secure storage is unavailable. Unlock the device and try again."
+                        "Secure storage is unavailable. Unlock the device and try again."
                 },
             )
         }
@@ -660,7 +658,7 @@ private suspend inline fun <T> capture(crossinline block: suspend () -> T): Resu
 } catch (error: SearchConsoleUiException) {
     Result.failure(error)
 } catch (_: SecurityException) {
-    Result.failure(SearchConsoleUiException("Android secure storage is unavailable."))
+    Result.failure(SearchConsoleUiException("Secure storage is unavailable."))
 } catch (_: Exception) {
     Result.failure(SearchConsoleUiException("Google Search Console could not complete this request."))
 }

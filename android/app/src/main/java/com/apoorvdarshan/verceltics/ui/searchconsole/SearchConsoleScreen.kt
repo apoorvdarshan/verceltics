@@ -341,7 +341,7 @@ fun SearchConsoleScreen(
     if (state.showDisconnectConfirmation) {
         ThemedAlertDialog(
             title = "Disconnect Google Search Console?",
-            message = "The encrypted Google credential and saved property list will be removed from this Android device.",
+            message = "The encrypted Google credential and saved property list will be removed from this device.",
             confirmText = "DISCONNECT",
             confirmTone = ThemedActionTone.DESTRUCTIVE,
             dismissText = "KEEP ACCOUNT",
@@ -501,7 +501,6 @@ private fun SearchConsoleConnectionPanel(
     modifier: Modifier = Modifier,
 ) {
     val haptic = LocalHapticFeedback.current
-    val uriHandler = LocalUriHandler.current
     LazyColumn(
         modifier = modifier.fillMaxWidth(),
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 120.dp),
@@ -535,7 +534,7 @@ private fun SearchConsoleConnectionPanel(
                         IconTile(Icons.Rounded.Key, SearchConsoleAccent)
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
-                            Text("OAUTH ACCESS IS PREPARED", style = MaterialTheme.typography.titleMedium)
+                            Text("Sign in with Google", style = MaterialTheme.typography.titleMedium)
                             Spacer(Modifier.height(4.dp))
                             Text(
                                 when (readiness) {
@@ -553,16 +552,6 @@ private fun SearchConsoleConnectionPanel(
                         CapabilityRow("28-day search performance")
                         CapabilityRow("Sitemaps and URL inspection")
                     }
-                    ThemedActionButton(
-                        text = "OPEN GOOGLE CLOUD CREDENTIALS",
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                            uriHandler.openUri("https://console.cloud.google.com/apis/credentials")
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        tone = ThemedActionTone.NEUTRAL,
-                        testTag = "searchConsole.openCredentials",
-                    )
                     when (readiness) {
                         SearchConsoleOAuthReadinessUi.Ready -> ThemedActionButton(
                             text = if (isAuthorizing) "WAITING FOR GOOGLE…" else "CONTINUE WITH GOOGLE",
@@ -591,7 +580,7 @@ private fun SearchConsoleConnectionPanel(
                                 Icon(Icons.Rounded.PauseCircle, contentDescription = null)
                                 Spacer(Modifier.width(9.dp))
                                 Text(
-                                    "WAITING FOR ANDROID OAUTH CONFIGURATION",
+                                    "GOOGLE SIGN-IN UNAVAILABLE",
                                     style = MaterialTheme.typography.labelMedium,
                                 )
                             }
