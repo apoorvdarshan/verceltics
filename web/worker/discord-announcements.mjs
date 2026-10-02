@@ -272,7 +272,8 @@ async function request(url, options, code, format = "json") {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15000);
   try {
-    const response = await fetch(url, { ...options, signal: controller.signal, redirect: "error" });
+    // Workers supports manual redirects; the non-2xx check below rejects them without following.
+    const response = await fetch(url, { ...options, signal: controller.signal, redirect: "manual" });
     if (!response.ok) throw new AnnouncementError(`${code}_http_${response.status}`);
     if (format === "empty") {
       await response.body?.cancel();

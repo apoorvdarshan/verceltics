@@ -172,7 +172,8 @@ async function fetchJSON(url, init, timeoutMs) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(url, { ...init, redirect: "error", signal: controller.signal });
+    // Workers supports manual redirects; the non-2xx check below rejects them without following.
+    const response = await fetch(url, { ...init, redirect: "manual", signal: controller.signal });
     const raw = await readBoundedBody(response.body, MAX_UPSTREAM_BYTES);
     if (!response.ok) throw responseFailure(response, raw);
     try { return JSON.parse(new TextDecoder().decode(raw)); }
