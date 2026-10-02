@@ -1,0 +1,38 @@
+name: Request a feature
+description: Suggest an improvement to Verceltics.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This request is public. Do not include API keys, tokens, or private account details.
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - iOS
+        - Android
+        - Both
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: feature
+    attributes:
+      label: What would you like to add or change?
+      description: Describe the feature and where it would fit in the app.
+    validations:
+      required: true
+  - type: textarea
+    id: benefit
+    attributes:
+      label: How would this help?
+      description: Explain the problem it would solve or the task it would make easier.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Optional examples, screenshots, or alternatives you have considered.

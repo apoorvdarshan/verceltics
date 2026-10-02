@@ -1,0 +1,57 @@
+name: Report a bug
+description: Tell us what went wrong in Verceltics.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This report is public. Remove API keys, tokens, and private account details from text and screenshots.
+        For security vulnerabilities, follow our [private reporting process](https://github.com/apoorvdarshan/verceltics/blob/main/SECURITY.md).
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - iOS
+        - Android
+        - Both
+        - Not sure
+    validations:
+      required: true
+  - type: input
+    id: app-version
+    attributes:
+      label: App version
+      description: Include the build number if available.
+      placeholder: "For example: 3.0 (42)"
+  - type: input
+    id: device-os
+    attributes:
+      label: Device and OS version
+      placeholder: "For example: iPhone 16, iOS 26; or Pixel 9, Android 16"
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include the provider or screen involved, if relevant.
+      placeholder: |
+        1. Open ...
+        2. Tap ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: What should have happened?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include any error message. You can attach screenshots here.
+      placeholder: What happened instead?
+    validations:
+      required: true

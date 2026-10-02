@@ -18,7 +18,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.AlternateEmail
@@ -33,6 +35,7 @@ import androidx.compose.material.icons.rounded.Email
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.LightMode
+import androidx.compose.material.icons.rounded.Lightbulb
 import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.PrivacyTip
 import androidx.compose.material.icons.rounded.Share
@@ -43,12 +46,18 @@ import androidx.compose.material.icons.rounded.ThumbUp
 import androidx.compose.material.icons.rounded.Verified
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -260,11 +269,27 @@ fun AboutScreen(
                         onAction = onAction,
                     )
                     AboutDivider()
-                    DestinationRow(
+                    FeedbackRow(
                         icon = Icons.Rounded.BugReport,
                         title = stringResource(R.string.about_report_issue),
-                        subtitle = stringResource(R.string.about_report_issue_subtitle),
-                        destination = AboutDestination.REPORT_ISSUE,
+                        description = stringResource(R.string.about_report_issue_choices),
+                        githubLabel = stringResource(R.string.about_report_github),
+                        discordLabel = stringResource(R.string.about_report_discord),
+                        githubDestination = AboutDestination.REPORT_ISSUE,
+                        discordDestination = AboutDestination.DISCORD_BUG_REPORT,
+                        testTag = "about.feedback.bug",
+                        onAction = onAction,
+                    )
+                    AboutDivider()
+                    FeedbackRow(
+                        icon = Icons.Rounded.Lightbulb,
+                        title = stringResource(R.string.about_request_feature),
+                        description = stringResource(R.string.about_request_feature_choices),
+                        githubLabel = stringResource(R.string.about_request_github),
+                        discordLabel = stringResource(R.string.about_request_discord),
+                        githubDestination = AboutDestination.REQUEST_FEATURE,
+                        discordDestination = AboutDestination.DISCORD_FEATURE_REQUEST,
+                        testTag = "about.feedback.feature",
                         onAction = onAction,
                     )
                 }
@@ -507,6 +532,66 @@ private fun AboutSectionCard(
         ) {
             Column { content() }
         }
+    }
+}
+
+@Composable
+private fun FeedbackRow(
+    icon: ImageVector,
+    title: String,
+    description: String,
+    githubLabel: String,
+    discordLabel: String,
+    githubDestination: AboutDestination,
+    discordDestination: AboutDestination,
+    testTag: String,
+    onAction: (AboutScreenAction) -> Unit,
+) {
+    var showChoices by rememberSaveable { mutableStateOf(false) }
+    AboutActionRow(
+        icon = icon,
+        title = title,
+        subtitle = stringResource(R.string.about_feedback_subtitle),
+        testTag = testTag,
+        onClick = { showChoices = true },
+    )
+
+    if (showChoices) {
+        AlertDialog(
+            onDismissRequest = { showChoices = false },
+            title = { Text(title) },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(description)
+                    TextButton(
+                        onClick = {
+                            showChoices = false
+                            onAction(AboutScreenAction.OpenDestination(githubDestination))
+                        },
+                        modifier = Modifier.fillMaxWidth().testTag("$testTag.github"),
+                    ) {
+                        Text(githubLabel)
+                    }
+                    TextButton(
+                        onClick = {
+                            showChoices = false
+                            onAction(AboutScreenAction.OpenDestination(discordDestination))
+                        },
+                        modifier = Modifier.fillMaxWidth().testTag("$testTag.discord"),
+                    ) {
+                        Text(discordLabel)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showChoices = false }) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+            },
+        )
     }
 }
 

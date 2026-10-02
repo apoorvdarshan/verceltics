@@ -10,6 +10,8 @@ struct AboutView: View {
     @Environment(\.requestReview) private var requestReview
 
     @State private var tipStore = TipStore()
+    @State private var showingIssueOptions = false
+    @State private var showingFeatureOptions = false
 
     var body: some View {
         NavigationStack {
@@ -151,8 +153,47 @@ struct AboutView: View {
         SectionCard(title: "Help") {
             AboutRow(icon: "envelope.fill", title: "Contact", subtitle: "ad13dtu@gmail.com", url: "mailto:ad13dtu@gmail.com")
             AppInsetDivider()
-            AboutRow(icon: "ant", title: "Report an issue", subtitle: "Open a GitHub issue", url: "https://github.com/apoorvdarshan/verceltics/issues")
+            AboutRow(
+                icon: "ant",
+                title: "Report an issue",
+                subtitle: "Choose GitHub or Discord",
+                action: { showingIssueOptions = true }
+            )
+            .confirmationDialog("Report an issue", isPresented: $showingIssueOptions, titleVisibility: .visible) {
+                Button("Report on GitHub") {
+                    openFeedbackURL("https://github.com/apoorvdarshan/verceltics/issues/new?template=bug_report.yml")
+                }
+                Button("Report on Discord") {
+                    openFeedbackURL("https://discord.gg/fcdja6gx5J")
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("Use GitHub to open the bug report form. No GitHub account? Choose Discord and use /bug in #bug-reports-ios.")
+            }
+            AppInsetDivider()
+            AboutRow(
+                icon: "lightbulb",
+                title: "Request a feature",
+                subtitle: "Choose GitHub or Discord",
+                action: { showingFeatureOptions = true }
+            )
+            .confirmationDialog("Request a feature", isPresented: $showingFeatureOptions, titleVisibility: .visible) {
+                Button("Request on GitHub") {
+                    openFeedbackURL("https://github.com/apoorvdarshan/verceltics/issues/new?template=feature_request.yml")
+                }
+                Button("Request on Discord") {
+                    openFeedbackURL("https://discord.gg/R798cm6n3h")
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("Use GitHub to open the feature request form. No GitHub account? Choose Discord and use /feature in #feature-requests.")
+            }
         }
+    }
+
+    private func openFeedbackURL(_ address: String) {
+        guard let url = URL(string: address) else { return }
+        openURL(url)
     }
 
     private var waysToHelpSection: some View {

@@ -44,7 +44,14 @@
     <string name="about_contact">Contact</string>
     <string name="about_contact_subtitle">ad13dtu@gmail.com</string>
     <string name="about_report_issue">Report an issue</string>
-    <string name="about_report_issue_subtitle">Open a GitHub issue</string>
+    <string name="about_request_feature">Request a feature</string>
+    <string name="about_feedback_subtitle">Choose GitHub or Discord</string>
+    <string name="about_report_issue_choices">Use your GitHub account, or join Discord and use /bug in #bug-reports-android. No GitHub account is needed on Discord. Reports become public GitHub issues.</string>
+    <string name="about_request_feature_choices">Use your GitHub account, or join Discord and use /feature in #feature-requests. No GitHub account is needed on Discord. Requests become public GitHub issues.</string>
+    <string name="about_report_github">Report on GitHub</string>
+    <string name="about_report_discord">Report on Discord</string>
+    <string name="about_request_github">Request on GitHub</string>
+    <string name="about_request_discord">Request on Discord</string>
 
     <string name="about_share">Share Verceltics</string>
     <string name="about_share_subtitle">Tell others about the app</string>

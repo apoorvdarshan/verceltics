@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Verceltics on Discord
+    url: https://discord.gg/qv5nsTmkxA
+    about: Get community help or use Vercie's /bug and /feature commands to create a public GitHub issue.
