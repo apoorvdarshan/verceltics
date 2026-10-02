@@ -3,6 +3,14 @@
   "name": "verceltics-web",
   "main": "./worker/index.mjs",
   "compatibility_date": "2026-07-10",
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true,
+      "persist": true
+    }
+  },
   "vars": {
     "DISCORD_APPLICATION_ID": "1555610391508426783",
     "DISCORD_GUILD_ID": "1555618663380557857",

@@ -10,6 +10,8 @@ const MAX_UPSTREAM_BYTES = 131_072;
 const MAX_QUESTION_CHARS = 1_500;
 const MAX_REPORT_CHARS = 4_000;
 const MAX_REPLY_CHARS = 1_800;
+const FULFILLMENT_TIMEOUT_MS = 28_000;
+const REPLY_BUDGET_MS = 8_000;
 const NO_MENTIONS = { parse: [], replied_user: false };
 const SNOWFLAKE = /^\d{16,22}$/;
 const localReservations = new Map();
@@ -129,6 +131,42 @@ export function issuePlatformLabels(report, channelId, env) {
   return [];
 }
 
+class UpstreamFailure extends Error {
+  constructor(category, details = {}) {
+    super(category);
+    this.category = category;
+    this.status = details.status;
+    this.code = details.code;
+    this.retryAfterMs = details.retryAfterMs;
+  }
+}
+
+/** Never log native fetch errors: their messages can contain credential-bearing URLs. */
+function logFailure(event, error, attempt) {
+  const details = error instanceof UpstreamFailure
+    ? { category: error.category, status: error.status, code: error.code }
+    : { category: ["state_timeout", "empty_ai_response", "invalid_model", "invalid_issue_response"].includes(error?.message)
+      ? error.message : "unexpected_error" };
+  console.warn(event, JSON.stringify({ ...details, ...(attempt ? { attempt } : {}) }));
+}
+
+function remainingTimeout(deadline, maximum) {
+  const remaining = Math.floor(deadline - Date.now());
+  if (remaining <= 0) throw new UpstreamFailure("deadline_exceeded");
+  return Math.min(maximum, remaining);
+}
+
+function responseFailure(response, raw) {
+  let payload;
+  try { payload = JSON.parse(new TextDecoder().decode(raw)); } catch { /* No raw response logging. */ }
+  const candidate = payload?.code ?? payload?.error?.status;
+  const safeStatuses = ["INVALID_ARGUMENT", "UNAUTHENTICATED", "PERMISSION_DENIED", "NOT_FOUND", "RESOURCE_EXHAUSTED", "FAILED_PRECONDITION", "INTERNAL", "UNAVAILABLE", "DEADLINE_EXCEEDED"];
+  const code = Number.isSafeInteger(candidate) || safeStatuses.includes(candidate) ? candidate : undefined;
+  const retrySeconds = Number(payload?.retry_after ?? response.headers.get("Retry-After"));
+  const retryAfterMs = Number.isFinite(retrySeconds) && retrySeconds > 0 ? Math.ceil(retrySeconds * 1000) : undefined;
+  return new UpstreamFailure("http_error", { status: response.status, code, retryAfterMs });
+}
+
 /** Fixed-origin calls only; abort covers both network headers and response consumption. */
 async function fetchJSON(url, init, timeoutMs) {
   const controller = new AbortController();
@@ -136,14 +174,20 @@ async function fetchJSON(url, init, timeoutMs) {
   try {
     const response = await fetch(url, { ...init, redirect: "error", signal: controller.signal });
     const raw = await readBoundedBody(response.body, MAX_UPSTREAM_BYTES);
-    if (!response.ok) throw new Error(`upstream_http_${response.status}`);
-    return JSON.parse(new TextDecoder().decode(raw));
+    if (!response.ok) throw responseFailure(response, raw);
+    try { return JSON.parse(new TextDecoder().decode(raw)); }
+    catch { throw new UpstreamFailure("invalid_json"); }
+  } catch (error) {
+    if (error instanceof UpstreamFailure) throw error;
+    if (controller.signal.aborted) throw new UpstreamFailure("timeout");
+    if (error?.message === "body_too_large") throw new UpstreamFailure("response_too_large");
+    throw new UpstreamFailure("network_error");
   } finally {
     clearTimeout(timeout);
   }
 }
 
-async function generateText(env, prompt, text, structured = false) {
+async function generateText(env, prompt, text, structured, deadline) {
   const model = config(env, "DISCORD_GEMINI_MODEL") || DEFAULT_GEMINI_MODEL;
   if (!/^[a-zA-Z0-9._-]{1,100}$/.test(model)) throw new Error("invalid_model");
   const data = await fetchJSON(
@@ -161,7 +205,7 @@ async function generateText(env, prompt, text, structured = false) {
         },
       }),
     },
-    12_000,
+    remainingTimeout(deadline, 12_000),
   );
   const parts = data?.candidates?.[0]?.content?.parts;
   const result = Array.isArray(parts)
@@ -171,18 +215,18 @@ async function generateText(env, prompt, text, structured = false) {
   return result;
 }
 
-async function issueDraft(env, kind, report, channelId) {
+async function issueDraft(env, kind, report, channelId, deadline) {
   let structured;
   if (config(env, "DISCORD_GEMINI_API_KEY")) {
     try {
-      const result = await generateText(env, STRUCTURE_PROMPT, `kind: ${kind}\n\nreport:\n${report}`, true);
+      const result = await generateText(env, STRUCTURE_PROMPT, `kind: ${kind}\n\nreport:\n${report}`, true, deadline);
       const parsed = JSON.parse(result.replace(/^```(?:json)?\s*|\s*```$/g, ""));
       if (typeof parsed?.title === "string" && parsed.title.trim() && typeof parsed?.body === "string" && parsed.body.trim()) {
         structured = { title: clip(parsed.title.trim().replace(/\s+/g, " "), 100), body: clip(parsed.body.trim(), 6_000) };
       }
-    } catch {
+    } catch (error) {
       // Report submission must continue when AI is unavailable. No prompt/error-body logging.
-      console.warn("vercie_issue_draft_unavailable");
+      logFailure("vercie_issue_draft_unavailable", error);
     }
   }
   const platformLabels = kind === "bug" ? issuePlatformLabels(report, channelId, env) : [];
@@ -200,7 +244,7 @@ async function issueDraft(env, kind, report, channelId) {
   };
 }
 
-async function createIssue(env, draft) {
+async function createIssue(env, draft, deadline) {
   const token = config(env, "DISCORD_GITHUB_TOKEN") || config(env, "GITHUB_TOKEN");
   // A POST timeout can mean GitHub accepted the issue. Never automatically retry it.
   const issue = await fetchJSON(GITHUB_ISSUES_API, {
@@ -213,25 +257,29 @@ async function createIssue(env, draft) {
       "X-GitHub-Api-Version": "2022-11-28",
     },
     body: JSON.stringify(draft),
-  }, 8_000);
+  }, remainingTimeout(deadline, 8_000));
   if (!Number.isSafeInteger(issue?.number) || issue.number < 1) throw new Error("invalid_issue_response");
   return `${ISSUES_URL}/${issue.number}`;
 }
 
-async function editReply(applicationId, interactionToken, content) {
-  try {
-    await fetchJSON(
-      `https://discord.com/api/v10/webhooks/${applicationId}/${encodeURIComponent(interactionToken)}/messages/@original`,
-      {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: clip(content, MAX_REPLY_CHARS), allowed_mentions: NO_MENTIONS }),
-      },
-      5_000,
-    );
-  } catch {
-    // Interaction tokens occur in request URLs; never log the URL or underlying exception.
-    console.warn("vercie_reply_delivery_failed");
+async function editReply(applicationId, interactionToken, content, deadline) {
+  const url = `https://discord.com/api/v10/webhooks/${applicationId}/${encodeURIComponent(interactionToken)}/messages/@original`;
+  const body = JSON.stringify({ content: clip(content, MAX_REPLY_CHARS), allowed_mentions: NO_MENTIONS });
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      await fetchJSON(url, { method: "PATCH", headers: { "Content-Type": "application/json" }, body }, remainingTimeout(deadline, 3_000));
+      return;
+    } catch (error) {
+      logFailure("vercie_reply_attempt_failed", error, attempt);
+      const transient = error instanceof UpstreamFailure && (
+        ["network_error", "timeout"].includes(error.category) ||
+        error.status === 429 || (error.status >= 500 && error.status <= 599)
+      );
+      const delayMs = error.retryAfterMs ?? attempt * 300;
+      // PATCH replaces the same original response, so retries cannot create duplicate messages.
+      if (!transient || attempt === 3 || Date.now() + delayMs + 250 >= deadline) throw error;
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
   }
 }
 
@@ -287,45 +335,50 @@ async function reserveInteraction(env, interaction, command) {
       env.DISCORD_STATE.put(cooldownKey, "active", { expirationTtl: cooldown }),
     ]));
     return "accepted";
-  } catch {
-    console.warn("vercie_interaction_state_unavailable");
+  } catch (error) {
+    logFailure("vercie_interaction_state_unavailable", error);
     return "unavailable";
   }
 }
 
 async function fulfillInteraction(env, interaction, command, input) {
-  const respond = (content) => editReply(interaction.application_id, interaction.token, content);
+  const deadline = Date.now() + FULFILLMENT_TIMEOUT_MS;
+  const workDeadline = deadline - REPLY_BUDGET_MS;
+  let content;
   try {
     const reservation = await reserveInteraction(env, interaction, command);
     if (reservation === "duplicate") return;
     if (reservation === "cooldown") {
-      await respond(command === "ask" ? "Please wait a minute between questions." : "Please wait five minutes between reports. Your reports become public GitHub issues.");
-      return;
-    }
-    if (reservation !== "accepted") {
-      await respond("Vercie is temporarily unavailable. Please try again later.");
-      return;
-    }
-    if (command === "ask") {
+      content = command === "ask" ? "Please wait a minute between questions." : "Please wait five minutes between reports. Your reports become public GitHub issues.";
+    } else if (reservation !== "accepted") {
+      content = "Vercie is temporarily unavailable. Please try again later.";
+    } else if (command === "ask") {
       try {
-        await respond(await generateText(env, SYSTEM_PROMPT, input));
-      } catch {
-        console.warn("vercie_ask_unavailable");
-        await respond("I couldn't reach my AI helper just now. Try again later, or visit https://github.com/apoorvdarshan/verceltics for app information.");
+        content = await generateText(env, SYSTEM_PROMPT, input, false, workDeadline);
+      } catch (error) {
+        logFailure("vercie_ask_unavailable", error);
+        content = "I couldn't reach my AI helper just now. Try again later, or visit https://github.com/apoorvdarshan/verceltics for app information.";
       }
-      return;
+    } else {
+      try {
+        // Reserve GitHub's normal request budget even if optional AI organization is slow.
+        const draft = await issueDraft(env, command, input, interaction.channel_id || "", workDeadline - 8_000);
+        const issueUrl = await createIssue(env, draft, workDeadline);
+        content = `Your ${command === "bug" ? "bug report" : "feature request"} is now a public GitHub issue: ${issueUrl}`;
+      } catch (error) {
+        logFailure("vercie_issue_submission_unconfirmed", error);
+        content = `I couldn't confirm the GitHub issue was created. Check ${ISSUES_URL} before submitting again, or open an issue there directly.`;
+      }
     }
-    try {
-      const draft = await issueDraft(env, command, input, interaction.channel_id || "");
-      const issueUrl = await createIssue(env, draft);
-      await respond(`Your ${command === "bug" ? "bug report" : "feature request"} is now a public GitHub issue: ${issueUrl}`);
-    } catch {
-      console.warn("vercie_issue_submission_unconfirmed");
-      await respond(`I couldn't confirm the GitHub issue was created. Check ${ISSUES_URL} before submitting again, or open an issue there directly.`);
-    }
-  } catch {
-    console.warn("vercie_command_unavailable");
-    await respond("I couldn't finish that command just now. Please try again later.");
+  } catch (error) {
+    logFailure("vercie_command_unavailable", error);
+    content = "I couldn't finish that command just now. Please try again later.";
+  }
+  try {
+    await editReply(interaction.application_id, interaction.token, content, deadline);
+  } catch (error) {
+    // Delivery failures are separate from AI/GitHub failures; never resubmit the command.
+    logFailure("vercie_reply_delivery_failed", error);
   }
 }
 
