@@ -271,7 +271,7 @@ Verceltics is not affiliated with, endorsed by, or sponsored by any supported ho
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Report security issues privately using [SECURITY.md](SECURITY.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Our [Code of Conduct](CODE_OF_CONDUCT.md) applies to GitHub and the Verceltics Discord community. Report security issues privately using [SECURITY.md](SECURITY.md).
 
 ## License
 
@@ -281,7 +281,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Report sec
 
 - Email: [ad13dtu@gmail.com](mailto:ad13dtu@gmail.com)
 - X: [@apoorvdarshan](https://x.com/apoorvdarshan)
-- LinkedIn: [Verceltics](https://www.linkedin.com/company/verceltics)
+- LinkedIn: [Verceltics](https://www.linkedin.com/showcase/verceltics)
 - Support: [ko-fi.com/apoorvdarshan](https://ko-fi.com/apoorvdarshan)
 - Issues: [github.com/apoorvdarshan/verceltics/issues](https://github.com/apoorvdarshan/verceltics/issues)
 
