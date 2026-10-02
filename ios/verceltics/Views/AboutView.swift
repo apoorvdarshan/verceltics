@@ -137,7 +137,7 @@ struct AboutView: View {
             AppInsetDivider()
             AboutRow(icon: "chevron.left.forwardslash.chevron.right", title: "Source Code", subtitle: "github.com/apoorvdarshan/verceltics", url: "https://github.com/apoorvdarshan/verceltics")
             AppInsetDivider()
-            AboutRow(icon: "building.2.fill", title: "Follow on LinkedIn", subtitle: "linkedin.com/company/verceltics", url: "https://www.linkedin.com/company/verceltics")
+            AboutRow(icon: "building.2.fill", title: "Follow on LinkedIn", subtitle: "linkedin.com/showcase/verceltics", url: "https://www.linkedin.com/showcase/verceltics")
             AppInsetDivider()
             AboutRow(icon: "at", title: "Follow on X", subtitle: "@apoorvdarshan", url: "https://x.com/apoorvdarshan")
         }

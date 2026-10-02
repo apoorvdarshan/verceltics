@@ -73,7 +73,7 @@ sealed interface AboutUpdateState {
 enum class AboutDestination(val uri: String) {
     WEBSITE("https://verceltics.com"),
     SOURCE_CODE("https://github.com/apoorvdarshan/verceltics"),
-    LINKED_IN("https://www.linkedin.com/company/verceltics"),
+    LINKED_IN("https://www.linkedin.com/showcase/verceltics"),
     X_PROFILE("https://x.com/apoorvdarshan"),
     CONTACT("mailto:ad13dtu@gmail.com"),
     REPORT_ISSUE("https://github.com/apoorvdarshan/verceltics/issues"),
