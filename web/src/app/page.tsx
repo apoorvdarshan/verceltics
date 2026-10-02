@@ -13,7 +13,6 @@ const GITHUB = "https://github.com/apoorvdarshan/verceltics";
 const PUBLIC_PROFILES = [
   GITHUB,
   "https://www.producthunt.com/products/verceltics",
-  "https://trustmrr.com/startup/verceltics-hosting-domains",
   "https://www.linkedin.com/company/verceltics",
   "https://ko-fi.com/apoorvdarshan",
   "https://x.com/apoorvdarshan",
