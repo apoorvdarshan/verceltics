@@ -142,6 +142,8 @@ struct AboutView: View {
             AboutRow(icon: "at", title: "Follow on X", subtitle: "@apoorvdarshan", url: "https://x.com/apoorvdarshan")
             AppInsetDivider()
             AboutRow(icon: "camera", title: "Follow on Instagram", subtitle: "@apoorvcodes", url: "https://www.instagram.com/apoorvcodes/")
+            AppInsetDivider()
+            AboutRow(icon: "bubble.left.and.bubble.right.fill", title: "Join Discord", subtitle: "Get help and share ideas", url: "https://discord.gg/qv5nsTmkxA")
         }
     }
 

@@ -38,6 +38,8 @@
     <string name="about_x_subtitle">@apoorvdarshan</string>
     <string name="about_instagram">Follow on Instagram</string>
     <string name="about_instagram_subtitle">@apoorvcodes</string>
+    <string name="about_discord">Join Discord</string>
+    <string name="about_discord_subtitle">Get help and share ideas</string>
 
     <string name="about_contact">Contact</string>
     <string name="about_contact_subtitle">ad13dtu@gmail.com</string>

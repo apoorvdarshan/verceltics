@@ -25,6 +25,7 @@ import androidx.compose.material.icons.rounded.AlternateEmail
 import androidx.compose.material.icons.rounded.Contrast
 import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.Business
+import androidx.compose.material.icons.rounded.ChatBubbleOutline
 import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Description
@@ -179,6 +180,14 @@ fun AboutScreen(
                         title = stringResource(R.string.about_instagram),
                         subtitle = stringResource(R.string.about_instagram_subtitle),
                         destination = AboutDestination.INSTAGRAM_PROFILE,
+                        onAction = onAction,
+                    )
+                    AboutDivider()
+                    DestinationRow(
+                        icon = Icons.Rounded.ChatBubbleOutline,
+                        title = stringResource(R.string.about_discord),
+                        subtitle = stringResource(R.string.about_discord_subtitle),
+                        destination = AboutDestination.DISCORD,
                         onAction = onAction,
                     )
                 }
