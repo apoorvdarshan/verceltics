@@ -1,3 +1,6 @@
+import { DISCORD_INTERACTIONS_PATH, handleDiscordInteractionsRequest } from "./discord-interactions.mjs";
+import { announceReleases } from "./discord-announcements.mjs";
+
 const OWNER = "apoorvdarshan";
 const REPOSITORY = "verceltics";
 const CACHE_SECONDS = 6 * 60 * 60;
@@ -37,6 +40,10 @@ const THEMES = {
 export default {
   async fetch(request, env, context) {
     const url = new URL(request.url);
+
+    if (url.pathname === DISCORD_INTERACTIONS_PATH) {
+      return handleDiscordInteractionsRequest(request, env, context);
+    }
 
     if (url.pathname !== "/api/star-history.svg") {
       return env.ASSETS.fetch(request);
@@ -80,6 +87,10 @@ export default {
         ? new Response(null, { status: response.status, headers: response.headers })
         : response;
     }
+  },
+
+  scheduled(_event, env, context) {
+    context.waitUntil(announceReleases(env));
   },
 };
 

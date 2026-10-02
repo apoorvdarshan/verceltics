@@ -7,20 +7,20 @@ const SITE_URL = "https://verceltics.com";
 export const metadata: Metadata = {
   title: "Terms of Service",
   description:
-    "Terms for Verceltics provider connections, user-initiated operations, subscriptions, lifetime access, and Apple-handled purchases.",
+    "Terms for Verceltics provider connections, purchases, and Vercie Discord questions and public issue reports.",
   alternates: { canonical: `${SITE_URL}/terms` },
   openGraph: {
     type: "article",
     siteName: "Verceltics",
     title: "Terms of Service — Verceltics",
-    description: "Terms for using the Verceltics iPhone and iPad app.",
+    description: "Terms for using the Verceltics app, website, and Vercie Discord bot.",
     url: `${SITE_URL}/terms`,
     images: [{ url: "/og-verceltics.png", width: 1200, height: 630, alt: "Verceltics mobile operations instrument" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "Terms of Service — Verceltics",
-    description: "Terms for using the Verceltics iPhone and iPad app.",
+    description: "Terms for using the Verceltics app, website, and Vercie Discord bot.",
     images: ["/og-verceltics.png"],
   },
 };
@@ -29,6 +29,7 @@ const sections = [
   { id: "acceptance", label: "Acceptance" },
   { id: "service", label: "The service" },
   { id: "accounts", label: "Accounts and actions" },
+  { id: "discord", label: "Vercie on Discord" },
   { id: "purchases", label: "Purchases" },
   { id: "source", label: "Building from source" },
   { id: "availability", label: "Availability" },
@@ -43,13 +44,13 @@ export default function Terms() {
       asideDescription="Plain-language terms for using an independent provider workspace."
       eyebrow="Independent developer tool"
       sections={sections}
-      summary="These terms cover your use of Verceltics, the provider credentials and operations you control, and purchases processed by Apple."
+      summary="These terms cover the Verceltics app and website, provider operations you control, purchases processed by Apple, and the optional Vercie Discord bot."
       title="Terms of Service"
-      updated="July 19, 2026"
+      updated="October 2, 2026"
     >
       <section id="acceptance">
         <h2>Acceptance</h2>
-        <p>By downloading, building, or using Verceltics, you agree to these terms and the <a href="/privacy">Privacy Policy</a>. If you do not agree, do not use the app.</p>
+        <p>By downloading, building, or using Verceltics, including submitting commands to Vercie on Discord, you agree to these terms and the <a href="/privacy">Privacy Policy</a>. If you do not agree, do not use these services.</p>
       </section>
 
       <section id="service">
@@ -63,6 +64,14 @@ export default function Terms() {
         <p>You are responsible for every credential or Google authorization you connect and for all activity initiated through it. Use the narrowest provider permissions that meet your needs. Revoke or rotate access if you stop using the app or suspect exposure.</p>
         <p>Provider credentials inherit the permissions granted by that provider and may allow configuration changes, deployment actions, purchases, or destructive operations. Verceltics requires confirmation for detected writes, purchases, and destructive operations, but you remain responsible for reviewing the provider, HTTP method, path, parameters, body, and effect before confirming.</p>
         <p>You must use Verceltics only with accounts and data you are authorized to access and in accordance with provider terms, applicable law, rate limits, and acceptable-use policies. Do not use the app to evade provider security controls or access another person&apos;s account without permission.</p>
+      </section>
+
+      <section id="discord">
+        <h2>Vercie on Discord</h2>
+        <p>Vercie provides optional Verceltics help through <code>/ask</code>, accepts <code>/bug</code> and <code>/feature</code> reports, and may publish app-release announcements. It processes explicitly submitted commands through Cloudflare and may use Google Gemini to generate answers and organize reports. Use is subject to the applicable <a href="https://discord.com/terms" rel="noreferrer" target="_blank">Discord terms</a>, <a href="https://ai.google.dev/gemini-api/terms" rel="noreferrer" target="_blank">Gemini API terms</a>, and <a href="https://docs.github.com/en/site-policy/github-terms/github-terms-of-service" rel="noreferrer" target="_blank">GitHub terms</a>.</p>
+        <p>By submitting <code>/bug</code> or <code>/feature</code>, you ask us to publish your report and any generated summary as a <strong>public GitHub issue</strong> in the Verceltics repository. Submit only information you are authorized to share publicly. Successful command replies are visible in the Discord channel. Do not include credentials, personal information, confidential material, or security vulnerabilities; use the <a href="https://github.com/apoorvdarshan/verceltics/blob/main/SECURITY.md" rel="noreferrer" target="_blank">private security reporting process</a> for vulnerabilities.</p>
+        <p>AI-generated answers and issue summaries can be inaccurate or incomplete. Review them before relying on them, especially instructions that could change or delete provider resources. Vercie cannot access your app connections, perform provider operations, or guarantee a fix, response, release date, or continuous availability. We may limit or suspend bot access to address spam, abuse, service limits, or maintenance.</p>
+        <p>Processing, publication, retention, and requests to correct or delete bot-generated content are described in <a href="/privacy#discord">Vercie&apos;s privacy section</a>.</p>
       </section>
 
       <section id="purchases">

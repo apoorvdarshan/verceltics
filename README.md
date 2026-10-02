@@ -228,6 +228,13 @@ Deploy the exported `web/out` directory through the configured Cloudflare Worker
 npm run deploy
 ```
 
+## Discord community bot
+
+Vercie runs on the website's Cloudflare Worker. It handles `/ask` for app help,
+`/bug` and `/feature` for public GitHub issues, and optional store release
+announcements. See [Discord setup](services/discord-bot/README.md) for credentials,
+server command registration, and deployment.
+
 ## Authentication model
 
 | Category | Authentication |

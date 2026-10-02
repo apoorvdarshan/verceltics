@@ -7,20 +7,20 @@ const SITE_URL = "https://verceltics.com";
 export const metadata: Metadata = {
   title: "Privacy Policy",
   description:
-    "How Verceltics handles provider credentials, Google OAuth data, local caches, purchases, and website delivery.",
+    "How Verceltics handles app data, provider credentials, purchases, website delivery, and Vercie Discord commands.",
   alternates: { canonical: `${SITE_URL}/privacy` },
   openGraph: {
     type: "article",
     siteName: "Verceltics",
     title: "Privacy Policy — Verceltics",
-    description: "Device-only Keychain storage, direct provider requests, no app tracking, and no Verceltics credential proxy.",
+    description: "App privacy, direct provider connections, and how Vercie processes Discord questions and public issue reports.",
     url: `${SITE_URL}/privacy`,
     images: [{ url: "/og-verceltics.png", width: 1200, height: 630, alt: "Verceltics mobile operations instrument" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "Privacy Policy — Verceltics",
-    description: "Device-only Keychain storage, direct provider requests, no app tracking, and no Verceltics credential proxy.",
+    description: "App privacy, direct provider connections, and how Vercie processes Discord questions and public issue reports.",
     images: ["/og-verceltics.png"],
   },
 };
@@ -34,6 +34,7 @@ const sections = [
   { id: "provider-data", label: "Provider data and cache" },
   { id: "images", label: "Images and update checks" },
   { id: "website", label: "Website delivery" },
+  { id: "discord", label: "Vercie on Discord" },
   { id: "purchases", label: "Purchases" },
   { id: "controls", label: "Your controls" },
   { id: "changes", label: "Policy changes" },
@@ -43,17 +44,18 @@ const sections = [
 export default function Privacy() {
   return (
     <LegalShell
-      asideDescription="Plain-language privacy details for a direct-to-provider iOS app."
+      asideDescription="Privacy details for the Verceltics app, website, and Vercie Discord bot."
       eyebrow="Direct-to-provider architecture"
       sections={sections}
-      summary="Verceltics is designed so provider credentials and account data do not pass through a Verceltics server. This policy explains the limited local and third-party processing needed to operate the app and website."
+      summary="The Verceltics app connects directly to providers. Vercie, our optional Discord bot, processes the questions and reports you submit through Cloudflare, Google Gemini, and GitHub as explained below."
       title="Privacy Policy"
-      updated="July 19, 2026"
+      updated="October 2, 2026"
     >
       <section id="overview">
         <h2>Overview</h2>
         <p>Verceltics is an independent iPhone and iPad workspace for supported hosting platforms, domain registrars, and site-intelligence services. The app connects to services you choose using credentials or OAuth authorization you provide.</p>
         <p><strong>Verceltics does not operate a credential or provider-data proxy.</strong> Requests for provider data go from your device directly to the selected provider&apos;s HTTPS API or an explicitly selected HTTPS host for a supported self-hosted service.</p>
+        <p>The app-data sections below describe information accessed through the app. Vercie is a separate, optional Discord service with its own processing described in <a href="#discord">Vercie on Discord</a>. Vercie cannot access your app&apos;s saved credentials or connected accounts.</p>
       </section>
 
       <section id="app-data">
@@ -83,7 +85,7 @@ export default function Privacy() {
       <section id="google-data">
         <h2>Google API data</h2>
         <p>When you connect a Google service, Verceltics requests your Google account identifier and email address through Google OpenID Connect. The app uses them only to identify the connected account, label it in account controls, and match later OAuth refreshes to the same saved connection. The identifier and email are stored in the iOS Keychain with the connection&apos;s OAuth tokens.</p>
-        <p>Verceltics uses Google API data only to provide the user-facing feature you select:</p>
+        <p>The Verceltics app uses Google API data only to provide the user-facing feature you select:</p>
         <ul>
           <li><strong>Google Search Console:</strong> verified properties, search performance, indexing, sitemaps, and URL inspection</li>
           <li><strong>Google Analytics:</strong> GA4 properties and read-only traffic, engagement, acquisition, geography, device, page, event, and realtime reports</li>
@@ -108,6 +110,20 @@ export default function Privacy() {
       <section id="website">
         <h2>Website delivery</h2>
         <p>The Verceltics website is deployed through Cloudflare Workers Static Assets. The site does not include client-side analytics, advertising pixels, account sign-in, or forms that collect provider credentials. Cloudflare may process standard connection, security, and delivery logs under its own policies to serve and protect the website.</p>
+      </section>
+
+      <section id="discord">
+        <h2>Vercie on Discord</h2>
+        <p>Vercie responds when you submit a slash command in the configured Verceltics Discord server. Discord sends the command text and interaction metadata, including your Discord user, server, channel, and interaction identifiers, to our Cloudflare Worker. The Worker verifies the request, routes the command, applies abuse controls, and sends the response to Discord. Vercie does not passively read channel conversations, retrieve message history, or connect to your Verceltics app accounts.</p>
+        <ul>
+          <li><strong><code>/ask</code>:</strong> your submitted question is sent to Google&apos;s Gemini API with Verceltics help instructions to generate an answer. The answer is visible to people with access to the Discord channel.</li>
+          <li><strong><code>/bug</code> and <code>/feature</code>:</strong> your report may be sent to Gemini to organize it, then the original report and any generated summary are published as a <strong>public GitHub issue</strong> in <a href="https://github.com/apoorvdarshan/verceltics/issues" rel="noreferrer" target="_blank">apoorvdarshan/verceltics</a>. Vercie does not add your Discord username or user ID to the public issue. Any personal information you include in the report itself can become public. The resulting issue link is posted in the channel.</li>
+          <li><strong>Release announcements:</strong> Vercie may post new public app releases in the designated announcements channel. This uses release information rather than members&apos; message history.</li>
+        </ul>
+        <p><strong>Do not submit passwords, API keys, private account data, personal information, or confidential reports through Vercie.</strong> Security vulnerabilities should use our <a href="https://github.com/apoorvdarshan/verceltics/blob/main/SECURITY.md" rel="noreferrer" target="_blank">private security reporting process</a>. Bot replies and reports are not a private support conversation.</p>
+        <p>Google&apos;s processing depends on the Gemini service and billing configuration. Under its unpaid-service terms, submitted content and generated responses may be used to improve Google products and reviewed by humans; paid-service terms describe different handling. We do not promise that Google immediately deletes submitted content or excludes it from model improvement. See the <a href="https://ai.google.dev/gemini-api/terms" rel="noreferrer" target="_blank">Gemini API terms</a> and <a href="https://policies.google.com/privacy" rel="noreferrer" target="_blank">Google Privacy Policy</a>.</p>
+        <p>The bot does not maintain a conversation archive. Cloudflare KV stores release-version markers and short-lived hashes derived from interaction or user identifiers for duplicate-request and cooldown handling; these request and cooldown entries expire within 15 minutes. Bot operational logs omit submitted question and report text. Cloudflare may separately process service, delivery, and security records under its <a href="https://www.cloudflare.com/privacypolicy/" rel="noreferrer" target="_blank">Privacy Policy</a>.</p>
+        <p>Replies remain in Discord and issues remain on GitHub until removed under the respective service&apos;s controls and policies. Deleting a Discord message does not remove a GitHub issue. See the <a href="https://discord.com/privacy" rel="noreferrer" target="_blank">Discord Privacy Policy</a> and <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement" rel="noreferrer" target="_blank">GitHub Privacy Statement</a>. To request correction or deletion of bot-generated content, email <a href="mailto:ad13dtu@gmail.com">ad13dtu@gmail.com</a> with the message or issue link. We can address content we control, but cannot guarantee removal of public copies or records independently retained by third parties.</p>
       </section>
 
       <section id="purchases">

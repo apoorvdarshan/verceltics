@@ -3,6 +3,20 @@
   "name": "verceltics-web",
   "main": "./worker/index.mjs",
   "compatibility_date": "2026-07-10",
+  "vars": {
+    "DISCORD_APPLICATION_ID": "1555610391508426783",
+    "DISCORD_PUBLIC_KEY": "7123e977c17d09e99094c9444e59bba63ea6d4a64cacc69618b9776c9324fec8",
+    "DISCORD_GEMINI_MODEL": "gemini-3.5-flash-lite"
+  },
+  "kv_namespaces": [
+    {
+      "binding": "DISCORD_STATE",
+      "id": "662026b96b27437f99e6617fa044c58b"
+    }
+  ],
+  "triggers": {
+    "crons": ["37 * * * *"]
+  },
   "assets": {
     "directory": "./out",
     "binding": "ASSETS",
