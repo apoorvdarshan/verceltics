@@ -74,6 +74,24 @@ Registrar setup may make a bounded, credential-free request to `api.ipify.org` t
 
 Provider credentials inherit their configured permissions and can make destructive changes or purchases. The app blocks cross-host redirects and requires confirmation before detected write or purchase requests. If a credential may be exposed, revoke or rotate it immediately in that provider's dashboard.
 
+## Solo-maintainer workflow
+
+Verceltics is maintained by Apoorv Darshan as its sole developer. The maintainer
+may push directly to `main`; another person's approval, code-owner approval,
+and a pull request are not required for maintainer changes. `CODEOWNERS` records
+ownership and does not create a review requirement.
+
+The `Protect main` ruleset blocks branch deletion and force pushes. CI runs
+tests, dependency auditing, fuzz tests, and CodeQL on pushes to `main`; Scorecard
+continues to run all of its checks.
+
+Scorecard's `Code-Review` and `Branch-Protection` recommendations for independent
+reviews and mandatory pre-merge gates are accepted governance exceptions for
+this solo workflow. Their alerts are dismissed with this rationale rather than
+treated as vulnerabilities repaired in application code. Revisit these
+exceptions if the project gains additional maintainers. They do not exempt
+dependency vulnerabilities or findings in application code from remediation.
+
 ## Build dependency integrity
 
 The checked-in `android/gradle/wrapper/gradle-wrapper.jar` is the standard Gradle
