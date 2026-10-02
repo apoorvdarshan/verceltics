@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -28,6 +29,7 @@ import androidx.compose.material.icons.rounded.Contrast
 import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.Business
 import androidx.compose.material.icons.rounded.ChatBubbleOutline
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Description
@@ -46,13 +48,12 @@ import androidx.compose.material.icons.rounded.ThumbUp
 import androidx.compose.material.icons.rounded.Verified
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -79,6 +80,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.apoorvdarshan.verceltics.R
 import com.apoorvdarshan.verceltics.ui.screens.about.AboutAppearance
 import com.apoorvdarshan.verceltics.ui.screens.about.AboutDestination
@@ -272,9 +275,8 @@ fun AboutScreen(
                     FeedbackRow(
                         icon = Icons.Rounded.BugReport,
                         title = stringResource(R.string.about_report_issue),
-                        description = stringResource(R.string.about_report_issue_choices),
-                        githubLabel = stringResource(R.string.about_report_github),
-                        discordLabel = stringResource(R.string.about_report_discord),
+                        githubSubtitle = stringResource(R.string.about_report_github_subtitle),
+                        discordHint = stringResource(R.string.about_report_discord_hint),
                         githubDestination = AboutDestination.REPORT_ISSUE,
                         discordDestination = AboutDestination.DISCORD_BUG_REPORT,
                         testTag = "about.feedback.bug",
@@ -284,9 +286,8 @@ fun AboutScreen(
                     FeedbackRow(
                         icon = Icons.Rounded.Lightbulb,
                         title = stringResource(R.string.about_request_feature),
-                        description = stringResource(R.string.about_request_feature_choices),
-                        githubLabel = stringResource(R.string.about_request_github),
-                        discordLabel = stringResource(R.string.about_request_discord),
+                        githubSubtitle = stringResource(R.string.about_request_github_subtitle),
+                        discordHint = stringResource(R.string.about_request_discord_hint),
                         githubDestination = AboutDestination.REQUEST_FEATURE,
                         discordDestination = AboutDestination.DISCORD_FEATURE_REQUEST,
                         testTag = "about.feedback.feature",
@@ -539,9 +540,8 @@ private fun AboutSectionCard(
 private fun FeedbackRow(
     icon: ImageVector,
     title: String,
-    description: String,
-    githubLabel: String,
-    discordLabel: String,
+    githubSubtitle: String,
+    discordHint: String,
     githubDestination: AboutDestination,
     discordDestination: AboutDestination,
     testTag: String,
@@ -557,41 +557,182 @@ private fun FeedbackRow(
     )
 
     if (showChoices) {
-        AlertDialog(
+        Dialog(
             onDismissRequest = { showChoices = false },
-            title = { Text(title) },
-            text = {
-                Column(
-                    modifier = Modifier.verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            BoxWithConstraints(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 24.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .widthIn(max = 400.dp)
+                        .fillMaxWidth()
+                        .heightIn(max = maxHeight.coerceAtMost(640.dp))
+                        .testTag("$testTag.dialog"),
+                    shape = RoundedCornerShape(28.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    tonalElevation = 0.dp,
                 ) {
-                    Text(description)
-                    TextButton(
-                        onClick = {
-                            showChoices = false
-                            onAction(AboutScreenAction.OpenDestination(githubDestination))
-                        },
-                        modifier = Modifier.fillMaxWidth().testTag("$testTag.github"),
+                    Column(
+                        modifier = Modifier
+                            .verticalScroll(rememberScrollState())
+                            .padding(20.dp),
                     ) {
-                        Text(githubLabel)
-                    }
-                    TextButton(
-                        onClick = {
-                            showChoices = false
-                            onAction(AboutScreenAction.OpenDestination(discordDestination))
-                        },
-                        modifier = Modifier.fillMaxWidth().testTag("$testTag.discord"),
-                    ) {
-                        Text(discordLabel)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .background(
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                        RoundedCornerShape(13.dp),
+                                    ),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(23.dp),
+                                )
+                            }
+                            IconButton(
+                                onClick = { showChoices = false },
+                                modifier = Modifier.size(48.dp).testTag("$testTag.close"),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Close,
+                                    contentDescription = stringResource(R.string.about_feedback_close),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(22.dp),
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontSize = 22.sp,
+                                lineHeight = 28.sp,
+                                fontWeight = FontWeight.Bold,
+                            ),
+                            modifier = Modifier.semantics { heading() },
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = stringResource(R.string.about_feedback_intro),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        FeedbackDestinationCard(
+                            icon = Icons.Rounded.Code,
+                            title = stringResource(R.string.about_feedback_github),
+                            subtitle = githubSubtitle,
+                            detail = stringResource(R.string.about_feedback_github_account),
+                            testTag = "$testTag.github",
+                            onClick = {
+                                showChoices = false
+                                onAction(AboutScreenAction.OpenDestination(githubDestination))
+                            },
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        FeedbackDestinationCard(
+                            icon = Icons.Rounded.ChatBubbleOutline,
+                            title = stringResource(R.string.about_feedback_discord),
+                            subtitle = stringResource(R.string.about_feedback_discord_subtitle),
+                            detail = null,
+                            testTag = "$testTag.discord",
+                            onClick = {
+                                showChoices = false
+                                onAction(AboutScreenAction.OpenDestination(discordDestination))
+                            },
+                        )
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            text = discordHint,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = stringResource(R.string.about_feedback_public),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
-            },
-            confirmButton = {
-                TextButton(onClick = { showChoices = false }) {
-                    Text(stringResource(android.R.string.cancel))
+            }
+        }
+    }
+}
+
+@Composable
+private fun FeedbackDestinationCard(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    detail: String?,
+    testTag: String,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().testTag(testTag),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        tonalElevation = 0.dp,
+    ) {
+        Row(
+            modifier = Modifier
+                .heightIn(min = 84.dp)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp),
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (detail != null) {
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = detail,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
-            },
-        )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp),
+            )
+        }
     }
 }
 
