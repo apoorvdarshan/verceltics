@@ -140,6 +140,8 @@ struct AboutView: View {
             AboutRow(icon: "building.2.fill", title: "Follow on LinkedIn", subtitle: "linkedin.com/showcase/verceltics", url: "https://www.linkedin.com/showcase/verceltics")
             AppInsetDivider()
             AboutRow(icon: "at", title: "Follow on X", subtitle: "@apoorvdarshan", url: "https://x.com/apoorvdarshan")
+            AppInsetDivider()
+            AboutRow(icon: "camera", title: "Follow on Instagram", subtitle: "@apoorvcodes", url: "https://www.instagram.com/apoorvcodes/")
         }
     }
 

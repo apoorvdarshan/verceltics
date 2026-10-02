@@ -32,6 +32,7 @@ import androidx.compose.material.icons.rounded.Email
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.LightMode
+import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.PrivacyTip
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Star
@@ -170,6 +171,14 @@ fun AboutScreen(
                         title = stringResource(R.string.about_x),
                         subtitle = stringResource(R.string.about_x_subtitle),
                         destination = AboutDestination.X_PROFILE,
+                        onAction = onAction,
+                    )
+                    AboutDivider()
+                    DestinationRow(
+                        icon = Icons.Rounded.PhotoCamera,
+                        title = stringResource(R.string.about_instagram),
+                        subtitle = stringResource(R.string.about_instagram_subtitle),
+                        destination = AboutDestination.INSTAGRAM_PROFILE,
                         onAction = onAction,
                     )
                 }

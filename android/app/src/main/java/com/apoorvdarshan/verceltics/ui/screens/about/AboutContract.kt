@@ -75,6 +75,7 @@ enum class AboutDestination(val uri: String) {
     SOURCE_CODE("https://github.com/apoorvdarshan/verceltics"),
     LINKED_IN("https://www.linkedin.com/showcase/verceltics"),
     X_PROFILE("https://x.com/apoorvdarshan"),
+    INSTAGRAM_PROFILE("https://www.instagram.com/apoorvcodes/"),
     CONTACT("mailto:ad13dtu@gmail.com"),
     REPORT_ISSUE("https://github.com/apoorvdarshan/verceltics/issues"),
     PRODUCT_HUNT("https://www.producthunt.com/products/verceltics"),
