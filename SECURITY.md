@@ -74,6 +74,23 @@ Registrar setup may make a bounded, credential-free request to `api.ipify.org` t
 
 Provider credentials inherit their configured permissions and can make destructive changes or purchases. The app blocks cross-host redirects and requires confirmation before detected write or purchase requests. If a credential may be exposed, revoke or rotate it immediately in that provider's dashboard.
 
+## Build dependency integrity
+
+The checked-in `android/gradle/wrapper/gradle-wrapper.jar` is the standard Gradle
+bootstrap required by both `gradlew` and `gradlew.bat`. It is an intentional
+exception to Scorecard's blanket recommendation against binary artifacts, as
+recommended by the [Gradle Wrapper documentation](https://docs.gradle.org/current/userguide/gradle_wrapper.html).
+It is not an application binary.
+
+- The Gradle 9.8.0 wrapper JAR SHA-256 is
+  `238e777fcddd7e34f9708186085def2abd6e08e658505b38718d79d74c21abd5`, matching
+  [Gradle's published checksum](https://services.gradle.org/distributions/gradle-9.8.0-wrapper.jar.sha256).
+- CI explicitly enables `gradle/actions/setup-gradle` wrapper validation before
+  executing Gradle, rejecting JARs that do not match known Gradle releases.
+- `android/gradle/wrapper/gradle-wrapper.properties` pins the distribution ZIP's
+  SHA-256 via `distributionSha256Sum`. Keep that checksum aligned with Gradle's
+  published checksum when updating the distribution.
+
 ## Disclosure Policy
 
 We follow a coordinated disclosure model. Once a fix ships in the App Store and the source repo, we'll:

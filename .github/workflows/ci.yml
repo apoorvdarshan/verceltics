@@ -39,9 +39,17 @@ jobs:
         working-directory: web
         run: npm ci
 
-      - name: Audit production dependencies
+      - name: Audit all web dependencies
         working-directory: web
-        run: npm audit --omit=dev --audit-level=moderate
+        run: npm audit --audit-level=moderate
+
+      - name: Test web worker
+        working-directory: web
+        run: npm run test:worker
+
+      - name: Fuzz web worker
+        working-directory: web
+        run: npm run test:fuzz
 
       - name: Build website
         working-directory: web
@@ -95,6 +103,9 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+        with:
+          # Reject modified or unrecognized wrapper JARs before running Gradle.
+          validate-wrappers: true
 
       - name: Test, lint, and build Android app
         working-directory: android

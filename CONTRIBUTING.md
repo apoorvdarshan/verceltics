@@ -19,6 +19,28 @@ Thanks for your interest in contributing! Here's how to get started.
 7. Commit and push
 8. Open a Pull Request
 
+## Security checks
+
+For website and worker changes, run these checks from `web/`:
+
+```bash
+npm ci
+npm audit --audit-level=moderate
+npm run test:worker
+npm run test:fuzz
+npm run build
+```
+
+The audit includes development dependencies because Wrangler's local server and
+deployment tools execute on developer machines and CI. The `undici` override
+pins the patched 7.29.1 release while the current Wrangler/Miniflare dependency
+chain requests 7.29.0. Remove the override once the upstream dependency chain
+resolves a patched release, and rerun the full audit.
+
+The fuzz tests use `fast-check` as a development-only dependency to exercise
+untrusted query parameters and upstream responses. Failures include a seed and
+replay path for reproducing and shrinking the failing input.
+
 ## Guidelines
 
 - **SwiftUI only** — No UIKit wrappers unless absolutely necessary
