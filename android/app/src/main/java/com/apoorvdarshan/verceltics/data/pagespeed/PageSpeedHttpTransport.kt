@@ -1,5 +1,6 @@
 package com.apoorvdarshan.verceltics.data.pagespeed
 
+import com.apoorvdarshan.verceltics.BuildConfig
 import com.apoorvdarshan.verceltics.data.network.CancelableCall
 import com.apoorvdarshan.verceltics.data.network.HttpResponse
 import com.apoorvdarshan.verceltics.data.network.ProviderEndpointPolicy
@@ -241,7 +242,7 @@ private class BoundedPageSpeedHttpCall(
         connection.doInput = true
         connection.setRequestProperty("Accept", "application/json")
         connection.setRequestProperty("Accept-Encoding", "identity")
-        connection.setRequestProperty("User-Agent", "Verceltics-Android/3.0")
+        connection.setRequestProperty("User-Agent", "Verceltics-Android/${BuildConfig.VERSION_NAME}")
         return connection
     }
 

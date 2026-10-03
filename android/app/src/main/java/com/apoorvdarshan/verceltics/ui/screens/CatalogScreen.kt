@@ -48,6 +48,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.apoorvdarshan.verceltics.BuildConfig
 import com.apoorvdarshan.verceltics.domain.IntegrationCatalog
 import com.apoorvdarshan.verceltics.domain.IntegrationProvider
 import com.apoorvdarshan.verceltics.domain.Workspace
@@ -123,7 +124,7 @@ private fun BrandHeader() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .semantics { contentDescription = "Verceltics 3.0" },
+            .semantics { contentDescription = "Verceltics ${BuildConfig.VERSION_NAME}" },
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -149,7 +150,7 @@ private fun BrandHeader() {
                 .padding(horizontal = 10.dp, vertical = 7.dp),
         ) {
             Text(
-                text = "3.0",
+                text = BuildConfig.VERSION_NAME,
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.background,
             )

@@ -35,8 +35,8 @@ android {
         applicationId = "com.apoorvdarshan.verceltics"
         minSdk = 28
         targetSdk = 36
-        versionCode = 42
-        versionName = "3.0"
+        versionCode = 43
+        versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true

@@ -1,5 +1,6 @@
 package com.apoorvdarshan.verceltics.data.network
 
+import com.apoorvdarshan.verceltics.BuildConfig
 import com.apoorvdarshan.verceltics.data.account.SecretValue
 import java.io.ByteArrayOutputStream
 import java.io.IOException
@@ -179,7 +180,7 @@ private class HttpUrlConnectionCall(
         connection.doInput = true
         connection.setRequestProperty("Accept", "application/json")
         connection.setRequestProperty("Accept-Encoding", "identity")
-        connection.setRequestProperty("User-Agent", "Verceltics-Android/3.0")
+        connection.setRequestProperty("User-Agent", "Verceltics-Android/${BuildConfig.VERSION_NAME}")
         headers.forEach(connection::setRequestProperty)
         bearerToken?.use { token ->
             connection.setRequestProperty("Authorization", "Bearer $token")

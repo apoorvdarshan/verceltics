@@ -31,6 +31,7 @@ Verceltics is an independent, open-source operator workspace for the infrastruct
 **Version status:** the prepared iOS source build is **2.1 (43)**. The latest
 public App Store release is **2.0**; 2.1 has not been submitted or released.
 Screenshots and feature descriptions document the current source build.
+The unreleased Android preview is **1.0 (43)**; no Play Store release is planned yet.
 
 The shipping iOS app remains fully native SwiftUI. A separate native Android app is being migrated screen by screen with Kotlin and Jetpack Compose; it does not embed Flutter or share a cross-platform UI runtime. See [Native mobile architecture](docs/native-mobile-architecture.md) for the current parity boundary.
 

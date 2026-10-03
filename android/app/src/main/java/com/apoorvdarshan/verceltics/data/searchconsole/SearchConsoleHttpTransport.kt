@@ -1,5 +1,6 @@
 package com.apoorvdarshan.verceltics.data.searchconsole
 
+import com.apoorvdarshan.verceltics.BuildConfig
 import com.apoorvdarshan.verceltics.data.account.SecretValue
 import com.apoorvdarshan.verceltics.data.network.CancelableCall
 import com.apoorvdarshan.verceltics.data.network.HttpResponse
@@ -235,7 +236,7 @@ private class BoundedSearchConsoleHttpCall(
         connection.doInput = true
         connection.setRequestProperty("Accept", "application/json")
         connection.setRequestProperty("Accept-Encoding", "identity")
-        connection.setRequestProperty("User-Agent", "Verceltics-Android/3.0")
+        connection.setRequestProperty("User-Agent", "Verceltics-Android/${BuildConfig.VERSION_NAME}")
         bearerToken?.use { connection.setRequestProperty("Authorization", "Bearer $it") }
         return connection
     }
