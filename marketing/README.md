@@ -13,7 +13,8 @@ released. Prepared listing copy lives in [APPSTORE.md](../APPSTORE.md).
 - `ss ios/` — source iPhone screenshots
 - `ss ipad/` — source iPad screenshots
 - `product-hunt/` — earlier Product Hunt 2.0 artwork
-- [`product-hunt-2026-10/`](product-hunt-2026-10/README.md) — new three-image relaunch gallery, with upload order and imagegen prompts
+- [`product-hunt-2026-10-v2/`](product-hunt-2026-10-v2/README.md) — current three-image relaunch gallery: ivory/cobalt design, large devices, upload order and imagegen prompts
+- [`product-hunt-2026-10/`](product-hunt-2026-10/README.md) — earlier relaunch gallery and [Product Hunt promo details](product-hunt-2026-10/PROMO.md)
 - `Verceltics-Logo*.png` — app logos
 - `Verceltics-LinkedIn-Banner.png` — LinkedIn company banner
 - `mockup.png` — general-purpose promotional composition
