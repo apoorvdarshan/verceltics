@@ -271,6 +271,9 @@ Verceltics is not affiliated with, endorsed by, or sponsored by any supported ho
 
 ## Contributing
 
+iOS tag and store automation is documented in [store/README.md](store/README.md).
+It is configured with every release/store switch disabled until explicitly enabled.
+
 See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Our [Code of Conduct](CODE_OF_CONDUCT.md) applies to GitHub and the Verceltics Discord community. Report security issues privately using [SECURITY.md](SECURITY.md).
 
 ## License

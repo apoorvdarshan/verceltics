@@ -1,0 +1,16 @@
+{
+  "package": {"ios": "com.apoorvdarshan.verceltics"},
+  "subscriptions": [
+    {"id": "com.apoorvdarshan.verceltics.monthly"},
+    {"id": "com.apoorvdarshan.verceltics.yearly"}
+  ],
+  "non_consumables": [
+    {"id": "com.apoorvdarshan.verceltics.lifetime"}
+  ],
+  "tips": [
+    {"id": "com.apoorvdarshan.verceltics.tip.coffee"},
+    {"id": "com.apoorvdarshan.verceltics.tip.lunch"},
+    {"id": "com.apoorvdarshan.verceltics.tip.big"},
+    {"id": "com.apoorvdarshan.verceltics.tip.huge"}
+  ]
+}

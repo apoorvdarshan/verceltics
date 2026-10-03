@@ -1,6 +1,7 @@
 # ── macOS / Xcode ──
 .DS_Store
 *.pem
+*.p8
 
 # ── iOS / Xcode build artifacts ──
 ios/**/xcuserdata/

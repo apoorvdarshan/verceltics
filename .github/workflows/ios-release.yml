@@ -1,0 +1,77 @@
+name: iOS Release
+
+# Setup only until STORE_IOS_RELEASE_ENABLED is explicitly enabled.
+# Xcode Cloud owns archive/upload and has its own independent enable switch.
+# No app builds, TestFlight publishing, or Play operations run in this workflow.
+on:
+  push:
+    tags:
+      - "ios-v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-store-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: vars.STORE_IOS_RELEASE_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
+      - name: Validate version, products, and reviewed release notes
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          python3 scripts/store/validate_ios_release.py --tag "$TAG"
+          python3 scripts/release_notes.py "$TAG" > "$RUNNER_TEMP/release-notes.md"
+          python3 scripts/store/prepare_ios_metadata.py --tag "$TAG" --out "$RUNNER_TEMP/store-meta"
+
+      - name: Print and normalize independent store switches
+        id: gates
+        env:
+          STORE_IOS_RELEASE_ENABLED: ${{ vars.STORE_IOS_RELEASE_ENABLED }}
+          STORE_UPLOAD_LISTING: ${{ vars.STORE_UPLOAD_LISTING }}
+          STORE_UPLOAD_SCREENSHOTS: ${{ vars.STORE_UPLOAD_SCREENSHOTS }}
+          STORE_SUBMIT_IOS_REVIEW: ${{ vars.STORE_SUBMIT_IOS_REVIEW }}
+        run: python3 scripts/store/print_gates.py --github-output "$GITHUB_OUTPUT"
+
+      - name: Upload metadata or submit for App Review (explicit switches only)
+        if: >-
+          steps.gates.outputs.upload_listing == 'true' ||
+          steps.gates.outputs.upload_screenshots == 'true' ||
+          steps.gates.outputs.submit_ios_review == 'true'
+        env:
+          STORE_IOS_RELEASE_ENABLED: ${{ vars.STORE_IOS_RELEASE_ENABLED }}
+          UPLOAD_LISTING: ${{ steps.gates.outputs.upload_listing }}
+          UPLOAD_SCREENSHOTS: ${{ steps.gates.outputs.upload_screenshots }}
+          SUBMIT_IOS_REVIEW: ${{ steps.gates.outputs.submit_ios_review }}
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          python3 -m pip install --disable-pip-version-check --require-hashes -r requirements-store.txt
+          python3 scripts/store/asc_release.py --version "${TAG#ios-v}" --metadata-dir "$RUNNER_TEMP/store-meta"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" --verify-tag --title "iOS ${TAG#ios-v}" \
+            --notes-file "$RUNNER_TEMP/release-notes.md" --latest
