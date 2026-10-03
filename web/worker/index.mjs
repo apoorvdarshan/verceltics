@@ -98,6 +98,51 @@ export default {
 };
 
 export async function fetchStarHistory(token, fetchImplementation = fetch) {
+  try {
+    return await fetchGraphqlStarHistory(token, fetchImplementation);
+  } catch {
+    // GitHub can restrict stargazer access independently of other GraphQL fields.
+    // The REST endpoint supplies the same timestamps for authorized collaborators.
+    return fetchRestStarHistory(token, fetchImplementation);
+  }
+}
+
+async function fetchRestStarHistory(token, fetchImplementation) {
+  if (!token) {
+    throw new Error("GITHUB_TOKEN is not configured");
+  }
+
+  const stars = [];
+  for (let page = 1; page <= 101; page += 1) {
+    const response = await fetchImplementation(
+      `https://api.github.com/repos/${OWNER}/${REPOSITORY}/stargazers?per_page=100&page=${page}`,
+      {
+        headers: {
+          Accept: "application/vnd.github.star+json",
+          Authorization: `Bearer ${token}`,
+          "X-GitHub-Api-Version": "2026-03-10",
+          "User-Agent": "verceltics-star-history",
+        },
+      },
+    );
+    if (!response.ok) {
+      throw new Error(`GitHub star history REST API returned ${response.status}`);
+    }
+    const payload = await response.json();
+    if (!Array.isArray(payload) || payload.some((star) =>
+      typeof star?.starred_at !== "string" || !Number.isFinite(Date.parse(star.starred_at)),
+    )) {
+      throw new Error("GitHub returned unexpected star history data");
+    }
+    stars.push(...payload.map((star) => star.starred_at));
+    if (!response.headers.get("Link")?.includes('rel="next"')) {
+      return stars.sort((left, right) => left.localeCompare(right));
+    }
+  }
+  throw new Error("Star history exceeded the pagination safety limit");
+}
+
+async function fetchGraphqlStarHistory(token, fetchImplementation) {
   if (!token) {
     throw new Error("GITHUB_TOKEN is not configured");
   }
