@@ -657,7 +657,7 @@ struct HostingProviderAPI {
             }
             if provider == .heroku {
                 request.setValue("application/vnd.heroku+json; version=3", forHTTPHeaderField: "Accept")
-                request.setValue("Verceltics/3.0", forHTTPHeaderField: "User-Agent")
+                request.setValue("Verceltics/2.1", forHTTPHeaderField: "User-Agent")
             }
         }
 

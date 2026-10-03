@@ -47,7 +47,7 @@ The README highlights the iPhone experience. Verceltics also has a fully adaptiv
 
 ## Supported providers
 
-Verceltics 3.0 includes 27 separate integrations: 10 hosting platforms, 8 registrars, and 9 site services. Providers stay separated by the job they perform; Google Search Console and Google Analytics, for example, are independent connections and dashboards inside the Sites workspace. Available data and operations vary with each provider API, credential scope, account plan, and enabled service.
+Verceltics 2.1 includes 27 separate integrations: 10 hosting platforms, 8 registrars, and 9 site services. Providers stay separated by the job they perform; Google Search Console and Google Analytics, for example, are independent connections and dashboards inside the Sites workspace. Available data and operations vary with each provider API, credential scope, account plan, and enabled service.
 
 ### Hosting — 10
 

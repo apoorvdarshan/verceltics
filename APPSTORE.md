@@ -1,6 +1,6 @@
 # App Store Listing
 
-App Store Connect submission details for Verceltics v3.0. Each field is in a code block for easy copy-paste.
+App Store Connect submission details for Verceltics v2.1. Each field is in a code block for easy copy-paste.
 
 ## App Name
 ```
@@ -77,9 +77,9 @@ Contact: ad13dtu@gmail.com
 Not affiliated with any supported hosting platform, registrar, or site-intelligence service.
 ```
 
-## What's New (v3.0)
+## What's New (v2.1)
 ```
-Verceltics 3.0 introduces a complete interface redesign.
+Verceltics 2.1 introduces a complete interface redesign.
 
 • A new Soft Neo Utility visual system makes dense infrastructure data easier to scan.
 • Redesigned hosting, registrar, site, analytics, connection, and provider-detail screens.
