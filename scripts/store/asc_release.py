@@ -18,11 +18,14 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
+
+from xcode_build import BuildWaitError, select_build, validate_identity, wait_for_build
 
 ROOT = Path(__file__).resolve().parents[2]
 ASC_BASE = "https://api.appstoreconnect.apple.com/v1"
 DEFAULT_BUNDLE_ID = "com.apoorvdarshan.verceltics"
+DEFAULT_CI_WORKFLOW_ID = "2245A813-CA9D-45A4-8ACA-CF30494D2575"
 IPHONE_67_DISPLAY = "APP_IPHONE_67"
 # App Store Connect per screenshot-set limit (6.7" display type).
 APP_SCREENSHOT_SET_MAX = 10
@@ -55,8 +58,10 @@ def read_text(path: Path) -> str | None:
 
 
 class AscClient:
-    def __init__(self, token: str) -> None:
+    def __init__(self, token: str, *, token_factory: Callable[[], str] | None = None) -> None:
         self._token = token
+        self._token_factory = token_factory
+        self._refresh_at = time.monotonic() + 900
 
     def request(
         self,
@@ -68,6 +73,10 @@ class AscClient:
         content_type: str = "application/json",
         accept: str = "application/json",
     ) -> dict[str, Any] | None:
+        # ASC JWTs expire after 20 minutes; Cloud builds may take much longer.
+        if self._token_factory is not None and time.monotonic() >= self._refresh_at:
+            self._token = self._token_factory()
+            self._refresh_at = time.monotonic() + 900
         url = path if path.startswith("http") else f"{ASC_BASE}{path}"
         headers = {
             "Authorization": f"Bearer {self._token}",
@@ -772,8 +781,13 @@ def main() -> None:
     parser.add_argument("--bundle-id", default=DEFAULT_BUNDLE_ID)
     parser.add_argument(
         "--version",
-        help="Marketing version from release tag (e.g. 1.2.3 when tag is v1.2.3)",
+        help="Marketing version from release tag (e.g. 1.2.3 for ios-v1.2.3)",
     )
+    parser.add_argument("--tag", default="", help="Exact ios-v tag to wait for")
+    parser.add_argument("--commit", default="", help="Full source commit SHA checked out from the tag")
+    parser.add_argument("--ci-workflow-id", default=DEFAULT_CI_WORKFLOW_ID)
+    parser.add_argument("--wait-timeout", type=int, default=7200, help="Maximum build wait in seconds")
+    parser.add_argument("--poll-interval", type=int, default=30)
     parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -814,12 +828,17 @@ def main() -> None:
         )
         return
 
-    key_id, issuer_id, key_p8 = load_credentials()
-    token = make_asc_token(key_id, issuer_id, key_p8)
-    client = AscClient(token)
-
     if not args.version:
         fail("--version is required for live ASC calls (pass marketing version from tag)")
+    if do_submit:
+        try:
+            validate_identity(args.tag, args.commit, args.version)
+        except BuildWaitError as exc:
+            fail(str(exc))
+
+    key_id, issuer_id, key_p8 = load_credentials()
+    token_factory = lambda: make_asc_token(key_id, issuer_id, key_p8)
+    client = AscClient(token_factory(), token_factory=token_factory)
 
     app_id = find_app(client, args.bundle_id)
     version = get_ios_app_store_version(client, app_id, args.version)
@@ -828,6 +847,26 @@ def main() -> None:
     print(
         f"ASC app={app_id} version={args.version} id={version_id} state={state}"
     )
+
+    verified_build_id = None
+    if do_submit:
+        if state not in SUBMITTABLE_VERSION_STATES | {"WAITING_FOR_REVIEW"}:
+            fail(f"version {args.version!r} cannot be submitted for review (state={state})")
+        try:
+            verified_build_id = wait_for_build(
+                client, app_id=app_id, workflow_id=args.ci_workflow_id,
+                tag=args.tag, commit=args.commit, version=args.version,
+                timeout=args.wait_timeout, interval=args.poll_interval,
+            )
+            # The version may have changed while Cloud was building.
+            version = get_ios_app_store_version(client, app_id, args.version)
+            version_id = version["id"]
+            state = (version.get("attributes") or {}).get("appStoreState") or ""
+            if state not in SUBMITTABLE_VERSION_STATES | {"WAITING_FOR_REVIEW"}:
+                fail(f"App Store version state changed while waiting: {state}")
+            select_build(client, version, verified_build_id, EDITABLE_VERSION_STATES)
+        except BuildWaitError as exc:
+            fail(str(exc))
 
     if state == "WAITING_FOR_REVIEW":
         if do_submit and not (do_listing or do_screenshots):
@@ -900,6 +939,16 @@ def main() -> None:
         )
 
     if do_submit:
+        selected = client.get(f"/appStoreVersions/{version_id}/relationships/build").get("data")
+        if not selected or selected.get("id") != verified_build_id:
+            fail("build selection changed; refusing to submit another build")
+        build_attrs = client.get(f"/builds/{verified_build_id}")["data"]["attributes"]
+        if build_attrs.get("expired") or build_attrs.get("processingState") != "VALID":
+            fail("verified build is no longer eligible for submission")
+        current_version = get_ios_app_store_version(client, app_id, args.version)
+        state = (current_version.get("attributes") or {}).get("appStoreState") or ""
+        if state not in SUBMITTABLE_VERSION_STATES:
+            fail(f"App Store version state changed before submission: {state}")
         print("submitting in-app purchases / subscriptions for review…")
         submission_id = get_or_create_draft_submission(client, app_id)
         try:
@@ -912,6 +961,9 @@ def main() -> None:
             # the version enter review without it.
             fail(f"{exc} Not submitting the app version.")
         print("submitting for App Store review…")
+        selected = client.get(f"/appStoreVersions/{version_id}/relationships/build").get("data")
+        if not selected or selected.get("id") != verified_build_id:
+            fail("build selection changed during product preparation; app review not submitted")
         submit_for_review(
             client, app_id, version_id, state, submission_id=submission_id
         )

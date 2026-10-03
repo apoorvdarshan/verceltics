@@ -19,7 +19,7 @@ jobs:
   release:
     if: vars.STORE_IOS_RELEASE_ENABLED == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 150
     permissions:
       contents: write
     steps:
@@ -50,7 +50,7 @@ jobs:
           STORE_SUBMIT_IOS_REVIEW: ${{ vars.STORE_SUBMIT_IOS_REVIEW }}
         run: python3 scripts/store/print_gates.py --github-output "$GITHUB_OUTPUT"
 
-      - name: Upload metadata or submit for App Review (explicit switches only)
+      - name: Upload metadata or wait for tagged build and submit (explicit switches only)
         if: >-
           steps.gates.outputs.upload_listing == 'true' ||
           steps.gates.outputs.upload_screenshots == 'true' ||
@@ -66,7 +66,9 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           python3 -m pip install --disable-pip-version-check --require-hashes -r requirements-store.txt
-          python3 scripts/store/asc_release.py --version "${TAG#ios-v}" --metadata-dir "$RUNNER_TEMP/store-meta"
+          python3 -u scripts/store/asc_release.py --version "${TAG#ios-v}" \
+            --tag "$TAG" --commit "$(git rev-parse HEAD)" \
+            --metadata-dir "$RUNNER_TEMP/store-meta"
 
       - name: Create GitHub Release
         env:

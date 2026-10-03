@@ -11,7 +11,7 @@ for the `ios-v` prefix and **disabled** during setup. No release tag is created.
 | `STORE_IOS_RELEASE_ENABLED` | `false` | Allows the tag workflow to prepare metadata and create a GitHub release. Required for any ASC operation. |
 | `STORE_UPLOAD_LISTING` | `false` | Updates editable App Store version description, keywords, promotional text, What's New, marketing URL, and support URL. |
 | `STORE_UPLOAD_SCREENSHOTS` | `false` | Replaces the editable version's 6.7-inch iPhone screenshots with reviewed PNGs. |
-| `STORE_SUBMIT_IOS_REVIEW` | `false` | Submits the selected App Store build and eligible products in this app's catalog for review. |
+| `STORE_SUBMIT_IOS_REVIEW` | `false` | Waits for the exact tagged Cloud run, selects its processed iOS build, then submits it and eligible catalog products for review. |
 | Xcode Cloud workflow enabled | `false` | Independently allows Xcode Cloud to archive and upload tagged iOS builds. GitHub variables cannot turn it on or off. |
 
 Unset GitHub variables also mean off. The master variable must be exactly `true`.
@@ -50,10 +50,27 @@ workflow does not build an IPA or publish to TestFlight. A tag does not mean
 Apple has approved the app or that it is live in the store.
 
 For later metadata/review automation, the matching App Store version must
-already exist and be editable, with the intended processed build selected before
-review submission. The GitHub job does not wait for Xcode Cloud; leave submission
-off for the initial tag, and rerun after selecting the build when ready.
-Public store release timing remains controlled in App Store Connect.
+already exist and be editable. When review submission is enabled, the job:
+
+1. Finds the Xcode Cloud run in workflow `2245A813-CA9D-45A4-8ACA-CF30494D2575`
+   with the exact tag name and checked-out source commit SHA.
+2. Waits for that run to finish successfully, then waits for its own linked iOS
+   artifact to finish App Store processing. It verifies the app and marketing
+   version; it never falls back to the newest unrelated uploaded build.
+3. Selects the verified build on the matching App Store version, then submits
+   the version and eligible catalog products for review.
+
+The wait polls every 30 seconds for up to two hours. Failed/cancelled builds,
+failed processing, expired artifacts, ambiguous runs/artifacts, and timeouts
+stop submission. A retry of an already submitted version must still match its
+selected build. ASC credentials refresh during long waits. The GitHub job has
+a 150-minute overall limit. If the Cloud workflow is replaced, update the
+publisher's default workflow ID (or supply `--ci-workflow-id`).
+
+Metadata-only runs do not wait for Cloud. The script never starts or enables a
+Cloud build, and disabled switches still skip all live ASC work. Public store
+release timing remains controlled in App Store Connect; review submission does
+not wait for Apple's review decision or change automatic/manual release settings.
 
 ## Credentials and product boundary
 
