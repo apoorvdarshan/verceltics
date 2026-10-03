@@ -12,6 +12,8 @@ released. Prepared listing copy lives in [APPSTORE.md](../APPSTORE.md).
 - `mockups ipad/` — iPad promotional artwork
 - `ss ios/` — source iPhone screenshots
 - `ss ipad/` — source iPad screenshots
+- `product-hunt/` — earlier Product Hunt 2.0 artwork
+- [`product-hunt-2026-10/`](product-hunt-2026-10/README.md) — new three-image relaunch gallery, with upload order and imagegen prompts
 - `Verceltics-Logo*.png` — app logos
 - `Verceltics-LinkedIn-Banner.png` — LinkedIn company banner
 - `mockup.png` — general-purpose promotional composition
