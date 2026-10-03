@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Mono, Space_Grotesk } from "next/font/google";
 
 import "./globals.css";
+import { INSTAGRAM, LINKEDIN } from "@/lib/product";
 
 const spaceGrotesk = Space_Grotesk({
   display: "swap",
@@ -87,7 +88,8 @@ const siteJsonLd = {
       founder: { "@type": "Person", name: "Apoorv Darshan", url: "https://x.com/apoorvdarshan" },
       sameAs: [
         "https://github.com/apoorvdarshan/verceltics",
-        "https://www.linkedin.com/company/verceltics",
+        LINKEDIN,
+        INSTAGRAM,
         "https://www.producthunt.com/products/verceltics",
         "https://ko-fi.com/apoorvdarshan",
         "https://x.com/apoorvdarshan",

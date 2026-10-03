@@ -28,6 +28,10 @@
 
 Verceltics is an independent, open-source operator workspace for the infrastructure and site services developers already use. Each provider keeps its own dashboard and capabilities; Verceltics supplies the native navigation, secure local credential storage, responsive caching, and iPhone/iPad interface around them. The `main` branch documents the current source build and can be ahead of the latest App Store release.
 
+**Version status:** the prepared iOS source build is **2.1 (43)**. The latest
+public App Store release is **2.0**; 2.1 has not been submitted or released.
+Screenshots and feature descriptions document the current source build.
+
 The shipping iOS app remains fully native SwiftUI. A separate native Android app is being migrated screen by screen with Kotlin and Jetpack Compose; it does not embed Flutter or share a cross-platform UI runtime. See [Native mobile architecture](docs/native-mobile-architecture.md) for the current parity boundary.
 
 ## Screenshots
@@ -235,6 +239,19 @@ Vercie runs on the website's Cloudflare Worker. It handles `/ask` for app help,
 announcements. See [Discord setup](services/discord-bot/README.md) for credentials,
 server command registration, and deployment.
 
+Join the [Verceltics Discord community](https://discord.gg/qv5nsTmkxA) for help.
+In the app's **About** screen, **Report an issue** and **Request a feature** offer
+two routes:
+
+| Route | Bug report | Feature request |
+| --- | --- | --- |
+| With a GitHub account | [Bug template](https://github.com/apoorvdarshan/verceltics/issues/new?template=bug_report.yml) | [Feature template](https://github.com/apoorvdarshan/verceltics/issues/new?template=feature_request.yml) |
+| Through Discord, without a GitHub account | [Bug reports](https://discord.gg/fcdja6gx5J), then `/bug` | [Feature requests](https://discord.gg/R798cm6n3h), then `/feature` |
+
+Both routes create **public GitHub issues**. Redact credentials, private account
+data, and screenshots before submitting. `/bug` and `/feature` share a five-minute
+per-user cooldown. Report vulnerabilities privately using [SECURITY.md](SECURITY.md).
+
 ## Authentication model
 
 | Category | Authentication |
@@ -284,7 +301,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Our [Code 
 
 - Email: [ad13dtu@gmail.com](mailto:ad13dtu@gmail.com)
 - X: [@apoorvdarshan](https://x.com/apoorvdarshan)
+- Instagram: [@apoorvcodes](https://www.instagram.com/apoorvcodes/)
 - LinkedIn: [Verceltics](https://www.linkedin.com/showcase/verceltics)
+- Discord: [Verceltics community](https://discord.gg/qv5nsTmkxA)
 - Support: [ko-fi.com/apoorvdarshan](https://ko-fi.com/apoorvdarshan)
 - Issues: [github.com/apoorvdarshan/verceltics/issues](https://github.com/apoorvdarshan/verceltics/issues)
 

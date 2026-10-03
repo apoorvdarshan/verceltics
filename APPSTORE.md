@@ -2,6 +2,9 @@
 
 App Store Connect submission details for Verceltics v2.1. Each field is in a code block for easy copy-paste.
 
+Prepared for **iOS 2.1 (build 43)**. This is draft listing content, not a live
+App Store update. The public release remains 2.0 and all release switches remain off.
+
 ## App Name
 ```
 Verceltics — Hosting & Domains
@@ -72,6 +75,7 @@ Website: https://verceltics.com
 GitHub: https://github.com/apoorvdarshan/verceltics
 Privacy Policy: https://verceltics.com/privacy
 Terms of Service: https://verceltics.com/terms
+Discord community: https://discord.gg/qv5nsTmkxA
 Contact: ad13dtu@gmail.com
 
 Not affiliated with any supported hosting platform, registrar, or site-intelligence service.
@@ -79,14 +83,15 @@ Not affiliated with any supported hosting platform, registrar, or site-intellige
 
 ## What's New (v2.1)
 ```
-Verceltics 2.1 introduces a complete interface redesign.
+Verceltics 2.1 brings interface refinements and new ways to get help.
 
-• A new Soft Neo Utility visual system makes dense infrastructure data easier to scan.
-• Redesigned hosting, registrar, site, analytics, connection, and provider-detail screens.
-• Clearer status badges, provider identity, account summaries, and guarded-action states.
-• Improved light and dark appearances, iPad layouts, and accessibility text-size reflow.
-• Native iOS navigation, search, and Liquid Glass controls remain familiar and responsive.
-• All 27 integrations and existing provider operations continue to work as before.
+• Native Hosting, Registrars, and Sites workspaces with separate provider dashboards.
+• System, Light, and Dark appearances with adaptive iPhone and iPad layouts.
+• Join the Verceltics Discord community directly from About.
+• Report an issue or request a feature using a GitHub template, or use Vercie on Discord without a GitHub account.
+• Follow development on Instagram at @apoorvcodes and the Verceltics LinkedIn showcase.
+
+Provider data and operations depend on each API, account permissions, and plan.
 ```
 
 ## Keywords (100 chars max)

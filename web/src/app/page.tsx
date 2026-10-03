@@ -6,6 +6,7 @@ import { InstrumentHero } from "@/components/instrument-hero";
 import { ProviderPatchbay } from "@/components/provider-directory";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { DISCORD, INSTAGRAM, IOS_APP_STORE_VERSION, IOS_SOURCE_VERSION, LINKEDIN } from "@/lib/product";
 
 const SITE_URL = "https://verceltics.com";
 const APP_STORE = "https://apps.apple.com/us/app/verceltics/id6761645656";
@@ -13,7 +14,8 @@ const GITHUB = "https://github.com/apoorvdarshan/verceltics";
 const PUBLIC_PROFILES = [
   GITHUB,
   "https://www.producthunt.com/products/verceltics",
-  "https://www.linkedin.com/company/verceltics",
+  LINKEDIN,
+  INSTAGRAM,
   "https://ko-fi.com/apoorvdarshan",
   "https://x.com/apoorvdarshan",
 ] as const;
@@ -72,6 +74,14 @@ const faqs = [
     question: "Is Verceltics affiliated with Vercel or another supported provider?",
     answer: "No. Verceltics is an independent, open-source app and is not affiliated with, endorsed by, or sponsored by any supported provider.",
   },
+  {
+    question: "How can I report a bug or request a feature?",
+    answer: `Use Report an issue or Request a feature in the app’s About screen. You can open a GitHub issue template with your GitHub account, or join ${DISCORD} and use /bug or /feature without a GitHub account. Reports become public GitHub issues; never include secrets or private account data.`,
+  },
+  {
+    question: `Is version ${IOS_SOURCE_VERSION} available on the App Store?`,
+    answer: `Version ${IOS_SOURCE_VERSION} is the prepared source build and is not released yet. The latest App Store release is ${IOS_APP_STORE_VERSION}. The screenshots and feature descriptions show the current source build.`,
+  },
 ] as const;
 
 const ipadScreens = [
@@ -109,7 +119,7 @@ const applicationJsonLd = {
   operatingSystem: "iOS 18.0 or later; iPadOS 18.0 or later",
   applicationCategory: "DeveloperApplication",
   applicationSubCategory: "Infrastructure monitoring and management",
-  softwareVersion: "3.0",
+  softwareVersion: IOS_APP_STORE_VERSION,
   description: "Verceltics is a private native iPhone and iPad app for hosting, domains, analytics, search performance, speed, and uptime.",
   url: SITE_URL,
   downloadUrl: APP_STORE,
@@ -308,7 +318,7 @@ export default function Home() {
 
         <section className="closing-section">
           <div className="closing-copy">
-            <p>Verceltics 3.0 / iPhone + iPad / 27 direct connections</p>
+            <p>Verceltics {IOS_SOURCE_VERSION} preview / iPhone + iPad / 27 direct connections</p>
             <h2>Production called.<br />You can answer from here.</h2>
           </div>
           <a className="closing-control" href={APP_STORE} rel="noreferrer" target="_blank">Get Verceltics <ArrowUpRight /></a>

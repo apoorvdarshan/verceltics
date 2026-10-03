@@ -29,6 +29,7 @@ const sections = [
   { id: "acceptance", label: "Acceptance" },
   { id: "service", label: "The service" },
   { id: "accounts", label: "Accounts and actions" },
+  { id: "feedback", label: "Support and feedback" },
   { id: "discord", label: "Vercie on Discord" },
   { id: "purchases", label: "Purchases" },
   { id: "source", label: "Building from source" },
@@ -46,7 +47,7 @@ export default function Terms() {
       sections={sections}
       summary="These terms cover the Verceltics app and website, provider operations you control, purchases processed by Apple, and the optional Vercie Discord bot."
       title="Terms of Service"
-      updated="October 2, 2026"
+      updated="October 3, 2026"
     >
       <section id="acceptance">
         <h2>Acceptance</h2>
@@ -56,6 +57,7 @@ export default function Terms() {
       <section id="service">
         <h2>The service</h2>
         <p>Verceltics is an independent iPhone and iPad workspace for supported hosting platforms, domain registrars, and site-intelligence services. It uses credentials or OAuth authorization you provide to communicate directly with the provider, display provider data, and perform supported actions you initiate.</p>
+        <p>Verceltics is developed and operated by Apoorv Darshan. Features described on this website may reflect the prepared iOS 2.1 source build before that update reaches the App Store. Check the App Store listing for the version available to download. Provider capabilities depend on permissions, configuration, account plans, and API availability.</p>
         <p>Verceltics is not affiliated with, endorsed by, or sponsored by any supported provider. Provider names, marks, APIs, plans, data, limits, and availability remain controlled by their respective owners.</p>
       </section>
 
@@ -64,6 +66,12 @@ export default function Terms() {
         <p>You are responsible for every credential or Google authorization you connect and for all activity initiated through it. Use the narrowest provider permissions that meet your needs. Revoke or rotate access if you stop using the app or suspect exposure.</p>
         <p>Provider credentials inherit the permissions granted by that provider and may allow configuration changes, deployment actions, purchases, or destructive operations. Verceltics requires confirmation for detected writes, purchases, and destructive operations, but you remain responsible for reviewing the provider, HTTP method, path, parameters, body, and effect before confirming.</p>
         <p>You must use Verceltics only with accounts and data you are authorized to access and in accordance with provider terms, applicable law, rate limits, and acceptable-use policies. Do not use the app to evade provider security controls or access another person&apos;s account without permission.</p>
+      </section>
+
+      <section id="feedback">
+        <h2>Support and feedback</h2>
+        <p>The app&apos;s About screen offers GitHub and Discord options for reporting an issue or requesting a feature. GitHub options open the corresponding issue template and require a GitHub account. Discord options use Vercie and do not require a GitHub account. Both routes create public GitHub issues; submitting an issue or idea does not guarantee a response, fix, implementation, or release date.</p>
+        <p>Share only material you are authorized to make public. Do not include credentials, private provider data, or confidential security reports. Community participation is covered by our <a href="https://github.com/apoorvdarshan/verceltics/blob/main/CODE_OF_CONDUCT.md" rel="noreferrer" target="_blank">Code of Conduct</a>; vulnerabilities should use the <a href="https://github.com/apoorvdarshan/verceltics/blob/main/SECURITY.md" rel="noreferrer" target="_blank">private security reporting process</a>.</p>
       </section>
 
       <section id="discord">
@@ -98,7 +106,7 @@ export default function Terms() {
         <h2>Availability, updates, and external services</h2>
         <p>Provider APIs, endpoints, authentication rules, response formats, features, plans, and limits may change without notice. Verceltics may add, change, or remove provider integrations when required to keep the app safe and maintainable.</p>
         <p>The app may check Apple&apos;s public App Store endpoint for updates. Installing an update is optional, but older builds may stop receiving fixes or working with changed provider APIs.</p>
-        <p>Links to Apple, GitHub, supported providers, Product Hunt, LinkedIn, Ko-fi, PayPal, X, and other third parties are provided for convenience. Their content, availability, purchases, and policies are outside Verceltics&apos; control.</p>
+        <p>Links to Apple, GitHub, Discord, supported providers, Product Hunt, LinkedIn, Instagram, Ko-fi, PayPal, X, and other third parties are provided for convenience. Their content, availability, purchases, and policies are outside Verceltics&apos; control.</p>
       </section>
 
       <section id="disclaimers">

@@ -34,6 +34,7 @@ const sections = [
   { id: "provider-data", label: "Provider data and cache" },
   { id: "images", label: "Images and update checks" },
   { id: "website", label: "Website delivery" },
+  { id: "feedback", label: "Support and feedback" },
   { id: "discord", label: "Vercie on Discord" },
   { id: "purchases", label: "Purchases" },
   { id: "controls", label: "Your controls" },
@@ -49,11 +50,12 @@ export default function Privacy() {
       sections={sections}
       summary="The Verceltics app connects directly to providers. Vercie, our optional Discord bot, processes the questions and reports you submit through Cloudflare, Google Gemini, and GitHub as explained below."
       title="Privacy Policy"
-      updated="October 2, 2026"
+      updated="October 3, 2026"
     >
       <section id="overview">
         <h2>Overview</h2>
         <p>Verceltics is an independent iPhone and iPad workspace for supported hosting platforms, domain registrars, and site-intelligence services. The app connects to services you choose using credentials or OAuth authorization you provide.</p>
+        <p>Verceltics is developed and operated by Apoorv Darshan. This policy covers the app, this website, and the optional Vercie Discord service, including the features prepared for iOS 2.1.</p>
         <p><strong>Verceltics does not operate a credential or provider-data proxy.</strong> Requests for provider data go from your device directly to the selected provider&apos;s HTTPS API or an explicitly selected HTTPS host for a supported self-hosted service.</p>
         <p>The app-data sections below describe information accessed through the app. Vercie is a separate, optional Discord service with its own processing described in <a href="#discord">Vercie on Discord</a>. Vercie cannot access your app&apos;s saved credentials or connected accounts.</p>
       </section>
@@ -112,6 +114,12 @@ export default function Privacy() {
         <p>The Verceltics website is deployed through Cloudflare Workers Static Assets. The site does not include client-side analytics, advertising pixels, account sign-in, or forms that collect provider credentials. Cloudflare may process standard connection, security, and delivery logs under its own policies to serve and protect the website.</p>
       </section>
 
+      <section id="feedback">
+        <h2>Support, bug reports, and feature requests</h2>
+        <p>The app&apos;s About screen lets you join Discord, report an issue, or request a feature. GitHub options open a public issue template in your browser and require your own GitHub account. Discord options let you submit <code>/bug</code> or <code>/feature</code> through Vercie without a GitHub account; the bot&apos;s processing is described below. Opening these links does not automatically attach saved app credentials, account data, or logs.</p>
+        <p>Issues you submit directly on GitHub are associated with your GitHub profile and are public. Include only information you want to share publicly, and redact screenshots and logs before submitting them. Sending a support email shares your email address and the content you choose to send with the developer; we use it to respond and handle your request. For requests about that correspondence, contact <a href="mailto:ad13dtu@gmail.com">ad13dtu@gmail.com</a>.</p>
+      </section>
+
       <section id="discord">
         <h2>Vercie on Discord</h2>
         <p>Vercie responds when you submit a slash command in the configured Verceltics Discord server. Discord sends the command text and interaction metadata, including your Discord user, server, channel, and interaction identifiers, to our Cloudflare Worker. The Worker verifies the request, routes the command, applies abuse controls, and sends the response to Discord. Vercie does not passively read channel conversations, retrieve message history, or connect to your Verceltics app accounts.</p>
@@ -136,7 +144,7 @@ export default function Privacy() {
       <section id="controls">
         <h2>Your controls and retention</h2>
         <p>You can remove a connected account or service inside Verceltics to delete its saved credential and associated local snapshot. You can also revoke OAuth access or rotate API credentials from the provider&apos;s own account settings. Provider-side retention is governed by that provider&apos;s policy.</p>
-        <p>External links—including Apple, GitHub, supported providers, Product Hunt, LinkedIn, Ko-fi, PayPal, and X—open third-party services with their own privacy practices.</p>
+        <p>External links—including Apple, GitHub, Discord, supported providers, Product Hunt, LinkedIn, Instagram, Ko-fi, PayPal, and X—open third-party services with their own privacy practices.</p>
       </section>
 
       <section id="changes">

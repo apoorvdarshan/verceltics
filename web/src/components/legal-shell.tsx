@@ -40,7 +40,7 @@ export function LegalShell({ title, eyebrow, summary, asideDescription, updated,
             <span className="status-pill status-pill--signal"><i /> {eyebrow}</span>
             <h1>{title}</h1>
             <p>{summary}</p>
-            <span className="legal-date">Last updated {updated} · applies to Verceltics 3.0</span>
+            <span className="legal-date">Last updated {updated} · App, website, and Vercie</span>
           </header>
           <div className="legal-prose">{children}</div>
         </article>

@@ -2,6 +2,10 @@
 
 Public-facing Verceltics assets for product listings, social posts, press coverage, and promotional material.
 
+Current source-build copy should use **iOS 2.1 (build 43)**. The public App Store
+release is still **2.0**; describe 2.1 artwork as a preview until the update is
+released. Prepared listing copy lives in [APPSTORE.md](../APPSTORE.md).
+
 ## Contents
 
 - `mockups ios/` — iPhone promotional artwork

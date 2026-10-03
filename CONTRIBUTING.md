@@ -174,6 +174,7 @@ follow the private reporting process in [SECURITY.md](SECURITY.md) instead.
 - **Email**: ad13dtu@gmail.com
 - **Discord**: [Verceltics community](https://discord.gg/qv5nsTmkxA)
 - **X**: [@apoorvdarshan](https://x.com/apoorvdarshan)
+- **Instagram**: [@apoorvcodes](https://www.instagram.com/apoorvcodes/)
 - **LinkedIn**: [Verceltics](https://www.linkedin.com/showcase/verceltics)
 - **Support**: [ko-fi.com/apoorvdarshan](https://ko-fi.com/apoorvdarshan)
 

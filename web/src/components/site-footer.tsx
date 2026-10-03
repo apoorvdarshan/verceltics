@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { ArrowUpRight } from "@/components/arrow-up-right";
+import { DISCORD, GITHUB_BUG_REPORT, GITHUB_FEATURE_REQUEST, INSTAGRAM, LINKEDIN } from "@/lib/product";
 
 const APP_STORE = "https://apps.apple.com/us/app/verceltics/id6761645656";
 const GITHUB = "https://github.com/apoorvdarshan/verceltics";
@@ -21,7 +22,8 @@ const channelGroups = [
     label: "Follow",
     detail: "Updates from the project",
     links: [
-      { label: "LinkedIn", detail: "Company page", href: "https://www.linkedin.com/company/verceltics", mark: "/brands/linkedin.svg", newTab: true },
+      { label: "LinkedIn", detail: "Verceltics updates", href: LINKEDIN, mark: "/brands/linkedin.svg", newTab: true },
+      { label: "Instagram", detail: "@apoorvcodes", href: INSTAGRAM, mark: "/brands/instagram.svg", newTab: true },
       { label: "X", detail: "Founder notes", href: "https://x.com/apoorvdarshan", mark: "/brands/x.svg", newTab: true },
     ],
   },
@@ -32,7 +34,9 @@ const channelGroups = [
     links: [
       { label: "Ko-fi", detail: "Support development", href: "https://ko-fi.com/apoorvdarshan", mark: "/brands/kofi.svg", newTab: true },
       { label: "PayPal", detail: "Send support", href: "https://paypal.me/apoorvdarshan", mark: "/brands/paypal.svg", newTab: true },
-      { label: "Report issue", detail: "Open a ticket", href: "https://github.com/apoorvdarshan/verceltics/issues", mark: "/brands/issue.svg", newTab: true },
+      { label: "Report issue", detail: "GitHub bug template", href: GITHUB_BUG_REPORT, mark: "/brands/issue.svg", newTab: true },
+      { label: "Request feature", detail: "GitHub feature template", href: GITHUB_FEATURE_REQUEST, mark: "/brands/github.svg", newTab: true },
+      { label: "Discord", detail: "Help · bugs · ideas", href: DISCORD, mark: "/brands/chat.svg", newTab: true },
       { label: "Contact", detail: "Email Apoorv", href: "mailto:ad13dtu@gmail.com", mark: "/brands/email.svg", newTab: false },
     ],
   },

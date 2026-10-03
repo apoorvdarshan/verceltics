@@ -4,6 +4,10 @@ This is the iOS portion of Fud AI's release approach, adapted to Verceltics.
 All GitHub store switches are **false**. Xcode Cloud's tag workflow is configured
 for the `ios-v` prefix and **disabled** during setup. No release tag is created.
 
+The prepared iOS source version is **2.1 (build 43)**; the public App Store
+release is **2.0**. The unreleased notes in `RELEASE_NOTES.md` are a draft,
+not an approved `ios-v2.1` release section.
+
 ## Independent switches
 
 | Setting | Initial value | Effect when enabled |
