@@ -101,25 +101,20 @@ export async function fetchStarHistory(token, fetchImplementation = fetch) {
   try {
     return await fetchGraphqlStarHistory(token, fetchImplementation);
   } catch {
-    // GitHub can restrict stargazer access independently of other GraphQL fields.
-    // The REST endpoint supplies the same timestamps for authorized collaborators.
-    return fetchRestStarHistory(token, fetchImplementation);
+    // GitHub restricts individual stargazer listings. Its public history API
+    // still provides daily counts without exposing users or requiring a token.
+    return fetchAggregateStarHistory(fetchImplementation);
   }
 }
 
-async function fetchRestStarHistory(token, fetchImplementation) {
-  if (!token) {
-    throw new Error("GITHUB_TOKEN is not configured");
-  }
-
+async function fetchAggregateStarHistory(fetchImplementation) {
   const stars = [];
-  for (let page = 1; page <= 101; page += 1) {
+  for (let page = 1; page <= 100; page += 1) {
     const response = await fetchImplementation(
-      `https://api.github.com/repos/${OWNER}/${REPOSITORY}/stargazers?per_page=100&page=${page}`,
+      `https://api.github.com/repos/${OWNER}/${REPOSITORY}/stargazers/history?per_page=30&page=${page}`,
       {
         headers: {
-          Accept: "application/vnd.github.star+json",
-          Authorization: `Bearer ${token}`,
+          Accept: "application/vnd.github+json",
           "X-GitHub-Api-Version": "2026-03-10",
           "User-Agent": "verceltics-star-history",
         },
@@ -129,12 +124,24 @@ async function fetchRestStarHistory(token, fetchImplementation) {
       throw new Error(`GitHub star history REST API returned ${response.status}`);
     }
     const payload = await response.json();
-    if (!Array.isArray(payload) || payload.some((star) =>
-      typeof star?.starred_at !== "string" || !Number.isFinite(Date.parse(star.starred_at)),
-    )) {
+    if (!Array.isArray(payload)) {
       throw new Error("GitHub returned unexpected star history data");
     }
-    stars.push(...payload.map((star) => star.starred_at));
+    for (const week of payload) {
+      if (!Number.isSafeInteger(week?.week) || week.week < 0 ||
+          !Number.isFinite(new Date(week.week * 1000).getTime()) ||
+          !Array.isArray(week.days) || week.days.length !== 7 ||
+          week.days.some((count) => !Number.isSafeInteger(count) || count < 0)) {
+        throw new Error("GitHub returned unexpected star history data");
+      }
+      for (const [day, count] of week.days.entries()) {
+        if (stars.length + count > 10000) {
+          throw new Error("Star history exceeded the sample safety limit");
+        }
+        const date = new Date((week.week + day * 86400) * 1000).toISOString();
+        for (let index = 0; index < count; index += 1) stars.push(date);
+      }
+    }
     if (!response.headers.get("Link")?.includes('rel="next"')) {
       return stars.sort((left, right) => left.localeCompare(right));
     }
