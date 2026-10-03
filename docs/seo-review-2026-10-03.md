@@ -58,7 +58,7 @@ and the HTTPS export does not establish an HTTPS failure.
    hosts and signed Discord POST requests are not redirected.
 2. Cloudflare now invokes the Worker before static asset delivery so website
    redirects actually run. Canonical requests delegate to the asset binding.
-3. Sitemap and homepage canonical URLs agree, including the root slash.
+3. Sitemap and homepage canonical URLs use the same HTTPS apex origin.
    `lastmod` records October 3 for the five pages changed in this update and the
    preceding documentation update. Future dates should change only with a
    significant page update, never automatically on every deployment.
@@ -74,6 +74,26 @@ and the HTTPS export does not establish an HTTPS failure.
 7. Visible questions remain, but redundant FAQ rich-result markup was removed.
    WebPage, breadcrumb, application, organization, and integration-list data
    remain. No invented reviews, ratings, or ranking promises were added.
+
+## Deployment and checks
+
+Published website implementation commit `f09a2f6` to Cloudflare on October 3,
+2026, preserving existing Worker variables. Next.js static export, Worker
+syntax checks, and the Wrangler deployment dry run completed successfully.
+Live HTTP inspection confirmed:
+
+- HTTP and `www` homepages return 301 to `https://verceltics.com/`.
+- Combined `www`/HTML aliases redirect in one hop and preserve query parameters.
+- `/privacy/` and `/privacy.html` return permanent 301 redirects.
+- The homepage, integration directory, and Vercel page return 200 with apex
+  canonical tags; the Vercel setup and API content appears in server-rendered HTML.
+- An unknown page returns 404; robots and the five-page sitemap return 200.
+- Sitemap modification dates are October 3. The website deployment also includes
+  the preceding privacy, terms, and community-link updates.
+
+No app build or App Store release was started. All four GitHub store switches
+were checked and remain false. Search Console data has not been modified or
+resubmitted by this change.
 
 ## Search Console follow-up after deployment
 
