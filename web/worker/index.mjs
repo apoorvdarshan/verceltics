@@ -1,5 +1,6 @@
 import { DISCORD_INTERACTIONS_PATH, handleDiscordInteractionsRequest } from "./discord-interactions.mjs";
 import { announceReleases } from "./discord-announcements.mjs";
+import { canonicalSiteRedirect } from "./site-routing.mjs";
 
 const OWNER = "apoorvdarshan";
 const REPOSITORY = "verceltics";
@@ -39,6 +40,8 @@ const THEMES = {
 
 export default {
   async fetch(request, env, context) {
+    const redirect = canonicalSiteRedirect(request);
+    if (redirect) return redirect;
     const url = new URL(request.url);
 
     if (url.pathname === DISCORD_INTERACTIONS_PATH) {

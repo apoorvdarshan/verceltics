@@ -37,7 +37,7 @@ const breadcrumbJsonLd = {
   "@context": "https://schema.org",
   "@type": "BreadcrumbList",
   itemListElement: [
-    { "@type": "ListItem", position: 1, name: "Verceltics", item: SITE_URL },
+    { "@type": "ListItem", position: 1, name: "Verceltics", item: `${SITE_URL}/` },
     { "@type": "ListItem", position: 2, name: "Integrations", item: PAGE_URL },
   ],
 };
@@ -70,7 +70,7 @@ export default function IntegrationsPage() {
         <header className="discovery-hero">
           <div className="discovery-hero-copy">
             <p className="instrument-label"><span>INT</span> Connection directory</p>
-            <h1>Connect the web services you already use.</h1>
+            <h1>Hosting, domain and analytics integrations for iPhone and iPad.</h1>
             <p>
               Verceltics supports 10 hosting platforms, 8 domain registrars and 9 site services. Each connection keeps its own credentials, API scope, dashboard and supported operations.
             </p>
@@ -119,6 +119,7 @@ export default function IntegrationsPage() {
                     </header>
                     <h3 translate="no">{provider.name}</h3>
                     <p>{provider.summary}</p>
+                    {provider.slug === "vercel" ? <Link className="text-link" href="/vercel-analytics-ios">Vercel Analytics iOS setup →</Link> : null}
                     <dl>
                       <dt>Connect with</dt>
                       <dd>{provider.connection}</dd>

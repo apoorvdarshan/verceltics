@@ -22,8 +22,8 @@ const PUBLIC_PROFILES = [
 
 export const metadata: Metadata = {
   title: { absolute: "Verceltics — Hosting, Domains & Web Analytics for iPhone" },
-  description: "Open-source iPhone and iPad app for Vercel Analytics, hosting, domains, DNS, deployments, Search Console, site speed and uptime across 27 integrations.",
-  alternates: { canonical: SITE_URL },
+  description: "Manage Vercel projects, Cloudflare DNS, domains and website analytics on iPhone and iPad. 27 integrations, local credentials and open-source SwiftUI.",
+  alternates: { canonical: `${SITE_URL}/` },
 };
 
 const checks = [
@@ -114,14 +114,15 @@ const ipadScreens = [
 const applicationJsonLd = {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
-  name: "Vercel Analytics — Verceltics",
-  alternateName: "Verceltics",
+  "@id": `${SITE_URL}/#app`,
+  name: "Verceltics",
+  alternateName: "Verceltics — Hosting & Domains",
   operatingSystem: "iOS 18.0 or later; iPadOS 18.0 or later",
   applicationCategory: "DeveloperApplication",
   applicationSubCategory: "Infrastructure monitoring and management",
   softwareVersion: IOS_APP_STORE_VERSION,
   description: "Verceltics is a private native iPhone and iPad app for hosting, domains, analytics, search performance, speed, and uptime.",
-  url: SITE_URL,
+  url: `${SITE_URL}/`,
   downloadUrl: APP_STORE,
   image: `${SITE_URL}/og-verceltics.png`,
   publisher: { "@id": `${SITE_URL}/#organization` },
@@ -147,17 +148,10 @@ const applicationJsonLd = {
   offers: plans.map((plan) => ({ "@type": "Offer", price: plan.price.replace("$", ""), priceCurrency: "USD", description: `${plan.name} access` })),
 };
 
-const faqJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  mainEntity: faqs.map((faq) => ({ "@type": "Question", name: faq.question, acceptedAnswer: { "@type": "Answer", text: faq.answer } })),
-};
-
 export default function Home() {
   return (
     <div className="site-shell">
       <script dangerouslySetInnerHTML={{ __html: JSON.stringify(applicationJsonLd) }} type="application/ld+json" />
-      <script dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} type="application/ld+json" />
       <SiteHeader />
 
       <main id="main-content">
@@ -238,6 +232,7 @@ export default function Home() {
             <p className="instrument-label"><span>04</span> Connected signals</p>
             <h2>Analytics, search, speed, and uptime stay provider-specific.</h2>
             <p>Search Console, GA4, PageSpeed, Bing, Clarity, Plausible, Umami, UptimeRobot, and Better Stack open as independent dashboards; Verceltics does not merge their data.</p>
+            <a className="text-control" href="/vercel-analytics-ios">View Vercel Analytics on iPhone and iPad <span aria-hidden="true">→</span></a>
           </header>
           <div className="signal-rack">
             <figure className="signal-module signal-module--sites">

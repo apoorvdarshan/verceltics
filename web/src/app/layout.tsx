@@ -32,8 +32,8 @@ export const metadata: Metadata = {
     template: "%s — Verceltics",
   },
   description:
-    "Open-source iPhone and iPad app for Vercel Analytics, hosting, domains, DNS, deployments, Search Console, site speed and uptime across 27 integrations.",
-  applicationName: "Vercel Analytics — Verceltics",
+    "Manage Vercel projects, Cloudflare DNS, domains and website analytics on iPhone and iPad. 27 integrations, local credentials and open-source SwiftUI.",
+  applicationName: "Verceltics",
   category: "Developer Tools",
   keywords: [
     "hosting dashboard iOS",
@@ -59,7 +59,7 @@ export const metadata: Metadata = {
     siteName: "Verceltics",
     title: "Verceltics — Hosting, Domains & Web Analytics for iPhone",
     description: "Monitor hosting, domains, DNS, deployments, analytics, search, speed and uptime across 27 integrations on iPhone and iPad.",
-    url: SITE_URL,
+    url: `${SITE_URL}/`,
     images: [{ url: "/og-verceltics.png", width: 1200, height: 630, alt: "Verceltics mobile operations instrument" }],
   },
   twitter: {

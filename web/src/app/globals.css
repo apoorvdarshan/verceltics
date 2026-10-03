@@ -1292,6 +1292,16 @@ main[id] {
 .direct-architecture dt { color: #9fa7a2; font-family: var(--mono); font-size: 0.65rem; letter-spacing: 0.07em; text-transform: uppercase; }
 .direct-architecture dd { color: var(--live); font-weight: 600; text-align: right; }
 
+.product-breadcrumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 28px; color: var(--muted); font-size: 0.85rem; }
+.product-breadcrumbs a { text-decoration: underline; text-underline-offset: 4px; }
+.product-guide { padding-bottom: clamp(60px, 8vw, 110px); }
+.product-guide h2 { max-width: 900px; margin-top: 24px; font-size: clamp(2rem, 4vw, 3.5rem); line-height: 1.08; letter-spacing: -0.045em; }
+.product-steps { display: grid; gap: 26px; margin-top: 36px; padding-left: 24px; }
+.product-steps li { padding-left: 8px; }
+.product-steps h3 { font-size: 1.3rem; }
+.product-steps p, .product-guide-copy p { max-width: 900px; margin-top: 12px; color: var(--muted); line-height: 1.75; }
+.product-guide-copy { margin-top: 30px; }
+.product-guide a:not(.text-link) { text-decoration: underline; text-underline-offset: 4px; }
 .product-faq { display: grid; padding-top: 130px; grid-template-columns: minmax(270px, 0.68fr) minmax(0, 1.32fr); gap: 70px; }
 .product-faq h2 { margin-top: 28px; }
 

@@ -212,6 +212,11 @@ The redirect scheme must match the Android OAuth client registered with Google. 
 
 ## Run the website
 
+The website uses `https://verceltics.com/` as its canonical origin. Its Cloudflare
+Worker redirects HTTP, `www`, and known HTML aliases before serving static pages.
+The [October 3 SEO review](docs/seo-review-2026-10-03.md) records Search Console
+findings, implemented changes, and the indexing follow-up.
+
 ```bash
 cd web
 npm install
