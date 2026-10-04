@@ -36,7 +36,7 @@ const channelGroups = [
       { label: "PayPal", detail: "Send support", href: "https://paypal.me/apoorvdarshan", mark: "/brands/paypal.svg", newTab: true },
       { label: "Report issue", detail: "GitHub bug template", href: GITHUB_BUG_REPORT, mark: "/brands/issue.svg", newTab: true },
       { label: "Request feature", detail: "GitHub feature template", href: GITHUB_FEATURE_REQUEST, mark: "/brands/github.svg", newTab: true },
-      { label: "Discord", detail: "Help · bugs · ideas", href: DISCORD, mark: "/brands/chat.svg", newTab: true },
+      { label: "Discord", detail: "Help · bugs · ideas", href: DISCORD, mark: "/brands/discord.svg", newTab: true },
       { label: "Contact", detail: "Email Apoorv", href: "mailto:ad13dtu@gmail.com", mark: "/brands/email.svg", newTab: false },
     ],
   },

@@ -2213,7 +2213,8 @@ main[id] {
 }
 
 .footer-signal-group ul {
-  margin-top: 18px;
+  margin: 18px 0 0;
+  padding: 0;
   list-style: none;
 }
 
@@ -2268,20 +2269,19 @@ main[id] {
 .footer-signal-copy strong,
 .footer-signal-copy small {
   display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .footer-signal-copy strong {
-  font-size: 0.7rem;
-  line-height: 1.25;
+  font-size: 0.78rem;
+  line-height: 1.4;
 }
 
 .footer-signal-copy small {
   margin-top: 3px;
-  color: #77817b;
-  font-size: 0.57rem;
+  color: #929d95;
+  font-size: 0.6875rem;
+  line-height: 1.45;
 }
 
 .footer-signal-group a > svg {
