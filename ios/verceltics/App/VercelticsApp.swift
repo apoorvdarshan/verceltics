@@ -9,6 +9,7 @@ struct VercelticsApp: App {
     @State private var registrarStore: RegistrarStore
     @State private var siteStore: SiteStore
     @State private var firstLaunchExperience = FirstLaunchExperienceStore()
+    @State private var developerWelcome = DeveloperWelcomeStore()
 
     init() {
 #if DEBUG
@@ -62,6 +63,7 @@ struct VercelticsApp: App {
             .environment(appearanceStore)
             .environment(registrarStore)
             .environment(siteStore)
+            .environment(developerWelcome)
             .preferredColorScheme(appearanceStore.selection.preferredColorScheme)
             .task(id: firstLaunchMigrationState) {
 #if DEBUG
@@ -78,7 +80,12 @@ struct VercelticsApp: App {
 
     @ViewBuilder
     private var appContent: some View {
-        if !paywallManager.hasCheckedEntitlements {
+        if developerWelcome.isPresented {
+            // Keep the workspace unmounted until Close is pressed, so its
+            // automatic sheets or rating prompts cannot cover the welcome.
+            DeveloperWelcomeView()
+                .background(AppTheme.canvas)
+        } else if !paywallManager.hasCheckedEntitlements {
             ZStack {
                 AppTheme.canvas.ignoresSafeArea()
                 VStack(spacing: 14) {
