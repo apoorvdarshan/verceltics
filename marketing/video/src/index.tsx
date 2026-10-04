@@ -1,105 +1,276 @@
 import React from 'react';
-import {AbsoluteFill, Audio, Composition, Img, OffthreadVideo, Sequence, interpolate, registerRoot, spring, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
+import {
+  AbsoluteFill, Audio, Composition, Easing, Img, OffthreadVideo, Sequence,
+  interpolate, registerRoot, spring, staticFile, useCurrentFrame, useVideoConfig,
+} from 'remotion';
 
-const blue = '#1689ff';
-const purple = '#af5bff';
-const ink = '#10131b';
-const paper = '#f5f3ee';
+// All motion is derived from the frame: preview and headless export are identical.
+const C = {ink: '#070b14', blue: '#1689ff', violet: '#ae5bff', white: '#f5f7fc', muted: '#98a7bd'};
 const clamp = {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'} as const;
+const cinematic = Easing.bezier(0.22, 1, 0.36, 1);
+const ease = (f: number, a: number, b: number) => interpolate(f, [a, b], [0, 1], {...clamp, easing: cinematic});
+const lerp = (f: number, range: number[], values: number[]) => interpolate(f, range, values, clamp);
+const markNames = ['VercelMark', 'CloudflareMark', 'NamecheapMark', 'NameDotComMark',
+  'GoogleSearchConsoleMark', 'GoogleAnalyticsMark', 'NetlifyMark', 'RailwayMark',
+  'RenderMark', 'PageSpeedMark', 'UptimeRobotMark', 'PorkbunMark'];
 
-const Brand = ({dark = false, large = false}: {dark?: boolean; large?: boolean}) => <div style={{display:'flex',alignItems:'center',gap:large?28:16}}>
-  <div style={{width:large?110:64,height:large?110:64,background:'#07080b',borderRadius:large?28:17,display:'flex',alignItems:'center',justifyContent:'center'}}><Img src={staticFile('logo.png')} style={{width:'88%',height:'88%',objectFit:'contain'}}/></div>
-  <span style={{fontSize:large?62:30,fontWeight:700,letterSpacing:-1.8,color:dark?'white':ink}}>Verceltics</span>
+const Provider = ({name, size = 88, light = false}: {name: string; size?: number; light?: boolean}) => (
+  <div style={{width: size, height: size, borderRadius: size * .26, display: 'flex', alignItems: 'center', justifyContent: 'center',
+    background: light ? '#fff' : '#101725', border: `1px solid ${light ? '#dde2ea' : '#28334a'}`,
+    boxShadow: '0 16px 40px #00000025'}}>
+    <Img src={staticFile(`providers/${name}.svg`)} style={{width: size * .55, height: size * .55, objectFit: 'contain',
+      filter: !light && ['VercelMark', 'RailwayMark', 'RenderMark'].includes(name) ? 'invert(1)' : undefined}} />
+  </div>
+);
+
+const Wordmark = ({size = 32}: {size?: number}) => <div style={{display: 'flex', alignItems: 'center', gap: size * .42}}>
+  <Img src={staticFile('logo.png')} style={{width: size * 1.8, height: size * 1.8, objectFit: 'contain'}} />
+  <span style={{fontSize: size, fontWeight: 700, letterSpacing: -size * .045}}>Verceltics</span>
 </div>;
 
-const Phone = ({clip,width=408,still,rotation=0}: {clip?:string;width?:number;still?:string;rotation?:number}) => {
-  const f=useCurrentFrame();
-  const {fps}=useVideoConfig();
-  const enter=spring({frame:f,fps,config:{damping:22,stiffness:90}});
-  return <div style={{width,height:width*2.166,background:'#060608',borderRadius:width*.13,padding:9,border:'2px solid #474a53',boxShadow:'0 38px 85px #00000045, inset 0 0 0 3px #17191f',transform:`translateY(${(1-enter)*70}px) rotate(${rotation}deg) scale(${.96+enter*.04})`,opacity:enter}}>
-    <div style={{width:'100%',height:'100%',position:'relative',borderRadius:width*.11,overflow:'hidden',background:'#000'}}>
-      {clip ? <OffthreadVideo src={staticFile(`footage/${clip}.mp4`)} muted style={{width:'100%',height:'100%',objectFit:'cover'}}/> : <Img src={staticFile(`footage/${still}.png`)} style={{width:'100%',height:'100%',objectFit:'cover'}}/>}
-    </div>
-  </div>;
-};
-
-const FlowLines = ({dark=false}: {dark?:boolean}) => {
-  const f=useCurrentFrame();
-  const draw=interpolate(f,[0,75],[1,0],clamp);
-  return <svg width="1920" height="1080" viewBox="0 0 1920 1080" style={{position:'absolute',inset:0,opacity:dark?.16:.12}}>
-    {[[blue,'M-40 320H280C570 320 680 780 1050 780H1970'],[dark?'white':'#738092','M-40 540H620'],[purple,'M-40 790H310C570 790 660 650 820 540']].map(([stroke,d],i)=><path key={i} d={d} fill="none" stroke={stroke} strokeWidth="36" strokeLinecap="round" pathLength="1" strokeDasharray="1" strokeDashoffset={draw}/>) }
-  </svg>;
-};
-
-const Intro = () => {
-  const f=useCurrentFrame(); const {fps}=useVideoConfig();
-  const reveal=spring({frame:f-8,fps,config:{damping:24}});
-  return <AbsoluteFill style={{background:paper,color:ink,padding:110}}>
-    <FlowLines/>
-    <div style={{position:'relative',zIndex:2}}><Brand/></div>
-    <div style={{position:'absolute',left:110,top:310,opacity:reveal,transform:`translateY(${(1-reveal)*30}px)`}}>
-      <div style={{fontSize:116,lineHeight:1.02,fontWeight:700,letterSpacing:-7}}>Your stack.<br/><span style={{color:'#1469ed'}}>In your pocket.</span></div>
-      <p style={{fontSize:30,color:'#5c6471',marginTop:34}}>Hosting, domains & analytics on iPhone and iPad.</p>
-    </div>
-    <div style={{position:'absolute',right:130,top:190,transform:'rotate(5deg)'}}><Phone still="vercel" width={340}/></div>
-    <div style={{position:'absolute',left:114,bottom:100,display:'flex',gap:16,fontSize:20,fontWeight:500}}>{['27 integrations','Native SwiftUI','Open source'].map(t=><span key={t} style={{padding:'13px 22px',border:'1px solid #c8ccd0',borderRadius:99,background:'#ffffffa0'}}>{t}</span>)}</div>
+const Backdrop = ({accent = C.blue, light = false}: {accent?: string; light?: boolean}) => {
+  const f = useCurrentFrame();
+  return <AbsoluteFill style={{background: light ? '#edf2fa' : C.ink, overflow: 'hidden'}}>
+    <div style={{position: 'absolute', width: 1400, height: 1200, left: 600 + Math.sin(f / 100) * 60, top: -250,
+      background: `radial-gradient(ellipse, ${accent}${light ? '22' : '24'} 0%, transparent 64%)`}} />
+    <div style={{position: 'absolute', inset: 0, opacity: light ? .45 : .24,
+      backgroundImage: `linear-gradient(${light ? '#9baac51c' : '#697ca019'} 1px, transparent 1px), linear-gradient(90deg, ${light ? '#9baac51c' : '#697ca019'} 1px, transparent 1px)`,
+      backgroundSize: '120px 120px', maskImage: 'radial-gradient(ellipse at 70% 50%, black, transparent 75%)'}} />
+    {[0, 1, 2].map(i => <div key={i} style={{position: 'absolute', width: 950 + i * 260, height: 950 + i * 260,
+      border: `1px solid ${accent}${light ? '18' : '20'}`, borderRadius: '50%', left: 960 - i * 130, top: 20 - i * 130,
+      transform: `translateY(${Math.sin(f / 90 + i) * 20}px)`}} />)}
   </AbsoluteFill>;
 };
 
-const chapters = [
-  {number:'01',category:'HOSTING',title:['Keep every','project close.'],description:'Vercel projects, deployments and web analytics.',clip:'vercel',accent:blue,dark:true,tags:['Projects','Traffic','Deployments'],from:90,duration:180},
-  {number:'02',category:'CLOUDFLARE',title:['See the edge.','Stay in control.'],description:'Zones, DNS, Pages and Workers in one workspace.',clip:'cloudflare',accent:'#ed862c',dark:false,tags:['Zones','DNS','Workers'],from:270,duration:180},
-  {number:'03',category:'DOMAINS',title:['Your domains.','No surprises.'],description:'Check expiry, auto renewal and domain privacy.',clip:'registrars',accent:'#ad65fd',dark:true,tags:['Namecheap','Name.com','Expiry health'],from:450,duration:180},
-  {number:'04',category:'SITES',title:['Know how your','sites are doing.'],description:'Search, analytics, speed and uptime at a glance.',clip:'sites',accent:'#1469ed',dark:false,tags:['Search Console','PageSpeed','Uptime'],from:630,duration:150},
-];
+const Label = ({children, color = C.blue}: {children: React.ReactNode; color?: string}) => <div style={{display: 'flex', alignItems: 'center', gap: 13, color, fontSize: 20, letterSpacing: 3.4, fontWeight: 600}}>
+  <span style={{width: 8, height: 8, background: color, borderRadius: 20}} />{children}
+</div>;
 
-type ChapterData = typeof chapters[number];
-const Chapter = ({data}:{data:ChapterData}) => {
-  const f=useCurrentFrame();const {fps}=useVideoConfig();const p=spring({frame:f-6,fps,config:{damping:25}});
-  const dark=data.dark;const color=dark?'#f7f8fc':ink;
-  return <AbsoluteFill style={{background:dark?'#0c101a':paper,color}}>
-    <FlowLines dark={dark}/>
-    <div style={{position:'absolute',left:110,top:66}}><Brand dark={dark}/></div>
-    <div style={{position:'absolute',left:112,top:253,opacity:p,transform:`translateX(${(1-p)*-35}px)`}}>
-      <div style={{display:'flex',alignItems:'center',gap:14,fontSize:20,letterSpacing:4,fontWeight:700,color:data.accent}}><span style={{height:9,width:9,borderRadius:10,background:data.accent}}/>{data.category}</div>
-      <h1 style={{fontSize:100,lineHeight:1.06,fontWeight:700,letterSpacing:-5,margin:'29px 0 0'}}>{data.title[0]}<br/>{data.title[1]}</h1>
-      <p style={{fontSize:29,lineHeight:1.5,maxWidth:735,marginTop:28,color:dark?'#a7afc2':'#606b79'}}>{data.description}</p>
-      <div style={{display:'flex',gap:12,marginTop:38,fontSize:19}}>{data.tags.map(tag=><span key={tag} style={{border:`1px solid ${dark?'#343c50':'#c8cdd5'}`,borderRadius:99,padding:'11px 19px',background:dark?'#151c2a':'#ffffff80'}}>{tag}</span>)}</div>
+const Line = ({text, delay = 0, color, size = 100}: {text: string; delay?: number; color?: string; size?: number}) => {
+  const p = ease(useCurrentFrame(), delay, delay + 24);
+  return <div style={{overflow: 'hidden', paddingBottom: 8, marginBottom: -8}}>
+    <div style={{fontSize: size, lineHeight: 1.02, letterSpacing: -size * .048, fontWeight: 700, color,
+      transform: `translateY(${(1-p)*110}%)`, opacity: lerp(p, [0, .3, 1], [0, 1, 1])}}>{text}</div>
+  </div>;
+};
+
+const Footer = ({light = false, index}: {light?: boolean; index?: string}) => <>
+  <div style={{position: 'absolute', left: 90, bottom: 45, fontSize: 16, color: light ? '#596d88' : '#708199', letterSpacing: .6}}>Actual iOS footage · Demo data</div>
+  {index && <div style={{position: 'absolute', right: 90, bottom: 45, fontSize: 17, color: light ? '#596d88' : '#708199', letterSpacing: 2}}>{index}</div>}
+</>;
+
+const Phone = ({clip, still, width = 400, videoStart = 0}: {clip?: string; still?: string; width?: number; videoStart?: number}) => (
+  <div style={{width, height: width * 2.166, padding: 9, borderRadius: width * .13, background: '#06070a',
+    border: '2px solid #48505e', boxShadow: '0 45px 90px #00000065, inset 0 0 0 3px #111724', position: 'relative'}}>
+    <div style={{height: '100%', width: '100%', borderRadius: width * .108, overflow: 'hidden', position: 'relative', background: '#000'}}>
+      {clip ? <OffthreadVideo src={staticFile(`footage/${clip}.mp4`)} startFrom={videoStart} muted style={{height: '100%', width: '100%', objectFit: 'cover'}} />
+        : <Img src={staticFile(`footage/${still}.png`)} style={{height: '100%', width: '100%', objectFit: 'cover'}} />}
     </div>
-    <div style={{position:'absolute',left:1260,top:103}}><Phone clip={data.clip}/></div>
-    <div style={{position:'absolute',left:114,bottom:92,fontSize:17,letterSpacing:1,color:dark?'#8b96aa':'#747e8d'}}>iOS 2.1 preview · Demo data</div>
-    <div style={{position:'absolute',right:84,bottom:93,fontSize:22,color:data.accent,fontWeight:600}}>{data.number} / 04</div>
-    <div style={{position:'absolute',bottom:0,left:0,height:5,width:`${interpolate(f,[0,data.duration],[0,100],clamp)}%`,background:data.accent}}/>
+    <div style={{position: 'absolute', left: -4, top: width * .43, height: width * .2, width: 3, borderRadius: 3, background: '#525866'}} />
+    <div style={{position: 'absolute', right: -4, top: width * .55, height: width * .27, width: 3, borderRadius: 3, background: '#525866'}} />
+  </div>
+);
+
+// A magnified crop of the actual recording, never a recreated dashboard.
+const Detail = ({clip, start = 0, top, width = 720, height = 370, sourceWidth = 810}: {clip: string; start?: number; top: number; width?: number; height?: number; sourceWidth?: number}) => <div style={{width, height, position: 'relative', overflow: 'hidden', borderRadius: 28,
+  border: '1px solid #485772', boxShadow: '0 26px 70px #00000080', background: '#000'}}>
+  <div style={{position: 'absolute', left: (width - sourceWidth) / 2, top: -top * sourceWidth * 2.1733, width: sourceWidth, height: sourceWidth * 2.1733}}>
+    <OffthreadVideo src={staticFile(`footage/${clip}.mp4`)} startFrom={start} muted style={{width: '100%', height: '100%'}} />
+  </div>
+</div>;
+
+const TraceLogo = ({size = 280, delay = 0}: {size?: number; delay?: number}) => {
+  const f = useCurrentFrame();
+  const draw = ease(f, delay, delay + 34);
+  return <svg width={size} height={size * .68} viewBox="0 0 300 200" style={{overflow: 'visible'}}>
+    {[[C.blue, 'M20 34H72C120 34 143 114 214 114H280'], ['#fff', 'M20 100H110'], [C.violet, 'M20 169H88C125 169 155 139 176 128']].map(([color, d], i) => <g key={d}>
+      <path d={d} fill="none" stroke={color} strokeWidth="12" strokeLinecap="round" pathLength={1}
+        strokeDasharray={1} strokeDashoffset={1-ease(f, delay+i*4, delay+34+i*4)} />
+      <circle cx={20} cy={[34, 100, 169][i]} r={9} fill={color} style={{opacity: draw}} />
+    </g>)}
+    <circle cx={280} cy={114} r={9} fill={C.blue} opacity={ease(f, delay+27, delay+40)} />
+  </svg>;
+};
+
+const Hook = () => {
+  const f = useCurrentFrame();
+  const converge = ease(f, 52, 90);
+  const positions = [[180,200],[1430,145],[1440,720],[300,770],[1120,90],[740,825]];
+  return <AbsoluteFill style={{color: C.white}}>
+    <Backdrop />
+    <div style={{position: 'absolute', left: 90, top: 64}}><Wordmark /></div>
+    {positions.map(([x,y], i) => <div key={i} style={{position: 'absolute', left: x+(960-x)*converge, top: y+(475-y)*converge,
+      opacity: 1-converge, transform: `translateY(${Math.sin(f/24+i)*16}px) rotate(${(i%2?1:-1)*(9+f*.05)}deg) scale(${1-converge*.7})`}}>
+      <Provider name={markNames[i]} size={105} />
+    </div>)}
+    <div style={{position: 'absolute', top: 335, width: '100%', textAlign: 'center', opacity: 1-ease(f, 67, 85), transform: `scale(${1+f*.00045})`}}>
+      <Line text="Your entire stack." size={116} delay={0} />
+      <Line text="One pocket." size={116} delay={13} color="#69adff" />
+      <div style={{fontSize: 27, color: C.muted, marginTop: 32, opacity: ease(f, 22, 40)}}>Hosting. Domains. Analytics.</div>
+    </div>
+    <div style={{position: 'absolute', left: 830, top: 450, opacity: ease(f, 65, 90), transform: `scale(${.7+converge*.3})`}}><TraceLogo size={260} delay={62} /></div>
+  </AbsoluteFill>;
+};
+
+const Reveal = () => {
+  const f = useCurrentFrame();
+  const p = ease(f, 0, 24);
+  return <AbsoluteFill style={{background: C.ink, color: C.white}}>
+    <Backdrop accent={C.violet} />
+    <div style={{position: 'absolute', left: 80, top: 310, fontSize: 210, fontWeight: 700, letterSpacing: -13, color: '#ffffff04', whiteSpace: 'nowrap', transform: `translateX(${-f*3}px)`}}>VERCELTICS VERCELTICS</div>
+    <div style={{position: 'absolute', left: 830+p*40, top: 450-p*270, transform: `scale(${1.3-p*.3})`}}><TraceLogo size={200} delay={-25} /></div>
+    <div style={{position: 'absolute', top: 430, width: '100%', textAlign: 'center'}}>
+      <div style={{fontSize: 22, letterSpacing: 8, color: C.muted, marginBottom: 20, opacity: p}}>INTRODUCING</div>
+      <Line text="Verceltics" size={148} delay={5} />
+      <div style={{fontSize: 26, color: '#bcc8da', marginTop: 35, opacity: ease(f, 22, 42)}}>A native workspace for iPhone & iPad.</div>
+    </div>
+    <div style={{position: 'absolute', left: 180, right: 180, bottom: 140, height: 1,
+      background: 'linear-gradient(90deg,transparent,#1689ff,#ae5bff,transparent)', transform: `scaleX(${p})`}} />
+  </AbsoluteFill>;
+};
+
+const Hosting = () => {
+  const f = useCurrentFrame();
+  const p = ease(f, 0, 34);
+  const focus = ease(f, 78, 105);
+  const float = Math.sin(f / 55) * 7;
+  return <AbsoluteFill style={{color: C.white}}>
+    <Backdrop />
+    <div style={{position: 'absolute', left: 90, top: 64}}><Wordmark /></div>
+    <div style={{position: 'absolute', left: 110, top: 265, transform: `translateX(${(1-p)*-70}px)`}}>
+      <Label>HOSTING</Label>
+      <div style={{marginTop: 26}}><Line text="Stay close" delay={5} /><Line text="to what you ship." delay={12} color="#6baeff" /></div>
+      <div style={{display: 'flex', alignItems: 'center', gap: 20, marginTop: 38, opacity: p}}><Provider name="VercelMark" size={70} /><span style={{fontSize: 26, color: '#b6c4d8'}}>Vercel projects & web analytics</span></div>
+    </div>
+    <div style={{position: 'absolute', left: 1240-focus*110, top: 105+float, transform: `perspective(1800px) rotateY(${-16+18*p-4*focus}deg) rotateZ(${-5+5*p}deg) translateY(${(1-p)*170}px) scale(${.88+.12*p})`}}>
+      <Phone clip="vercel" width={394} />
+    </div>
+    <Sequence from={96} durationInFrames={84}>
+      <MetricSpotlight />
+    </Sequence>
+    <Footer index="01 / HOSTING" />
+  </AbsoluteFill>;
+};
+
+const MetricSpotlight = () => {
+  const f = useCurrentFrame(); const p = ease(f, 0, 20);
+  return <div style={{position: 'absolute', left: 180, top: 670, opacity: p,
+    transform: `perspective(1800px) translateY(${(1-p)*75}px) rotateY(${(1-p)*8}deg) scale(${.92+p*.08})`}}>
+    <Detail clip="vercel" start={108} top={.26} width={740} height={244} sourceWidth={760} />
+    <div style={{position: 'absolute', left: 24, top: -16, padding: '7px 13px', background: C.blue, borderRadius: 20, color: '#fff', fontSize: 15, letterSpacing: 1}}>A CLOSER LOOK</div>
+  </div>;
+};
+
+const Cloudflare = () => {
+  const f = useCurrentFrame(); const p = ease(f, 0, 34); const shift = ease(f, 72, 112);
+  return <AbsoluteFill style={{color: C.ink}}>
+    <Backdrop light accent="#ff852f" />
+    <div style={{position: 'absolute', left: 90, top: 64}}><Wordmark /></div>
+    <div style={{position: 'absolute', left: 315+shift*35, top: 108, transform: `perspective(2000px) rotateY(${13-13*p}deg) rotateZ(${4-4*p}deg) translateY(${(1-p)*140}px)`}}><Phone clip="cloudflare" width={396} /></div>
+    <div style={{position: 'absolute', left: 930, top: 247}}>
+      <Label color="#d76c14">CLOUDFLARE</Label>
+      <div style={{marginTop: 24}}><Line text="Your edge." delay={3} size={110} /><Line text="Under control." delay={10} size={110} color="#cf6710" /></div>
+      <div style={{display: 'flex', gap: 18, alignItems: 'center', marginTop: 32, opacity: p}}><Provider name="CloudflareMark" size={76} light /><span style={{fontSize: 27, color: '#64718a'}}>Zones. DNS. Pages. Workers.</span></div>
+      <div style={{marginTop: 72, width: 670, borderTop: '1px solid #cdd5e3', paddingTop: 30, opacity: ease(f, 45, 75), transform: `translateY(${(1-ease(f,45,75))*30}px)`}}>
+        <div style={{fontSize: 24, color: '#59677d'}}>Get the context.</div>
+        <div style={{fontSize: 49, fontWeight: 600, letterSpacing: -1.5, marginTop: 10}}>Without the laptop.</div>
+      </div>
+    </div>
+    <div style={{position: 'absolute', left: 160, top: 195, transform: `translateY(${Math.sin(f/38)*14}px) scale(${p})`}}><Provider name="CloudflareMark" size={110} light /></div>
+    <Footer light index="02 / EDGE" />
+  </AbsoluteFill>;
+};
+
+const Domains = () => {
+  const f = useCurrentFrame(); const p = ease(f, 0, 32);
+  return <AbsoluteFill style={{color: C.white}}>
+    <Backdrop accent={C.violet} />
+    <div style={{position: 'absolute', left: 90, top: 64}}><Wordmark /></div>
+    <div style={{position: 'absolute', left: 115, top: 255}}>
+      <Label color="#bd86ff">DOMAINS</Label>
+      <div style={{marginTop: 28}}><Line text="Never lose" delay={3} size={105} /><Line text="track of a domain." delay={11} size={105} color="#bd86ff" /></div>
+      <div style={{fontSize: 27, color: '#acb9cd', marginTop: 36, opacity: p}}>Expiry. Renewal. Privacy.</div>
+      <div style={{display: 'flex', gap: 30, marginTop: 58, opacity: p}}>
+        {[['NamecheapMark','Namecheap'],['NameDotComMark','Name.com']].map(([mark,label],i) => <div key={mark} style={{display: 'flex', alignItems: 'center', gap: 14, transform: `translateY(${(1-ease(f,18+i*9,44+i*9))*35}px)`}}><Provider name={mark} size={65} /><span style={{fontSize: 24}}>{label}</span></div>)}
+      </div>
+      <div style={{marginTop: 52, fontSize: 19, letterSpacing: 2, color: '#70839d', opacity: ease(f, 50, 75)}}>ONE PORTFOLIO. A CLEARER PICTURE.</div>
+    </div>
+    <div style={{position: 'absolute', left: 1385, top: 150, transform: `perspective(2000px) rotateY(-12deg) rotateZ(9deg) translateX(${(1-p)*160}px)`}}><Phone still="registrars" width={340} /></div>
+    <div style={{position: 'absolute', left: 1110-ease(f,75,120)*25, top: 120+Math.sin(f/70)*6, transform: `perspective(2000px) rotateY(${-10+10*p}deg) rotateZ(-5deg) translateY(${(1-p)*130}px)`}}><Phone clip="registrars" width={387} /></div>
+    <Footer index="03 / DOMAINS" />
+  </AbsoluteFill>;
+};
+
+const Sites = () => {
+  const f = useCurrentFrame(); const p = ease(f, 0, 32); const push = ease(f, 62, 120);
+  return <AbsoluteFill style={{color: C.ink}}>
+    <Backdrop light accent={C.blue} />
+    <div style={{position: 'absolute', left: 90, top: 64}}><Wordmark /></div>
+    <div style={{position: 'absolute', left: 115, top: 252}}>
+      <Label>SITES</Label>
+      <div style={{marginTop: 24}}><Line text="See what’s" delay={3} size={110} /><Line text="working." delay={10} size={110} color="#166bed" /></div>
+      <div style={{fontSize: 28, color: '#596d88', marginTop: 35, opacity: p}}>Search. Traffic. Performance.</div>
+      <div style={{display: 'flex', gap: 16, marginTop: 55}}>{['GoogleSearchConsoleMark','GoogleAnalyticsMark','PageSpeedMark','UptimeRobotMark'].map((name,i) => <div key={name} style={{opacity: ease(f,20+i*7,44+i*7), transform: `translateY(${(1-ease(f,20+i*7,44+i*7))*35}px)`}}><Provider name={name} size={86} light /></div>)}</div>
+      <div style={{fontSize: 20, color: '#7e8ea7', marginTop: 32, opacity: ease(f,45,65)}}>The metrics that matter, wherever you are.</div>
+    </div>
+    <div style={{position: 'absolute', left: 1210-push*60, top: 112, transform: `perspective(1800px) rotateY(${18-18*p}deg) rotateZ(${5-4*p}deg) translateY(${(1-p)*150}px) scale(${1+push*.03})`}}><Phone clip="sites" width={393} /></div>
+    <div style={{position: 'absolute', left: 1595, top: 540, opacity: ease(f,25,55), transform: `translateY(${Math.sin(f/45)*15}px)`}}><Provider name="GoogleAnalyticsMark" size={140} light /></div>
+    <Footer light index="04 / SITES" />
+  </AbsoluteFill>;
+};
+
+const Ecosystem = () => {
+  const f = useCurrentFrame(); const gather = ease(f, 58, 90);
+  const center = [960, 480];
+  return <AbsoluteFill style={{color: C.white}}>
+    <Backdrop accent={C.violet} />
+    {markNames.map((name,i) => {
+      const a = (i/markNames.length)*Math.PI*2-Math.PI/2;
+      const x = center[0]+Math.cos(a)*690;
+      const y = center[1]+Math.sin(a)*315;
+      const appear=ease(f,i*1.6,18+i*1.6);
+      return <div key={name} style={{position: 'absolute', left: x+(center[0]-x)*gather-46, top: y+(center[1]-y)*gather-46,
+        opacity: appear*(1-gather), transform: `rotate(${Math.sin(f/35+i)*5}deg) scale(${appear*(1-gather*.8)})`}}><Provider name={name} size={92} /></div>;
+    })}
+    <div style={{position: 'absolute', width: '100%', top: 348, textAlign: 'center', opacity: 1-gather}}>
+      <div style={{fontSize: 128, lineHeight: 1, fontWeight: 700, letterSpacing: -8, transform: `scale(${.85+ease(f,0,25)*.15})`}}>27</div>
+      <div style={{fontSize: 38, fontWeight: 500, marginTop: 13}}>integrations. One workspace.</div>
+    </div>
+    <div style={{position: 'absolute', left: 870, top: 398, opacity: gather}}><TraceLogo size={180} delay={55} /></div>
+    <div style={{position: 'absolute', width: '100%', bottom: 80, textAlign: 'center', color: C.muted, fontSize: 20, letterSpacing: 4}}>BUILT FOR PEOPLE WHO BUILD.</div>
   </AbsoluteFill>;
 };
 
 const Outro = () => {
-  const f=useCurrentFrame();const {fps}=useVideoConfig();const p=spring({frame:f,fps,config:{damping:24}});
-  return <AbsoluteFill style={{background:'#0b0e16',color:'white'}}>
-    <FlowLines dark/>
-    <div style={{position:'absolute',left:110,top:180,opacity:p,transform:`translateY(${(1-p)*24}px)`}}>
-      <Brand dark large/>
-      <h1 style={{fontSize:99,lineHeight:1.07,letterSpacing:-5,marginTop:45}}>Close the laptop.<br/><span style={{color:'#6eb1ff'}}>Keep the context.</span></h1>
-      <div style={{fontSize:38,marginTop:48,display:'flex',alignItems:'center',gap:22}}>verceltics.com <span style={{color:blue}}>↗</span></div>
-      <div style={{fontSize:23,color:'#a8b1c4',marginTop:24}}>For iPhone & iPad · Open source</div>
+  const f = useCurrentFrame(); const p = ease(f, 0, 28);
+  return <AbsoluteFill style={{color: C.white}}>
+    <Backdrop />
+    <div style={{position: 'absolute', left: 115, top: 180, transform: `translateY(${(1-p)*30}px)`}}>
+      <Wordmark size={51} />
+      <div style={{marginTop: 55}}><Line text="Your stack." size={109} delay={4} /><Line text="In your pocket." size={109} delay={12} color="#6baeff" /></div>
+      <div style={{display: 'flex', alignItems: 'center', gap: 27, marginTop: 55, opacity: ease(f,26,45)}}>
+        <Img src={staticFile('app-store-badge.svg')} style={{width: 215, height: 72, objectFit: 'contain'}} />
+        <div><div style={{fontSize: 30, fontWeight: 500}}>verceltics.com <span style={{color: C.blue}}>↗</span></div><div style={{fontSize: 18, color: C.muted, marginTop: 8}}>For iPhone & iPad · Open source</div></div>
+      </div>
     </div>
-    <div style={{position:'absolute',left:1410,top:120}}><Phone still="sites" width={310} rotation={8}/></div>
-    <div style={{position:'absolute',left:1180,top:240}}><Phone still="analytics" width={335} rotation={-7}/></div>
-    <div style={{position:'absolute',left:112,bottom:92,fontSize:17,color:'#8b96aa'}}>iOS 2.1 preview · Demo data</div>
+    <div style={{position: 'absolute', left: 1480, top: 165, transform: `rotate(10deg) translateY(${(1-p)*100}px)`}}><Phone still="sites" width={304} /></div>
+    <div style={{position: 'absolute', left: 1170, top: 125+Math.sin(f/80)*8, transform: `rotate(-7deg) translateY(${(1-p)*180}px)`}}><Phone still="analytics" width={380} /></div>
+    <Footer />
   </AbsoluteFill>;
 };
 
-const Fade = ({children,duration}:{children:React.ReactNode;duration:number}) => {
- const frame=useCurrentFrame();
- return <AbsoluteFill style={{opacity:interpolate(frame,[0,9,duration-9,duration],[0,1,1,0],clamp)}}>{children}</AbsoluteFill>;
-};
-
-const Promo = () => <AbsoluteFill style={{background:ink,fontFamily:'"Space Grotesk", sans-serif'}}>
-  <style>{`@font-face{font-family:'Space Grotesk';src:url('${staticFile('space-grotesk.woff2')}') format('woff2');font-weight:300 700;}`}</style>
-  <Audio src={staticFile('soundtrack.wav')} volume={(f)=>interpolate(f,[0,24,840,899],[0,.8,.8,0],clamp)}/>
-  <Sequence from={0} durationInFrames={90}><Fade duration={90}><Intro/></Fade></Sequence>
-  {chapters.map(data=><Sequence key={data.number} from={data.from} durationInFrames={data.duration}><Fade duration={data.duration}><Chapter data={data}/></Fade></Sequence>)}
-  <Sequence from={780} durationInFrames={120}><Fade duration={120}><Outro/></Fade></Sequence>
+const Promo = () => <AbsoluteFill style={{fontFamily: '"Space Grotesk",sans-serif', background: C.ink}}>
+  <style>{`@font-face{font-family:'Space Grotesk';src:url('${staticFile('space-grotesk.woff2')}') format('woff2');font-weight:300 700;}*{box-sizing:border-box;}`}</style>
+  <Audio src={staticFile('launch-soundtrack.wav')} volume={f => lerp(f, [0, 12, 1035, 1079], [0, .9, .9, 0])} />
+  <Sequence from={0} durationInFrames={90}><Hook /></Sequence>
+  <Sequence from={90} durationInFrames={90}><Reveal /></Sequence>
+  <Sequence from={180} durationInFrames={180}><Hosting /></Sequence>
+  <Sequence from={360} durationInFrames={180}><Cloudflare /></Sequence>
+  <Sequence from={540} durationInFrames={180}><Domains /></Sequence>
+  <Sequence from={720} durationInFrames={180}><Sites /></Sequence>
+  <Sequence from={900} durationInFrames={90}><Ecosystem /></Sequence>
+  <Sequence from={990} durationInFrames={90}><Outro /></Sequence>
 </AbsoluteFill>;
-const Root = () => <Composition id="VercelticsLandscape" component={Promo} durationInFrames={900} fps={30} width={1920} height={1080}/>;
+
+const Root = () => <Composition id="VercelticsLandscape" component={Promo} width={1920} height={1080} fps={30} durationInFrames={1080} />;
 registerRoot(Root);
