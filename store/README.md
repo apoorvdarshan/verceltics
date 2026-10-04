@@ -1,9 +1,12 @@
 # iOS release setup
 
 This is the iOS portion of Fud AI's release approach, adapted to Verceltics.
-The authorized 2.1 release uses the `ios-v2.1` tag. Enable the GitHub master,
+The authorized 2.1 release uses the `ios-v2.1` tag. The GitHub master,
 listing upload, and review submission switches, and the independent Xcode Cloud
-workflow. Keep screenshot replacement off to retain the existing store gallery.
+workflow are enabled. Screenshot replacement is off to retain the existing store gallery.
+
+App Store Connect version 2.1 is configured for automatic release after approval.
+The existing four iPhone and four iPad screenshots were inherited by this version.
 
 The prepared iOS source version is **2.1 (build 43)**; the public App Store
 release remains **2.0** until Apple approves and publishes 2.1. Reviewed notes
