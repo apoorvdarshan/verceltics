@@ -8,6 +8,10 @@ workflow are enabled. Screenshot replacement is off to retain the existing store
 App Store Connect version 2.1 is configured for automatic release after approval.
 The existing four iPhone and four iPad screenshots were inherited by this version.
 
+The 2.1 release source is commit `fc279881316a6a2502b2da1839b73849b5674785`.
+Track its gated submission in the
+[iOS Release workflow](https://github.com/apoorvdarshan/verceltics/actions/runs/37188818604).
+
 The prepared iOS source version is **2.1 (build 43)**; the public App Store
 release remains **2.0** until Apple approves and publishes 2.1. Reviewed notes
 for `ios-v2.1` are in `RELEASE_NOTES.md`. App Store Connect controls automatic
