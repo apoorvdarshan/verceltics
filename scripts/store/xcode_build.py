@@ -56,8 +56,14 @@ def wait_for_build(
         time.sleep(min(interval, max(0, deadline - time.monotonic())))
 
     product = client.get(f"/apps/{app_id}/ciProduct")["data"]
-    workflow = client.get(f"/ciWorkflows/{workflow_id}")["data"]
-    if related_id(workflow, "product") != product["id"]:
+    # ciWorkflows does not expose a product relationship. Verify ownership
+    # through the app's CI product workflow collection instead.
+    workflows = {
+        workflow["id"]
+        for payload in pages(f"/ciProducts/{product['id']}/workflows?limit=200")
+        for workflow in payload["data"]
+    }
+    if workflow_id not in workflows:
         raise BuildWaitError("Xcode Cloud workflow belongs to a different app")
 
     run_id: str | None = None
