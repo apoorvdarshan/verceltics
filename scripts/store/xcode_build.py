@@ -113,14 +113,27 @@ def wait_for_build(
 
     while True:
         builds: dict[str, dict[str, Any]] = {}
+        pending = False
         for payload in pages(f"/ciBuildRuns/{run_id}/builds?limit=200&include=app,preReleaseVersion"):
-            included = {(item["type"], item["id"]): item for item in payload.get("included", [])}
-            for build in payload["data"]:
-                if related_id(build, "app") != app_id:
+            for linked_build in payload["data"]:
+                # Cloud's build collection can return placeholder resources,
+                # even after processing. Resolve only IDs linked to this run
+                # through the canonical build endpoint before checking them.
+                resolved = client.get(
+                    f"/builds/{linked_build['id']}?include=app,preReleaseVersion"
+                )
+                build = resolved["data"]
+                included = {(item["type"], item["id"]): item for item in resolved.get("included", [])}
+                build_app_id = related_id(build, "app")
+                if not build_app_id:
+                    pending = True
+                    continue
+                if build_app_id != app_id:
                     raise BuildWaitError("Cloud run produced an artifact for a different app")
                 prerelease_id = related_id(build, "preReleaseVersion")
                 if not prerelease_id:
-                    raise BuildWaitError("uploaded build has no marketing version relationship")
+                    pending = True
+                    continue
                 prerelease = included.get(("preReleaseVersions", prerelease_id))
                 if prerelease is None:
                     prerelease = client.get(f"/preReleaseVersions/{prerelease_id}")["data"]
@@ -132,7 +145,7 @@ def wait_for_build(
                 builds[build["id"]] = build
         if len(builds) > 1:
             raise BuildWaitError("Cloud run has multiple iOS artifacts; refusing an ambiguous selection")
-        if builds:
+        if builds and not pending:
             build_id, build = next(iter(builds.items()))
             attrs = build.get("attributes", {})
             processing = attrs.get("processingState")
@@ -142,7 +155,7 @@ def wait_for_build(
                 check_deadline()
                 print(f"Xcode Cloud run {run_id}: processed iOS build {build_id}", flush=True)
                 return build_id
-            if processing != "PROCESSING":
+            if processing not in {None, "PROCESSING"}:
                 raise BuildWaitError(f"unknown build processing state: {processing}")
             pause(f"Waiting for App Store processing of build {build_id}…")
         else:

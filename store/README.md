@@ -8,9 +8,8 @@ workflow are enabled. Screenshot replacement is off to retain the existing store
 App Store Connect version 2.1 is configured for automatic release after approval.
 The existing four iPhone and four iPad screenshots were inherited by this version.
 
-The 2.1 release source is commit `fc279881316a6a2502b2da1839b73849b5674785`.
-Track its gated submission in the
-[iOS Release workflow](https://github.com/apoorvdarshan/verceltics/actions/runs/37188818604).
+Track the current tagged submission in the
+[iOS Release workflow](https://github.com/apoorvdarshan/verceltics/actions/workflows/ios-release.yml).
 
 The prepared iOS source version is **2.1 (build 43)**; the public App Store
 release remains **2.0** until Apple approves and publishes 2.1. Reviewed notes
@@ -70,6 +69,8 @@ already exist and be editable. When review submission is enabled, the job:
 2. Waits for that run to finish successfully, then waits for its own linked iOS
    artifact to finish App Store processing. It verifies the app and marketing
    version; it never falls back to the newest unrelated uploaded build.
+   Cloud collection entries may be incomplete, so each linked build is resolved
+   through its canonical ASC resource before ownership and processing checks.
 3. Selects the verified build on the matching App Store version, then submits
    the version and eligible catalog products for review.
 
@@ -97,6 +98,12 @@ for draft review submissions and eligible IAPs/subscriptions. It is limited to
 `com.apoorvdarshan.verceltics` and the product IDs in `catalog/products.json`.
 Local validation checks that catalog against the checked-in StoreKit reference.
 The script creates no products and performs no RevenueCat synchronization.
+
+The catalog explicitly declares `uses_non_exempt_encryption: false`: the app
+uses Apple's HTTPS, Keychain, and CryptoKit implementations. The gated publisher
+fills an unanswered build declaration from this setting and rejects a mismatch.
+Reassess this declaration before adding other cryptographic implementations;
+see [Apple's encryption guidance](https://developer.apple.com/documentation/security/complying-with-encryption-export-regulations).
 
 Screenshot replacement can leave a mixed set if an upload fails; inspect ASC
 before rerunning. App name, subtitle, privacy details, reviewer notes, pricing,

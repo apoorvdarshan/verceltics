@@ -945,6 +945,19 @@ def main() -> None:
         build_attrs = client.get(f"/builds/{verified_build_id}")["data"]["attributes"]
         if build_attrs.get("expired") or build_attrs.get("processingState") != "VALID":
             fail("verified build is no longer eligible for submission")
+        catalog = json.loads((ROOT / "store/catalog/products.json").read_text())
+        encryption = catalog.get("uses_non_exempt_encryption")
+        if not isinstance(encryption, bool):
+            fail("catalog must explicitly declare uses_non_exempt_encryption")
+        if build_attrs.get("usesNonExemptEncryption") is None:
+            client.patch(
+                f"/builds/{verified_build_id}",
+                {"data": {"type": "builds", "id": verified_build_id,
+                          "attributes": {"usesNonExemptEncryption": encryption}}},
+            )
+            build_attrs = client.get(f"/builds/{verified_build_id}")["data"]["attributes"]
+        if build_attrs.get("usesNonExemptEncryption") != encryption:
+            fail("verified build export compliance does not match the release catalog")
         current_version = get_ios_app_store_version(client, app_id, args.version)
         state = (current_version.get("attributes") or {}).get("appStoreState") or ""
         if state not in SUBMITTABLE_VERSION_STATES:
