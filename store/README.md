@@ -1,12 +1,14 @@
 # iOS release setup
 
 This is the iOS portion of Fud AI's release approach, adapted to Verceltics.
-All GitHub store switches are **false**. Xcode Cloud's tag workflow is configured
-for the `ios-v` prefix and **disabled** during setup. No release tag is created.
+The authorized 2.1 release uses the `ios-v2.1` tag. Enable the GitHub master,
+listing upload, and review submission switches, and the independent Xcode Cloud
+workflow. Keep screenshot replacement off to retain the existing store gallery.
 
 The prepared iOS source version is **2.1 (build 43)**; the public App Store
-release is **2.0**. The unreleased notes in `RELEASE_NOTES.md` are a draft,
-not an approved `ios-v2.1` release section.
+release remains **2.0** until Apple approves and publishes 2.1. Reviewed notes
+for `ios-v2.1` are in `RELEASE_NOTES.md`. App Store Connect controls automatic
+publication after approval separately from the GitHub switches.
 
 ## Independent switches
 
@@ -38,8 +40,8 @@ checks without credentials. It is manual only and is not started by this setup.
 
 1. Choose the iOS version/build and commit the source to release. Bump the build
    number for each uploaded binary; use a marketing version matching the tag.
-2. Add reviewed `## ios-vX.Y` notes to `RELEASE_NOTES.md`. There is deliberately
-   no release-ready section yet. Tag validation rejects absent or empty notes.
+2. Add reviewed `## ios-vX.Y` notes to `RELEASE_NOTES.md`.
+   Tag validation rejects absent or empty notes.
 3. Update `APPSTORE.md` and run the local checks. Tagged releases use the exact
    reviewed release notes for What's New, rather than a stale listing section.
 4. When a build is actually wanted, enable the iOS workflow in Xcode Cloud. Its

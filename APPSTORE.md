@@ -2,8 +2,9 @@
 
 App Store Connect submission details for Verceltics v2.1. Each field is in a code block for easy copy-paste.
 
-Prepared for **iOS 2.1 (build 43)**. This is draft listing content, not a live
-App Store update. The public release remains 2.0 and all release switches remain off.
+Prepared for **iOS 2.1 (build 43)** submission. The public release remains 2.0
+until Apple approves and publishes 2.1. Release automation uses `ios-v2.1`,
+with listing upload and review submission enabled; screenshot replacement is off.
 
 ## App Name
 ```
@@ -85,11 +86,12 @@ Not affiliated with any supported hosting platform, registrar, or site-intellige
 ```
 Verceltics 2.1 brings interface refinements and new ways to get help.
 
-• Native Hosting, Registrars, and Sites workspaces with separate provider dashboards.
-• System, Light, and Dark appearances with adaptive iPhone and iPad layouts.
+• Refined native Hosting, Registrars, and Sites workspaces with separate provider dashboards.
+• Adaptive iPhone and iPad layouts with System, Light, and Dark appearances.
 • Join the Verceltics Discord community directly from About.
 • Report an issue or request a feature using a GitHub template, or use Vercie on Discord without a GitHub account.
-• Follow development on Instagram at @apoorvcodes and the Verceltics LinkedIn showcase.
+• Meet the developer in a new 2.1 welcome, with links to X, Instagram, Product Hunt, GitHub, and Discord. Close it once to dismiss it permanently on your device.
+• Updated Instagram, LinkedIn, and Product Hunt links.
 
 Provider data and operations depend on each API, account permissions, and plan.
 ```
@@ -124,7 +126,7 @@ https://verceltics.com
 This app uses provider API credentials or Google OAuth and does not ask for provider account passwords. Credentials and OAuth tokens are stored locally with device-only Keychain protection and are not sent to Verceltics infrastructure.
 
 To test:
-1. On a clean first launch, tap "Choose what to connect" on the welcome screen, then choose Hosting, Registrars, or Sites. Existing connected users skip this one-time welcome.
+1. On the first 2.1 launch, tap "Close" on the optional developer/community introduction to enter the app. The introduction stays pending until explicitly closed. On a clean install, then tap "Choose what to connect" on the connection welcome screen and choose Hosting, Registrars, or Sites. Existing connected users skip the connection welcome.
 2. Select Vercel and paste a personal access token from https://vercel.com/account/tokens, or choose another provider and follow its on-screen credential instructions.
 3. Google Search Console, Google Analytics, and Firebase Hosting use Google's OAuth authorization flow instead of a pasted password.
 4. Hosting accounts appear in Hosting, registrar accounts in Registrars, and site-service accounts in Sites. After connecting an account, use that workspace's top-left account menu to add or switch accounts.
