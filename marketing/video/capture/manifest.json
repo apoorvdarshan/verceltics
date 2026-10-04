@@ -1,0 +1,39 @@
+[
+  {
+    "name": "vercel",
+    "source": "vercel.mov",
+    "trimStartSeconds": 8.4,
+    "durationSeconds": 7,
+    "removedWaitRangesSeconds": [
+      [
+        2.97,
+        3.9
+      ]
+    ],
+    "fictionalData": true
+  },
+  {
+    "name": "cloudflare",
+    "source": "cloudflare.mov",
+    "trimStartSeconds": 5.8,
+    "durationSeconds": 7,
+    "removedWaitRangesSeconds": [],
+    "fictionalData": true
+  },
+  {
+    "name": "registrars",
+    "source": "registrars.mov",
+    "trimStartSeconds": 5.2,
+    "durationSeconds": 7,
+    "removedWaitRangesSeconds": [],
+    "fictionalData": true
+  },
+  {
+    "name": "sites",
+    "source": "sites.mov",
+    "trimStartSeconds": 8.0,
+    "durationSeconds": 7,
+    "removedWaitRangesSeconds": [],
+    "fictionalData": true
+  }
+]

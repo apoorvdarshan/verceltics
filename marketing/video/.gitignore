@@ -1,0 +1,4 @@
+node_modules/
+renders/
+*.tsbuildinfo
+__pycache__/

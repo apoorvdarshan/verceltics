@@ -15,6 +15,7 @@ released. Prepared listing copy lives in [APPSTORE.md](../APPSTORE.md).
 - `product-hunt/` — earlier Product Hunt 2.0 artwork
 - [`product-hunt-2026-10-v2/`](product-hunt-2026-10-v2/README.md) — current three-image relaunch gallery: ivory/cobalt design, large devices, upload order and imagegen prompts
 - [`product-hunt-2026-10/`](product-hunt-2026-10/README.md) — earlier relaunch gallery and [Product Hunt promo details](product-hunt-2026-10/PROMO.md)
+- [`video/`](video/README.md) — 30-second landscape Remotion promo with real iOS Simulator footage and fictional demo data
 - `Verceltics-Logo*.png` — app logos
 - `Verceltics-LinkedIn-Banner.png` — LinkedIn company banner
 - `mockup.png` — general-purpose promotional composition

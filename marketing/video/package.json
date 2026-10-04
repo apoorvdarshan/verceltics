@@ -1,0 +1,19 @@
+{
+  "name": "verceltics-promo-video",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "studio": "remotion studio src/index.tsx",
+    "render:landscape": "remotion render src/index.tsx VercelticsLandscape Verceltics-Landscape.mp4 --codec h264 --crf 18 --concurrency 4"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.532",
+    "remotion": "4.0.532",
+    "react": "19.2.0",
+    "react-dom": "19.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.2",
+    "typescript": "5.9.3"
+  }
+}
