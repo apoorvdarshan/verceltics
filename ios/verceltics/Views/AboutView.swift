@@ -217,8 +217,8 @@ struct AboutView: View {
             AboutRow(
                 icon: "arrow.up.circle.fill",
                 title: "Upvote on Product Hunt",
-                subtitle: "producthunt.com/products/verceltics",
-                url: "https://www.producthunt.com/products/verceltics"
+                subtitle: "producthunt.com/products/verceltics-2",
+                url: "https://www.producthunt.com/products/verceltics-2"
             )
         }
     }

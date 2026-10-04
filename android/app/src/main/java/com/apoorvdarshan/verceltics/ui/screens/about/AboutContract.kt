@@ -82,7 +82,7 @@ enum class AboutDestination(val uri: String) {
     REQUEST_FEATURE("https://github.com/apoorvdarshan/verceltics/issues/new?template=feature_request.yml"),
     DISCORD_BUG_REPORT("https://discord.gg/Skw8emkFev"),
     DISCORD_FEATURE_REQUEST("https://discord.gg/R798cm6n3h"),
-    PRODUCT_HUNT("https://www.producthunt.com/products/verceltics"),
+    PRODUCT_HUNT("https://www.producthunt.com/products/verceltics-2"),
     RATE_APP("market://details?id=com.apoorvdarshan.verceltics"),
     SUPPORT_DEVELOPMENT("https://ko-fi.com/apoorvdarshan"),
     PRIVACY_POLICY("https://verceltics.com/privacy"),

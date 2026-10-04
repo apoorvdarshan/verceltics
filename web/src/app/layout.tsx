@@ -90,7 +90,7 @@ const siteJsonLd = {
         "https://github.com/apoorvdarshan/verceltics",
         LINKEDIN,
         INSTAGRAM,
-        "https://www.producthunt.com/products/verceltics",
+        "https://www.producthunt.com/products/verceltics-2",
         "https://ko-fi.com/apoorvdarshan",
         "https://x.com/apoorvdarshan",
       ],

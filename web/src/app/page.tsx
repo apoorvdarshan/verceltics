@@ -13,7 +13,7 @@ const APP_STORE = "https://apps.apple.com/us/app/verceltics/id6761645656";
 const GITHUB = "https://github.com/apoorvdarshan/verceltics";
 const PUBLIC_PROFILES = [
   GITHUB,
-  "https://www.producthunt.com/products/verceltics",
+  "https://www.producthunt.com/products/verceltics-2",
   LINKEDIN,
   INSTAGRAM,
   "https://ko-fi.com/apoorvdarshan",

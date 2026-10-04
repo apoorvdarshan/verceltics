@@ -14,7 +14,7 @@ const channelGroups = [
     detail: "Source and launch records",
     links: [
       { label: "GitHub", detail: "Source code", href: GITHUB, mark: "/brands/github.svg", newTab: true },
-      { label: "Product Hunt", detail: "Launch page", href: "https://www.producthunt.com/products/verceltics", mark: "/brands/product-hunt.svg", newTab: true },
+      { label: "Product Hunt", detail: "Launch page", href: "https://www.producthunt.com/products/verceltics-2", mark: "/brands/product-hunt.svg", newTab: true },
     ],
   },
   {
