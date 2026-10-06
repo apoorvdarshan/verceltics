@@ -24,7 +24,7 @@
     "fast-check": "4.10.2",
     "tailwindcss": "^4",
     "typescript": "7.0.2",
-    "wrangler": "4.141.0"
+    "wrangler": "4.147.0"
   },
   "overrides": {
     "postcss": "8.5.28",
