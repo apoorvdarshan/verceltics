@@ -6,9 +6,15 @@ import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.nio.charset.StandardCharsets
 
-/** Plaintext codec used only immediately before encryption or immediately after decryption. */
+/**
+ * Plaintext codec used only immediately before encryption or immediately after decryption.
+ *
+ * Version 2 appends the optional username and the long-analytics-history flag. Version 1 payloads
+ * written by earlier builds still decode, with both new fields absent.
+ */
 object VercelAccountPayloadCodec {
-    private const val PAYLOAD_VERSION = 1
+    private const val LEGACY_PAYLOAD_VERSION = 1
+    private const val PAYLOAD_VERSION = 2
     private const val MAX_ID_BYTES = 1_024
     private const val MAX_DISPLAY_NAME_BYTES = 1_024
     private const val MAX_EMAIL_BYTES = 2_048
@@ -31,6 +37,8 @@ object VercelAccountPayloadCodec {
             }
             output.writeLong(account.createdAtMillis)
             output.writeLong(account.updatedAtMillis)
+            writeNullableString(output, account.username, MAX_DISPLAY_NAME_BYTES)
+            output.writeBoolean(account.hasLongAnalyticsHistory)
             output.flush()
             bytes.toByteArray()
         } finally {
@@ -40,7 +48,10 @@ object VercelAccountPayloadCodec {
 
     fun decode(bytes: ByteArray): VercelAccount {
         DataInputStream(ByteArrayInputStream(bytes)).use { input ->
-            require(input.readInt() == PAYLOAD_VERSION) { "Unsupported account payload version." }
+            val version = input.readInt()
+            require(version == PAYLOAD_VERSION || version == LEGACY_PAYLOAD_VERSION) {
+                "Unsupported account payload version."
+            }
             require(readString(input, MAX_ID_BYTES) == VercelAccount.PROVIDER_ID) {
                 "The account provider does not match its storage slot."
             }
@@ -55,6 +66,12 @@ object VercelAccountPayloadCodec {
             }
             val createdAtMillis = input.readLong()
             val updatedAtMillis = input.readLong()
+            var username: String? = null
+            var hasLongAnalyticsHistory = false
+            if (version >= PAYLOAD_VERSION) {
+                username = readNullableString(input, MAX_DISPLAY_NAME_BYTES)
+                hasLongAnalyticsHistory = input.readBoolean()
+            }
             require(input.available() == 0) { "Unexpected trailing account data." }
             return VercelAccount(
                 id = id,
@@ -63,6 +80,8 @@ object VercelAccountPayloadCodec {
                 token = token,
                 createdAtMillis = createdAtMillis,
                 updatedAtMillis = updatedAtMillis,
+                username = username,
+                hasLongAnalyticsHistory = hasLongAnalyticsHistory,
             )
         }
     }

@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -52,6 +53,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -89,6 +91,7 @@ import com.apoorvdarshan.verceltics.ui.components.ThemedActionTone
 import com.apoorvdarshan.verceltics.ui.components.ThemedAlertDialog
 import com.apoorvdarshan.verceltics.ui.components.ThemedAuthTextField
 import com.apoorvdarshan.verceltics.ui.components.contrastingContentColor
+import com.apoorvdarshan.verceltics.ui.vercel.visibleVercelProjects
 import java.text.DateFormat
 import java.util.Date
 
@@ -332,6 +335,8 @@ private fun VercelConnectionPanel(
                         )
                     }
                     Spacer(Modifier.height(14.dp))
+                    VercelTokenInstructions()
+                    Spacer(Modifier.height(14.dp))
                     ThemedAuthTextField(
                         value = token,
                         onValueChange = { token = it },
@@ -402,6 +407,74 @@ private fun VercelConnectionPanel(
                 ErrorNotice(it)
             }
         }
+    }
+}
+
+/** Steps from iOS `LoginView` for creating a Vercel personal access token. */
+internal val VERCEL_TOKEN_STEPS: List<String> = listOf(
+    "Go to vercel.com/account/tokens",
+    "Tap \"Create Token\"",
+    "Name it anything (e.g. Verceltics)",
+    "Set scope to your account",
+    "Copy and paste below",
+)
+
+internal const val VERCEL_TOKENS_URL = "https://vercel.com/account/tokens"
+
+@Composable
+private fun VercelTokenInstructions() {
+    val haptic = LocalHapticFeedback.current
+    val uriHandler = LocalUriHandler.current
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(13.dp))
+                .padding(16.dp)
+                .testTag("vercel.tokenSteps"),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                "How to get your token",
+                modifier = Modifier.semantics { heading() },
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            VERCEL_TOKEN_STEPS.forEachIndexed { index, step ->
+                Row(
+                    modifier = Modifier.semantics(mergeDescendants = true) {},
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f), CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            "${index + 1}",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                    Text(step, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }
+        ThemedActionButton(
+            text = "Open Vercel Tokens Page",
+            onClick = {
+                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                runCatching { uriHandler.openUri(VERCEL_TOKENS_URL) }
+            },
+            tone = ThemedActionTone.NEUTRAL,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 46.dp),
+            testTag = "vercel.openTokensPage",
+        )
     }
 }
 
@@ -494,15 +567,7 @@ private fun ConnectedVercelContent(
 ) {
     val dashboard = requireNotNull(state.dashboard)
     val visibleProjects = remember(dashboard.projects, projectQuery) {
-        val normalizedQuery = projectQuery.trim()
-        if (normalizedQuery.isEmpty()) {
-            dashboard.projects
-        } else {
-            dashboard.projects.filter { project ->
-                project.name.contains(normalizedQuery, ignoreCase = true) ||
-                    project.framework?.contains(normalizedQuery, ignoreCase = true) == true
-            }
-        }
+        visibleVercelProjects(dashboard.projects, projectQuery)
     }
     val previewProjects = remember(visibleProjects) { providerDetailProjectPreview(visibleProjects) }
     Row(
