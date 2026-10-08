@@ -119,6 +119,8 @@ class HostingProvidersViewModel(
     private val savedStateHandle: SavedStateHandle,
     private val nowMillis: () -> Long = System::currentTimeMillis,
     private val actionRefreshDelayMillis: Long = ACTION_REFRESH_DELAY_MILLIS,
+    /** iOS 180 s deployment-history cache, scoped to provider, account and resource. */
+    private val historyCache: ResourceHistoryCache<HostingResourceWorkspaceUi> = ResourceHistoryCache(nowMillis),
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(initialState(visibleProviderId = null))
     val uiState: StateFlow<HostingProvidersUiState> = _uiState.asStateFlow()
@@ -320,6 +322,7 @@ class HostingProvidersViewModel(
         launchOperation(providerId, HostingOperation.DISCONNECTING, closed.cleared()) { generation ->
             gateway.disconnect(providerId).fold(
                 onSuccess = {
+                    historyCache.invalidateScope(ResourceHistoryCache.scope(providerId))
                     if (!isCurrent(providerId, generation)) return@fold
                     if (pendingGoogleRetry != null && providerId == HostingProvider.FIREBASE.id) pendingGoogleRetry = null
                     replaceProvider(
@@ -352,12 +355,13 @@ class HostingProvidersViewModel(
                 actionError = null,
             )
         }
-        loadSelectedResource(providerId)
+        loadSelectedResource(providerId, forceRefresh = false)
     }
 
+    /** The toolbar refresh always reloads the history, bypassing the 180 s cache (iOS pull-to-refresh). */
     fun refreshSelectedResource(providerId: String) {
         val state = provider(providerId)
-        if (state.selectedResourceId != null && !state.isLoadingResource) loadSelectedResource(providerId)
+        if (state.selectedResourceId != null && !state.isLoadingResource) loadSelectedResource(providerId, forceRefresh = true)
     }
 
     fun closeResource(providerId: String) {
@@ -411,9 +415,13 @@ class HostingProvidersViewModel(
                     updateProvider(providerId) {
                         it.copy(isPerformingAction = false, actionMessage = message.takeIf { stillSelected })
                     }
+                    // The write changed the history: never serve the cached copy again.
+                    historyCacheKey(providerId, resource.id)?.let(historyCache::invalidate)
                     if (stillSelected) {
                         delay(actionRefreshDelayMillis)
-                        if (provider(providerId).selectedResourceId == resource.id) loadSelectedResource(providerId)
+                        if (provider(providerId).selectedResourceId == resource.id) {
+                            loadSelectedResource(providerId, forceRefresh = true)
+                        }
                     }
                 },
                 onFailure = { error ->
@@ -601,7 +609,7 @@ class HostingProvidersViewModel(
                 ),
             )
         }
-        if (provider(providerId).selectedResourceId != null) loadSelectedResource(providerId)
+        if (provider(providerId).selectedResourceId != null) loadSelectedResource(providerId, forceRefresh = false)
     }
 
     private fun applyDashboard(providerId: String, dashboard: HostingDashboardUi) {
@@ -636,15 +644,34 @@ class HostingProvidersViewModel(
             .also { if (it == null) savedStateHandle[selectedResourceKey(providerId)] = null }
     }
 
-    private fun loadSelectedResource(providerId: String) {
+    /**
+     * iOS `HostingResourceDetailViewModel.load(resource:forceRefresh:)`: a cached history is shown
+     * at once; a fresh one (under 180 s) skips the network unless [forceRefresh] is set.
+     */
+    private fun loadSelectedResource(providerId: String, forceRefresh: Boolean) {
         val resource = provider(providerId).selectedResource ?: return
+        val cacheKey = historyCacheKey(providerId, resource.id)
+        val cached = cacheKey?.let(historyCache::get)?.takeIf { it.value.resourceId == resource.id }
         val generation = nextResourceGeneration(providerId)
         resourceJobs.remove(providerId)?.cancel()
-        updateProvider(providerId) { it.copy(isLoadingResource = true, resourceError = null) }
+        if (cached != null && !forceRefresh && cached.isFresh) {
+            updateProvider(providerId) {
+                it.copy(resourceWorkspace = cached.value, isLoadingResource = false, resourceError = null)
+            }
+            return
+        }
+        updateProvider(providerId) {
+            it.copy(
+                resourceWorkspace = cached?.value ?: it.resourceWorkspace?.takeIf { workspace -> workspace.resourceId == resource.id },
+                isLoadingResource = true,
+                resourceError = null,
+            )
+        }
         resourceJobs[providerId] = viewModelScope.launch {
             gateway.loadResource(providerId, resource).fold(
                 onSuccess = { workspace ->
                     if (resourceGenerations[providerId] == generation && provider(providerId).selectedResourceId == resource.id) {
+                        cacheKey?.let { historyCache.put(it, workspace) }
                         updateProvider(providerId) {
                             it.copy(resourceWorkspace = workspace, isLoadingResource = false, resourceError = null)
                         }
@@ -659,6 +686,12 @@ class HostingProvidersViewModel(
                 },
             )
         }
+    }
+
+    private fun historyCacheKey(providerId: String, resourceId: String): String? {
+        val state = provider(providerId)
+        val accountId = state.dashboard?.account?.id ?: state.savedAccount?.id ?: return null
+        return ResourceHistoryCache.key(providerId, accountId, resourceId)
     }
 
     private fun refreshStaleInventories() {

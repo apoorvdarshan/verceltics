@@ -4,6 +4,11 @@ import com.apoorvdarshan.verceltics.data.account.AccountCipher
 import com.apoorvdarshan.verceltics.data.account.AtomicBytesStore
 import com.apoorvdarshan.verceltics.data.account.SealedPayload
 import com.apoorvdarshan.verceltics.data.account.SecretValue
+import com.apoorvdarshan.verceltics.data.hosting.FakeHostingTransport
+import com.apoorvdarshan.verceltics.data.hosting.HostingHttpMethod
+import com.apoorvdarshan.verceltics.data.hosting.bearerToken
+import com.apoorvdarshan.verceltics.data.hosting.bodyText
+import com.apoorvdarshan.verceltics.data.hosting.jsonResponse
 import com.apoorvdarshan.verceltics.data.netlify.NetlifyBuild
 import com.apoorvdarshan.verceltics.data.netlify.NetlifyBuildControls
 import com.apoorvdarshan.verceltics.data.netlify.NetlifyConnectionRepository
@@ -16,6 +21,7 @@ import com.apoorvdarshan.verceltics.data.netlify.NetlifyProfile
 import com.apoorvdarshan.verceltics.data.netlify.NetlifyReadApi
 import com.apoorvdarshan.verceltics.data.netlify.NetlifySite
 import com.apoorvdarshan.verceltics.data.netlify.NetlifySiteDetails
+import com.apoorvdarshan.verceltics.data.netlify.NetlifyWriteApi
 import com.apoorvdarshan.verceltics.data.network.CancelableCall
 import java.io.IOException
 import java.util.concurrent.CountDownLatch
@@ -152,16 +158,83 @@ class NativeNetlifyUiGatewayTest {
     }
 
     @Test
-    fun completeLargeInventoryIsBoundedWithoutClaimingProviderPartialFailure() = runBlocking {
-        val fixture = Fixture(FakeApi(siteCount = 150))
+    fun largeInventoryIsPagedCompletelyWithoutTheOldHundredSiteCap() = runBlocking {
+        // 1,250 sites span 13 Netlify pages; iOS lists every one, so Android must too.
+        val fixture = Fixture(FakeApi(siteCount = 1_250))
         try {
             val dashboard = fixture.gateway.connect(SecretValue.of("token")).getOrThrow()
 
-            assertEquals(100, dashboard.sites.size)
-            assertEquals(150, dashboard.loadedSiteCount)
+            assertEquals(1_250, dashboard.sites.size)
+            assertEquals(1_250, dashboard.loadedSiteCount)
+            assertEquals("site-1249", dashboard.sites.last().id)
+            assertEquals(1_250, dashboard.sites.map(NetlifySiteUi::id).toSet().size)
             assertTrue(dashboard.providerInventoryComplete)
-            assertTrue(dashboard.inventoryTruncatedForDisplay)
-            assertTrue(dashboard.isPartial)
+            assertFalse(dashboard.isPartial)
+            assertEquals(13, fixture.api.sitePageRequests.size)
+
+            val refreshed = fixture.gateway.refresh().getOrThrow()
+            assertEquals(1_250, refreshed.sites.size)
+        } finally {
+            fixture.close()
+        }
+    }
+
+    @Test
+    fun deployHistoryIsCompleteBeyondTheOldHundredItemCap() = runBlocking {
+        val fixture = Fixture(FakeApi(siteCount = 1, deploymentCount = 345, buildCount = 230))
+        try {
+            fixture.gateway.connect(SecretValue.of("token")).getOrThrow()
+
+            val workspace = fixture.gateway.loadSite("site-0").getOrThrow()
+
+            assertEquals(345, workspace.deployments.items.size)
+            assertEquals(345, workspace.deployments.loadedItemCount)
+            assertTrue(workspace.deployments.providerCollectionComplete)
+            assertNull(workspace.deployments.warning)
+            assertEquals("deploy-344", workspace.deployments.items.last().id)
+            assertEquals(230, workspace.builds.items.size)
+            assertTrue(workspace.builds.providerCollectionComplete)
+        } finally {
+            fixture.close()
+        }
+    }
+
+    @Test
+    fun redeploySendsConfirmedBuildRequestWithSavedToken() = runBlocking {
+        val transport = FakeHostingTransport { jsonResponse("""{"id":"build-new","done":false}""") }
+        val fixture = Fixture(FakeApi(siteCount = 1), writeTransport = transport)
+        try {
+            fixture.gateway.connect(SecretValue.of("saved-token")).getOrThrow()
+
+            val message = fixture.gateway.redeploySite("site-0").getOrThrow()
+
+            assertEquals(NativeNetlifyUiGateway.REDEPLOY_ACCEPTED, message)
+            val request = transport.requests.single()
+            assertEquals(HostingHttpMethod.POST, request.method)
+            assertEquals("/api/v1/sites/site-0/builds", request.encodedPath)
+            assertEquals("{}", request.bodyText())
+            assertEquals("saved-token", request.bearerToken())
+            assertEquals("api.netlify.com", request.endpoint.host)
+        } finally {
+            fixture.close()
+        }
+    }
+
+    @Test
+    fun redeployFailuresAreRedactedAndNeverSentWithoutASavedAccount() = runBlocking {
+        val transport = FakeHostingTransport { jsonResponse("""{"message":"secret provider detail"}""", status = 403) }
+        val fixture = Fixture(FakeApi(siteCount = 1), writeTransport = transport)
+        try {
+            val disconnected = fixture.gateway.redeploySite("site-0").exceptionOrNull()
+            assertEquals("Connect a Netlify account first.", disconnected?.message)
+            assertTrue(transport.requests.isEmpty())
+
+            fixture.gateway.connect(SecretValue.of("saved-token")).getOrThrow()
+            val denied = fixture.gateway.redeploySite("site-0").exceptionOrNull()
+
+            assertTrue(denied is NetlifyUiException)
+            assertEquals("Netlify denied access. Check that this token can deploy the site.", denied?.message)
+            assertFalse(denied?.message.orEmpty().contains("secret"))
         } finally {
             fixture.close()
         }
@@ -199,9 +272,10 @@ class NativeNetlifyUiGatewayTest {
     }
 
     private class Fixture(
-        api: FakeApi,
+        val api: FakeApi,
         beforeAccept: suspend () -> Unit = {},
         afterAccept: suspend () -> Unit = {},
+        writeTransport: FakeHostingTransport = FakeHostingTransport { jsonResponse("{}") },
     ) {
         val store = BlockingAtomicBytesStore()
         val repository = NetlifyConnectionRepository(store, TestAccountCipher())
@@ -214,6 +288,7 @@ class NativeNetlifyUiGatewayTest {
             storageExecutor = storageExecutor,
             beforeAcceptValidatedConnection = beforeAccept,
             afterAcceptValidatedConnection = afterAccept,
+            writeApi = NetlifyWriteApi(writeTransport),
         )
 
         fun close() {
@@ -227,8 +302,11 @@ class NativeNetlifyUiGatewayTest {
         siteCount: Int,
         private val partialDeployments: Boolean = false,
         private val failBuilds: Boolean = false,
+        private val deploymentCount: Int = 1,
+        private val buildCount: Int = 1,
     ) : NetlifyReadApi {
         private val sites = List(siteCount) { index -> site(index) }
+        val sitePageRequests = java.util.concurrent.CopyOnWriteArrayList<Int>()
 
         override fun newValidatePersonalTokenCall(token: SecretValue): CancelableCall<NetlifyProfile> =
             FixedCall { NetlifyProfile("account", "Netlify Account", "owner@example.com", null) }
@@ -238,6 +316,7 @@ class NativeNetlifyUiGatewayTest {
             page: Int,
             perPage: Int,
         ): CancelableCall<List<NetlifySite>> = FixedCall {
+            sitePageRequests += page
             val from = ((page - 1) * perPage).coerceAtMost(sites.size)
             val to = (from + perPage).coerceAtMost(sites.size)
             sites.subList(from, to)
@@ -283,10 +362,8 @@ class NativeNetlifyUiGatewayTest {
             if (partialDeployments && page > 1) throw IOException("provider cannot be reached")
             if (partialDeployments) {
                 List(perPage) { index -> deployment(index) }
-            } else if (page == 1) {
-                listOf(deployment(0))
             } else {
-                emptyList()
+                pageOf(deploymentCount, page, perPage, ::deployment)
             }
         }
 
@@ -297,13 +374,19 @@ class NativeNetlifyUiGatewayTest {
             perPage: Int,
         ): CancelableCall<List<NetlifyBuild>> = FixedCall {
             if (failBuilds) throw IOException("provider cannot be reached")
-            if (page == 1) listOf(build(0)) else emptyList()
+            pageOf(buildCount, page, perPage, ::build)
         }
 
         override fun newBuildCall(
             token: SecretValue,
             buildId: String,
         ): CancelableCall<NetlifyBuild> = FixedCall { build(0).copy(id = buildId) }
+
+        private fun <T> pageOf(total: Int, page: Int, perPage: Int, item: (Int) -> T): List<T> {
+            val from = ((page - 1) * perPage).coerceAtMost(total)
+            val to = (from + perPage).coerceAtMost(total)
+            return (from until to).map(item)
+        }
 
         private fun site(index: Int) = NetlifySite(
             id = "site-$index",

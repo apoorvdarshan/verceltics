@@ -45,6 +45,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareAuthMode
 import com.apoorvdarshan.verceltics.data.cloudflare.tools.CloudflareApiTagSummary
 import com.apoorvdarshan.verceltics.data.cloudflare.tools.CloudflareOpenApiCatalog
 import com.apoorvdarshan.verceltics.data.cloudflare.tools.CloudflareOpenApiOperation
@@ -303,6 +304,7 @@ internal fun CloudflareApiOperationScreen(
     onUpdateContentType: (String) -> Unit,
     onReview: () -> Unit,
     modifier: Modifier = Modifier,
+    authMode: CloudflareAuthMode = CloudflareAuthMode.API_TOKEN,
 ) {
     if (editor == null || editor.operationId != operation.id) {
         ToolLoadingBlock("Preparing request…", modifier.fillMaxSize())
@@ -316,10 +318,10 @@ internal fun CloudflareApiOperationScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item("header") { OperationHeader(operation) }
-        if (!operation.supportsApiToken) {
+        if (!operation.supports(authMode)) {
             item("credential") {
                 ToolBanner(
-                    "Cloudflare’s schema does not list API-token authentication for this endpoint. Android connects with scoped API tokens only.",
+                    catalogCredentialWarning(authMode),
                     isError = true,
                     testTag = "cloudflare.catalog.credentialWarning",
                 )
@@ -420,7 +422,7 @@ internal fun CloudflareApiOperationScreen(
             ToolPrimaryButton(
                 text = "Review and execute request",
                 onClick = onReview,
-                enabled = operation.supportsApiToken,
+                enabled = operation.supports(authMode),
                 testTag = "cloudflare.catalog.review",
             )
         }
@@ -497,4 +499,12 @@ private fun ParameterEditor(parameter: CloudflareOpenApiParameter, value: String
             Text(parameter.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
+}
+
+/** iOS `CloudflareGeneratedOperationView.credentialWarning`. */
+internal fun catalogCredentialWarning(authMode: CloudflareAuthMode): String = when (authMode) {
+    CloudflareAuthMode.GLOBAL_API_KEY ->
+        "Cloudflare’s schema marks this endpoint as API-token only. Add a scoped token with the permissions shown below."
+    CloudflareAuthMode.API_TOKEN ->
+        "Cloudflare’s schema does not list API-token authentication for this endpoint. Switch to a Global API Key account."
 }

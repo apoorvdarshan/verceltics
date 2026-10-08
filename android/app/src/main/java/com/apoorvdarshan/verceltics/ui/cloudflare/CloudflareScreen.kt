@@ -51,6 +51,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -89,7 +90,17 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.apoorvdarshan.verceltics.data.account.SecretValue
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareAuthMode
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareCredential
 import com.apoorvdarshan.verceltics.domain.IntegrationCatalog
+import com.apoorvdarshan.verceltics.ui.components.ThemedAuthTextField
+import com.apoorvdarshan.verceltics.ui.cloudflare.operations.CloudflareWriteNotice
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import com.apoorvdarshan.verceltics.ui.components.ControlSearchField
 import com.apoorvdarshan.verceltics.ui.components.OffsetPanel
 import com.apoorvdarshan.verceltics.ui.components.ProviderMark
@@ -217,7 +228,7 @@ private fun resourceDisplayName(state: CloudflareUiState, selection: CloudflareR
 fun CloudflareScreen(
     state: CloudflareUiState,
     onBack: () -> Unit,
-    onConnect: (SecretValue) -> Unit,
+    onConnect: (CloudflareCredential) -> Unit,
     onRefresh: () -> Unit,
     onCancel: () -> Unit,
     onSelectAccount: (String) -> Unit,
@@ -239,7 +250,7 @@ fun CloudflareScreen(
     if (state.showDisconnectConfirmation) {
         ThemedAlertDialog(
             title = "Disconnect Cloudflare?",
-            message = "The encrypted API token and saved Cloudflare inventory will be removed from this device.",
+            message = "The encrypted Cloudflare credential and saved Cloudflare inventory will be removed from this device.",
             confirmText = "DISCONNECT",
             confirmTone = ThemedActionTone.DESTRUCTIVE,
             dismissText = "KEEP ACCOUNT",
@@ -485,23 +496,86 @@ private fun CloudflareLoading(message: String, modifier: Modifier = Modifier) {
     }
 }
 
+/** iOS Cloudflare credential help, shared by the connection form and its tests. */
+internal object CloudflareConnectCopy {
+    const val API_TOKENS_URL: String = "https://dash.cloudflare.com/profile/api-tokens"
+
+    fun title(mode: CloudflareAuthMode): String = when (mode) {
+        CloudflareAuthMode.GLOBAL_API_KEY -> "Connect with Global API Key"
+        CloudflareAuthMode.API_TOKEN -> "Connect with scoped API token"
+    }
+
+    fun steps(mode: CloudflareAuthMode): List<String> = when (mode) {
+        CloudflareAuthMode.GLOBAL_API_KEY -> listOf(
+            "Open Cloudflare My Profile → API Tokens",
+            "In API Keys, tap View beside Global API Key",
+            "Complete identity verification",
+            "Paste your login email and key below",
+        )
+        CloudflareAuthMode.API_TOKEN -> listOf(
+            "Open Cloudflare My Profile → API Tokens",
+            "Create a custom token with the product permissions you need",
+            "Include Account Read so the app can discover your accounts",
+            "Paste the token below",
+        )
+    }
+
+    fun storageNote(mode: CloudflareAuthMode): String = when (mode) {
+        CloudflareAuthMode.GLOBAL_API_KEY ->
+            "Encrypted and stored only on this device. The Global API Key has the same Cloudflare access as your user, including write access."
+        CloudflareAuthMode.API_TOKEN ->
+            "Encrypted and stored only on this device. The app can only use permissions and resources included in this token."
+    }
+
+    fun missingSecret(mode: CloudflareAuthMode): String = when (mode) {
+        CloudflareAuthMode.GLOBAL_API_KEY -> "Enter your Cloudflare Global API Key."
+        CloudflareAuthMode.API_TOKEN -> "Enter a Cloudflare API token."
+    }
+}
+
 @Composable
 private fun CloudflareConnectionForm(
     state: CloudflareUiState,
-    onConnect: (SecretValue) -> Unit,
+    onConnect: (CloudflareCredential) -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val controller = remember { CloudflareEphemeralTokenController() }
+    // iOS opens the Cloudflare form on the Global API Key mode.
+    var mode by rememberSaveable { mutableStateOf(CloudflareAuthMode.GLOBAL_API_KEY) }
+    // The login email is not a secret; the key or token only lives in the ephemeral EditText.
+    var email by rememberSaveable { mutableStateOf("") }
     var hasToken by remember { mutableStateOf(false) }
     var localError by remember { mutableStateOf<String?>(null) }
     val haptic = LocalHapticFeedback.current
+    val uriHandler = LocalUriHandler.current
     DisposableEffect(Unit) { onDispose(controller::clear) }
     LaunchedEffect(state.status) {
         if (state.status == CloudflareConnectionStatus.CONNECTED) {
             controller.clear()
             hasToken = false
         }
+    }
+    val emailIsValid = CloudflareCredential.validateEmail(email) == null
+    val canConnect = hasToken && (mode == CloudflareAuthMode.API_TOKEN || emailIsValid)
+    fun submit() {
+        if (mode == CloudflareAuthMode.GLOBAL_API_KEY) {
+            CloudflareCredential.validateEmail(email)?.let {
+                localError = it
+                return
+            }
+        }
+        val secret = controller.consume() ?: run {
+            localError = CloudflareConnectCopy.missingSecret(mode)
+            return
+        }
+        hasToken = false
+        onConnect(
+            when (mode) {
+                CloudflareAuthMode.GLOBAL_API_KEY -> CloudflareCredential.GlobalApiKey(email, secret)
+                CloudflareAuthMode.API_TOKEN -> CloudflareCredential.ApiToken(secret)
+            },
+        )
     }
     LazyColumn(
         modifier = modifier
@@ -530,34 +604,92 @@ private fun CloudflareConnectionForm(
                             )
                         }
                     }
+                    CloudflareAuthModePicker(
+                        selected = mode,
+                        enabled = state.operation != CloudflareOperation.CONNECTING,
+                        onSelect = { selected ->
+                            if (selected != mode) {
+                                controller.clear()
+                                hasToken = false
+                                localError = null
+                                mode = selected
+                            }
+                        },
+                    )
                     Text(
-                        "Use a scoped API token with Account Settings:Read, Zone:Read, Workers Scripts:Read and Cloudflare Pages:Read. Your token is encrypted and stored only on this device.",
+                        CloudflareConnectCopy.title(mode),
                         color = MaterialTheme.colorScheme.onSurface,
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.testTag("cloudflare.connect.title"),
                     )
-                    Text(
-                        "Connect using a scoped API token. Email and Global API Key connections are unavailable.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
+                    CloudflareConnectCopy.steps(mode).forEachIndexed { index, step ->
+                        CloudflareStepRow(number = index + 1, text = step)
+                    }
+                    Row(verticalAlignment = Alignment.Top) {
+                        Icon(Icons.Rounded.Lock, contentDescription = null, tint = CloudflareAccent, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(9.dp))
+                        Text(
+                            CloudflareConnectCopy.storageNote(mode),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
                 }
             }
+        }
+        item("open-tokens") {
+            ThemedActionButton(
+                "OPEN CLOUDFLARE API TOKENS",
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                    runCatching { uriHandler.openUri(CloudflareConnectCopy.API_TOKENS_URL) }
+                },
+                tone = ThemedActionTone.NEUTRAL,
+                modifier = Modifier.fillMaxWidth(),
+                testTag = "cloudflare.openApiTokens",
+            )
         }
         item("token") {
             OffsetPanel(Modifier.fillMaxWidth(), MaterialTheme.colorScheme.surface) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     Text("CONNECT CLOUDFLARE", style = MaterialTheme.typography.headlineSmall)
-                    CloudflareEphemeralTokenInput(
-                        controller = controller,
-                        onPresenceChange = {
-                            hasToken = it
-                            localError = null
-                        },
-                        onDone = {
-                            controller.consume()?.let(onConnect)
-                                ?: run { localError = "Enter a Cloudflare API token." }
-                        },
-                    )
+                    if (mode == CloudflareAuthMode.GLOBAL_API_KEY) {
+                        ThemedAuthTextField(
+                            value = email,
+                            onValueChange = {
+                                email = it.take(320)
+                                localError = null
+                            },
+                            label = "Cloudflare login email",
+                            enabled = state.operation != CloudflareOperation.CONNECTING,
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Email,
+                                imeAction = ImeAction.Next,
+                                autoCorrectEnabled = false,
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("cloudflare.email"),
+                        )
+                    }
+                    key(mode) {
+                        CloudflareEphemeralTokenInput(
+                            controller = controller,
+                            label = if (mode == CloudflareAuthMode.GLOBAL_API_KEY) "GLOBAL API KEY" else "SCOPED API TOKEN",
+                            hintText = if (mode == CloudflareAuthMode.GLOBAL_API_KEY) "Paste Global API Key" else "Paste scoped API token",
+                            accessibilityName = if (mode == CloudflareAuthMode.GLOBAL_API_KEY) {
+                                "Cloudflare Global API Key"
+                            } else {
+                                "Cloudflare scoped API token"
+                            },
+                            testTag = if (mode == CloudflareAuthMode.GLOBAL_API_KEY) "cloudflare.globalKey" else "cloudflare.token",
+                            onPresenceChange = {
+                                hasToken = it
+                                localError = null
+                            },
+                            onDone = ::submit,
+                        )
+                    }
                     (localError ?: state.error)?.let { CloudflareFeedback(it, true) }
                     state.notice?.let { CloudflareFeedback(it, false) }
                     if (state.operation == CloudflareOperation.CONNECTING) {
@@ -571,13 +703,10 @@ private fun CloudflareConnectionForm(
                     } else {
                         ThemedActionButton(
                             "CONNECT SECURELY",
-                            enabled = hasToken,
+                            enabled = canConnect,
                             onClick = {
                                 haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                                controller.consume()?.let {
-                                    hasToken = false
-                                    onConnect(it)
-                                } ?: run { localError = "Enter a Cloudflare API token." }
+                                submit()
                             },
                             modifier = Modifier.fillMaxWidth(),
                             testTag = "cloudflare.connect",
@@ -586,6 +715,70 @@ private fun CloudflareConnectionForm(
                 }
             }
         }
+    }
+}
+
+/** iOS segmented `Picker("Authentication")`: Global key first, then API token. */
+@Composable
+private fun CloudflareAuthModePicker(
+    selected: CloudflareAuthMode,
+    enabled: Boolean,
+    onSelect: (CloudflareAuthMode) -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+    ) {
+        Row(Modifier.padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            CloudflareAuthMode.entries.forEach { mode ->
+                val isSelected = mode == selected
+                Surface(
+                    onClick = { onSelect(mode) },
+                    enabled = enabled,
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 44.dp)
+                        .testTag(
+                            if (mode == CloudflareAuthMode.GLOBAL_API_KEY) "cloudflare.authMode.globalKey" else "cloudflare.authMode.apiToken",
+                        )
+                        .semantics {
+                            role = Role.Tab
+                            this.selected = isSelected
+                        },
+                    shape = RoundedCornerShape(9.dp),
+                    color = if (isSelected) MaterialTheme.colorScheme.surface else Color.Transparent,
+                    border = if (isSelected) BorderStroke(1.dp, CloudflareAccent) else null,
+                ) {
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp)) {
+                        Text(
+                            mode.displayName,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** iOS `StepRow`: a numbered connection step. */
+@Composable
+private fun CloudflareStepRow(number: Int, text: String) {
+    Row(verticalAlignment = Alignment.Top) {
+        Box(
+            Modifier
+                .size(22.dp)
+                .background(CloudflareAccent.copy(alpha = 0.14f), RoundedCornerShape(11.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("$number", style = MaterialTheme.typography.labelSmall, color = CloudflareAccent, fontWeight = FontWeight.Bold)
+        }
+        Spacer(Modifier.width(10.dp))
+        Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
     }
 }
 
@@ -728,6 +921,8 @@ private fun CloudflareDashboard(
         }
         state.error?.let { item("error") { CloudflareFeedback(it, true) } }
         state.notice?.let { item("notice") { CloudflareFeedback(it, false) } }
+        // iOS `CloudflareWriteNotice`: writes are available and always confirmed.
+        item("write-notice") { CloudflareWriteNotice() }
         if (dashboard.isPartial || dashboard.warnings.isNotEmpty() || inventory?.warnings?.isNotEmpty() == true) {
             item("warning") {
                 CloudflareWarningPanel(inventoryDisclosure(dashboard))
@@ -782,7 +977,10 @@ private fun CloudflareDashboard(
             items(workers, key = { "worker-${it.id}" }) { worker ->
                 CloudflareResourceRow(
                     title = worker.id,
-                    subtitle = worker.handlers.joinToString(", ").ifBlank { "Worker script" },
+                    subtitle = listOfNotNull(
+                        worker.handlers.joinToString(", ").ifBlank { null },
+                        worker.routes.size.takeIf { it > 0 }?.let { if (it == 1) "1 route" else "$it routes" },
+                    ).joinToString(" · ").ifBlank { "Worker script" },
                     status = if (worker.hasModules == true) "Modules" else "Script",
                     icon = Icons.Rounded.Code,
                     testTag = "cloudflare.worker.${worker.id}",
@@ -790,7 +988,7 @@ private fun CloudflareDashboard(
                 )
             }
         } ?: item("no-account") {
-            CloudflareWarningPanel("This token returned no accessible Cloudflare account inventory.")
+            CloudflareWarningPanel("This Cloudflare credential returned no accessible account inventory.")
         }
         advancedTools?.let { tools -> item("advanced") { CloudflareAdvancedSection(tools) } }
         item("disconnect") {
@@ -815,7 +1013,7 @@ private fun CloudflareCommandCard(dashboard: CloudflareDashboardUi, hasOperation
     ProviderSummaryCard(
         provider = requireNotNull(IntegrationCatalog.provider("cloudflare")),
         title = dashboard.selectedAccount?.name ?: dashboard.profile.displayName,
-        subtitle = "Token ${dashboard.profile.tokenStatus.lowercase()} · read-only",
+        subtitle = cloudflareCredentialSubtitle(dashboard.profile),
         status = if (attention) "Attention" else "Connected",
         statusColor = if (attention) CloudflareWarning else CloudflareSuccess,
         detail = "${cacheLabel(dashboard.cacheState)} data",
@@ -1156,12 +1354,16 @@ private fun CloudflareEphemeralTokenInput(
     controller: CloudflareEphemeralTokenController,
     onPresenceChange: (Boolean) -> Unit,
     onDone: () -> Unit,
+    label: String = "SCOPED API TOKEN",
+    hintText: String = "Enter Cloudflare token",
+    accessibilityName: String = "Cloudflare scoped API token",
+    testTag: String = "cloudflare.token",
 ) {
     val colors = MaterialTheme.colorScheme
     val haptic = LocalHapticFeedback.current
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(
-            "SCOPED API TOKEN",
+            label,
             style = MaterialTheme.typography.labelSmall.copy(
                 fontFamily = FontFamily.Monospace,
                 letterSpacing = 0.8.sp,
@@ -1189,8 +1391,8 @@ private fun CloudflareEphemeralTokenInput(
                             textSize = 16f
                             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
                             setPadding(0, 0, 0, 0)
-                            hint = "Enter Cloudflare token"
-                            contentDescription = "Cloudflare scoped API token"
+                            hint = hintText
+                            contentDescription = accessibilityName
                             addTextChangedListener(object : TextWatcher {
                                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
                                 override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
@@ -1213,21 +1415,21 @@ private fun CloudflareEphemeralTokenInput(
                     modifier = Modifier
                         .weight(1f)
                         .heightIn(min = 54.dp)
-                        .testTag("cloudflare.token")
+                        .testTag(testTag)
                         .semantics {
-                            contentDescription = "Cloudflare scoped API token"
+                            contentDescription = accessibilityName
                             password()
                             this[SemanticsProperties.EditableText] = AnnotatedString("")
                             this[SemanticsActions.RequestFocus] = AccessibilityAction(
-                                label = "Focus Cloudflare scoped API token",
+                                label = "Focus $accessibilityName",
                                 action = controller::requestFocus,
                             )
                             this[SemanticsActions.SetText] = AccessibilityAction(
-                                label = "Enter Cloudflare scoped API token",
+                                label = "Enter $accessibilityName",
                                 action = { value -> controller.replace(value.text) },
                             )
                             this[SemanticsActions.InsertTextAtCursor] = AccessibilityAction(
-                                label = "Type Cloudflare scoped API token",
+                                label = "Type $accessibilityName",
                                 action = { value -> controller.insert(value.text) },
                             )
                         },
@@ -1305,9 +1507,15 @@ private fun CloudflarePagesProjectUi.matches(query: String): Boolean = query.isB
     subdomain?.contains(query, ignoreCase = true) == true ||
     domains.any { it.contains(query, ignoreCase = true) }
 
-private fun CloudflareWorkerUi.matches(query: String): Boolean = query.isBlank() ||
-    id.contains(query, ignoreCase = true) ||
-    handlers.any { it.contains(query, ignoreCase = true) }
+
+/**
+ * The summary card's credential line. iOS labels the connection with `email ?? "Scoped API token"`
+ * and the dashboard is writable (every write is confirmed), so it never claims to be read-only.
+ */
+internal fun cloudflareCredentialSubtitle(profile: CloudflareProfileUi): String = when (profile.authMode) {
+    CloudflareAuthMode.GLOBAL_API_KEY -> "${profile.credentialLabel} · Global API Key · writes confirmed"
+    CloudflareAuthMode.API_TOKEN -> "Scoped API token ${profile.tokenStatus.lowercase()} · writes confirmed"
+}
 
 private fun resourceTitle(kind: CloudflareResourceKind): String = when (kind) {
     CloudflareResourceKind.ZONE -> "Zone details"

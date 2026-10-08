@@ -1,6 +1,6 @@
 package com.apoorvdarshan.verceltics.data.cloudflare.tools
 
-import com.apoorvdarshan.verceltics.data.account.SecretValue
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareCredential
 import com.apoorvdarshan.verceltics.data.network.CancelableCall
 import com.apoorvdarshan.verceltics.data.network.HttpResponse
 import java.nio.charset.StandardCharsets
@@ -11,14 +11,23 @@ class RecordingToolsTransport(
 ) : CloudflareToolsTransport {
     val requests = mutableListOf<CloudflareToolsHttpRequest>()
     val tokens = mutableListOf<String>()
+
+    /** Authentication headers each request carried (bearer or X-Auth-Email/X-Auth-Key). */
+    val authHeaders = mutableListOf<Map<String, String>>()
     var cancelledCalls = 0
         private set
 
-    override fun newCall(request: CloudflareToolsHttpRequest, token: SecretValue): CancelableCall<HttpResponse> =
+    override fun newCall(request: CloudflareToolsHttpRequest, credential: CloudflareCredential): CancelableCall<HttpResponse> =
         object : CancelableCall<HttpResponse> {
             override fun execute(): HttpResponse {
                 requests += request
-                tokens += token.use { it }
+                tokens += when (credential) {
+                    is CloudflareCredential.ApiToken -> credential.token.use { it }
+                    is CloudflareCredential.GlobalApiKey -> credential.key.use { it }
+                }
+                authHeaders += LinkedHashMap<String, String>().also { headers ->
+                    credential.applyHeaders { name, value -> headers[name] = value }
+                }
                 return handler(request)
             }
 

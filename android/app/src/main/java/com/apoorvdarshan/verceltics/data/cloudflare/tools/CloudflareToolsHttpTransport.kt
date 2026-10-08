@@ -1,12 +1,11 @@
 package com.apoorvdarshan.verceltics.data.cloudflare.tools
 
 import com.apoorvdarshan.verceltics.BuildConfig
-import com.apoorvdarshan.verceltics.data.account.SecretValue
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareCredential
 import com.apoorvdarshan.verceltics.data.network.CancelableCall
 import com.apoorvdarshan.verceltics.data.network.HttpResponse
 import com.apoorvdarshan.verceltics.data.network.ResponseTooLargeException
 import com.apoorvdarshan.verceltics.data.network.UnsafeRedirectException
-import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.net.HttpURLConnection
@@ -18,9 +17,12 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import javax.net.ssl.HttpsURLConnection
 
-/** Sends one authenticated Cloudflare tools request. Implementations must stay on api.cloudflare.com. */
+/**
+ * Sends one authenticated Cloudflare tools request. Implementations must stay on api.cloudflare.com
+ * and authenticate with [credential] (bearer token or `X-Auth-Email` + `X-Auth-Key`).
+ */
 fun interface CloudflareToolsTransport {
-    fun newCall(request: CloudflareToolsHttpRequest, token: SecretValue): CancelableCall<HttpResponse>
+    fun newCall(request: CloudflareToolsHttpRequest, credential: CloudflareCredential): CancelableCall<HttpResponse>
 }
 
 /**
@@ -39,10 +41,10 @@ class SecureCloudflareToolsTransport(
         require(maximumRedirects in 0..5) { "Invalid redirect limit." }
     }
 
-    override fun newCall(request: CloudflareToolsHttpRequest, token: SecretValue): CancelableCall<HttpResponse> =
+    override fun newCall(request: CloudflareToolsHttpRequest, credential: CloudflareCredential): CancelableCall<HttpResponse> =
         CloudflareToolsHttpCall(
             request = request,
-            token = token,
+            credential = credential,
             connectTimeoutMillis = connectTimeoutMillis,
             readTimeoutMillis = readTimeoutMillis,
             maximumResponseBytes = maximumResponseBytes,
@@ -50,14 +52,15 @@ class SecureCloudflareToolsTransport(
         )
 
     companion object {
-        const val DEFAULT_MAXIMUM_RESPONSE_BYTES = 8 * 1_024 * 1_024
-        private const val HARD_MAXIMUM_RESPONSE_BYTES = 32 * 1_024 * 1_024
+        /** iOS `CloudflareAPI.execute` accepts responses up to 32 MB. */
+        const val DEFAULT_MAXIMUM_RESPONSE_BYTES = 32 * 1_024 * 1_024
+        const val HARD_MAXIMUM_RESPONSE_BYTES = 32 * 1_024 * 1_024
     }
 }
 
 private class CloudflareToolsHttpCall(
     private val request: CloudflareToolsHttpRequest,
-    private val token: SecretValue,
+    private val credential: CloudflareCredential,
     private val connectTimeoutMillis: Int,
     private val readTimeoutMillis: Int,
     private val maximumResponseBytes: Int,
@@ -145,7 +148,7 @@ private class CloudflareToolsHttpCall(
         request.headers.forEach { (name, value) ->
             if (!CloudflareExplorerRequestBuilder.isProtectedHeader(name)) connection.setRequestProperty(name, value)
         }
-        token.use { connection.setRequestProperty("Authorization", "Bearer $it") }
+        credential.applyHeaders(connection::setRequestProperty)
         return connection
     }
 
@@ -170,21 +173,22 @@ private class CloudflareToolsHttpCall(
         return target
     }
 
-    private fun readBounded(input: InputStream): ByteArray {
+    /**
+     * Reads into fixed-size segments and joins them once at the end. Unlike a doubling
+     * `ByteArrayOutputStream`, a 32 MB response never holds more than about twice its own size,
+     * and nothing is preallocated beyond what Cloudflare actually sends.
+     */
+    private fun readBounded(input: InputStream): ByteArray = CloudflareSegmentedBuffer().use { output ->
         val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-        return try {
-            WipingStream(minOf(64 * 1_024, maximumResponseBytes)).use { output ->
-                var total = 0
-                while (true) {
-                    throwIfCancelled()
-                    val count = input.read(buffer)
-                    if (count < 0) break
-                    total += count
-                    if (total > maximumResponseBytes) throw ResponseTooLargeException(maximumResponseBytes)
-                    output.write(buffer, 0, count)
-                }
-                output.toByteArray()
+        try {
+            while (true) {
+                throwIfCancelled()
+                val count = input.read(buffer)
+                if (count < 0) break
+                if (output.size.toLong() + count > maximumResponseBytes) throw ResponseTooLargeException(maximumResponseBytes)
+                output.write(buffer, count)
             }
+            output.toByteArray()
         } finally {
             buffer.fill(0)
         }
@@ -205,10 +209,44 @@ private class CloudflareToolsHttpCall(
     }
 }
 
-private class WipingStream(initialSize: Int) : ByteArrayOutputStream(initialSize) {
+/** Append-only byte storage in 256 KB segments that are wiped on close. */
+internal class CloudflareSegmentedBuffer(private val segmentSize: Int = 256 * 1_024) : java.io.Closeable {
+    private val segments = ArrayList<ByteArray>()
+    private var lastFill = 0
+
+    var size: Int = 0
+        private set
+
+    fun write(source: ByteArray, count: Int) {
+        var offset = 0
+        while (offset < count) {
+            if (segments.isEmpty() || lastFill == segmentSize) {
+                segments += ByteArray(segmentSize)
+                lastFill = 0
+            }
+            val chunk = minOf(count - offset, segmentSize - lastFill)
+            System.arraycopy(source, offset, segments.last(), lastFill, chunk)
+            lastFill += chunk
+            offset += chunk
+            size += chunk
+        }
+    }
+
+    fun toByteArray(): ByteArray {
+        val output = ByteArray(size)
+        var position = 0
+        segments.forEachIndexed { index, segment ->
+            val length = if (index == segments.lastIndex) lastFill else segmentSize
+            System.arraycopy(segment, 0, output, position, length)
+            position += length
+        }
+        return output
+    }
+
     override fun close() {
-        buf.fill(0)
-        reset()
-        super.close()
+        segments.forEach { it.fill(0) }
+        segments.clear()
+        lastFill = 0
+        size = 0
     }
 }

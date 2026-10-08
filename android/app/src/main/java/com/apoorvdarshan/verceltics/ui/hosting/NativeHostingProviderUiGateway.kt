@@ -124,16 +124,15 @@ class NativeHostingProviderUiGateway internal constructor(
         val provider = provider(providerId)
         val saved = executeAwait(storageExecutor) { connectionStore.loadForRefresh(provider) }
             ?: throw HostingUiException("Connect ${provider.displayName} first.")
+        // The complete history, as iOS shows it; pagination is bounded by the adapters' page guards.
         val deployments = withContext(workDispatcher) {
             api.fetchDeployments(saved.account.credentials, resource.toModel())
         }
-        val visible = deployments.take(MAXIMUM_VISIBLE_HISTORY_ITEMS)
         HostingResourceWorkspaceUi(
             providerId = providerId,
             resourceId = resource.id,
-            deployments = visible.map(HostingDeployment::toUi),
+            deployments = deployments.map(HostingDeployment::toUi),
             loadedDeploymentCount = deployments.size,
-            truncatedForDisplay = deployments.size > visible.size,
         )
     }
 
@@ -229,12 +228,12 @@ class NativeHostingProviderUiGateway internal constructor(
         )
     }
 
-    private fun HostingSnapshot.toDashboardUi(link: HostingLinkContext, cacheState: HostingCacheState): HostingDashboardUi {
-        val visible = resources.take(MAXIMUM_VISIBLE_RESOURCES)
-        return HostingDashboardUi(
+    /** The live inventory is never truncated; only the encrypted offline cache is bounded. */
+    private fun HostingSnapshot.toDashboardUi(link: HostingLinkContext, cacheState: HostingCacheState): HostingDashboardUi =
+        HostingDashboardUi(
             providerId = provider.id,
             account = profile.toUi(),
-            resources = visible.map { resource ->
+            resources = resources.map { resource ->
                 HostingResourceUi(
                     id = resource.id,
                     name = resource.name,
@@ -250,18 +249,14 @@ class NativeHostingProviderUiGateway internal constructor(
                 )
             },
             loadedResourceCount = resources.size,
-            truncatedForDisplay = resources.size > visible.size,
             warnings = warnings,
             fetchedAtMillis = fetchedAtMillis,
             cacheState = cacheState,
             dashboardUrl = HostingProviderApi.dashboardUrl(link),
             apiExplorerPath = HostingApiDefaults.explorerPath(link),
         )
-    }
 
     companion object {
-        const val MAXIMUM_VISIBLE_RESOURCES: Int = 200
-        const val MAXIMUM_VISIBLE_HISTORY_ITEMS: Int = 100
         internal const val RAILWAY_CATALOG_LIFETIME_MILLIS: Long = 5 * 60 * 1_000L
 
         fun create(context: Context, googleAccessTokenSource: GoogleAccessTokenSource): NativeHostingProviderUiGateway {

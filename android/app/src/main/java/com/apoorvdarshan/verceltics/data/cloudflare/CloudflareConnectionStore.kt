@@ -10,7 +10,7 @@ class CloudflareConnectionCommit internal constructor(
         "CloudflareConnectionCommit(profileId=$profileId, recordCommit=<redacted>)"
 }
 
-/** Coordinates encrypted persistence while keeping restore strictly offline and token-free. */
+/** Coordinates encrypted persistence while keeping restore strictly offline and credential-free. */
 class CloudflareConnectionStore(
     private val repository: CloudflareConnectionRepository,
     private val nowMillis: () -> Long = System::currentTimeMillis,
@@ -30,14 +30,22 @@ class CloudflareConnectionStore(
         CloudflareRestoreResult.Unavailable(CloudflareRestoreProblem.SAVED_RECORD_UNREADABLE)
     }
 
-    /** Internal backend access for refresh. UI-facing restore never receives the token. */
+    /** Internal backend access for refresh. UI-facing restore never receives the credential. */
     internal fun loadForRefresh(): CloudflareVersionedConnection? = repository.loadWithRevision()
 
     fun saveValidatedConnection(
         token: SecretValue,
         result: CloudflareFetchResult,
+    ): CloudflareConnectionCommit = saveValidatedConnection(CloudflareCredential.ApiToken(token), result)
+
+    fun saveValidatedConnection(
+        credential: CloudflareCredential,
+        result: CloudflareFetchResult,
     ): CloudflareConnectionCommit {
         val snapshot = result.snapshotOrThrow()
+        require(snapshot.profile.authMode == credential.authMode) {
+            "The Cloudflare validation belongs to a different authentication mode."
+        }
         val now = nowMillis()
         val existing = repository.load()
         val sameProfile = existing?.takeIf { it.account.profile.id == snapshot.profile.id }
@@ -50,7 +58,7 @@ class CloudflareConnectionStore(
         val connection = CloudflareStoredConnection(
             account = CloudflareAccount(
                 profile = snapshot.profile,
-                apiToken = token,
+                credential = credential,
                 createdAtMillis = sameProfile?.account?.createdAtMillis ?: now,
                 updatedAtMillis = now,
             ),
@@ -90,7 +98,7 @@ class CloudflareConnectionStore(
             connection = CloudflareStoredConnection(
                 account = CloudflareAccount(
                     profile = liveSnapshot.profile,
-                    apiToken = existing.account.apiToken,
+                    credential = existing.account.credential,
                     createdAtMillis = existing.account.createdAtMillis,
                     updatedAtMillis = nowMillis(),
                 ),
@@ -190,6 +198,8 @@ class CloudflareConnectionStore(
         modifiedOn = modifiedOn?.take(CACHED_DATE_CHARACTERS),
         compatibilityDate = compatibilityDate?.take(CACHED_DATE_CHARACTERS),
         handlers = handlers.take(MAX_CACHED_NESTED_VALUES).map { it.take(CACHED_HANDLER_CHARACTERS) },
+        routes = routes.take(MAX_CACHED_NESTED_VALUES).map { it.take(CACHED_DOMAIN_CHARACTERS) },
+        tags = tags.take(MAX_CACHED_NESTED_VALUES).map { it.take(CACHED_HANDLER_CHARACTERS) },
     )
 
     /**

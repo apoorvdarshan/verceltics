@@ -1,6 +1,7 @@
 package com.apoorvdarshan.verceltics.ui.cloudflare.tools
 
-import com.apoorvdarshan.verceltics.data.account.SecretValue
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareCredential
+import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareMutationEvent
 import com.apoorvdarshan.verceltics.data.cloudflare.tools.CloudflareExplorerDraft
 import com.apoorvdarshan.verceltics.data.cloudflare.tools.CloudflareGraphQLScope
 import com.apoorvdarshan.verceltics.data.cloudflare.tools.CloudflareHttpMethod
@@ -29,7 +30,7 @@ class CloudflareToolsGatewayTest {
     fun nativeGatewayUsesTheSavedTokenAndNeverLeaksIt() = runTest {
         val transport = RecordingToolsTransport()
         val gateway = NativeCloudflareToolsGateway(
-            tokenSource = { SecretValue.of("saved-cloudflare-token") },
+            credentialSource = { CloudflareCredential.apiToken("saved-cloudflare-token") },
             catalogStore = catalogStore,
             api = CloudflareToolsApi(transport),
             executor = direct,
@@ -46,6 +47,79 @@ class CloudflareToolsGatewayTest {
         assertEquals(1, transport.requests.size)
 
         assertEquals(1, gateway.loadCatalog().getOrThrow().operations.size)
+    }
+
+    @Test
+    fun globalApiKeyToolsSendEmailAndKeyHeadersOnEveryRequest() = runTest {
+        val transport = RecordingToolsTransport { request ->
+            when {
+                request.uri.rawPath.endsWith("/members") || request.uri.rawPath.endsWith("/roles") ->
+                    jsonResponse(200, """{"success":true,"result":[]}""")
+                request.uri.rawPath.endsWith("/logs/audit") -> jsonResponse(200, """{"success":true,"result":[]}""")
+                request.uri.rawPath.endsWith("/graphql") ->
+                    jsonResponse(200, """{"data":{"__type":{"fields":[{"name":"settings","type":{"name":"AccountSettings"}}]}}}""")
+                else -> jsonResponse(200, """{"success":true,"result":{"id":"acc","name":"Studio"}}""")
+            }
+        }
+        val gateway = NativeCloudflareToolsGateway(
+            credentialSource = { CloudflareCredential.globalApiKey("Owner@Example.com", "global-key") },
+            catalogStore = catalogStore,
+            api = CloudflareToolsApi(transport),
+            executor = direct,
+        )
+        gateway.execute(CloudflareExplorerDraft(path = "/accounts"), null, null).getOrThrow()
+        gateway.loadAccountDetail("acc").getOrThrow()
+        gateway.loadAccountOperations("acc").getOrThrow()
+        gateway.loadDatasets(CloudflareGraphQLScope.ACCOUNT, "acc", null)
+
+        assertTrue(transport.authHeaders.size >= 6)
+        transport.authHeaders.forEach { headers ->
+            assertEquals(mapOf("X-Auth-Email" to "owner@example.com", "X-Auth-Key" to "global-key"), headers)
+        }
+    }
+
+    @Test
+    fun successfulExplorerWritesReachTheMutationSinkButReadsAndFailuresDoNot() = runTest {
+        var status = 200
+        val transport = RecordingToolsTransport { jsonResponse(status, """{"success":true,"result":{}}""") }
+        val events = mutableListOf<CloudflareMutationEvent>()
+        val gateway = NativeCloudflareToolsGateway(
+            credentialSource = { CloudflareCredential.apiToken("t") },
+            catalogStore = catalogStore,
+            api = CloudflareToolsApi(transport, mutationSink = { events += it }),
+            executor = direct,
+        )
+
+        gateway.execute(CloudflareExplorerDraft(path = "/zones"), null, null).getOrThrow()
+        assertTrue(events.isEmpty())
+
+        gateway.execute(
+            CloudflareExplorerDraft(method = CloudflareHttpMethod.POST, path = "/zones", bodyText = "{}"),
+            CloudflareMutationConfirmation("/zones"),
+            null,
+        ).getOrThrow()
+        assertEquals(listOf("POST /zones"), events.map { "${it.method} ${it.apiPath}" })
+
+        status = 400
+        gateway.execute(
+            CloudflareExplorerDraft(method = CloudflareHttpMethod.DELETE, path = "/zones/z"),
+            CloudflareMutationConfirmation("/zones/z"),
+            null,
+        ).getOrThrow()
+        assertEquals(1, events.size)
+
+        status = 200
+        gateway.execute(
+            CloudflareExplorerDraft(
+                method = CloudflareHttpMethod.POST,
+                path = "/graphql",
+                bodyText = """{"query":"query { viewer { zones { zoneTag } } }"}""",
+                readOnlyGraphQL = true,
+            ),
+            null,
+            null,
+        ).getOrThrow()
+        assertEquals(1, events.size)
     }
 
     @Test
@@ -73,7 +147,7 @@ class CloudflareToolsGatewayTest {
             }
         }
         val clock = Clock.fixed(Instant.parse("2026-10-09T00:00:00Z"), ZoneOffset.UTC)
-        val gateway = NativeCloudflareToolsGateway({ SecretValue.of("t") }, catalogStore, CloudflareToolsApi(transport), direct, clock)
+        val gateway = NativeCloudflareToolsGateway({ CloudflareCredential.apiToken("t") }, catalogStore, CloudflareToolsApi(transport), direct, clock)
         val snapshot = gateway.loadAccountOperations("acc").getOrThrow()
         assertEquals("Studio", snapshot.account?.name)
         assertEquals(listOf("amy@example.com", "zed@example.com"), snapshot.members.map { it.resolvedEmail })

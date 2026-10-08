@@ -1,7 +1,7 @@
 package com.apoorvdarshan.verceltics.ui.cloudflare.tools
 
 import android.content.Context
-import com.apoorvdarshan.verceltics.data.account.SecretValue
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareCredential
 import com.apoorvdarshan.verceltics.data.cloudflare.tools.CloudflareAccountDetail
 import com.apoorvdarshan.verceltics.data.cloudflare.tools.CloudflareAccountMember
 import com.apoorvdarshan.verceltics.data.cloudflare.tools.CloudflareAccountOperationsSnapshot
@@ -33,7 +33,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 
-/** UI boundary for the Cloudflare tools. Tokens never cross it; failures carry safe messages. */
+/** UI boundary for the Cloudflare tools. Credentials never cross it; failures carry safe messages. */
 interface CloudflareToolsGateway {
     /** True for offline sample fixtures, which never send requests or read saved credentials. */
     val isOfflineSample: Boolean
@@ -62,14 +62,21 @@ class CloudflareToolsUiException(message: String) : Exception(message) {
     override fun toString(): String = "CloudflareToolsUiException(message=$message)"
 }
 
-/** Supplies the saved Cloudflare API token on demand, or null when Cloudflare is disconnected. */
-fun interface CloudflareToolsTokenSource {
-    suspend fun loadToken(): SecretValue?
+/**
+ * Supplies the saved Cloudflare credential (scoped token or email + Global API Key) on demand, or
+ * null when Cloudflare is disconnected.
+ */
+fun interface CloudflareToolsCredentialSource {
+    suspend fun loadCredential(): CloudflareCredential?
 }
 
-/** Production gateway: every request uses the token saved by the Cloudflare dashboard. */
+/**
+ * Production gateway: every request uses the credential saved by the Cloudflare dashboard. Pass an
+ * [api] built with a mutation sink so explorer writes refresh the dashboard (iOS
+ * `cloudflareDataDidChange`).
+ */
 class NativeCloudflareToolsGateway(
-    private val tokenSource: CloudflareToolsTokenSource,
+    private val credentialSource: CloudflareToolsCredentialSource,
     private val catalogStore: CloudflareOpenApiCatalogStore,
     private val api: CloudflareToolsApi = CloudflareToolsApi(),
     private val executor: Executor = CloudflareToolsServices.networkExecutor,
@@ -84,8 +91,8 @@ class NativeCloudflareToolsGateway(
         confirmation: CloudflareMutationConfirmation?,
         attachedBody: ByteArray?,
     ): Result<CloudflareRawResponse> = capture {
-        val token = requireToken()
-        api.newRawRequestCall(token, draft, confirmation, attachedBody).awaitProviderCall(executor)
+        val credential = requireCredential()
+        api.newRawRequestCall(credential, draft, confirmation, attachedBody).awaitProviderCall(executor)
     }
 
     override suspend fun loadCatalog(): Result<CloudflareOpenApiCatalog> = capture {
@@ -97,16 +104,16 @@ class NativeCloudflareToolsGateway(
         accountId: String,
         zoneId: String?,
     ): Result<List<CloudflareGraphQLDataset>> = capture {
-        val token = requireToken()
-        datasetLoader.newLoadCall(token, scope, accountId, zoneId).awaitProviderCall(executor)
+        val credential = requireCredential()
+        datasetLoader.newLoadCall(credential, scope, accountId, zoneId).awaitProviderCall(executor)
     }
 
     override suspend fun loadAccountDetail(accountId: String): Result<CloudflareAccountDetail> = capture {
-        api.newAccountDetailCall(requireToken(), accountId).awaitProviderCall(executor)
+        api.newAccountDetailCall(requireCredential(), accountId).awaitProviderCall(executor)
     }
 
     override suspend fun loadAccountOperations(accountId: String): Result<CloudflareAccountOperationsSnapshot> = capture {
-        val token = requireToken()
+        val token = requireCredential()
         val before = clock.instant()
         val since = before.minus(Duration.ofDays(7))
         coroutineScope {
@@ -141,7 +148,7 @@ class NativeCloudflareToolsGateway(
         Result.failure(error)
     }
 
-    private suspend fun requireToken(): SecretValue = tokenSource.loadToken()
+    private suspend fun requireCredential(): CloudflareCredential = credentialSource.loadCredential()
         ?: throw CloudflareToolsException(
             CloudflareToolsFailureKind.NOT_CONNECTED,
             "Connect a Cloudflare account first.",

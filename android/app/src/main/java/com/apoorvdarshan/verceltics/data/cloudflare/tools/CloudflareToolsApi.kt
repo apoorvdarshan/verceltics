@@ -1,6 +1,8 @@
 package com.apoorvdarshan.verceltics.data.cloudflare.tools
 
-import com.apoorvdarshan.verceltics.data.account.SecretValue
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareAuthMode
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareCredential
+import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareMutationEvent
 import com.apoorvdarshan.verceltics.data.network.CancelableCall
 import com.apoorvdarshan.verceltics.data.network.HttpResponse
 import com.apoorvdarshan.verceltics.data.network.ProviderJsonValue
@@ -19,9 +21,13 @@ import java.util.concurrent.atomic.AtomicReference
  * Authenticated Cloudflare tooling calls: the raw API explorer, GraphQL Analytics and account
  * operations. Every request is built by [CloudflareExplorerRequestBuilder] and pinned to
  * `https://api.cloudflare.com/client/v4`.
+ *
+ * [mutationSink] receives every successful explorer write (iOS `publishMutation` →
+ * `cloudflareDataDidChange`), so the dashboard and open screens can reconcile.
  */
 class CloudflareToolsApi(
     private val transport: CloudflareToolsTransport = SecureCloudflareToolsTransport(),
+    private val mutationSink: (CloudflareMutationEvent) -> Unit = {},
     private val nanoTime: () -> Long = System::nanoTime,
 ) {
     /**
@@ -29,23 +35,26 @@ class CloudflareToolsApi(
      * and unconfirmed writes throw [CloudflareToolsException] before anything is sent.
      */
     fun newRawRequestCall(
-        token: SecretValue,
+        credential: CloudflareCredential,
         draft: CloudflareExplorerDraft,
         confirmation: CloudflareMutationConfirmation?,
         attachedBody: ByteArray? = null,
     ): CancelableCall<CloudflareRawResponse> {
         val request = CloudflareExplorerRequestBuilder.build(draft, confirmation, attachedBody)
+        val publishesMutation = request.method.isMutation && !isReadOnlyGraphQL(request)
         return SequentialCloudflareCall {
             val started = nanoTime()
-            val response = child(transport.newCall(request, token))
+            val response = child(transport.newCall(request, credential))
             val elapsed = ((nanoTime() - started) / 1_000_000L).coerceAtLeast(0)
-            response.toRawResponse(elapsed)
+            response.toRawResponse(elapsed).also { raw ->
+                if (publishesMutation && raw.isSuccess) mutationSink(mutationEvent(request))
+            }
         }
     }
 
-    /** iOS `rawGraphQLQuery`: HTTP failures throw token-scope-aware errors. */
+    /** iOS `rawGraphQLQuery`: HTTP failures throw credential-aware errors. */
     fun newGraphQLCall(
-        token: SecretValue,
+        credential: CloudflareCredential,
         query: String,
         variables: Map<String, ProviderJsonValue> = emptyMap(),
         requiredPermission: String? = "Analytics Read",
@@ -69,41 +78,42 @@ class CloudflareToolsApi(
             contentType = "application/json",
         )
         return SequentialCloudflareCall {
-            val response = child(transport.newCall(request, token)).toRawResponse(null)
+            val response = child(transport.newCall(request, credential)).toRawResponse(null)
             if (!response.isSuccess) {
                 throw CloudflareToolsErrors.forStatus(
                     statusCode = response.statusCode,
                     providerMessages = CloudflareToolsErrors.providerMessages(response),
                     subject = "Cloudflare GraphQL Analytics",
                     requiredPermission = requiredPermission,
+                    authMode = credential.authMode,
                 )
             }
             response
         }
     }
 
-    fun newAccountDetailCall(token: SecretValue, accountId: String): CancelableCall<CloudflareAccountDetail> {
+    fun newAccountDetailCall(credential: CloudflareCredential, accountId: String): CancelableCall<CloudflareAccountDetail> {
         val request = getRequest("/accounts/${segment(accountId)}")
         return SequentialCloudflareCall {
-            val response = child(transport.newCall(request, token)).toRawResponse(null)
-            val result = envelopeResult(response, "this account", ACCOUNT_SETTINGS_READ)
+            val response = child(transport.newCall(request, credential)).toRawResponse(null)
+            val result = envelopeResult(response, "this account", ACCOUNT_SETTINGS_READ, credential.authMode)
             CloudflareAccountOperationsParser.accountDetail(result)
         }
     }
 
-    fun newMembersCall(token: SecretValue, accountId: String): CancelableCall<List<CloudflareAccountMember>> =
-        allPagesCall(token, "/accounts/${segment(accountId)}/members", "account members") {
+    fun newMembersCall(credential: CloudflareCredential, accountId: String): CancelableCall<List<CloudflareAccountMember>> =
+        allPagesCall(credential, "/accounts/${segment(accountId)}/members", "account members") {
             CloudflareAccountOperationsParser.member(it)
         }
 
-    fun newRolesCall(token: SecretValue, accountId: String): CancelableCall<List<CloudflareAccountRole>> =
-        allPagesCall(token, "/accounts/${segment(accountId)}/roles", "account roles") {
+    fun newRolesCall(credential: CloudflareCredential, accountId: String): CancelableCall<List<CloudflareAccountRole>> =
+        allPagesCall(credential, "/accounts/${segment(accountId)}/roles", "account roles") {
             CloudflareAccountOperationsParser.role(it)
         }
 
     /** iOS `fetchAccountAuditEvents`: newest-first, bounded to [limit] events. */
     fun newAuditEventsCall(
-        token: SecretValue,
+        credential: CloudflareCredential,
         accountId: String,
         since: Instant,
         before: Instant,
@@ -125,8 +135,8 @@ class CloudflareToolsApi(
             ),
         )
         return SequentialCloudflareCall {
-            val response = child(transport.newCall(request, token)).toRawResponse(null)
-            val result = envelopeResult(response, "the account audit log", ACCOUNT_SETTINGS_READ)
+            val response = child(transport.newCall(request, credential)).toRawResponse(null)
+            val result = envelopeResult(response, "the account audit log", ACCOUNT_SETTINGS_READ, credential.authMode)
             result.arrayValue?.map(CloudflareAccountOperationsParser::auditEvent)
                 ?: throw CloudflareToolsException(
                     CloudflareToolsFailureKind.INVALID_RESPONSE,
@@ -137,7 +147,7 @@ class CloudflareToolsApi(
 
     /** iOS `cloudflareOperationsAllPages`: follows `total_pages` with a [CloudflarePaginationGuard]. */
     private fun <T> allPagesCall(
-        token: SecretValue,
+        credential: CloudflareCredential,
         path: String,
         subject: String,
         perPage: Int = 50,
@@ -148,8 +158,8 @@ class CloudflareToolsApi(
         var page = 1
         while (true) {
             val request = getRequest(path, listOf("page" to page.toString(), "per_page" to perPage.toString()))
-            val response = child(transport.newCall(request, token)).toRawResponse(null)
-            val envelope = envelope(response, subject, ACCOUNT_SETTINGS_READ)
+            val response = child(transport.newCall(request, credential)).toRawResponse(null)
+            val envelope = envelope(response, subject, ACCOUNT_SETTINGS_READ, credential.authMode)
             val batch = envelope.result?.arrayValue.orEmpty()
             guard.record(batch.size, response.bodyBytes().contentHashCode())
             batch.forEach { items += transform(it) }
@@ -171,13 +181,19 @@ class CloudflareToolsApi(
     private class Envelope(val result: ProviderJsonValue?, val resultInfo: ProviderJsonValue?)
 
     /** iOS `cloudflareOperationsDecode`. */
-    private fun envelope(response: CloudflareRawResponse, subject: String, permission: String?): Envelope {
+    private fun envelope(
+        response: CloudflareRawResponse,
+        subject: String,
+        permission: String?,
+        authMode: CloudflareAuthMode,
+    ): Envelope {
         if (!response.isSuccess) {
             throw CloudflareToolsErrors.forStatus(
                 response.statusCode,
                 CloudflareToolsErrors.providerMessages(response),
                 subject,
                 permission,
+                authMode,
             )
         }
         val root = response.parsedJson() as? ProviderJsonValue.Obj
@@ -201,8 +217,13 @@ class CloudflareToolsApi(
         return Envelope(root["result"]?.takeUnless { it.isNull }, root["result_info"])
     }
 
-    private fun envelopeResult(response: CloudflareRawResponse, subject: String, permission: String?): ProviderJsonValue =
-        envelope(response, subject, permission).result ?: throw CloudflareToolsException(
+    private fun envelopeResult(
+        response: CloudflareRawResponse,
+        subject: String,
+        permission: String?,
+        authMode: CloudflareAuthMode,
+    ): ProviderJsonValue =
+        envelope(response, subject, permission, authMode).result ?: throw CloudflareToolsException(
             CloudflareToolsFailureKind.INVALID_RESPONSE,
             "Cloudflare returned a successful response without a result.",
         )
@@ -217,6 +238,25 @@ class CloudflareToolsApi(
 
     private fun isoSeconds(instant: Instant): String =
         DateTimeFormatter.ISO_INSTANT.format(instant.truncatedTo(ChronoUnit.SECONDS))
+
+    /** iOS skips `publishMutation` for verified read-only `POST /graphql` queries. */
+    private fun isReadOnlyGraphQL(request: CloudflareToolsHttpRequest): Boolean {
+        if (request.method != CloudflareHttpMethod.POST || apiPath(request) != "/graphql") return false
+        val body = request.bodyCopy() ?: return false
+        return try {
+            CloudflareExplorerRequestBuilder.isReadOnlyGraphQLBody(body)
+        } finally {
+            body.fill(0)
+        }
+    }
+
+    private fun mutationEvent(request: CloudflareToolsHttpRequest) = CloudflareMutationEvent(
+        method = com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareHttpMethod.valueOf(request.method.name),
+        apiPath = apiPath(request),
+    )
+
+    private fun apiPath(request: CloudflareToolsHttpRequest): String =
+        request.uri.rawPath.orEmpty().removePrefix(CloudflareExplorerRequestBuilder.API_PREFIX).ifEmpty { "/" }
 
     companion object {
         const val ACCOUNT_SETTINGS_READ = "Account Settings Read"
@@ -233,20 +273,25 @@ object CloudflareToolsErrors {
         providerMessages: List<String>,
         subject: String,
         requiredPermission: String?,
+        authMode: CloudflareAuthMode = CloudflareAuthMode.API_TOKEN,
     ): CloudflareToolsException {
         val detail = providerMessages.takeIf { it.isNotEmpty() }?.joinToString("\n", prefix = "\nCloudflare: ").orEmpty()
         return when (statusCode) {
             401 -> CloudflareToolsException(
                 CloudflareToolsFailureKind.AUTHENTICATION,
-                "Cloudflare rejected this API token. Reconnect Cloudflare with an active token.",
+                rejectedMessage(authMode),
                 statusCode,
             )
             403 -> CloudflareToolsException(
                 CloudflareToolsFailureKind.AUTHORIZATION,
-                "This API token can’t access $subject." + (
-                    requiredPermission?.let { " Add the “$it” permission to the token, then try again." }
-                        ?: " Check the token’s permissions and resources."
-                    ) + detail,
+                when (authMode) {
+                    CloudflareAuthMode.API_TOKEN -> "This API token can’t access $subject." + (
+                        requiredPermission?.let { " Add the “$it” permission to the token, then try again." }
+                            ?: " Check the token’s permissions and resources."
+                        )
+                    CloudflareAuthMode.GLOBAL_API_KEY ->
+                        "This Cloudflare user can’t access $subject. Check the user’s account roles, then try again."
+                } + detail,
                 statusCode,
             )
             404 -> CloudflareToolsException(
@@ -288,9 +333,15 @@ object CloudflareToolsErrors {
      * Guidance shown above an explorer response when Cloudflare refused the token, naming the
      * permissions Cloudflare's schema lists for the operation when they are known.
      */
-    fun explorerHint(statusCode: Int, permissions: List<String>): String? = when (statusCode) {
-        401 -> "Cloudflare rejected this API token. Reconnect Cloudflare with an active token."
-        403 -> buildString {
+    fun explorerHint(
+        statusCode: Int,
+        permissions: List<String>,
+        authMode: CloudflareAuthMode = CloudflareAuthMode.API_TOKEN,
+    ): String? = when (statusCode) {
+        401 -> rejectedMessage(authMode)
+        403 -> if (authMode == CloudflareAuthMode.GLOBAL_API_KEY) {
+            "This Cloudflare user is missing an account role or product entitlement for this endpoint."
+        } else buildString {
             append("This API token is missing a permission or resource for this endpoint.")
             if (permissions.isNotEmpty()) {
                 val shown = permissions.take(4)
@@ -303,6 +354,12 @@ object CloudflareToolsErrors {
             }
         }
         else -> null
+    }
+
+    private fun rejectedMessage(authMode: CloudflareAuthMode): String = when (authMode) {
+        CloudflareAuthMode.API_TOKEN -> "Cloudflare rejected this API token. Reconnect Cloudflare with an active token."
+        CloudflareAuthMode.GLOBAL_API_KEY ->
+            "Cloudflare rejected this email and Global API Key. Reconnect Cloudflare with your current key."
     }
 
     /** Maps any tools failure to a safe sentence for the UI. */
@@ -322,19 +379,14 @@ object CloudflareToolsErrors {
         .let { if (it.length > MAXIMUM_MESSAGE_CHARACTERS) it.take(MAXIMUM_MESSAGE_CHARACTERS) + "…" else it }
 }
 
-internal fun HttpResponse.toRawResponse(elapsedMillis: Long?): CloudflareRawResponse {
-    val bytes = takeBody()
-    return try {
-        CloudflareRawResponse(
-            statusCode = statusCode,
-            headers = headers.mapValues { (_, values) -> values.joinToString(", ") },
-            body = bytes,
-            elapsedMillis = elapsedMillis,
-        )
-    } finally {
-        bytes.fill(0)
-    }
-}
+/** [HttpResponse.takeBody] already returns a private copy, so the raw response adopts it as-is. */
+internal fun HttpResponse.toRawResponse(elapsedMillis: Long?): CloudflareRawResponse =
+    CloudflareRawResponse.adopting(
+        statusCode = statusCode,
+        headers = headers.mapValues { (_, values) -> values.joinToString(", ") },
+        body = takeBody(),
+        elapsedMillis = elapsedMillis,
+    )
 
 /** A cancellable call that runs child calls one at a time, forwarding cancellation to the active one. */
 internal class SequentialCloudflareCall<T>(

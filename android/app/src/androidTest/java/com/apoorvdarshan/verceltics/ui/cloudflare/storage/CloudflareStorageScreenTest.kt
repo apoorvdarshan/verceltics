@@ -8,9 +8,11 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
-import com.apoorvdarshan.verceltics.data.account.SecretValue
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareCredential
 import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareRestClient
 import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareRestRequest
 import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareRestResponse
@@ -40,7 +42,7 @@ class CloudflareStorageScreenTest {
         respond("GET /accounts/acc/r2/buckets", "{\"buckets\":[{\"name\":\"media\"}]}")
     }
     private val api = CloudflareStorageApi(
-        CloudflareRestClient(credentialProvider = { SecretValue.of("token") }, executor = Executor { it.run() }, transport = transport),
+        CloudflareRestClient(credentialProvider = { CloudflareCredential.apiToken("token") }, executor = Executor { it.run() }, transport = transport),
     )
 
     @Test
@@ -102,6 +104,66 @@ class CloudflareStorageScreenTest {
     }
 
     @Test
+    fun d1ResultsPageThroughEveryRow() {
+        val rows = (1..250).joinToString(",") { "{\"id\":$it}" }
+        transport.respond("POST /accounts/acc/d1/database/db/query", "[{\"success\":true,\"results\":[$rows]}]")
+        val viewModel = CloudflareD1DatabaseViewModel(api, "acc", "db", "main")
+        compose.setContent { VercelticsTheme { CloudflareD1DatabaseScreen(viewModel) } }
+
+        compose.onNodeWithTag("cloudflare.storage.d1Screen").performScrollToNode(hasTestTag("cloudflare.storage.d1.run"))
+        compose.onNodeWithTag("cloudflare.storage.d1.run").performClick()
+        compose.onNodeWithText("RUN SQL").performClick()
+        compose.waitUntil(5_000) { viewModel.state.value.queryResults.isNotEmpty() }
+
+        compose.onNodeWithTag("cloudflare.storage.d1Screen").performScrollToNode(hasTestTag("cloudflare.storage.d1.pageLabel"))
+        compose.onNodeWithText("Rows 1–100 of 250").assertIsDisplayed()
+        compose.onNodeWithTag("cloudflare.storage.d1.nextPage").performClick()
+        compose.onNodeWithText("Rows 101–200 of 250").assertIsDisplayed()
+        compose.onNodeWithTag("cloudflare.storage.d1.nextPage").performClick()
+        compose.onNodeWithText("Rows 201–250 of 250").assertIsDisplayed()
+        compose.onNodeWithTag("cloudflare.storage.d1.nextPage").assertIsNotEnabled()
+    }
+
+    @Test
+    fun r2CorsPresetIsReplacedOnlyAfterConfirmation() {
+        transport.respond("GET /accounts/acc/r2/buckets/media", "{\"name\":\"media\"}")
+        transport.respond("GET /accounts/acc/r2/buckets/media/objects", "[]")
+        transport.respond("GET /accounts/acc/r2/buckets/media/cors", "{\"rules\":[]}")
+        transport.respond("PUT /accounts/acc/r2/buckets/media/cors", "{}")
+        val viewModel = CloudflareR2BucketViewModel(api, null, "acc", "media", null)
+        compose.setContent { VercelticsTheme { CloudflareR2BucketScreen(viewModel) } }
+
+        compose.onNodeWithTag("cloudflare.storage.r2Screen").performScrollToNode(hasTestTag("cloudflare.storage.r2.config.CORS.edit"))
+        compose.onNodeWithTag("cloudflare.storage.r2.config.CORS.edit").performClick()
+        compose.onNodeWithTag("cloudflare.storage.r2.rulesSheet").assertIsDisplayed()
+        compose.onNodeWithTag("cloudflare.storage.r2.rulesPreset.cors-public-read").performClick()
+        compose.onNodeWithTag("cloudflare.storage.r2.rulesSubmit").performScrollTo().performClick()
+        compose.onNodeWithText("Replace CORS rules?").assertIsDisplayed()
+        compose.onNodeWithText("CANCEL").performClick()
+        compose.runOnIdle { assertTrue(transport.mutations().isEmpty()) }
+
+        compose.onNodeWithTag("cloudflare.storage.r2.rulesSubmit").performScrollTo().performClick()
+        compose.onNodeWithText("REPLACE RULES").performClick()
+        compose.waitUntil(5_000) { transport.mutations().isNotEmpty() }
+        compose.runOnIdle { assertEquals(listOf("PUT /accounts/acc/r2/buckets/media/cors"), transport.mutations()) }
+    }
+
+    @Test
+    fun globalApiKeyStorageExplainsThatR2NeedsAScopedToken() {
+        val viewModel = CloudflareStorageDashboardViewModel(api, "acc", allowsR2 = false)
+        compose.setContent {
+            VercelticsTheme {
+                CloudflareStorageDashboardScreen(viewModel, "Production", onOpenD1 = {}, onOpenKV = {}, onOpenR2 = {})
+            }
+        }
+        compose.waitUntil(5_000) { !viewModel.state.value.isLoading }
+        compose.onNodeWithTag("cloudflare.storage.dashboard").performScrollToNode(hasTestTag("cloudflare.storage.r2.requiresToken"))
+        compose.onNodeWithText("R2 requires a scoped token").assertIsDisplayed()
+        compose.onNodeWithTag("cloudflare.storage.create.r2").assertDoesNotExist()
+        compose.runOnIdle { assertTrue(transport.sentRequests().none { it.contains("/r2/") }) }
+    }
+
+    @Test
     fun multipartComposerEnforcesRequiredFields() {
         compose.setContent {
             VercelticsTheme {
@@ -132,7 +194,9 @@ private class StorageFakeTransport : CloudflareRestTransport {
 
     fun mutations(): List<String> = sent.filterNot { it.startsWith("GET ") }
 
-    override fun newCall(request: CloudflareRestRequest, credential: SecretValue): CancelableCall<CloudflareRestResponse> =
+    fun sentRequests(): List<String> = sent.toList()
+
+    override fun newCall(request: CloudflareRestRequest, credential: CloudflareCredential): CancelableCall<CloudflareRestResponse> =
         object : CancelableCall<CloudflareRestResponse> {
             override fun execute(): CloudflareRestResponse {
                 val key = "${request.method} ${request.apiPath}"

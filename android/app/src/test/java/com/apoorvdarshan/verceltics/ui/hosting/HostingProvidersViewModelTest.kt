@@ -205,6 +205,77 @@ class HostingProvidersViewModelTest {
     }
 
     @Test
+    fun deploymentHistoryIsCachedForOneHundredEightySecondsPerAccountAndResource() = runTest(dispatcher) {
+        var now = 5_000_000L
+        val gateway = FakeHostingGateway(restored = mapOf("render" to HostingRestoreUi.Available(dashboard("render"))))
+        val viewModel = HostingProvidersViewModel(gateway, SavedStateHandle(), nowMillis = { now })
+        advanceUntilIdle()
+
+        viewModel.openResource("render", "render-1")
+        advanceUntilIdle()
+        assertEquals(1, gateway.loadedResources.size)
+        val loaded = viewModel.uiState.value.provider("render").resourceWorkspace
+
+        // Within 180 s: the cached history is shown immediately and nothing is fetched.
+        viewModel.closeResource("render")
+        now += 179_999L
+        viewModel.openResource("render", "render-1")
+        assertSame(loaded, viewModel.uiState.value.provider("render").resourceWorkspace)
+        assertFalse(viewModel.uiState.value.provider("render").isLoadingResource)
+        advanceUntilIdle()
+        assertEquals(1, gateway.loadedResources.size)
+
+        // A different resource has its own entry.
+        viewModel.openResource("render", "render-2")
+        advanceUntilIdle()
+        assertEquals(listOf("render" to "render-1", "render" to "render-2"), gateway.loadedResources)
+
+        // At 180 s the stale copy stays visible while a fresh one loads.
+        now += 1L
+        viewModel.openResource("render", "render-1")
+        assertSame(loaded, viewModel.uiState.value.provider("render").resourceWorkspace)
+        assertTrue(viewModel.uiState.value.provider("render").isLoadingResource)
+        advanceUntilIdle()
+        assertEquals(3, gateway.loadedResources.size)
+
+        // The toolbar refresh always bypasses a fresh entry.
+        viewModel.refreshSelectedResource("render")
+        advanceUntilIdle()
+        assertEquals(4, gateway.loadedResources.size)
+
+        // Disconnecting forgets the account's cached histories.
+        viewModel.requestDisconnectConfirmation("render")
+        viewModel.confirmDisconnect("render")
+        advanceUntilIdle()
+        gateway.connectResult = { Result.success(dashboard("render")) }
+        viewModel.connect(HostingCredentials.Render(SecretValue.of("again")))
+        advanceUntilIdle()
+        viewModel.openResource("render", "render-1")
+        advanceUntilIdle()
+        assertEquals(5, gateway.loadedResources.size)
+    }
+
+    @Test
+    fun confirmedActionInvalidatesTheCachedHistory() = runTest(dispatcher) {
+        val gateway = FakeHostingGateway(restored = mapOf("railway" to HostingRestoreUi.Available(dashboard("railway"))))
+        val viewModel = HostingProvidersViewModel(gateway, SavedStateHandle(), nowMillis = { 1_000L }, actionRefreshDelayMillis = 1_000L)
+        advanceUntilIdle()
+        viewModel.openResource("railway", "railway-1")
+        advanceUntilIdle()
+        assertEquals(1, gateway.loadedResources.size)
+
+        viewModel.requestPrimaryAction("railway")
+        viewModel.confirmPrimaryAction("railway")
+        // Navigating away before the reload must not leave the pre-write history cached.
+        runCurrent()
+        viewModel.closeResource("railway")
+        advanceUntilIdle()
+        viewModel.openResource("railway", "railway-1")
+        advanceUntilIdle()
+        assertEquals(2, gateway.loadedResources.size)
+    }
+
+    @Test
     fun primaryActionNeedsConfirmationTargetsLatestDeploymentAndReloadsHistory() = runTest(dispatcher) {
         val gateway = FakeHostingGateway(restored = mapOf("railway" to HostingRestoreUi.Available(dashboard("railway"))))
         val viewModel = HostingProvidersViewModel(gateway, SavedStateHandle(), actionRefreshDelayMillis = 1_000L)
@@ -443,7 +514,6 @@ internal fun dashboard(
         )
     },
     loadedResourceCount = resourceCount,
-    truncatedForDisplay = false,
     warnings = emptyList(),
     fetchedAtMillis = fetchedAt,
     cacheState = cacheState,
@@ -489,7 +559,7 @@ internal class FakeHostingGateway(
         val deployments = (0..1).map { index ->
             HostingDeploymentUi("${resource.id}-deployment-$index", "Deploy $index", "SUCCESS", 1_000L - index, null, "main", "Commit $index")
         }
-        return Result.success(HostingResourceWorkspaceUi(providerId, resource.id, deployments, deployments.size, false))
+        return Result.success(HostingResourceWorkspaceUi(providerId, resource.id, deployments, deployments.size))
     }
 
     override suspend fun performPrimaryAction(

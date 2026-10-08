@@ -24,6 +24,7 @@ import com.apoorvdarshan.verceltics.data.netlify.NetlifyRestoreResult
 import com.apoorvdarshan.verceltics.data.netlify.NetlifySite
 import com.apoorvdarshan.verceltics.data.netlify.NetlifySiteDetails
 import com.apoorvdarshan.verceltics.data.netlify.NetlifySnapshot
+import com.apoorvdarshan.verceltics.data.netlify.NetlifyWriteApi
 import com.apoorvdarshan.verceltics.data.network.CancelableCall
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -48,6 +49,8 @@ class NativeNetlifyUiGateway internal constructor(
     private val afterAcceptValidatedConnection: suspend () -> Unit = {},
     /** Complete API raw requests (Netlify's fixed `api.netlify.com` origin). */
     private val rawApi: HostingRawApi = HostingRawApi(SecureHostingHttpTransport(networkExecutor)),
+    /** Confirmed writes (iOS "Redeploy") on the same fixed origin. */
+    private val writeApi: NetlifyWriteApi = NetlifyWriteApi(SecureHostingHttpTransport(networkExecutor)),
 ) : NetlifyUiGateway {
     override suspend fun restore(): Result<NetlifyRestoreUi> = capture {
         when (val restored = executeAwait(storageExecutor, connectionStore::restore)) {
@@ -157,6 +160,13 @@ class NativeNetlifyUiGateway internal constructor(
         executeAwait(storageExecutor, connectionStore::disconnect)
     }
 
+    override suspend fun redeploySite(siteId: String): Result<String> = capture {
+        val saved = executeAwait(storageExecutor, connectionStore::loadForRefresh)
+            ?: throw NetlifyUiException("Connect a Netlify account first.")
+        writeApi.redeploy(saved.account.personalToken, siteId)
+        REDEPLOY_ACCEPTED
+    }
+
     override suspend fun sendApiRequest(request: ProviderRawRequest): Result<ProviderRawResponse> = capture {
         val saved = executeAwait(storageExecutor, connectionStore::loadForRefresh)
             ?: throw NetlifyUiException("Connect a Netlify account first.")
@@ -169,19 +179,17 @@ class NativeNetlifyUiGateway internal constructor(
         is NetlifyFetchResult.Failure -> throw NetlifyUiException(failure.message)
     }
 
-    private fun NetlifySnapshot.toDashboardUi(cacheState: NetlifyCacheState): NetlifyDashboardUi {
-        val visibleSites = sites.take(MAXIMUM_VISIBLE_SITES)
-        return NetlifyDashboardUi(
+    /** The live inventory is never truncated; only the offline cache is bounded (by the store). */
+    private fun NetlifySnapshot.toDashboardUi(cacheState: NetlifyCacheState): NetlifyDashboardUi =
+        NetlifyDashboardUi(
             account = profile.toUi(),
-            sites = visibleSites.map(NetlifySite::toUi),
+            sites = sites.map(NetlifySite::toUi),
             loadedSiteCount = sites.size,
             providerInventoryComplete = sitesComplete,
-            inventoryTruncatedForDisplay = sites.size > visibleSites.size,
             warnings = warnings,
             fetchedAtMillis = fetchedAtMillis,
             cacheState = cacheState,
         )
-    }
 
     private fun NetlifyResourceResult<NetlifySiteDetails>.toUi():
         NetlifyResourceUi<NetlifySiteDetailsUi> = when (this) {
@@ -191,12 +199,12 @@ class NativeNetlifyUiGateway internal constructor(
 
     private fun NetlifyCollectionResult<NetlifyDeployment>.toDeploymentsUi():
         NetlifyCollectionUi<NetlifyDeploymentUi> = when (this) {
-        is NetlifyCollectionResult.Complete -> boundedCollection(
+        is NetlifyCollectionResult.Complete -> collection(
             items = items.map(NetlifyDeployment::toUi),
             providerComplete = true,
             warning = null,
         )
-        is NetlifyCollectionResult.Partial -> boundedCollection(
+        is NetlifyCollectionResult.Partial -> collection(
             items = items.map(NetlifyDeployment::toUi),
             providerComplete = false,
             warning = failure.message,
@@ -205,19 +213,18 @@ class NativeNetlifyUiGateway internal constructor(
             items = emptyList(),
             loadedItemCount = 0,
             providerCollectionComplete = false,
-            truncatedForDisplay = false,
             warning = failure.message,
         )
     }
 
     private fun NetlifyCollectionResult<NetlifyBuild>.toBuildsUi():
         NetlifyCollectionUi<NetlifyBuildUi> = when (this) {
-        is NetlifyCollectionResult.Complete -> boundedCollection(
+        is NetlifyCollectionResult.Complete -> collection(
             items = items.map(NetlifyBuild::toUi),
             providerComplete = true,
             warning = null,
         )
-        is NetlifyCollectionResult.Partial -> boundedCollection(
+        is NetlifyCollectionResult.Partial -> collection(
             items = items.map(NetlifyBuild::toUi),
             providerComplete = false,
             warning = failure.message,
@@ -226,26 +233,24 @@ class NativeNetlifyUiGateway internal constructor(
             items = emptyList(),
             loadedItemCount = 0,
             providerCollectionComplete = false,
-            truncatedForDisplay = false,
             warning = failure.message,
         )
     }
 
-    private fun <T> boundedCollection(
+    /** Complete history, as iOS shows it; pagination itself is bounded by the data source. */
+    private fun <T> collection(
         items: List<T>,
         providerComplete: Boolean,
         warning: String?,
     ): NetlifyCollectionUi<T> = NetlifyCollectionUi(
-        items = items.take(MAXIMUM_VISIBLE_HISTORY_ITEMS),
+        items = items,
         loadedItemCount = items.size,
         providerCollectionComplete = providerComplete,
-        truncatedForDisplay = items.size > MAXIMUM_VISIBLE_HISTORY_ITEMS,
         warning = warning,
     )
 
     companion object {
-        const val MAXIMUM_VISIBLE_SITES: Int = 100
-        const val MAXIMUM_VISIBLE_HISTORY_ITEMS: Int = 100
+        const val REDEPLOY_ACCEPTED: String = "Redeploy request accepted."
 
         fun create(context: Context): NativeNetlifyUiGateway = NativeNetlifyUiGateway(
             connectionStore = NetlifyConnectionStore(

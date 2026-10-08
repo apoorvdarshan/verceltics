@@ -34,6 +34,89 @@ class CloudflareConnectionRepositoryTest {
     }
 
     @Test
+    fun globalApiKeyRecordRoundTripsEmailKeyRoutesAndTagsWithoutPrintingSecrets() {
+        val store = MemoryAtomicBytesStore()
+        val repository = CloudflareConnectionRepository(store, TestAccountCipher())
+        val profile = CloudflareProfile("user-1", "Ada Lovelace", "active", CloudflareAuthMode.GLOBAL_API_KEY, "owner@example.com")
+        val snapshot = completeSnapshot().let { base ->
+            val inventory = checkNotNull(base.selectedAccountInventory)
+            base.copy(
+                profile = profile,
+                selectedAccountInventory = inventory.copy(
+                    workers = listOf(worker(0).copy(routes = listOf("example.com/api/*"), tags = listOf("billing"))),
+                ),
+            )
+        }
+        val original = CloudflareStoredConnection(
+            account = CloudflareAccount(
+                profile = profile,
+                credential = CloudflareCredential.globalApiKey("owner@example.com", "sensitive-global-key"),
+                createdAtMillis = 10L,
+                updatedAtMillis = 100L,
+            ),
+            cachedSnapshot = snapshot,
+        )
+
+        repository.save(original)
+
+        val stored = String(checkNotNull(store.bytes), StandardCharsets.UTF_8)
+        assertFalse(stored.contains("sensitive-global-key"))
+        assertFalse(stored.contains("owner@example.com"))
+        val loaded = checkNotNull(repository.load())
+        val credential = loaded.account.credential as CloudflareCredential.GlobalApiKey
+        assertEquals("owner@example.com", credential.email)
+        assertEquals("sensitive-global-key", credential.key.use { it })
+        assertNull(loaded.account.apiToken)
+        assertEquals(CloudflareAuthMode.GLOBAL_API_KEY, loaded.account.profile.authMode)
+        assertEquals(snapshot, loaded.cachedSnapshot)
+        assertEquals(listOf("example.com/api/*"), loaded.cachedSnapshot?.selectedAccountInventory?.workers?.single()?.routes)
+        assertFalse(loaded.toString().contains("sensitive-global-key"))
+        assertFalse(loaded.account.toString().contains("sensitive-global-key"))
+    }
+
+    @Test
+    fun legacyVersionOneTokenRecordsStillDecodeAsScopedTokens() {
+        val bytes = java.io.ByteArrayOutputStream().also { buffer ->
+            java.io.DataOutputStream(buffer).use { output ->
+                fun string(value: String) {
+                    val encoded = value.toByteArray(StandardCharsets.UTF_8)
+                    output.writeInt(encoded.size)
+                    output.write(encoded)
+                }
+                output.writeInt(1)
+                string(CloudflareAccount.PROVIDER_ID)
+                string("token-profile")
+                string("Cloudflare")
+                string("active")
+                string("legacy-token")
+                output.writeLong(10L)
+                output.writeLong(100L)
+                output.writeBoolean(false)
+            }
+        }.toByteArray()
+
+        val decoded = CloudflareConnectionPayloadCodec.decode(bytes)
+
+        assertEquals(CloudflareAuthMode.API_TOKEN, decoded.account.profile.authMode)
+        assertEquals(SecretValue.of("legacy-token"), decoded.account.apiToken)
+        assertNull(decoded.account.profile.email)
+        assertNull(decoded.cachedSnapshot)
+    }
+
+    @Test
+    fun validationForADifferentAuthModeCannotBeSaved() {
+        val connectionStore = CloudflareConnectionStore(
+            CloudflareConnectionRepository(MemoryAtomicBytesStore(), TestAccountCipher()),
+        )
+        assertThrows(IllegalArgumentException::class.java) {
+            connectionStore.saveValidatedConnection(
+                CloudflareCredential.globalApiKey("owner@example.com", "key"),
+                CloudflareFetchResult.Complete(completeSnapshot()),
+            )
+        }
+    }
+
+    @Test
     fun recordUsesDedicatedNoBackupPathAadAndKeystoreAlias() {
         assertEquals("accounts/cloudflare-api-token.account", CloudflareConnectionRepository.ACCOUNT_PATH)
         assertEquals(

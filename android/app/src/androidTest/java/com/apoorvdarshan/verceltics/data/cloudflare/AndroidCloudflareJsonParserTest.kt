@@ -42,6 +42,34 @@ class AndroidCloudflareJsonParserTest {
     }
 
     @Test
+    fun globalApiKeyUserProfileAndWorkerRoutesAndTagsParse() {
+        val user = parser.parseUser(
+            json(
+                """
+                {"success": true, "errors": [], "messages": [],
+                 "result": {"id": "user-1", "email": "owner@example.com", "first_name": "Ada", "last_name": null, "suspended": false, "betas": []}}
+                """,
+            ),
+        )
+        assertEquals("user-1", user.id)
+        assertEquals("Ada", user.displayName)
+        assertEquals(false, user.suspended)
+
+        val workers = parser.parseWorkerScripts(
+            json(
+                """
+                {"success": true, "errors": [], "messages": [],
+                 "result": [{"id": "api", "routes": [{"id": "r1", "pattern": "example.com/api/*", "script": "api"}], "tags": ["billing"]},
+                            {"id": "cron", "routes": null}]}
+                """,
+            ),
+        )
+        assertEquals(listOf("example.com/api/*"), workers[0].routes)
+        assertEquals(listOf("billing"), workers[0].tags)
+        assertTrue(workers[1].routes.isEmpty())
+    }
+
+    @Test
     fun accountsAndPaginationMetadataAreParsedWithoutOptionalFields() {
         val page = parser.parseAccountsPage(
             json(

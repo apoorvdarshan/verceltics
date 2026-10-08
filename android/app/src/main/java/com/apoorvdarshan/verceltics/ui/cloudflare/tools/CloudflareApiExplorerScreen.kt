@@ -67,6 +67,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareAuthMode
 import com.apoorvdarshan.verceltics.data.cloudflare.tools.CloudflareBodyEncoding
 import com.apoorvdarshan.verceltics.data.cloudflare.tools.CloudflareExplorerRequestBuilder
 import com.apoorvdarshan.verceltics.data.cloudflare.tools.CloudflareHttpMethod
@@ -115,6 +116,7 @@ internal fun CloudflareApiExplorerScreen(
     onRemoveAttachment: () -> Unit,
     onReportError: (String) -> Unit,
     modifier: Modifier = Modifier,
+    authMode: CloudflareAuthMode = CloudflareAuthMode.API_TOKEN,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -194,8 +196,13 @@ internal fun CloudflareApiExplorerScreen(
         state.notice?.let { ToolBanner(it, isError = false, testTag = "cloudflare.explorer.notice") }
         val response = state.response
         if (response != null) {
-            CloudflareToolsErrors.explorerHint(response.statusCode, state.permissions)?.let { hint ->
-                ToolBanner(hint, isError = true, title = "Token scope", testTag = "cloudflare.explorer.scopeHint")
+            CloudflareToolsErrors.explorerHint(response.statusCode, state.permissions, authMode)?.let { hint ->
+                ToolBanner(
+                    hint,
+                    isError = true,
+                    title = if (authMode == CloudflareAuthMode.API_TOKEN) "Token scope" else "Account access",
+                    testTag = "cloudflare.explorer.scopeHint",
+                )
             }
             ExplorerResponsePanel(response)
         } else if (!state.isExecuting && state.error == null) {
@@ -468,10 +475,9 @@ private fun ExplorerResponsePanel(response: CloudflareRawResponse) {
     val scope = rememberCoroutineScope()
     var copied by remember(response) { mutableStateOf(false) }
     var showingHeaders by rememberSaveable { mutableStateOf(false) }
-    val pretty = remember(response) { response.prettyPrintedBody }
-    val displayed = remember(pretty) {
-        if (pretty.length > RESPONSE_DISPLAY_LIMIT_CHARACTERS) pretty.take(RESPONSE_DISPLAY_LIMIT_CHARACTERS) else pretty
-    }
+    // Responses can be 32 MB: only a bounded preview is ever decoded for display.
+    val preview = remember(response) { response.preview(RESPONSE_DISPLAY_LIMIT_CHARACTERS) }
+    val displayed = preview.text
     LaunchedEffect(copied) {
         if (copied) {
             delay(1_500)
@@ -506,7 +512,7 @@ private fun ExplorerResponsePanel(response: CloudflareRawResponse) {
             TextButton(
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                    val copiedText = pretty.take(RESPONSE_COPY_LIMIT_CHARACTERS)
+                    val copiedText = response.preview(RESPONSE_COPY_LIMIT_CHARACTERS).text
                     scope.launch {
                         runCatching {
                             clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Cloudflare response", copiedText)))
@@ -549,7 +555,7 @@ private fun ExplorerResponsePanel(response: CloudflareRawResponse) {
                     .testTag("cloudflare.explorer.body.response"),
             )
         }
-        if (pretty.length > RESPONSE_DISPLAY_LIMIT_CHARACTERS) {
+        if (preview.truncated) {
             Text(
                 "Showing the first ${RESPONSE_DISPLAY_LIMIT_CHARACTERS / 1_000}K characters of ${formatBytes(response.bodySize)}. " +
                     "Copy includes up to ${RESPONSE_COPY_LIMIT_CHARACTERS / 1_000}K characters.",

@@ -38,11 +38,19 @@ data class CloudflareStorageDashboardState(
     val creationError: String? = null,
 )
 
-/** Port of iOS `CloudflareStorageDashboardViewModel` (D1, KV and R2 inventory plus creation). */
+/** Shown where R2 would be for Global API Key connections (iOS `allowsR2 == false`). */
+const val CLOUDFLARE_R2_REQUIRES_TOKEN_MESSAGE: String =
+    "R2 object storage requires a scoped API token. Reconnect Cloudflare with an API token that includes R2 permissions to manage buckets."
+
+/**
+ * Port of iOS `CloudflareStorageDashboardViewModel` (D1, KV and R2 inventory plus creation). R2 is
+ * only loaded when [allowsR2] is true, i.e. for scoped API tokens, exactly like iOS.
+ */
 class CloudflareStorageDashboardViewModel(
     private val api: CloudflareStorageApi,
     val accountId: String,
     mutations: Flow<CloudflareMutationEvent>? = null,
+    val allowsR2: Boolean = true,
 ) : CloudflareOperationsViewModel() {
     private val _state = MutableStateFlow(CloudflareStorageDashboardState())
     val state: StateFlow<CloudflareStorageDashboardState> = _state.asStateFlow()
@@ -75,7 +83,9 @@ class CloudflareStorageDashboardViewModel(
             val (d1, kv, r2) = coroutineScope {
                 val d1 = async { capture { api.fetchD1Databases(accountId) } }
                 val kv = async { capture { api.fetchKVNamespaces(accountId) } }
-                val r2 = async { capture { api.fetchR2Buckets(accountId) } }
+                val r2 = async {
+                    if (allowsR2) capture { api.fetchR2Buckets(accountId) } else Result.success(emptyList())
+                }
                 Triple(d1.await(), kv.await(), r2.await())
             }
             val warnings = buildList {
@@ -143,6 +153,7 @@ class CloudflareStorageDashboardViewModel(
     }
 
     fun requestCreateR2(input: CloudflareR2CreateInput) {
+        if (!allowsR2) return creationFailed(CLOUDFLARE_R2_REQUIRES_TOKEN_MESSAGE)
         val name = input.name.trim()
         if (!CloudflareR2Jurisdictions.isValidBucketName(name)) {
             return creationFailed(

@@ -124,7 +124,7 @@ object SampleHostingProviderUiGateway : HostingProviderUiGateway {
                 commitMessage = deployment.message,
             )
         }
-        return Result.success(HostingResourceWorkspaceUi(providerId, sample.id, deployments, deployments.size, false))
+        return Result.success(HostingResourceWorkspaceUi(providerId, sample.id, deployments, deployments.size))
     }
 
     override suspend fun performPrimaryAction(
@@ -165,7 +165,6 @@ object SampleHostingProviderUiGateway : HostingProviderUiGateway {
                 )
             },
             loadedResourceCount = items.size,
-            truncatedForDisplay = false,
             warnings = emptyList(),
             fetchedAtMillis = now,
             cacheState = HostingCacheState.LIVE,

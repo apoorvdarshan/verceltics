@@ -11,7 +11,10 @@ import com.apoorvdarshan.verceltics.data.cloudflare.operations.FakeCloudflareRes
 import com.apoorvdarshan.verceltics.data.cloudflare.operations.str
 import com.apoorvdarshan.verceltics.data.cloudflare.storage.CloudflareD1CreateInput
 import com.apoorvdarshan.verceltics.data.cloudflare.storage.CloudflareKVKey
+import com.apoorvdarshan.verceltics.data.cloudflare.storage.CloudflareR2Configuration
+import com.apoorvdarshan.verceltics.data.cloudflare.storage.CloudflareR2ConfigurationPresets
 import com.apoorvdarshan.verceltics.data.cloudflare.storage.CloudflareR2CreateInput
+import com.apoorvdarshan.verceltics.data.network.ProviderJsonParser
 import com.apoorvdarshan.verceltics.data.cloudflare.storage.CloudflareStorageApi
 import com.apoorvdarshan.verceltics.ui.cloudflare.operations.CloudflareActionBanner
 import java.nio.charset.StandardCharsets
@@ -315,6 +318,101 @@ class CloudflareStorageViewModelsTest {
         advanceUntilIdle()
         assertTrue(model.state.value.didDelete)
         assertNull(transport.mutations().single().request.headers["cf-r2-jurisdiction"])
+    }
+
+    @Test
+    fun r2CorsPresetReplacesRulesOnlyAfterADestructiveConfirmation() = runTest(dispatcher) {
+        transport.alwaysJson(GET, "/accounts/acc/r2/buckets/media", envelope("{\"name\":\"media\"}"))
+        transport.alwaysJson(GET, "/accounts/acc/r2/buckets/media/objects", envelope("[]"))
+        transport.alwaysJson(GET, "/accounts/acc/r2/buckets/media/cors", envelope("{\"rules\":[]}"))
+        val model = CloudflareR2BucketViewModel(api, null, "acc", "media", "eu")
+        advanceUntilIdle()
+
+        model.openRulesEditor(CloudflareR2Configuration.CORS)
+        val preset = CloudflareR2ConfigurationPresets.cors.first { it.id == "cors-public-read" }
+        model.applyRulesPreset(preset)
+        assertEquals("cors-public-read", model.state.value.rulesEditor?.presetId)
+        model.requestReplaceRules()
+
+        val prompt = requireNotNull(model.confirmation.value)
+        assertEquals("Replace CORS rules?", prompt.title)
+        assertEquals("Every existing CORS rule on media will be replaced with 1 rule.", prompt.message)
+        assertEquals("media/cors", prompt.resourceId)
+        assertTrue(prompt.destructive)
+        assertTrue(transport.mutations().isEmpty())
+
+        transport.enqueueJson(PUT, "/accounts/acc/r2/buckets/media/cors", envelope("{}"))
+        model.confirmPendingMutation()
+        advanceUntilIdle()
+
+        val put = transport.mutations().single()
+        assertEquals("/accounts/acc/r2/buckets/media/cors", put.path)
+        assertEquals("eu", put.request.headers["cf-r2-jurisdiction"])
+        assertEquals(ProviderJsonParser.parse(preset.json), put.bodyJson)
+        assertNull(model.state.value.rulesEditor)
+        assertEquals(CloudflareActionBanner("Updated CORS rules for media.", isError = false), model.banner.value)
+        // The configuration reloads after the write.
+        assertTrue(model.state.value.configurations[CloudflareR2Configuration.CORS] is CloudflareR2ConfigurationState.Loaded)
+    }
+
+    @Test
+    fun invalidR2RulesStayInTheEditorWithoutAConfirmation() = runTest(dispatcher) {
+        transport.alwaysJson(GET, "/accounts/acc/r2/buckets/media", envelope("{\"name\":\"media\"}"))
+        transport.alwaysJson(GET, "/accounts/acc/r2/buckets/media/objects", envelope("[]"))
+        val model = CloudflareR2BucketViewModel(api, null, "acc", "media", null)
+        advanceUntilIdle()
+
+        model.openRulesEditor(CloudflareR2Configuration.LIFECYCLE)
+        assertEquals("{\n  \"rules\": []\n}", model.state.value.rulesEditor?.text)
+        model.updateRulesText("{\"rules\": {}}")
+        model.requestReplaceRules()
+
+        assertNull(model.confirmation.value)
+        assertEquals("Lifecycle rules must be a JSON object with a \"rules\" array.", model.state.value.rulesEditor?.error)
+
+        model.updateRulesText("{\"rules\": []}")
+        model.requestReplaceRules()
+        assertEquals("Remove all lifecycle rules?", model.confirmation.value?.title)
+        assertEquals("Remove Rules", model.confirmation.value?.confirmLabel)
+        model.dismissPendingMutation()
+        assertTrue(transport.mutations().isEmpty())
+
+        model.openRulesEditor(CloudflareR2Configuration.CUSTOM_DOMAINS)
+        assertEquals(CloudflareR2Configuration.LIFECYCLE, model.state.value.rulesEditor?.configuration)
+    }
+
+    @Test
+    fun globalApiKeyStorageSkipsR2LikeIos() = runTest(dispatcher) {
+        transport.alwaysJson(GET, "/accounts/acc/d1/database", envelope("[]"))
+        transport.alwaysJson(GET, "/accounts/acc/storage/kv/namespaces", envelope("[]"))
+        val model = CloudflareStorageDashboardViewModel(api, "acc", allowsR2 = false)
+        advanceUntilIdle()
+
+        assertTrue(transport.requests.none { it.path.contains("/r2/") })
+        assertTrue(model.state.value.warnings.isEmpty())
+        model.openCreation(CloudflareStorageCreation.R2)
+        model.requestCreateR2(CloudflareR2CreateInput("media-2"))
+        assertEquals(CLOUDFLARE_R2_REQUIRES_TOKEN_MESSAGE, model.state.value.creationError)
+        assertNull(model.confirmation.value)
+    }
+
+    @Test
+    fun d1ResultsPageThroughEveryRow() {
+        val rows = (1..1_234).toList()
+        assertEquals(13, CloudflareD1ResultPaging.pageCount(rows.size))
+        assertEquals(1, CloudflareD1ResultPaging.pageCount(0))
+        assertEquals((1..100).toList(), CloudflareD1ResultPaging.pageRows(rows, 0))
+        assertEquals((1_201..1_234).toList(), CloudflareD1ResultPaging.pageRows(rows, 12))
+        // Out-of-range pages clamp instead of dropping rows.
+        assertEquals((1_201..1_234).toList(), CloudflareD1ResultPaging.pageRows(rows, 99))
+        assertEquals((1..100).toList(), CloudflareD1ResultPaging.pageRows(rows, -3))
+        assertEquals(rows, (0 until 13).flatMap { CloudflareD1ResultPaging.pageRows(rows, it) })
+        assertEquals("Rows 101–200 of 1,234", CloudflareD1ResultPaging.label(1, rows.size))
+        assertEquals("Rows 1,201–1,234 of 1,234", CloudflareD1ResultPaging.label(12, rows.size))
+        assertEquals("No rows", CloudflareD1ResultPaging.label(0, 0))
+        val long = "x".repeat(CloudflareD1ResultPaging.MAXIMUM_CELL_CHARACTERS + 50)
+        assertEquals(CloudflareD1ResultPaging.MAXIMUM_CELL_CHARACTERS + 1, CloudflareD1ResultPaging.displayCell(long).length)
+        assertEquals("short", CloudflareD1ResultPaging.displayCell("short"))
     }
 
     private class FakeFiles(private val files: Map<String, CloudflarePickedFile>) : CloudflareStorageFiles {

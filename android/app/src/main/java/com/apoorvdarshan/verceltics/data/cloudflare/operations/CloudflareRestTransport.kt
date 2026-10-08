@@ -1,7 +1,7 @@
 package com.apoorvdarshan.verceltics.data.cloudflare.operations
 
 import com.apoorvdarshan.verceltics.BuildConfig
-import com.apoorvdarshan.verceltics.data.account.SecretValue
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareCredential
 import com.apoorvdarshan.verceltics.data.network.CancelableCall
 import com.apoorvdarshan.verceltics.data.network.ResponseTooLargeException
 import com.apoorvdarshan.verceltics.data.network.UnsafeRedirectException
@@ -17,9 +17,13 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import javax.net.ssl.HttpsURLConnection
 
-/** Sends one [CloudflareRestRequest]. [credential] is the bearer secret chosen by the client. */
+/**
+ * Sends one [CloudflareRestRequest]. [credential] is the account credential chosen by the client: a
+ * scoped token becomes `Authorization: Bearer`, a Global API Key becomes `X-Auth-Email` plus
+ * `X-Auth-Key`. Pages upload-JWT requests ignore it and send their own bearer token.
+ */
 interface CloudflareRestTransport {
-    fun newCall(request: CloudflareRestRequest, credential: SecretValue): CancelableCall<CloudflareRestResponse>
+    fun newCall(request: CloudflareRestRequest, credential: CloudflareCredential): CancelableCall<CloudflareRestResponse>
 }
 
 /**
@@ -36,13 +40,13 @@ class HttpsCloudflareRestTransport(
         require(maximumRedirects in 0..5) { "Invalid redirect limit." }
     }
 
-    override fun newCall(request: CloudflareRestRequest, credential: SecretValue): CancelableCall<CloudflareRestResponse> =
+    override fun newCall(request: CloudflareRestRequest, credential: CloudflareCredential): CancelableCall<CloudflareRestResponse> =
         HttpsCloudflareCall(request, credential, connectTimeoutMillis, maximumRedirects)
 }
 
 private class HttpsCloudflareCall(
     private val request: CloudflareRestRequest,
-    private val credential: SecretValue,
+    private val credential: CloudflareCredential,
     private val connectTimeoutMillis: Int,
     private val maximumRedirects: Int,
 ) : CancelableCall<CloudflareRestResponse> {
@@ -128,11 +132,10 @@ private class HttpsCloudflareCall(
         connection.setRequestProperty("Accept-Encoding", "identity")
         connection.setRequestProperty("User-Agent", "Verceltics-Android/${BuildConfig.VERSION_NAME}")
         request.headers.forEach(connection::setRequestProperty)
-        val secret = when (val auth = request.auth) {
-            CloudflareRequestAuth.AccountToken -> credential
-            is CloudflareRequestAuth.PagesUploadToken -> auth.jwt
+        when (val auth = request.auth) {
+            CloudflareRequestAuth.AccountToken -> credential.applyHeaders(connection::setRequestProperty)
+            is CloudflareRequestAuth.PagesUploadToken -> auth.jwt.use { connection.setRequestProperty("Authorization", "Bearer $it") }
         }
-        secret.use { connection.setRequestProperty("Authorization", "Bearer $it") }
         return connection
     }
 

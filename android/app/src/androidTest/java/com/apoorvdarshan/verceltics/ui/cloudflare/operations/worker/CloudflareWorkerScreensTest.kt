@@ -8,7 +8,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
-import com.apoorvdarshan.verceltics.data.account.SecretValue
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareCredential
 import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareHttpMethod
 import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareRestClient
 import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareRestRequest
@@ -32,7 +32,7 @@ class CloudflareWorkerScreensTest {
     private val transport = RecordingTransport()
     private val api = CloudflareWorkerOperationsApi(
         CloudflareRestClient(
-            credentialProvider = { SecretValue.of("test-token") },
+            credentialProvider = { CloudflareCredential.apiToken("test-token") },
             executor = Executor { it.run() },
             transport = transport,
         ),
@@ -154,7 +154,7 @@ class CloudflareWorkerScreensTest {
 
         fun lastBody(): String? = requests.lastOrNull()?.bodyText()
 
-        override fun newCall(request: CloudflareRestRequest, credential: SecretValue): CancelableCall<CloudflareRestResponse> =
+        override fun newCall(request: CloudflareRestRequest, credential: CloudflareCredential): CancelableCall<CloudflareRestResponse> =
             object : CancelableCall<CloudflareRestResponse> {
                 override fun execute(): CloudflareRestResponse {
                     requests += request

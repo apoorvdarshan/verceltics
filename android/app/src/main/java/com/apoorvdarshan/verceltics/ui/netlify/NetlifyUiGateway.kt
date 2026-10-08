@@ -17,6 +17,13 @@ interface NetlifyUiGateway {
     suspend fun disconnect(): Result<Unit>
 
     /**
+     * iOS "Redeploy": starts a new Netlify build of [siteId]. This is a real provider write, so
+     * callers only invoke it from an explicit confirmation. Returns a user-facing message.
+     */
+    suspend fun redeploySite(siteId: String): Result<String> =
+        Result.failure(NetlifyUiException(SAMPLE_WRITE_UNAVAILABLE))
+
+    /**
      * Sends one Complete API raw request with the saved personal token. HTTP errors are returned
      * as responses; only validation, transport and credential problems fail.
      */
@@ -26,6 +33,8 @@ interface NetlifyUiGateway {
     companion object {
         const val SAMPLE_API_UNAVAILABLE: String =
             "Sample data can’t send live API requests. Connect an account to use the Complete API."
+        const val SAMPLE_WRITE_UNAVAILABLE: String =
+            "Sample data can’t send live write requests. Connect an account to redeploy."
     }
 }
 
@@ -62,17 +71,16 @@ data class NetlifySiteUi(
 
 data class NetlifyDashboardUi(
     val account: NetlifyAccountUi,
-    /** Intentionally bounded inventory suitable for Compose rendering. */
+    /** Every site Netlify returned (iOS pages through the whole account, so does Android). */
     val sites: List<NetlifySiteUi>,
     val loadedSiteCount: Int,
     val providerInventoryComplete: Boolean,
-    val inventoryTruncatedForDisplay: Boolean,
     val warnings: List<String>,
     val fetchedAtMillis: Long,
     val cacheState: NetlifyCacheState,
 ) {
     val isPartial: Boolean
-        get() = !providerInventoryComplete || inventoryTruncatedForDisplay
+        get() = !providerInventoryComplete
 }
 
 data class NetlifyDomainUi(
@@ -126,10 +134,10 @@ sealed interface NetlifyResourceUi<out T> {
 }
 
 data class NetlifyCollectionUi<T>(
+    /** The complete history Netlify returned (no display cap). */
     val items: List<T>,
     val loadedItemCount: Int,
     val providerCollectionComplete: Boolean,
-    val truncatedForDisplay: Boolean,
     val warning: String?,
 )
 

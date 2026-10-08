@@ -139,7 +139,6 @@ class NetlifyCompleteApiTest {
                     sites = listOf(NetlifySiteUi("site-1", "Example", null, null, "current", null)),
                     loadedSiteCount = 1,
                     providerInventoryComplete = true,
-                    inventoryTruncatedForDisplay = false,
                     warnings = emptyList(),
                     fetchedAtMillis = System.currentTimeMillis(),
                     cacheState = NetlifyCacheState.LIVE,

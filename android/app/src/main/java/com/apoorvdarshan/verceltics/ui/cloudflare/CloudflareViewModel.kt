@@ -7,8 +7,11 @@ import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.apoorvdarshan.verceltics.data.account.SecretValue
-import com.apoorvdarshan.verceltics.ui.cloudflare.tools.CloudflareToolsTokenSource
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareCredential
+import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareMutationEvent
 import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareRestClient
+import com.apoorvdarshan.verceltics.data.cloudflare.operations.cloudflareMutationAffectsDashboard
+import com.apoorvdarshan.verceltics.ui.cloudflare.tools.CloudflareToolsCredentialSource
 import com.apoorvdarshan.verceltics.ui.cloudflare.operations.CloudflareOperationsNavigator
 import com.apoorvdarshan.verceltics.ui.cloudflare.storage.CloudflareStorageRoutes
 import kotlinx.coroutines.CancellationException
@@ -82,13 +85,32 @@ class CloudflareViewModel(
 
     init {
         restore()
+        viewModelScope.launch {
+            gateway.mutationEvents().collect(::onExternalMutation)
+        }
     }
 
-    /** Cloudflare tools reuse this dashboard's saved token; offline sample gateways have none. */
-    internal val toolsTokenSource: CloudflareToolsTokenSource?
+    /** Cloudflare tools reuse this dashboard's saved credential; offline sample gateways have none. */
+    internal val toolsCredentialSource: CloudflareToolsCredentialSource?
         get() = (gateway as? NativeCloudflareUiGateway)?.let { native ->
-            CloudflareToolsTokenSource { native.loadSavedApiTokenForTools() }
+            CloudflareToolsCredentialSource { native.loadSavedCredentialForTools() }
         }
+
+    /** Forwards a successful API explorer, Complete API or Product Center write to every listener. */
+    internal fun publishToolsMutation(event: CloudflareMutationEvent) {
+        (gateway as? NativeCloudflareUiGateway)?.publishToolsMutation(event)
+    }
+
+    /**
+     * iOS `onReceive(.cloudflareDataDidChange)`: a write that changes the dashboard summary (zones,
+     * accounts, Pages projects or Worker scripts) refreshes the live inventory in place.
+     */
+    private fun onExternalMutation(event: CloudflareMutationEvent) {
+        if (!cloudflareMutationAffectsDashboard(event.apiPath)) return
+        val state = _uiState.value
+        if (state.status != CloudflareConnectionStatus.CONNECTED || state.dashboard == null) return
+        refresh()
+    }
 
     fun setRouteVisible(visible: Boolean) {
         _uiState.update { if (it.routeVisible == visible) it else it.copy(routeVisible = visible) }
@@ -133,7 +155,10 @@ class CloudflareViewModel(
         }
     }
 
-    fun connect(apiToken: SecretValue) {
+    fun connect(apiToken: SecretValue) = connect(CloudflareCredential.ApiToken(apiToken))
+
+    /** Validates and saves a scoped API token or an email + Global API Key (iOS `loginCloudflare`). */
+    fun connect(credential: CloudflareCredential) {
         if (_uiState.value.isBusy) return
         val baseline = _uiState.value.copy(
             error = null,
@@ -141,7 +166,7 @@ class CloudflareViewModel(
             showDisconnectConfirmation = false,
         )
         launchRootOperation(CloudflareOperation.CONNECTING, baseline) { generation ->
-            gateway.connect(apiToken).fold(
+            gateway.connect(credential).fold(
                 onSuccess = { dashboard -> if (isCurrent(generation)) applyDashboard(dashboard) },
                 onFailure = { error ->
                     if (isCurrent(generation)) {

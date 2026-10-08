@@ -1,6 +1,7 @@
 package com.apoorvdarshan.verceltics.data.cloudflare.tools
 
 import com.apoorvdarshan.verceltics.data.account.SecretValue
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareCredential
 import com.apoorvdarshan.verceltics.data.network.CancelableCall
 import com.apoorvdarshan.verceltics.data.network.HttpResponse
 import com.apoorvdarshan.verceltics.data.network.ProviderJsonParser
@@ -20,7 +21,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CloudflareToolsApiTest {
-    private val token = SecretValue.of("cf-secret-token")
+    private val token = CloudflareCredential.ApiToken(SecretValue.of("cf-secret-token"))
 
     @Test
     fun rawRequestSendsPinnedRequestWithTokenAndMeasuresElapsedTime() {

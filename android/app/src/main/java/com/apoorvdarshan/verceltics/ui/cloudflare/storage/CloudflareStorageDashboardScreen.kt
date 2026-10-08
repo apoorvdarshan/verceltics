@@ -69,7 +69,7 @@ fun CloudflareStorageDashboardRoute(
     modifier: Modifier = Modifier,
 ) {
     val viewModel = viewModel(key = routeKey) {
-        CloudflareStorageDashboardViewModel(storageApi(client), accountId, client.mutations)
+        CloudflareStorageDashboardViewModel(storageApi(client), accountId, client.mutations, allowsR2 = context.allowsR2)
     }
     LaunchedEffect(viewModel) { viewModel.onAppear() }
     CloudflareStorageRefreshEffect(context.refreshSignal) { viewModel.load(force = true) }
@@ -181,7 +181,18 @@ fun CloudflareStorageDashboardScreen(
                     if (index < namespaces.lastIndex) CloudflareOpsDivider(inset = true)
                 }
             }
-            storageSection(
+            if (!viewModel.allowsR2) {
+                item("r2-requires-token") {
+                    CloudflareOpsPanel(testTag = "cloudflare.storage.section.r2") {
+                        CloudflareOpsEmptySection(
+                            Icons.Rounded.Inventory2,
+                            "R2 requires a scoped token",
+                            CLOUDFLARE_R2_REQUIRES_TOKEN_MESSAGE,
+                            testTag = "cloudflare.storage.r2.requiresToken",
+                        )
+                    }
+                }
+            } else storageSection(
                 key = "r2",
                 title = "R2 Buckets",
                 icon = Icons.Rounded.Inventory2,

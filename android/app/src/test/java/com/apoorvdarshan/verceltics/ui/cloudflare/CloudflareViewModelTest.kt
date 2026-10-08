@@ -2,7 +2,14 @@ package com.apoorvdarshan.verceltics.ui.cloudflare
 
 import androidx.lifecycle.SavedStateHandle
 import com.apoorvdarshan.verceltics.data.account.SecretValue
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareAuthMode
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareCredential
+import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareHttpMethod
+import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareMutationEvent
+import com.apoorvdarshan.verceltics.data.cloudflare.operations.cloudflareMutationAffectsDashboard
+import com.apoorvdarshan.verceltics.data.cloudflare.operations.cloudflareMutationEventFlow
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -71,6 +78,81 @@ class CloudflareViewModelTest {
     }
 
     @Test
+    fun globalApiKeyConnectPassesEmailAndKeyWithoutPublishingTheKey() = runTest(dispatcher) {
+        val rawKey = "never-publish-global-api-key"
+        val gateway = FakeGateway(CloudflareRestoreUi.NotConnected)
+        val viewModel = CloudflareViewModel(gateway, SavedStateHandle())
+        advanceUntilIdle()
+
+        viewModel.connect(CloudflareCredential.globalApiKey("Owner@Example.com", rawKey))
+        advanceUntilIdle()
+
+        val credential = gateway.lastCredential as CloudflareCredential.GlobalApiKey
+        assertEquals("owner@example.com", credential.email)
+        assertEquals(rawKey, credential.key.use { it })
+        assertFalse(viewModel.uiState.value.toString().contains(rawKey))
+        assertFalse(credential.toString().contains(rawKey))
+        assertFalse(credential.toString().contains("owner@example.com"))
+        assertEquals(CloudflareConnectionStatus.CONNECTED, viewModel.uiState.value.status)
+    }
+
+    @Test
+    fun explorerWriteThatChangesTheSummaryRefreshesTheDashboard() = runTest(dispatcher) {
+        val gateway = FakeGateway(CloudflareRestoreUi.Available(dashboard()))
+        val viewModel = CloudflareViewModel(gateway, SavedStateHandle())
+        advanceUntilIdle()
+        assertEquals(0, gateway.refreshCalls)
+
+        // A DNS record write (nested zone path) leaves the dashboard summary alone, like iOS.
+        gateway.events.tryEmit(CloudflareMutationEvent(CloudflareHttpMethod.POST, "/zones/zone-primary/dns_records"))
+        advanceUntilIdle()
+        assertEquals(0, gateway.refreshCalls)
+
+        // Creating a Worker script through the API explorer changes the dashboard inventory.
+        gateway.events.tryEmit(CloudflareMutationEvent(CloudflareHttpMethod.PUT, "/accounts/account-primary/workers/scripts/new-worker"))
+        advanceUntilIdle()
+        assertEquals(1, gateway.refreshCalls)
+        assertEquals("account-primary", gateway.lastPreferredAccountId)
+
+        // Deleting a zone also refreshes.
+        gateway.events.tryEmit(CloudflareMutationEvent(CloudflareHttpMethod.DELETE, "/zones/zone-primary"))
+        advanceUntilIdle()
+        assertEquals(2, gateway.refreshCalls)
+    }
+
+    @Test
+    fun mutationsAreIgnoredWhileDisconnected() = runTest(dispatcher) {
+        val gateway = FakeGateway(CloudflareRestoreUi.NotConnected)
+        CloudflareViewModel(gateway, SavedStateHandle())
+        advanceUntilIdle()
+
+        gateway.events.tryEmit(CloudflareMutationEvent(CloudflareHttpMethod.POST, "/zones"))
+        advanceUntilIdle()
+        assertEquals(0, gateway.refreshCalls)
+    }
+
+    @Test
+    fun dashboardSummaryFilterMatchesIos() {
+        listOf(
+            "/zones",
+            "/zones/abc",
+            "/accounts/acc",
+            "/accounts/acc/pages/projects",
+            "/accounts/acc/pages/projects/site",
+            "/accounts/acc/workers/scripts/api",
+        ).forEach { assertTrue(it, cloudflareMutationAffectsDashboard(it)) }
+        listOf(
+            "/zones/abc/dns_records",
+            "/zones/abc/purge_cache",
+            "/accounts/acc/pages/projects/site/deployments",
+            "/accounts/acc/workers/scripts/api/deployments",
+            "/accounts/acc/d1/database",
+            "/graphql",
+            "/user",
+        ).forEach { assertFalse(it, cloudflareMutationAffectsDashboard(it)) }
+    }
+
+    @Test
     fun accountSelectionRefreshesPreferredInventoryAndClosesResource() = runTest(dispatcher) {
         val handle = SavedStateHandle()
         val gateway = FakeGateway(CloudflareRestoreUi.Available(dashboard()))
@@ -131,14 +213,35 @@ class CloudflareViewModelTest {
         var refreshCalls = 0
         var lastPreferredAccountId: String? = null
         var lastToken: SecretValue? = null
+        var lastCredential: CloudflareCredential? = null
         var refreshFailure: Throwable? = null
+        val events = cloudflareMutationEventFlow()
 
         override suspend fun restore(): Result<CloudflareRestoreUi> = Result.success(restored)
 
-        override suspend fun connect(apiToken: SecretValue): Result<CloudflareDashboardUi> {
-            lastToken = apiToken
-            return Result.success(dashboard())
+        override suspend fun connect(credential: CloudflareCredential): Result<CloudflareDashboardUi> {
+            lastCredential = credential
+            lastToken = (credential as? CloudflareCredential.ApiToken)?.token
+            return Result.success(
+                dashboard().let { dashboard ->
+                    if (credential is CloudflareCredential.GlobalApiKey) {
+                        dashboard.copy(
+                            profile = CloudflareProfileUi(
+                                "user-id",
+                                "Owner",
+                                "active",
+                                CloudflareAuthMode.GLOBAL_API_KEY,
+                                credential.email,
+                            ),
+                        )
+                    } else {
+                        dashboard
+                    }
+                },
+            )
         }
+
+        override fun mutationEvents(): Flow<CloudflareMutationEvent> = events
 
         override suspend fun refresh(preferredAccountId: String?): Result<CloudflareDashboardUi> {
             refreshCalls += 1

@@ -1,6 +1,6 @@
 package com.apoorvdarshan.verceltics.data.cloudflare.tools
 
-import com.apoorvdarshan.verceltics.data.account.SecretValue
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareCredential
 import com.apoorvdarshan.verceltics.data.network.CancelableCall
 import com.apoorvdarshan.verceltics.data.network.ProviderJsonValue
 
@@ -205,7 +205,7 @@ object CloudflareGraphQLDatasets {
  */
 class CloudflareGraphQLDatasetLoader(private val api: CloudflareToolsApi) {
     fun newLoadCall(
-        token: SecretValue,
+        credential: CloudflareCredential,
         scope: CloudflareGraphQLScope,
         accountId: String,
         zoneId: String?,
@@ -214,7 +214,7 @@ class CloudflareGraphQLDatasetLoader(private val api: CloudflareToolsApi) {
         fun introspect(type: String): List<CloudflareGraphQLIntrospectionField> {
             val response = child(
                 api.newGraphQLCall(
-                    token,
+                    credential,
                     CloudflareGraphQLDatasets.INTROSPECTION_QUERY,
                     mapOf("name" to ProviderJsonValue.Str(type)),
                     permission,
@@ -234,7 +234,7 @@ class CloudflareGraphQLDatasetLoader(private val api: CloudflareToolsApi) {
         settingsFields.chunked(CloudflareGraphQLDatasets.SETTINGS_CHUNK_SIZE).forEach { chunk ->
             val response = child(
                 api.newGraphQLCall(
-                    token,
+                    credential,
                     CloudflareGraphQLDatasets.settingsQuery(scope, chunk.map { it.name }),
                     CloudflareGraphQLDatasets.settingsVariables(scope, zoneId, accountId),
                     permission,
