@@ -32,8 +32,8 @@ A catalog entry is not considered provider parity. A provider is complete only a
 | Platform / slice | Status | Scope |
 |---|---|---|
 | iOS SwiftUI | Preserved | Existing UI, Liquid Glass integration, local data, and all 27 provider integrations remain native and operational. |
-| Android app shell and catalog | Implemented | Native Compose navigation and discoverability for 10 hosting providers, 8 registrars, and 9 site services. |
-| Android Vercel | Implemented | Token connection and validation, protected account persistence, projects, analytics, loading/error/empty states, search, refresh, and details. |
+| Android app shell and catalog | Implemented | Native Compose navigation (bottom dock, navigation rail on wide screens) and discoverability for 10 hosting providers, 8 registrars, and 9 site services; first-launch welcome and connect flow; Google Play in-app updates and review; multiple accounts per provider with switch/add/remove menus; pull-to-refresh and tablet layouts. |
+| Android Vercel | Implemented | Multiple token accounts, projects with privacy-preserving favicons, long-press actions, analytics chart, deployments, deployment detail with build events, domains, search, refresh, and details. |
 | Android PageSpeed & CrUX | Implemented | Protected API-key connection, Lighthouse and field-data audits, cached restore, history, loading/error/empty states, refresh, and details. |
 | Android Netlify | Implemented read-only flow | Protected token connection, cached restore, sites, domains, build controls, published deployments, deploy history, build history, cancellation reconciliation, refresh, and details. Mutations remain intentionally excluded. |
 | Android Cloudflare | Implemented | Protected scoped-token connection, cached restore, account switching, searchable inventory, zone/DNS/security operations, Pages and Workers operations, D1/KV/R2 storage, and Advanced tools behind Pro: API Explorer, complete OpenAPI catalog (3,324 operations), GraphQL dataset directory, guided product operations, account detail and operations. Every mutation is confirmed. |
