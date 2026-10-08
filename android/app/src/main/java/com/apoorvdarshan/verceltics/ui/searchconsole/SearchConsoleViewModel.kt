@@ -60,8 +60,23 @@ data class SearchConsoleUiState(
     val inspectionError: String? = null,
     val showDisconnectConfirmation: Boolean = false,
     val routeVisible: Boolean = false,
+    val propertySummaries: Map<String, SearchConsolePropertySummaryUi> = emptyMap(),
+    val isLoadingPropertySummaries: Boolean = false,
+    val propertySummaryError: String? = null,
 ) {
     val isBusy: Boolean get() = operation != null
+
+    /** iOS overview totals across the verified properties whose summaries have loaded. */
+    val overviewTotals: SearchConsoleOverviewTotalsUi?
+        get() {
+            val properties = dashboard?.properties ?: return null
+            if (propertySummaries.isEmpty()) return null
+            val visible = properties.mapNotNull { propertySummaries[it.siteUrl] }
+            return aggregateSearchConsoleSummaries(properties.size, visible)
+        }
+
+    val performance: SearchConsolePerformanceUi?
+        get() = (propertyWorkspace?.performance as? SearchConsoleResourceUi.Available)?.value
 
     val isConnected: Boolean
         get() = status == SearchConsoleConnectionStatus.CONNECTED ||
@@ -105,6 +120,8 @@ class SearchConsoleViewModel(
     private var performanceGeneration = 0L
     private var inspectionJob: Job? = null
     private var inspectionGeneration = 0L
+    private var summaryJob: Job? = null
+    private var summaryGeneration = 0L
     private var isForeground = false
     private var restoredCacheNeedsRefresh = false
     private var restoredCacheRefreshStarted = false
@@ -119,6 +136,7 @@ class SearchConsoleViewModel(
 
     fun restore() {
         cancelRootOperation(resetState = false)
+        cancelPropertySummaries()
         restoredCacheNeedsRefresh = false
         restoredCacheRefreshStarted = false
         val generation = ++operationGeneration
@@ -370,10 +388,19 @@ class SearchConsoleViewModel(
 
     fun applyPerformanceQuery(query: SearchConsolePerformanceQueryUi) {
         val property = selectedProperty() ?: return
-        if (_uiState.value.isLoadingPerformance) performanceJob?.cancel()
+        val normalized = query.normalizedForGoogle()
+        val current = _uiState.value
+        // Sorting and paging reorder rows already on device, exactly like iOS; only a change to
+        // what Google is asked for starts a new request.
+        val sameRowsAvailableOrComing = current.performance != null ||
+            current.isLoadingPerformance || current.isLoadingProperty
+        if (sameRowsAvailableOrComing && current.performanceQuery.requestsSameData(normalized)) {
+            _uiState.update { it.copy(performanceQuery = normalized) }
+            return
+        }
+        if (current.isLoadingPerformance) performanceJob?.cancel()
         performanceGeneration += 1
         val generation = performanceGeneration
-        val normalized = query.copy(page = query.page.coerceAtLeast(0))
         _uiState.update {
             it.copy(
                 performanceQuery = normalized,
@@ -415,17 +442,70 @@ class SearchConsoleViewModel(
     }
 
     fun nextPerformancePage() {
-        val performance = (_uiState.value.propertyWorkspace?.performance as?
-            SearchConsoleResourceUi.Available)?.value ?: return
-        if (performance.hasNextPage) {
-            applyPerformanceQuery(_uiState.value.performanceQuery.copy(page =
-                _uiState.value.performanceQuery.page + 1))
-        }
+        val state = _uiState.value
+        val rows = state.performance?.breakdownRows?.size ?: return
+        val query = state.performanceQuery
+        val lastPage = ((rows + query.pageSize - 1) / query.pageSize - 1).coerceAtLeast(0)
+        if (query.page < lastPage) _uiState.update { it.copy(performanceQuery = query.copy(page = query.page + 1)) }
     }
 
     fun previousPerformancePage() {
         val query = _uiState.value.performanceQuery
-        if (query.page > 0) applyPerformanceQuery(query.copy(page = query.page - 1))
+        if (query.page > 0) _uiState.update { it.copy(performanceQuery = query.copy(page = query.page - 1)) }
+    }
+
+    /** Column header / sort menu (iOS `toggleSort`); reorders loaded rows without a request. */
+    fun toggleBreakdownSort(field: SearchConsoleSortFieldUi) {
+        _uiState.update { it.copy(performanceQuery = it.performanceQuery.withSortToggled(field)) }
+    }
+
+    fun selectDatePreset(preset: SearchConsoleDatePresetUi) {
+        val query = _uiState.value.performanceQuery
+        if (preset == SearchConsoleDatePresetUi.CUSTOM || query.preset == preset) return
+        applyPerformanceQuery(query.withPreset(preset))
+    }
+
+    fun selectSearchType(type: SearchConsoleSearchTypeUi) {
+        val query = _uiState.value.performanceQuery
+        if (query.searchType != type) applyPerformanceQuery(query.withSearchType(type))
+    }
+
+    fun selectBreakdownDimension(dimension: SearchConsoleDimensionUi) {
+        val query = _uiState.value.performanceQuery
+        if (query.dimensions != listOf(dimension)) applyPerformanceQuery(query.withSingleDimension(dimension))
+    }
+
+    fun toggleBreakdownDimension(dimension: SearchConsoleDimensionUi) {
+        val query = _uiState.value.performanceQuery
+        val updated = query.withToggledDimension(dimension)
+        if (updated != query) applyPerformanceQuery(updated)
+    }
+
+    fun selectDataState(state: SearchConsoleDataStateUi) {
+        val query = _uiState.value.performanceQuery
+        if (query.dataState != state) applyPerformanceQuery(query.withDataState(state))
+    }
+
+    fun selectAggregation(aggregation: SearchConsoleAggregationUi) {
+        val query = _uiState.value.performanceQuery
+        val updated = query.withAggregation(aggregation)
+        if (updated.aggregation != query.aggregation) applyPerformanceQuery(updated)
+    }
+
+    fun applyPerformanceFilters(filters: List<SearchConsoleFilterUi>) {
+        val query = _uiState.value.performanceQuery
+        if (query.filters != filters) applyPerformanceQuery(query.withFilters(filters))
+    }
+
+    fun removePerformanceFilter(index: Int) {
+        val query = _uiState.value.performanceQuery
+        if (index in query.filters.indices) {
+            applyPerformanceQuery(query.withFilters(query.filters.filterIndexed { item, _ -> item != index }))
+        }
+    }
+
+    fun retryPropertySummaries() {
+        _uiState.value.dashboard?.let(::loadPropertySummaries)
     }
 
     fun selectPerformanceMetric(metric: SearchConsoleMetricUi) {
@@ -526,6 +606,7 @@ class SearchConsoleViewModel(
         val baseline = _uiState.value
         if (!baseline.isConnected || baseline.isBusy) return
         closeProperty()
+        cancelPropertySummaries()
         launchRootOperation(SearchConsoleOperation.DISCONNECTING, baseline) { generation ->
             gateway.disconnect().fold(
                 onSuccess = {
@@ -667,6 +748,47 @@ class SearchConsoleViewModel(
             inspectionError = current.inspectionError?.takeIf { selected != null },
             showDisconnectConfirmation = false,
         )
+        // Saved property lists are refreshed on foreground, so overview metrics follow live data.
+        if (dashboard.cacheState == SearchConsoleCacheState.LIVE) loadPropertySummaries(dashboard)
+    }
+
+    private fun loadPropertySummaries(dashboard: SearchConsoleDashboardUi) {
+        summaryGeneration += 1
+        val generation = summaryGeneration
+        summaryJob?.cancel()
+        val siteUrls = dashboard.properties.map(SearchConsolePropertyUi::siteUrl)
+        val current = siteUrls.toSet()
+        _uiState.update { state ->
+            state.copy(
+                propertySummaries = state.propertySummaries.filterKeys { it in current },
+                isLoadingPropertySummaries = siteUrls.isNotEmpty(),
+                propertySummaryError = null,
+            )
+        }
+        if (siteUrls.isEmpty()) return
+        summaryJob = viewModelScope.launch {
+            val result = gateway.loadPropertySummaries(siteUrls) { summary ->
+                if (summaryGeneration == generation && summary.siteUrl in current) {
+                    _uiState.update {
+                        it.copy(propertySummaries = it.propertySummaries + (summary.siteUrl to summary))
+                    }
+                }
+            }
+            if (summaryGeneration == generation) {
+                _uiState.update {
+                    it.copy(
+                        isLoadingPropertySummaries = false,
+                        propertySummaryError = result.exceptionOrNull()?.let(::safeMessage),
+                    )
+                }
+            }
+        }
+    }
+
+    private fun cancelPropertySummaries() {
+        summaryGeneration += 1
+        summaryJob?.cancel()
+        summaryJob = null
     }
 
     private fun loadSelectedProperty(property: SearchConsolePropertyUi) {
@@ -784,6 +906,7 @@ class SearchConsoleViewModel(
         propertyJob?.cancel()
         performanceJob?.cancel()
         inspectionJob?.cancel()
+        cancelPropertySummaries()
         super.onCleared()
     }
 

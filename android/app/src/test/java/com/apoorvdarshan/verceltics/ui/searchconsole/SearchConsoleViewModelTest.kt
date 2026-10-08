@@ -219,6 +219,108 @@ class SearchConsoleViewModelTest {
         )
     }
 
+    @Test
+    fun liveDashboardLoadsTheFreeTwentyEightDayOverviewForEveryProperty() = runTest(dispatcher) {
+        val cached = DASHBOARD.copy(cacheState = SearchConsoleCacheState.CACHED_STALE)
+        val gateway = FakeGateway(SearchConsoleRestoreUi.Available(cached))
+        val viewModel = SearchConsoleViewModel(gateway, SavedStateHandle())
+        advanceUntilIdle()
+        assertTrue("A cached list waits for live data", viewModel.uiState.value.propertySummaries.isEmpty())
+
+        viewModel.onForeground()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(listOf(PROPERTY.siteUrl), gateway.summaryRequests.single())
+        assertEquals(SUMMARY, state.propertySummaries[PROPERTY.siteUrl])
+        assertFalse(state.isLoadingPropertySummaries)
+        assertEquals(120.0, state.overviewTotals!!.clicks, 0.0)
+        assertFalse(state.overviewTotals!!.isPartial)
+    }
+
+    @Test
+    fun overviewFailureIsReportedWithoutBlockingTheDashboard() = runTest(dispatcher) {
+        val gateway = FakeGateway(SearchConsoleRestoreUi.Available(DASHBOARD)).apply {
+            summaryFailure = SearchConsoleUiException("Google rejected this access token.")
+        }
+        val viewModel = SearchConsoleViewModel(gateway, SavedStateHandle())
+        advanceUntilIdle()
+
+        viewModel.refresh()
+        advanceUntilIdle()
+
+        assertEquals(SearchConsoleConnectionStatus.CONNECTED, viewModel.uiState.value.status)
+        assertEquals("Google rejected this access token.", viewModel.uiState.value.propertySummaryError)
+        viewModel.retryPropertySummaries()
+        advanceUntilIdle()
+        assertEquals(2, gateway.summaryRequests.size)
+    }
+
+    @Test
+    fun sortingAndPagingReorderLoadedRowsWithoutAnotherGoogleRequest() = runTest(dispatcher) {
+        val rows = (1..60).map { SearchConsoleBreakdownRowUi(listOf("q$it"), it.toDouble(), 10.0 * it, 0.1, it.toDouble()) }
+        val gateway = FakeGateway(SearchConsoleRestoreUi.Available(DASHBOARD)).apply {
+            workspace = WORKSPACE.copy(
+                performance = SearchConsoleResourceUi.Available(
+                    (WORKSPACE.performance as SearchConsoleResourceUi.Available).value.copy(breakdownRows = rows),
+                ),
+            )
+        }
+        val viewModel = SearchConsoleViewModel(gateway, SavedStateHandle())
+        advanceUntilIdle()
+        viewModel.openProperty(PROPERTY.siteUrl)
+        advanceUntilIdle()
+
+        viewModel.toggleBreakdownSort(SearchConsoleSortFieldUi.POSITION)
+        viewModel.nextPerformancePage()
+        viewModel.nextPerformancePage()
+        viewModel.nextPerformancePage()
+        advanceUntilIdle()
+
+        val query = viewModel.uiState.value.performanceQuery
+        assertEquals(0, gateway.performanceCalls)
+        assertEquals(SearchConsoleSortFieldUi.POSITION, query.sortField)
+        assertTrue(query.sortAscending)
+        assertEquals("Three pages of 25 rows stop at the last page", 2, query.page)
+
+        viewModel.previousPerformancePage()
+        assertEquals(1, viewModel.uiState.value.performanceQuery.page)
+        assertEquals(0, gateway.performanceCalls)
+    }
+
+    @Test
+    fun onPageControlsApplyGoogleRulesBeforeRequesting() = runTest(dispatcher) {
+        val gateway = FakeGateway(SearchConsoleRestoreUi.Available(DASHBOARD))
+        val viewModel = SearchConsoleViewModel(gateway, SavedStateHandle())
+        advanceUntilIdle()
+        viewModel.openProperty(PROPERTY.siteUrl)
+        advanceUntilIdle()
+
+        viewModel.selectBreakdownDimension(SearchConsoleDimensionUi.HOUR)
+        advanceUntilIdle()
+        assertEquals(listOf(SearchConsoleDimensionUi.HOUR), gateway.lastPerformanceQuery?.dimensions)
+        assertEquals(SearchConsoleDataStateUi.HOURLY_ALL, gateway.lastPerformanceQuery?.dataState)
+
+        viewModel.selectDataState(SearchConsoleDataStateUi.FINAL)
+        advanceUntilIdle()
+        assertEquals(listOf(SearchConsoleDimensionUi.QUERY), gateway.lastPerformanceQuery?.dimensions)
+
+        viewModel.selectSearchType(SearchConsoleSearchTypeUi.DISCOVER)
+        viewModel.selectAggregation(SearchConsoleAggregationUi.BY_PROPERTY)
+        advanceUntilIdle()
+        assertEquals(SearchConsoleAggregationUi.AUTO, viewModel.uiState.value.performanceQuery.aggregation)
+
+        viewModel.applyPerformanceFilters(
+            listOf(SearchConsoleFilterUi(SearchConsoleDimensionUi.QUERY, SearchConsoleFilterOperatorUi.CONTAINS, "android")),
+        )
+        advanceUntilIdle()
+        assertEquals(1, gateway.lastPerformanceQuery?.filters?.size)
+        viewModel.removePerformanceFilter(0)
+        advanceUntilIdle()
+        assertTrue(gateway.lastPerformanceQuery!!.filters.isEmpty())
+        assertEquals(5, gateway.performanceCalls)
+    }
+
     private class FakeGateway(
         var restored: SearchConsoleRestoreUi,
         override val oauthReadiness: SearchConsoleOAuthReadinessUi = SearchConsoleOAuthReadinessUi.Ready,
@@ -233,6 +335,10 @@ class SearchConsoleViewModelTest {
         var connectStarted = CompletableDeferred<Unit>()
         var connectRelease = CompletableDeferred<Unit>().apply { complete(Unit) }
         var restoreFailure: Throwable? = null
+        var workspace = WORKSPACE
+        var performanceCalls = 0
+        val summaryRequests = mutableListOf<List<String>>()
+        var summaryFailure: Throwable? = null
 
         override suspend fun restore(): Result<SearchConsoleRestoreUi> {
             restoreCalls += 1
@@ -256,14 +362,25 @@ class SearchConsoleViewModelTest {
         override suspend fun loadProperty(
             property: SearchConsolePropertyUi,
             performanceQuery: SearchConsolePerformanceQueryUi,
-        ): Result<SearchConsolePropertyWorkspaceUi> = Result.success(WORKSPACE)
+        ): Result<SearchConsolePropertyWorkspaceUi> = Result.success(workspace)
 
         override suspend fun loadPerformance(
             siteUrl: String,
             query: SearchConsolePerformanceQueryUi,
         ): Result<SearchConsoleResourceUi<SearchConsolePerformanceUi>> {
+            performanceCalls += 1
             lastPerformanceQuery = query
-            return Result.success(WORKSPACE.performance)
+            return Result.success(workspace.performance)
+        }
+
+        override suspend fun loadPropertySummaries(
+            siteUrls: List<String>,
+            onSummary: suspend (SearchConsolePropertySummaryUi) -> Unit,
+        ): Result<Unit> {
+            summaryRequests += siteUrls
+            summaryFailure?.let { return Result.failure(it) }
+            siteUrls.forEach { onSummary(SUMMARY.copy(siteUrl = it)) }
+            return Result.success(Unit)
         }
 
         override suspend fun inspect(
@@ -284,6 +401,18 @@ class SearchConsoleViewModelTest {
 
     companion object {
         private val PROPERTY = SearchConsolePropertyUi("sc-domain:example.com", "example.com", "Owner")
+        private val SUMMARY = SearchConsolePropertySummaryUi(
+            siteUrl = PROPERTY.siteUrl,
+            clicks = 120.0,
+            impressions = 4_000.0,
+            ctr = 0.03,
+            position = 8.5,
+            sitemapCount = 2,
+            indexStatus = "Indexed",
+            indexVerdict = "PASS",
+            lastCrawlTime = "2026-10-01T10:00:00Z",
+            isPartial = false,
+        )
         private val DASHBOARD = SearchConsoleDashboardUi(
             account = SearchConsoleAccountUi("subject", "owner@example.com"),
             properties = listOf(PROPERTY),
@@ -304,9 +433,6 @@ class SearchConsoleViewModelTest {
                     position = 2.0,
                     timeline = emptyList(),
                     breakdownRows = emptyList(),
-                    loadedBreakdownRowCount = 0,
-                    hasPreviousPage = false,
-                    hasNextPage = false,
                     firstIncompleteDate = null,
                     firstIncompleteHour = null,
                 ),

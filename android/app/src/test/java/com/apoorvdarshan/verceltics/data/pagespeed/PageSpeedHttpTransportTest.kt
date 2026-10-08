@@ -41,6 +41,28 @@ class PageSpeedHttpTransportTest {
         assertFalse(text.contains("key"))
     }
 
+    @Test
+    fun cruxHistoryUsesTheSamePinnedOriginAndAsksForFortyPeriods() {
+        val transport = SecurePageSpeedHttpTransport()
+        val credentials = PageSpeedCredentials.create("api key/secret", "https://example.com/")
+
+        val history = transport.prepareCruxHistoryUri(credentials)
+        val body = SecurePageSpeedHttpTransport.jsonUrlBody(credentials.siteUrl, PageSpeedReportParser.HISTORY_PERIOD_COUNT)
+        val text = try {
+            String(body, StandardCharsets.UTF_8)
+        } finally {
+            body.fill(0)
+        }
+
+        assertEquals("https", history.scheme)
+        assertEquals("chromeuxreport.googleapis.com", history.host)
+        assertEquals("/v1/records:queryHistoryRecord", history.path)
+        assertEquals(443, effectivePort(history))
+        assertTrueQueryContains(history.rawQuery, "key=api%20key%2Fsecret")
+        assertEquals("{\"url\":\"https://example.com/\",\"collectionPeriodCount\":40}", text)
+        assertFalse(text.contains("secret"))
+    }
+
     private fun assertTrueQueryContains(query: String?, expected: String) {
         checkNotNull(query)
         assertEquals(true, query.split('&').contains(expected))

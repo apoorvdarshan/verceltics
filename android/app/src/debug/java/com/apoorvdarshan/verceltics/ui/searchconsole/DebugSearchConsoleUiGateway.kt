@@ -152,11 +152,10 @@ object DebugSearchConsoleGatewayController {
                             position = 12.1,
                         ),
                     ),
-                    loadedBreakdownRowCount = 2,
-                    hasPreviousPage = false,
-                    hasNextPage = false,
                     firstIncompleteDate = null,
                     firstIncompleteHour = null,
+                    timelineAggregationType = "byProperty",
+                    breakdownAggregationType = "byProperty",
                 ),
             ),
             sitemaps = SearchConsoleResourceUi.Available(
@@ -176,6 +175,19 @@ object DebugSearchConsoleGatewayController {
             ),
         )
 
+    fun summary(siteUrl: String) = SearchConsolePropertySummaryUi(
+        siteUrl = siteUrl,
+        clicks = 184.0,
+        impressions = 8_420.0,
+        ctr = 0.02185,
+        position = 11.4,
+        sitemapCount = 1,
+        indexStatus = "Indexed",
+        indexVerdict = "PASS",
+        lastCrawlTime = "2026-08-26T09:12:00Z",
+        isPartial = false,
+    )
+
     fun inspection() = SearchConsoleInspectionUi(
         inspectionResultLink = "https://search.google.com/search-console/inspect",
         verdict = "PASS",
@@ -193,6 +205,13 @@ object DebugSearchConsoleGatewayController {
         mobileVerdict = "PASS",
         richResultsVerdict = "PASS",
         issues = emptyList(),
+        inspectedUrl = "https://apoorvdarshan.com/",
+        richResultTypes = listOf(
+            SearchConsoleRichResultTypeUi(
+                type = "Breadcrumbs",
+                items = listOf(SearchConsoleRichResultItemUi(name = "Unnamed item", issues = emptyList())),
+            ),
+        ),
     )
 
     private val properties = listOf(
@@ -245,6 +264,13 @@ class DebugSearchConsoleUiGateway : SearchConsoleUiGateway {
         inspectionUrl: String,
     ): Result<SearchConsoleInspectionUi> =
         Result.success(DebugSearchConsoleGatewayController.inspected())
+
+    override suspend fun loadPropertySummaries(
+        siteUrls: List<String>,
+        onSummary: suspend (SearchConsolePropertySummaryUi) -> Unit,
+    ): Result<Unit> = runCatching {
+        siteUrls.forEach { onSummary(DebugSearchConsoleGatewayController.summary(it)) }
+    }
 
     override suspend fun disconnect(): Result<Unit> = runCatching {
         DebugSearchConsoleGatewayController.disconnected()

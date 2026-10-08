@@ -252,6 +252,62 @@ data class SearchConsoleUrlInspectionResult(
     val richResultsResult: SearchConsoleRichResultsResult?,
 )
 
+/**
+ * Free 28-day overview for one property: by-property Search Analytics totals, submitted sitemap
+ * count and the property URL's index status. Mirrors iOS `fetchSearchConsoleProperty`. A null
+ * metric means that part could not be loaded; Google omitting every row means zero traffic.
+ */
+data class SearchConsolePropertySummary(
+    val siteUrl: String,
+    val startDate: String,
+    val endDate: String,
+    val clicks: Double?,
+    val impressions: Double?,
+    val ctr: Double?,
+    val position: Double?,
+    val sitemapCount: Int?,
+    val inspectedUrl: String?,
+    val indexVerdict: String?,
+    val coverageState: String?,
+    val lastCrawlTime: String?,
+    val analyticsLoaded: Boolean,
+    val sitemapsLoaded: Boolean,
+    val inspectionLoaded: Boolean,
+    val warnings: List<String>,
+) {
+    init {
+        require(listOfNotNull(clicks, impressions, ctr, position).all(Double::isFinite)) {
+            "Invalid Search Console summary metric."
+        }
+        require(sitemapCount == null || sitemapCount >= 0) { "Invalid sitemap count." }
+        require(warnings.size <= MAX_WARNINGS) { "Too many Search Console summary warnings." }
+    }
+
+    /** Traffic or sitemap counts are missing, so aggregate totals are a lower bound. */
+    val metricsArePartial: Boolean get() = !analyticsLoaded || !sitemapsLoaded
+
+    /** iOS status: "Indexed" for a passing verdict, else Google's coverage text, else the verdict. */
+    val indexStatus: String? get() = searchConsoleIndexStatusLabel(indexVerdict, coverageState)
+}
+
+internal fun searchConsoleIndexStatusLabel(verdict: String?, coverageState: String?): String? = when {
+    verdict == "PASS" -> "Indexed"
+    !coverageState.isNullOrBlank() -> coverageState
+    !verdict.isNullOrBlank() -> verdict.lowercase().replaceFirstChar { it.uppercase() }
+    else -> null
+}
+
+/** The page iOS inspects for a property overview: the domain root or the URL-prefix itself. */
+internal fun searchConsoleOverviewInspectionUrl(siteUrl: String): String? {
+    if (siteUrl.startsWith("sc-domain:")) {
+        val domain = siteUrl.removePrefix("sc-domain:").trim()
+        return if (domain.isEmpty() || domain.any { it == '/' || it.isWhitespace() }) null else "https://$domain/"
+    }
+    val uri = runCatching { java.net.URI(siteUrl) }.getOrNull() ?: return null
+    val scheme = uri.scheme?.lowercase()
+    return if ((scheme == "https" || scheme == "http") && !uri.host.isNullOrBlank()) siteUrl else null
+}
+
 data class SearchConsoleSnapshot(
     val properties: List<SearchConsoleProperty>,
     val fetchedAtMillis: Long,

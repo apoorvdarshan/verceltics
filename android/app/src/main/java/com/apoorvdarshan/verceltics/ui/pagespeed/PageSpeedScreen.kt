@@ -581,6 +581,11 @@ private fun Dashboard(
 ) {
     val dashboard = requireNotNull(state.dashboard)
     val proAccess = LocalProAccess.current
+    val reportView = rememberPageSpeedReportViewState()
+    val report = dashboard.report
+    if (reportView.showRaw && report != null && proAccess.isUnlocked) {
+        PageSpeedRawExplorerDialog(report, onDismiss = { reportView.showRaw = false })
+    }
     val metricGroups = listOf(
         MetricGroupUi("MOBILE LAB", "Lighthouse · mobile", "pagespeed.mobile.", PageSpeedAccent),
         MetricGroupUi(
@@ -635,6 +640,13 @@ private fun Dashboard(
                 if (metrics.isNotEmpty()) {
                     item(key = group.prefix) { MetricGroupPanel(group, metrics) }
                 }
+            }
+            if (report == null) {
+                item(key = "full-report-pending") {
+                    FullReportPendingPanel(isBusy = state.isBusy, onRunAudit = onRefresh)
+                }
+            } else {
+                pageSpeedFullReportItems(report, reportView)
             }
         } else {
             // The hero summary stays free; the full lab and field breakdown is Pro.
@@ -1248,7 +1260,7 @@ private fun FullAuditLockedPanel(onUnlock: () -> Unit) {
                 Text("Full audit breakdown", style = MaterialTheme.typography.titleMedium)
             }
             Text(
-                "Lighthouse mobile and desktop labs and Chrome UX field data are part of Verceltics Pro.",
+                "Every Lighthouse audit for mobile and desktop, Chrome UX distributions and 40-period history, and the complete API response are part of Verceltics Pro.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

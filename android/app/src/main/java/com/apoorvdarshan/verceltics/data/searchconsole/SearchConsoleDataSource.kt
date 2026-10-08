@@ -2,6 +2,7 @@ package com.apoorvdarshan.verceltics.data.searchconsole
 
 import com.apoorvdarshan.verceltics.data.network.CancelableCall
 import java.io.IOException
+import java.time.LocalDate
 import java.util.concurrent.CancellationException
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
@@ -77,6 +78,81 @@ class SearchConsoleDataSource internal constructor(
             )
         }
 
+    /**
+     * One property's free overview, loaded like iOS `fetchSearchConsoleProperty`: 28-day
+     * by-property totals, the submitted sitemap count and the root URL's index status. A rejected
+     * or expired credential fails the whole call; every other part degrades to a partial summary.
+     */
+    fun newPropertySummaryCall(
+        credential: SearchConsoleOAuthCredential,
+        siteUrl: String,
+        endDate: LocalDate,
+    ): CancelableCall<SearchConsoleFetchResult<SearchConsolePropertySummary>> =
+        SearchConsoleSingleCall { tracker ->
+            val startDate = endDate.minusDays(SUMMARY_DAYS - 1)
+            val warnings = mutableListOf<String>()
+            var firstFailure: SearchConsoleFailure? = null
+            fun <V> attempt(part: String, load: () -> V): V? = try {
+                load()
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                val failure = safeFailure(error)
+                if (failure.kind in CREDENTIAL_FAILURES) throw SearchConsoleApiException(failure)
+                if (firstFailure == null) firstFailure = failure
+                warnings += "$part could not load: ${failure.message}"
+                null
+            }
+
+            val analytics = attempt("Search performance") {
+                tracker.executeChild(
+                    api.newAnalyticsPageCall(
+                        credential,
+                        siteUrl,
+                        SearchConsoleAnalyticsQuery(
+                            dateRange = SearchConsoleDateRange(startDate.toString(), endDate.toString()),
+                            searchType = SearchConsoleSearchType.WEB,
+                            aggregationType = SearchConsoleAggregationType.BY_PROPERTY,
+                            rowLimit = 1,
+                            dataState = SearchConsoleDataState.ALL,
+                        ),
+                    ),
+                )
+            }
+            val sitemapCount = attempt("Sitemaps") {
+                tracker.executeChild(api.newListSitemapsCall(credential, siteUrl)).size
+            }
+            val inspectionUrl = searchConsoleOverviewInspectionUrl(siteUrl)
+            val index = inspectionUrl?.let { url ->
+                attempt("Index status") {
+                    tracker.executeChild(api.newInspectUrlCall(credential, url, siteUrl)).indexStatus
+                        ?: MISSING_INDEX_STATUS
+                }
+            }
+            val row = analytics?.rows?.firstOrNull()
+            val summary = SearchConsolePropertySummary(
+                siteUrl = siteUrl,
+                startDate = startDate.toString(),
+                endDate = endDate.toString(),
+                // Google omits rows entirely for a property with no search traffic in the window.
+                clicks = row?.clicks ?: analytics?.let { 0.0 },
+                impressions = row?.impressions ?: analytics?.let { 0.0 },
+                ctr = row?.ctr,
+                position = row?.position,
+                sitemapCount = sitemapCount,
+                inspectedUrl = inspectionUrl,
+                indexVerdict = index?.verdict,
+                coverageState = index?.coverageState,
+                lastCrawlTime = index?.lastCrawlTime,
+                analyticsLoaded = analytics != null,
+                sitemapsLoaded = sitemapCount != null,
+                inspectionLoaded = index != null,
+                warnings = warnings.take(MAX_WARNINGS),
+            )
+            firstFailure?.let { SearchConsoleFetchResult.Partial(summary, it) }
+                ?: SearchConsoleFetchResult.Complete(summary)
+        }
+
     fun newInspectionCall(
         credential: SearchConsoleOAuthCredential,
         inspectionUrl: String,
@@ -91,6 +167,27 @@ class SearchConsoleDataSource internal constructor(
             )
         }
 }
+
+private const val SUMMARY_DAYS = 28L
+
+private val CREDENTIAL_FAILURES = setOf(
+    SearchConsoleFailureKind.AUTHENTICATION,
+    SearchConsoleFailureKind.EXPIRED_CREDENTIAL,
+)
+
+private val MISSING_INDEX_STATUS = SearchConsoleIndexStatus(
+    sitemaps = emptyList(),
+    referringUrls = emptyList(),
+    verdict = null,
+    coverageState = null,
+    robotsTxtState = null,
+    indexingState = null,
+    lastCrawlTime = null,
+    pageFetchState = null,
+    googleCanonical = null,
+    userCanonical = null,
+    crawledAs = null,
+)
 
 private class SearchConsoleAnalyticsCall(
     private val api: SearchConsoleReadApi,
