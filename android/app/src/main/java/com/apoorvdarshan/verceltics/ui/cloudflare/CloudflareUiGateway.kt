@@ -1,6 +1,7 @@
 package com.apoorvdarshan.verceltics.ui.cloudflare
 
 import com.apoorvdarshan.verceltics.data.account.SecretValue
+import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareRestClient
 
 /** UI-only Cloudflare boundary. API tokens never enter observable Compose state. */
 interface CloudflareUiGateway {
@@ -11,6 +12,13 @@ interface CloudflareUiGateway {
     suspend fun refresh(preferredAccountId: String? = null): Result<CloudflareDashboardUi>
 
     suspend fun disconnect(): Result<Unit>
+
+    /**
+     * Authenticated client for zone, Pages, Worker and storage operations. It resolves the saved
+     * token per request inside the data layer, so the token still never reaches UI state. Null for
+     * sample data and fakes, which keeps those screens read-only.
+     */
+    fun operationsClient(): CloudflareRestClient? = null
 }
 
 sealed interface CloudflareRestoreUi {

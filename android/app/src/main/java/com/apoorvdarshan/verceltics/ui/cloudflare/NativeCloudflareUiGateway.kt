@@ -16,6 +16,8 @@ import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareRestoreResult
 import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareSnapshot
 import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareWorkerScript
 import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareZone
+import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareOperationException
+import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareRestClient
 import com.apoorvdarshan.verceltics.data.network.CancelableCall
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -125,6 +127,18 @@ class NativeCloudflareUiGateway internal constructor(
     override suspend fun disconnect(): Result<Unit> = capture {
         executeAwait(storageExecutor, connectionStore::disconnect)
     }
+
+    private val restClient: CloudflareRestClient by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        CloudflareRestClient(
+            credentialProvider = {
+                executeAwait(storageExecutor) { connectionStore.loadForRefresh()?.connection?.account?.apiToken }
+                    ?: throw CloudflareOperationException.notConnected()
+            },
+            executor = networkExecutor,
+        )
+    }
+
+    override fun operationsClient(): CloudflareRestClient = restClient
 
     private fun CloudflareFetchResult.snapshotOrThrow(): CloudflareSnapshot = when (this) {
         is CloudflareFetchResult.Complete -> snapshot
