@@ -26,6 +26,16 @@ interface SearchConsoleUiGateway {
 
     suspend fun inspect(siteUrl: String, inspectionUrl: String): Result<SearchConsoleInspectionUi>
 
+    /**
+     * Loads the free 28-day overview for each property (iOS resource-card metrics), delivering
+     * each summary as soon as it is ready. A failure means the credential or account could not be
+     * used at all; per-property problems arrive as partial summaries instead.
+     */
+    suspend fun loadPropertySummaries(
+        siteUrls: List<String>,
+        onSummary: suspend (SearchConsolePropertySummaryUi) -> Unit,
+    ): Result<Unit> = Result.success(Unit)
+
     suspend fun disconnect(): Result<Unit>
 }
 
@@ -54,6 +64,57 @@ data class SearchConsolePropertyUi(
     val displayName: String,
     val permission: String,
 )
+
+/** One property's free 28-day overview. CTR is a 0–1 ratio; null values were not loaded. */
+data class SearchConsolePropertySummaryUi(
+    val siteUrl: String,
+    val clicks: Double?,
+    val impressions: Double?,
+    val ctr: Double?,
+    val position: Double?,
+    val sitemapCount: Int?,
+    val indexStatus: String?,
+    val indexVerdict: String?,
+    val lastCrawlTime: String?,
+    val isPartial: Boolean,
+    val warnings: List<String> = emptyList(),
+)
+
+/** Account-wide overview totals, aggregated like iOS `aggregateSearchConsoleMetrics`. */
+data class SearchConsoleOverviewTotalsUi(
+    val properties: Int,
+    val loadedProperties: Int,
+    val clicks: Double,
+    val impressions: Double,
+    val ctr: Double,
+    val sitemaps: Int,
+    val position: Double?,
+    val isPartial: Boolean,
+)
+
+fun aggregateSearchConsoleSummaries(
+    propertyCount: Int,
+    summaries: Collection<SearchConsolePropertySummaryUi>,
+): SearchConsoleOverviewTotalsUi {
+    val clicks = summaries.sumOf { it.clicks ?: 0.0 }
+    val impressions = summaries.sumOf { it.impressions ?: 0.0 }
+    val weighted = summaries.mapNotNull { summary ->
+        val position = summary.position ?: return@mapNotNull null
+        val weight = summary.impressions?.takeIf { it > 0.0 } ?: return@mapNotNull null
+        position to weight
+    }
+    val weight = weighted.sumOf { it.second }
+    return SearchConsoleOverviewTotalsUi(
+        properties = propertyCount,
+        loadedProperties = summaries.size,
+        clicks = clicks,
+        impressions = impressions,
+        ctr = if (impressions > 0.0) clicks / impressions else 0.0,
+        sitemaps = summaries.sumOf { it.sitemapCount ?: 0 },
+        position = if (weight > 0.0) weighted.sumOf { it.first * it.second } / weight else null,
+        isPartial = summaries.size < propertyCount || summaries.any(SearchConsolePropertySummaryUi::isPartial),
+    )
+}
 
 data class SearchConsoleDashboardUi(
     val account: SearchConsoleAccountUi,
@@ -116,6 +177,7 @@ enum class SearchConsoleAggregationUi {
     AUTO,
     BY_PAGE,
     BY_PROPERTY,
+    BY_NEWS_SHOWCASE_PANEL,
 }
 
 enum class SearchConsoleDimensionUi {
@@ -138,6 +200,7 @@ enum class SearchConsoleFilterOperatorUi {
 }
 
 enum class SearchConsoleSortFieldUi {
+    DIMENSION,
     CLICKS,
     IMPRESSIONS,
     CTR,
@@ -215,6 +278,10 @@ data class SearchConsoleBreakdownRowUi(
     val position: Double,
 )
 
+/**
+ * A loaded performance report. [breakdownRows] holds every loaded row in Google's order; sorting
+ * and paging happen on device (iOS `sortedBreakdownRows`/`pageRows`) without another request.
+ */
 data class SearchConsolePerformanceUi(
     val clicks: Double,
     val impressions: Double,
@@ -222,12 +289,18 @@ data class SearchConsolePerformanceUi(
     val position: Double,
     val timeline: List<SearchConsoleTimelinePointUi>,
     val breakdownRows: List<SearchConsoleBreakdownRowUi>,
-    val loadedBreakdownRowCount: Int,
-    val hasPreviousPage: Boolean,
-    val hasNextPage: Boolean,
     val firstIncompleteDate: String?,
     val firstIncompleteHour: String?,
-)
+    val timelineIsHourly: Boolean = false,
+    val timelineAggregationType: String? = null,
+    val breakdownAggregationType: String? = null,
+    val breakdownLimitReached: Boolean = false,
+    val timelineError: String? = null,
+    val breakdownError: String? = null,
+) {
+    /** iOS label: the aggregation Google actually applied, timeline first. */
+    val returnedAggregationType: String? get() = timelineAggregationType ?: breakdownAggregationType
+}
 
 data class SearchConsoleSitemapContentUi(
     val type: String,
@@ -266,6 +339,30 @@ enum class SearchConsoleInspectionAreaUi {
     RICH_RESULTS,
 }
 
+data class SearchConsoleAmpInspectionUi(
+    val ampUrl: String?,
+    val verdict: String?,
+    val indexStatusVerdict: String?,
+    val indexingState: String?,
+    val robotsTxtState: String?,
+    val pageFetchState: String?,
+    val lastCrawlTime: String?,
+    val issues: List<SearchConsoleInspectionIssueUi>,
+)
+
+data class SearchConsoleRichResultItemUi(
+    val name: String?,
+    val issues: List<SearchConsoleInspectionIssueUi>,
+)
+
+/** A detected rich-result type, kept even when Google reports no issues for it. */
+data class SearchConsoleRichResultTypeUi(
+    val type: String,
+    val items: List<SearchConsoleRichResultItemUi>,
+) {
+    val issueCount: Int get() = items.sumOf { it.issues.size }
+}
+
 data class SearchConsoleInspectionUi(
     val inspectionResultLink: String?,
     val verdict: String?,
@@ -283,6 +380,13 @@ data class SearchConsoleInspectionUi(
     val mobileVerdict: String?,
     val richResultsVerdict: String?,
     val issues: List<SearchConsoleInspectionIssueUi>,
+    val inspectedUrl: String? = null,
+    val hasIndexStatus: Boolean = true,
+    val amp: SearchConsoleAmpInspectionUi? = null,
+    val hasMobileResult: Boolean = mobileVerdict != null ||
+        issues.any { it.area == SearchConsoleInspectionAreaUi.MOBILE },
+    val richResultTypes: List<SearchConsoleRichResultTypeUi> = emptyList(),
+    val hasRichResults: Boolean = richResultsVerdict != null || richResultTypes.isNotEmpty(),
 )
 
 class SearchConsoleUiException(message: String) : Exception(message) {

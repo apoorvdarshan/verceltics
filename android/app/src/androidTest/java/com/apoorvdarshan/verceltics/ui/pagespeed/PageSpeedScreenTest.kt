@@ -6,6 +6,10 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
+import org.junit.Assert.assertEquals
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
@@ -133,6 +137,85 @@ class PageSpeedScreenTest {
         composeRule.onNodeWithText(
             "PageSpeed is a single-site workspace. Disconnect to audit a different HTTPS URL.",
         ).assertIsDisplayed()
+    }
+
+    @Test
+    fun liveAuditShowsFullLighthouseReportCruxHistoryAndRawExplorer() {
+        composeRule.setContent {
+            VercelticsTheme {
+                PageSpeedScreen(
+                    state = PageSpeedUiState(
+                        status = PageSpeedConnectionStatus.CONNECTED,
+                        dashboard = PARTIAL_DASHBOARD.copy(
+                            cacheState = PageSpeedCacheState.LIVE,
+                            report = DebugPageSpeedGatewayController.report(),
+                        ),
+                        savedSiteUrl = PARTIAL_DASHBOARD.siteUrl,
+                        operation = null,
+                        canDisconnect = true,
+                    ),
+                    onBack = {},
+                    onConnect = { _, _ -> },
+                    onRefresh = {},
+                    onCancel = {},
+                    onRequestDisconnect = {},
+                    onDismissDisconnect = {},
+                    onConfirmDisconnect = {},
+                )
+            }
+        }
+        val dashboard = composeRule.onNodeWithTag("pagespeed.dashboard")
+
+        dashboard.performScrollToNode(hasTestTag("pagespeed.report.categories"))
+        composeRule.onNodeWithTag("pagespeed.report.categories").assertIsDisplayed()
+        dashboard.performScrollToNode(hasTestTag("pagespeed.report.metadata"))
+        composeRule.onNodeWithText("12.6.0").assertExists()
+        dashboard.performScrollToNode(hasTestTag("pagespeed.report.crux.largest_contentful_paint"))
+        composeRule.onNodeWithTag("pagespeed.report.crux.largest_contentful_paint").assertIsDisplayed()
+        dashboard.performScrollToNode(hasTestTag("pagespeed.report.history.chart"))
+        composeRule.onNodeWithTag("pagespeed.report.history.chart.yAxis").assertExists()
+        composeRule.onNodeWithText("40 PERIODS").assertExists()
+
+        dashboard.performScrollToNode(hasTestTag("pagespeed.report.audits"))
+        composeRule.onNodeWithTag("pagespeed.report.audits.filter.FAILED").performClick()
+        dashboard.performScrollToNode(hasTestTag("pagespeed.report.audit.unused-javascript"))
+        composeRule.onNodeWithTag("pagespeed.report.audit.unused-javascript").performClick()
+        composeRule.onNodeWithText("ID unused-javascript").assertExists()
+        composeRule.onNodeWithTag("pagespeed.report.audit.color-contrast").assertDoesNotExist()
+
+        dashboard.performScrollToNode(hasTestTag("pagespeed.report.raw"))
+        composeRule.onNodeWithTag("pagespeed.report.raw").performClick()
+        composeRule.onNodeWithTag("pagespeed.raw").assertIsDisplayed()
+        composeRule.onNodeWithTag("pagespeed.raw.endpoint.crux.current").assertIsDisplayed()
+    }
+
+    @Test
+    fun restoredAuditOffersALiveRunForTheFullReport() {
+        var refreshes = 0
+        composeRule.setContent {
+            VercelticsTheme {
+                PageSpeedScreen(
+                    state = PageSpeedUiState(
+                        status = PageSpeedConnectionStatus.CONNECTED,
+                        dashboard = PARTIAL_DASHBOARD,
+                        savedSiteUrl = PARTIAL_DASHBOARD.siteUrl,
+                        operation = null,
+                        canDisconnect = true,
+                    ),
+                    onBack = {},
+                    onConnect = { _, _ -> },
+                    onRefresh = { refreshes += 1 },
+                    onCancel = {},
+                    onRequestDisconnect = {},
+                    onDismissDisconnect = {},
+                    onConfirmDisconnect = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("pagespeed.dashboard").performScrollToNode(hasTestTag("pagespeed.report.pending"))
+        composeRule.onNodeWithTag("pagespeed.report.run").performClick()
+        composeRule.runOnIdle { assertEquals(1, refreshes) }
     }
 
     private companion object {

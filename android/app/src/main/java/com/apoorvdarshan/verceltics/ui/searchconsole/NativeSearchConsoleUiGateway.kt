@@ -15,7 +15,9 @@ import com.apoorvdarshan.verceltics.data.searchconsole.SearchConsoleDimensionFil
 import com.apoorvdarshan.verceltics.data.searchconsole.SearchConsoleDimensionFilterGroup
 import com.apoorvdarshan.verceltics.data.searchconsole.SearchConsoleFilterDimension
 import com.apoorvdarshan.verceltics.data.searchconsole.SearchConsoleFilterOperator
+import com.apoorvdarshan.verceltics.data.searchconsole.SearchConsoleFailureKind
 import com.apoorvdarshan.verceltics.data.searchconsole.SearchConsoleFetchResult
+import com.apoorvdarshan.verceltics.data.searchconsole.SearchConsolePropertySummary
 import com.apoorvdarshan.verceltics.data.searchconsole.SearchConsoleOAuthAuthorizer
 import com.apoorvdarshan.verceltics.data.searchconsole.SearchConsoleOAuthCredential
 import com.apoorvdarshan.verceltics.data.searchconsole.SearchConsoleProperty
@@ -184,9 +186,37 @@ class NativeSearchConsoleUiGateway internal constructor(
         when (val result = dataSource.newInspectionCall(credential, inspectionUrl, siteUrl)
             .executeAwait(networkExecutor)
         ) {
-            is SearchConsoleFetchResult.Complete -> result.value.toUi()
-            is SearchConsoleFetchResult.Partial -> result.value.toUi()
+            is SearchConsoleFetchResult.Complete -> result.value.toUi(inspectionUrl)
+            is SearchConsoleFetchResult.Partial -> result.value.toUi(inspectionUrl)
             is SearchConsoleFetchResult.Failure -> throw SearchConsoleUiException(result.failure.message)
+        }
+    }
+
+    override suspend fun loadPropertySummaries(
+        siteUrls: List<String>,
+        onSummary: suspend (SearchConsolePropertySummaryUi) -> Unit,
+    ): Result<Unit> = capture {
+        val unique = siteUrls.distinct().take(MAXIMUM_VISIBLE_PROPERTIES)
+        if (unique.isEmpty()) return@capture
+        val endDate = java.time.LocalDate.now(clock)
+        // iOS loads property details four at a time; keep one network thread free for detail work.
+        unique.chunked(MAXIMUM_CONCURRENT_SUMMARIES).forEach { batch ->
+            // Long inventories can outlive an access token, so refresh it between batches.
+            val credential = currentCredential().credential
+            coroutineScope {
+                batch.map { siteUrl ->
+                    async {
+                        dataSource.newPropertySummaryCall(credential, siteUrl, endDate)
+                            .executeAwait(networkExecutor)
+                    }
+                }.forEach { pending ->
+                    when (val result = pending.await()) {
+                        is SearchConsoleFetchResult.Complete -> onSummary(result.value.toUi(isPartial = false))
+                        is SearchConsoleFetchResult.Partial -> onSummary(result.value.toUi(isPartial = true))
+                        is SearchConsoleFetchResult.Failure -> throw SearchConsoleUiException(result.failure.message)
+                    }
+                }
+            }
         }
     }
 
@@ -197,8 +227,11 @@ class NativeSearchConsoleUiGateway internal constructor(
     private suspend fun loadPerformance(
         credential: SearchConsoleOAuthCredential,
         siteUrl: String,
-        query: SearchConsolePerformanceQueryUi,
+        requestedQuery: SearchConsolePerformanceQueryUi,
     ): SearchConsoleResourceUi<SearchConsolePerformanceUi> = coroutineScope {
+        // Enforce Google's combinations at the boundary too (Hour needs hourly_all, and so on), so a
+        // query from any entry point can never be rejected for an avoidable rule.
+        val query = requestedQuery.normalizedForGoogle()
         val timelineDimension = if (query.dataState == SearchConsoleDataStateUi.HOURLY_ALL) {
             SearchConsoleDimension.HOUR
         } else {
@@ -208,17 +241,18 @@ class NativeSearchConsoleUiGateway internal constructor(
             dataSource.newAllAnalyticsCall(
                 credential = credential,
                 siteUrl = siteUrl,
-                query = query.toDataQuery(listOf(timelineDimension), rowLimit = 5_000),
-                maximumRows = 5_000,
+                query = query.toDataQuery(listOf(timelineDimension), rowLimit = PAGE_ROWS),
+                maximumRows = PAGE_ROWS,
             ).executeAwait(networkExecutor)
         }
         val breakdown = async {
             dataSource.newAllAnalyticsCall(
                 credential = credential,
                 siteUrl = siteUrl,
+                // Google pages at 25,000 rows; the data source walks pages up to the 100,000 ceiling.
                 query = query.toDataQuery(
                     dimensions = query.dimensions.map(SearchConsoleDimensionUi::toDataDimension),
-                    rowLimit = MAXIMUM_BREAKDOWN_ROWS,
+                    rowLimit = PAGE_ROWS,
                 ),
                 maximumRows = MAXIMUM_BREAKDOWN_ROWS,
             ).executeAwait(networkExecutor)
@@ -296,6 +330,8 @@ class NativeSearchConsoleUiGateway internal constructor(
     companion object {
         const val MAXIMUM_VISIBLE_PROPERTIES = 250
         const val MAXIMUM_BREAKDOWN_ROWS = 100_000
+        const val MAXIMUM_CONCURRENT_SUMMARIES = 3
+        private const val PAGE_ROWS = 25_000
 
         fun create(context: Context): NativeSearchConsoleUiGateway {
             val applicationContext = context.applicationContext
@@ -355,7 +391,7 @@ internal fun SearchConsolePerformanceQueryUi.toDataQuery(
                         SearchConsoleDimensionFilter(
                             dimension = filter.dimension.toDataFilterDimension(),
                             operator = filter.operator.toDataOperator(),
-                            expression = filter.expression,
+                            expression = filter.googleExpression(),
                         )
                     },
                 ),
@@ -386,14 +422,14 @@ internal fun combinePerformance(
     val clicks = metricRows.sumOf { it.clicks }
     val impressions = metricRows.sumOf { it.impressions }
     val weightedPosition = metricRows.sumOf { it.position * it.impressions }
-    val sortedBreakdown = breakdown?.rows.orEmpty().sortedWith(query.rowComparator())
-    val startLong = query.page.toLong() * query.pageSize.toLong()
-    val start = startLong.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
-    val end = (startLong + query.pageSize.toLong())
-        .coerceAtMost(sortedBreakdown.size.toLong())
-        .toInt()
-    val visibleRows = if (start >= sortedBreakdown.size) emptyList() else sortedBreakdown.subList(start, end)
-    val warnings = listOfNotNull(timelineResult.failureMessage(), breakdownResult.failureMessage()).distinct()
+    val breakdownRows = breakdown?.rows.orEmpty()
+    // Reaching the bounded row ceiling is expected for large sites; it gets its own banner (iOS
+    // "Showing the first 100,000 rows") instead of reading as a failed request.
+    val limitReached = breakdownResult.isLimitReached() ||
+        breakdownRows.size >= NativeSearchConsoleUiGateway.MAXIMUM_BREAKDOWN_ROWS
+    val timelineError = timelineResult.failureMessage()
+    val breakdownError = breakdownResult.failureMessage().takeUnless { breakdownResult.isLimitReached() }
+    val warnings = listOfNotNull(timelineError, breakdownError).distinct()
     val metadata = timeline?.metadata ?: breakdown?.metadata
     return SearchConsoleResourceUi.Available(
         value = SearchConsolePerformanceUi(
@@ -401,16 +437,18 @@ internal fun combinePerformance(
             impressions = impressions,
             ctr = if (impressions > 0.0) clicks / impressions else 0.0,
             position = if (impressions > 0.0) weightedPosition / impressions else 0.0,
-            timeline = timeline?.rows.orEmpty().map { row ->
-                SearchConsoleTimelinePointUi(
-                    label = row.keys.firstOrNull() ?: "Unknown",
-                    clicks = row.clicks,
-                    impressions = row.impressions,
-                    ctr = row.ctr,
-                    position = row.position,
-                )
-            },
-            breakdownRows = visibleRows.map { row ->
+            timeline = sortSearchConsoleTimeline(
+                timeline?.rows.orEmpty().map { row ->
+                    SearchConsoleTimelinePointUi(
+                        label = row.keys.firstOrNull() ?: "Unknown",
+                        clicks = row.clicks,
+                        impressions = row.impressions,
+                        ctr = row.ctr,
+                        position = row.position,
+                    )
+                },
+            ),
+            breakdownRows = breakdownRows.map { row ->
                 SearchConsoleBreakdownRowUi(
                     keys = row.keys,
                     clicks = row.clicks,
@@ -419,16 +457,22 @@ internal fun combinePerformance(
                     position = row.position,
                 )
             },
-            loadedBreakdownRowCount = sortedBreakdown.size,
-            hasPreviousPage = query.page > 0,
-            hasNextPage = end < sortedBreakdown.size,
             firstIncompleteDate = metadata?.firstIncompleteDate,
             firstIncompleteHour = metadata?.firstIncompleteHour,
+            timelineIsHourly = query.dataState == SearchConsoleDataStateUi.HOURLY_ALL,
+            timelineAggregationType = timeline?.responseAggregationType,
+            breakdownAggregationType = breakdown?.responseAggregationType,
+            breakdownLimitReached = limitReached,
+            timelineError = timelineError,
+            breakdownError = breakdownError,
         ),
-        isPartial = warnings.isNotEmpty(),
+        isPartial = warnings.isNotEmpty() || limitReached,
         warning = warnings.joinToString(" ").ifBlank { null },
     )
 }
+
+private fun SearchConsoleFetchResult<SearchConsoleAnalyticsResponse>.isLimitReached(): Boolean =
+    this is SearchConsoleFetchResult.Partial && failure.kind == SearchConsoleFailureKind.LIMIT_REACHED
 
 private fun SearchConsoleFetchResult<SearchConsoleAnalyticsResponse>.valueOrNull():
     SearchConsoleAnalyticsResponse? = when (this) {
@@ -443,18 +487,6 @@ private fun SearchConsoleFetchResult<SearchConsoleAnalyticsResponse>.failureMess
         is SearchConsoleFetchResult.Partial -> failure.message
         is SearchConsoleFetchResult.Failure -> failure.message
     }
-
-private fun SearchConsolePerformanceQueryUi.rowComparator(): Comparator<com.apoorvdarshan.verceltics.data.searchconsole.SearchConsoleAnalyticsRow> {
-    val metric: (com.apoorvdarshan.verceltics.data.searchconsole.SearchConsoleAnalyticsRow) -> Double =
-        when (sortField) {
-            SearchConsoleSortFieldUi.CLICKS -> { row -> row.clicks }
-            SearchConsoleSortFieldUi.IMPRESSIONS -> { row -> row.impressions }
-            SearchConsoleSortFieldUi.CTR -> { row -> row.ctr }
-            SearchConsoleSortFieldUi.POSITION -> { row -> row.position }
-        }
-    val comparator = compareBy(metric)
-    return if (sortAscending) comparator else comparator.reversed()
-}
 
 private fun SearchConsoleDimensionUi.toDataDimension(): SearchConsoleDimension = when (this) {
     SearchConsoleDimensionUi.DATE -> SearchConsoleDimension.DATE
@@ -505,6 +537,7 @@ private fun SearchConsoleAggregationUi.toDataAggregation(): SearchConsoleAggrega
     SearchConsoleAggregationUi.AUTO -> SearchConsoleAggregationType.AUTO
     SearchConsoleAggregationUi.BY_PAGE -> SearchConsoleAggregationType.BY_PAGE
     SearchConsoleAggregationUi.BY_PROPERTY -> SearchConsoleAggregationType.BY_PROPERTY
+    SearchConsoleAggregationUi.BY_NEWS_SHOWCASE_PANEL -> SearchConsoleAggregationType.BY_NEWS_SHOWCASE_PANEL
 }
 
 private fun SearchConsoleFetchResult<List<SearchConsoleSitemap>>.toSitemapsResourceUi():
@@ -532,44 +565,44 @@ private fun SearchConsoleSitemap.toUi() = SearchConsoleSitemapUi(
     },
 )
 
-private fun SearchConsoleUrlInspectionResult.toUi(): SearchConsoleInspectionUi {
-    val issues = buildList {
-        ampResult?.issues?.forEach {
-            add(
-                SearchConsoleInspectionIssueUi(
-                    area = SearchConsoleInspectionAreaUi.AMP,
-                    title = it.message ?: it.type ?: "AMP issue",
-                    severity = it.severity,
-                    detail = it.type,
-                ),
-            )
-        }
-        mobileUsabilityResult?.issues?.forEach {
-            add(
-                SearchConsoleInspectionIssueUi(
-                    area = SearchConsoleInspectionAreaUi.MOBILE,
-                    title = it.message ?: it.type ?: "Mobile issue",
-                    severity = it.severity,
-                    detail = it.type,
-                ),
-            )
-        }
-        richResultsResult?.detectedItems?.forEach { detected ->
-            detected.items.forEach { item ->
-                item.issues.forEach { issue ->
-                    add(
+internal fun SearchConsoleUrlInspectionResult.toUi(inspectedUrl: String? = null): SearchConsoleInspectionUi {
+    val ampIssues = ampResult?.issues.orEmpty().map { issue ->
+        SearchConsoleInspectionIssueUi(
+            area = SearchConsoleInspectionAreaUi.AMP,
+            title = issue.message ?: issue.type?.let(::searchConsoleHumanized) ?: "AMP issue",
+            severity = issue.severity,
+            detail = issue.type?.let(::searchConsoleHumanized),
+        )
+    }
+    val mobileIssues = mobileUsabilityResult?.issues.orEmpty().map { issue ->
+        SearchConsoleInspectionIssueUi(
+            area = SearchConsoleInspectionAreaUi.MOBILE,
+            title = issue.message ?: issue.type?.let(::searchConsoleHumanized) ?: "Mobile issue",
+            severity = issue.severity,
+            detail = issue.type?.let(::searchConsoleHumanized),
+        )
+    }
+    // Every detected type is kept, including types whose items all passed, so counts match iOS.
+    val richTypes = richResultsResult?.detectedItems.orEmpty().map { detected ->
+        SearchConsoleRichResultTypeUi(
+            type = detected.richResultType,
+            items = detected.items.map { item ->
+                SearchConsoleRichResultItemUi(
+                    name = item.name,
+                    issues = item.issues.map { issue ->
                         SearchConsoleInspectionIssueUi(
                             area = SearchConsoleInspectionAreaUi.RICH_RESULTS,
-                            title = issue.message ?: issue.type ?: detected.richResultType,
+                            title = issue.message ?: issue.type ?: "Rich-result issue",
                             severity = issue.severity,
-                            detail = listOfNotNull(detected.richResultType, item.name, issue.type)
-                                .distinct()
-                                .joinToString(" · "),
-                        ),
-                    )
-                }
-            }
-        }
+                            detail = listOfNotNull(
+                                searchConsoleHumanized(detected.richResultType),
+                                item.name,
+                            ).distinct().joinToString(" · "),
+                        )
+                    },
+                )
+            },
+        )
     }
     return SearchConsoleInspectionUi(
         inspectionResultLink = inspectionResultLink,
@@ -587,9 +620,41 @@ private fun SearchConsoleUrlInspectionResult.toUi(): SearchConsoleInspectionUi {
         ampVerdict = ampResult?.verdict,
         mobileVerdict = mobileUsabilityResult?.verdict,
         richResultsVerdict = richResultsResult?.verdict,
-        issues = issues,
+        issues = ampIssues + mobileIssues + richTypes.flatMap { type -> type.items.flatMap { it.issues } },
+        inspectedUrl = inspectedUrl,
+        hasIndexStatus = indexStatus != null,
+        amp = ampResult?.let { amp ->
+            SearchConsoleAmpInspectionUi(
+                ampUrl = amp.ampUrl,
+                verdict = amp.verdict,
+                indexStatusVerdict = amp.ampIndexStatusVerdict,
+                indexingState = amp.indexingState,
+                robotsTxtState = amp.robotsTxtState,
+                pageFetchState = amp.pageFetchState,
+                lastCrawlTime = amp.lastCrawlTime,
+                issues = ampIssues,
+            )
+        },
+        hasMobileResult = mobileUsabilityResult != null,
+        richResultTypes = richTypes,
+        hasRichResults = richResultsResult != null,
     )
 }
+
+internal fun SearchConsolePropertySummary.toUi(isPartial: Boolean): SearchConsolePropertySummaryUi =
+    SearchConsolePropertySummaryUi(
+        siteUrl = siteUrl,
+        clicks = clicks,
+        impressions = impressions,
+        ctr = ctr,
+        position = position,
+        sitemapCount = sitemapCount,
+        indexStatus = indexStatus,
+        indexVerdict = indexVerdict,
+        lastCrawlTime = lastCrawlTime,
+        isPartial = isPartial || metricsArePartial,
+        warnings = warnings,
+    )
 
 private suspend fun <T> CancelableCall<T>.executeAwait(executor: ExecutorService): T =
     suspendCancellableCoroutine { continuation ->

@@ -83,10 +83,20 @@ data class PageSpeedFailure(
     }
 }
 
+/**
+ * [report] carries the full in-memory breakdown built from the same responses. It is never
+ * persisted, so a restored connection shows the cached summary until the next live audit.
+ */
 sealed interface PageSpeedFetchResult {
-    data class Complete(val snapshot: PageSpeedSnapshot) : PageSpeedFetchResult
+    data class Complete(
+        val snapshot: PageSpeedSnapshot,
+        val report: PageSpeedReport? = null,
+    ) : PageSpeedFetchResult
 
-    data class Partial(val snapshot: PageSpeedSnapshot) : PageSpeedFetchResult {
+    data class Partial(
+        val snapshot: PageSpeedSnapshot,
+        val report: PageSpeedReport? = null,
+    ) : PageSpeedFetchResult {
         init {
             require(snapshot.availability.isPartial && snapshot.warnings.isNotEmpty()) {
                 "A partial PageSpeed result must explain its missing sources."

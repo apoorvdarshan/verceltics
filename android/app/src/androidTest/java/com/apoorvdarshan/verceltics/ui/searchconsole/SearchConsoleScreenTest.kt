@@ -12,6 +12,11 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.assertCountEquals
+import org.junit.Assert.assertEquals
 import com.apoorvdarshan.verceltics.ui.theme.VercelticsTheme
 import org.junit.Rule
 import org.junit.Test
@@ -246,6 +251,151 @@ class SearchConsoleScreenTest {
         composeRule.onNodeWithTag("searchConsole.propertySwitcher.search").assertIsDisplayed()
     }
 
+    @Test
+    fun overviewShowsTwentyEightDayTotalsAndPerPropertyMetricsForFree() {
+        composeRule.setContent {
+            VercelticsTheme(darkTheme = false) {
+                SearchConsoleScreen(
+                    state = baseState.copy(
+                        status = SearchConsoleConnectionStatus.CONNECTED,
+                        dashboard = dashboard.copy(cacheState = SearchConsoleCacheState.LIVE),
+                        operation = null,
+                        propertySummaries = mapOf(property.siteUrl to summary),
+                    ),
+                    onBack = {},
+                    onConnect = {},
+                    onRefresh = {},
+                    onCancel = {},
+                    onSearchChange = {},
+                    onOpenProperty = {},
+                    onRefreshProperty = {},
+                    onSelectSection = {},
+                    onInspectionUrlChange = {},
+                    onInspect = {},
+                    onRequestDisconnect = {},
+                    onDismissDisconnect = {},
+                    onConfirmDisconnect = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("searchConsole.overview.totals").assertIsDisplayed()
+        composeRule.onNodeWithText("LAST 28 DAYS").assertIsDisplayed()
+        composeRule.onNodeWithTag("searchConsole.dashboard")
+            .performScrollToNode(hasTestTag("searchConsole.property.summary.${property.siteUrl}"))
+        composeRule.onNodeWithTag("searchConsole.property.summary.${property.siteUrl}").assertIsDisplayed()
+        composeRule.onNodeWithText("Indexed").assertExists()
+        composeRule.onAllNodesWithText("1.2K").assertCountEquals(2)
+    }
+
+    @Test
+    fun performanceControlsChartAndSortableBreakdownWorkOnPage() {
+        var preset: SearchConsoleDatePresetUi? = null
+        var dimension: SearchConsoleDimensionUi? = null
+        var sort: SearchConsoleSortFieldUi? = null
+        var dataState: SearchConsoleDataStateUi? = null
+        composeRule.setContent {
+            VercelticsTheme(darkTheme = false) {
+                SearchConsoleScreen(
+                    state = baseState.copy(
+                        status = SearchConsoleConnectionStatus.CONNECTED,
+                        dashboard = dashboard,
+                        operation = null,
+                        selectedPropertyUrl = property.siteUrl,
+                        propertyWorkspace = workspace.copy(performance = SearchConsoleResourceUi.Available(performance)),
+                    ),
+                    onBack = {},
+                    onConnect = {},
+                    onRefresh = {},
+                    onCancel = {},
+                    onSearchChange = {},
+                    onOpenProperty = {},
+                    onRefreshProperty = {},
+                    onSelectSection = {},
+                    onInspectionUrlChange = {},
+                    onInspect = {},
+                    onRequestDisconnect = {},
+                    onDismissDisconnect = {},
+                    onConfirmDisconnect = {},
+                    performanceActions = SearchConsolePerformanceActions(
+                        onSelectDatePreset = { preset = it },
+                        onSelectDimension = { dimension = it },
+                        onToggleSort = { sort = it },
+                        onSelectDataState = { dataState = it },
+                    ),
+                )
+            }
+        }
+        val detail = composeRule.onNodeWithTag("searchConsole.detail")
+
+        detail.performScrollToNode(hasTestTag("searchConsole.performance.preset.DAYS_7"))
+        composeRule.onNodeWithTag("searchConsole.performance.preset.DAYS_7").performClick()
+        composeRule.onNodeWithTag("searchConsole.performance.advanced").performClick()
+        detail.performScrollToNode(hasTestTag("searchConsole.performance.dataState.HOURLY_ALL"))
+        composeRule.onNodeWithTag("searchConsole.performance.dataState.HOURLY_ALL").performClick()
+        composeRule.onNodeWithTag("searchConsole.performance.aggregation.BY_NEWS_SHOWCASE_PANEL").assertIsNotEnabled()
+        composeRule.onNodeWithTag("searchConsole.performance.returnedAggregation").assertExists()
+
+        detail.performScrollToNode(hasTestTag("searchConsole.performance.chart"))
+        composeRule.onNodeWithTag("searchConsole.performance.chart.yAxis").assertExists()
+        composeRule.onNodeWithText("Drag across the chart").assertExists()
+
+        detail.performScrollToNode(hasTestTag("searchConsole.breakdown.dimension.HOUR"))
+        composeRule.onNodeWithTag("searchConsole.breakdown.dimension.HOUR").performClick()
+        detail.performScrollToNode(hasTestTag("searchConsole.breakdown.sort.POSITION"))
+        composeRule.onNodeWithTag("searchConsole.breakdown.sort.POSITION").performClick()
+        detail.performScrollToNode(hasTestTag("searchConsole.breakdown.row.0"))
+        composeRule.onNodeWithText("swift charts").assertExists()
+
+        composeRule.runOnIdle {
+            assertEquals(SearchConsoleDatePresetUi.DAYS_7, preset)
+            assertEquals(SearchConsoleDataStateUi.HOURLY_ALL, dataState)
+            assertEquals(SearchConsoleDimensionUi.HOUR, dimension)
+            assertEquals(SearchConsoleSortFieldUi.POSITION, sort)
+        }
+    }
+
+    @Test
+    fun inspectionShowsAmpCardAndRichResultTypesWithoutIssues() {
+        composeRule.setContent {
+            VercelticsTheme(darkTheme = true) {
+                SearchConsoleScreen(
+                    state = baseState.copy(
+                        status = SearchConsoleConnectionStatus.CONNECTED,
+                        dashboard = dashboard,
+                        operation = null,
+                        selectedPropertyUrl = property.siteUrl,
+                        propertyWorkspace = workspace,
+                        selectedSection = SearchConsoleDetailSection.INSPECT,
+                        inspectionUrl = "https://example.com/",
+                        inspection = inspection,
+                    ),
+                    onBack = {},
+                    onConnect = {},
+                    onRefresh = {},
+                    onCancel = {},
+                    onSearchChange = {},
+                    onOpenProperty = {},
+                    onRefreshProperty = {},
+                    onSelectSection = {},
+                    onInspectionUrlChange = {},
+                    onInspect = {},
+                    onRequestDisconnect = {},
+                    onDismissDisconnect = {},
+                    onConfirmDisconnect = {},
+                )
+            }
+        }
+        val detail = composeRule.onNodeWithTag("searchConsole.detail")
+
+        detail.performScrollToNode(hasTestTag("searchConsole.inspection.amp"))
+        composeRule.onNodeWithTag("searchConsole.inspection.amp").assertIsDisplayed()
+        composeRule.onNodeWithText("https://example.com/amp").assertExists()
+        detail.performScrollToNode(hasTestTag("searchConsole.inspection.richType.Breadcrumbs"))
+        composeRule.onNodeWithTag("searchConsole.inspection.richType.Breadcrumbs").assertIsDisplayed()
+        composeRule.onNodeWithText("1 item · 0 issues").assertExists()
+    }
+
     private companion object {
         val property = SearchConsolePropertyUi("sc-domain:example.com", "example.com", "Owner")
         val dashboard = SearchConsoleDashboardUi(
@@ -268,14 +418,76 @@ class SearchConsoleScreenTest {
                     position = 4.2,
                     timeline = emptyList(),
                     breakdownRows = emptyList(),
-                    loadedBreakdownRowCount = 0,
-                    hasPreviousPage = false,
-                    hasNextPage = false,
                     firstIncompleteDate = null,
                     firstIncompleteHour = null,
                 ),
             ),
             sitemaps = SearchConsoleResourceUi.Available(emptyList()),
+        )
+        val summary = SearchConsolePropertySummaryUi(
+            siteUrl = property.siteUrl,
+            clicks = 1_234.0,
+            impressions = 56_000.0,
+            ctr = 0.022,
+            position = 7.4,
+            sitemapCount = 3,
+            indexStatus = "Indexed",
+            indexVerdict = "PASS",
+            lastCrawlTime = "2026-10-01T10:00:00Z",
+            isPartial = false,
+        )
+        val performance = SearchConsolePerformanceUi(
+            clicks = 60.0,
+            impressions = 600.0,
+            ctr = 0.1,
+            position = 4.0,
+            timeline = listOf(
+                SearchConsoleTimelinePointUi("2026-08-01", 10.0, 100.0, 0.1, 5.0),
+                SearchConsoleTimelinePointUi("2026-08-02", 20.0, 200.0, 0.1, 4.0),
+                SearchConsoleTimelinePointUi("2026-08-03", 30.0, 300.0, 0.1, 3.5),
+            ),
+            breakdownRows = listOf(
+                SearchConsoleBreakdownRowUi(listOf("swift charts"), 40.0, 400.0, 0.1, 3.0),
+                SearchConsoleBreakdownRowUi(listOf("compose charts"), 20.0, 200.0, 0.1, 6.0),
+            ),
+            firstIncompleteDate = null,
+            firstIncompleteHour = null,
+            timelineAggregationType = "byProperty",
+        )
+        val inspection = SearchConsoleInspectionUi(
+            inspectionResultLink = null,
+            verdict = "PASS",
+            coverageState = "Submitted and indexed",
+            indexingState = "INDEXING_ALLOWED",
+            robotsTxtState = "ALLOWED",
+            pageFetchState = "SUCCESSFUL",
+            lastCrawlTime = "2026-08-26T09:12:00Z",
+            googleCanonical = "https://example.com/",
+            userCanonical = "https://example.com/",
+            crawledAs = "MOBILE",
+            sitemaps = listOf("https://example.com/sitemap.xml"),
+            referringUrls = emptyList(),
+            ampVerdict = "PASS",
+            mobileVerdict = null,
+            richResultsVerdict = "PASS",
+            issues = emptyList(),
+            inspectedUrl = "https://example.com/",
+            amp = SearchConsoleAmpInspectionUi(
+                ampUrl = "https://example.com/amp",
+                verdict = "PASS",
+                indexStatusVerdict = "PASS",
+                indexingState = "INDEXING_ALLOWED",
+                robotsTxtState = "ALLOWED",
+                pageFetchState = "SUCCESSFUL",
+                lastCrawlTime = "2026-08-25T08:00:00Z",
+                issues = emptyList(),
+            ),
+            richResultTypes = listOf(
+                SearchConsoleRichResultTypeUi(
+                    "Breadcrumbs",
+                    listOf(SearchConsoleRichResultItemUi("Unnamed item", emptyList())),
+                ),
+            ),
         )
         val baseState = SearchConsoleUiState(
             oauthReadiness = SearchConsoleOAuthReadinessUi.Ready,

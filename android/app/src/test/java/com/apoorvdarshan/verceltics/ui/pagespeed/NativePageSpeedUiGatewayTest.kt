@@ -180,6 +180,9 @@ class NativePageSpeedUiGatewayTest {
 
         override fun newCruxCall(credentials: PageSpeedCredentials): CancelableCall<HttpResponse> =
             FixedCall()
+
+        override fun newCruxHistoryCall(credentials: PageSpeedCredentials): CancelableCall<HttpResponse> =
+            FixedCall()
     }
 
     private class FixedCall : CancelableCall<HttpResponse> {

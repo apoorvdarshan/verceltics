@@ -2,6 +2,7 @@ package com.apoorvdarshan.verceltics.data.searchconsole
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.apoorvdarshan.verceltics.data.account.SecretValue
+import com.apoorvdarshan.verceltics.ui.searchconsole.toUi
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -117,6 +118,38 @@ class AndroidSearchConsoleJsonParserTest {
         assertEquals("note", result.ampResult?.issues?.single()?.message)
         assertEquals("TAP_TARGETS_TOO_CLOSE", result.mobileUsabilityResult?.issues?.single()?.type)
         assertEquals("Breadcrumbs", result.richResultsResult?.detectedItems?.single()?.richResultType)
+    }
+
+    @Test
+    fun parsesAmpDetailsAndRichResultTypesThatHaveNoIssues() {
+        val result = parser.parseInspection(
+            """
+            {"inspectionResult":{
+              "ampResult":{
+                "verdict":"FAIL","ampUrl":"https://example.com/amp","robotsTxtState":"ALLOWED",
+                "indexingState":"INDEXING_ALLOWED","ampIndexStatusVerdict":"PASS",
+                "lastCrawlTime":"2026-08-25T08:00:00Z","pageFetchState":"SUCCESSFUL",
+                "issues":[{"severity":"ERROR","issueMessage":"Referenced AMP URL is not an AMP"}]
+              },
+              "richResultsResult":{"verdict":"PASS","detectedItems":[
+                {"richResultType":"Breadcrumbs","items":[{"name":"Unnamed item"}]},
+                {"richResultType":"FAQ","items":[
+                  {"name":"Q1","issues":[{"severity":"WARNING","issueMessage":"Missing field"}]},
+                  {"issues":[]}
+                ]}
+              ]}
+            }}
+            """.trimIndent().encodeToByteArray(),
+        )
+        val ui = result.toUi("https://example.com/")
+
+        assertEquals("https://example.com/amp", result.ampResult?.ampUrl)
+        assertEquals("PASS", result.ampResult?.ampIndexStatusVerdict)
+        assertEquals("2026-08-25T08:00:00Z", result.ampResult?.lastCrawlTime)
+        assertEquals(listOf("Breadcrumbs", "FAQ"), ui.richResultTypes.map { it.type })
+        assertEquals(listOf(0, 1), ui.richResultTypes.map { it.issueCount })
+        assertEquals(2, ui.richResultTypes.last().items.size)
+        assertEquals("Referenced AMP URL is not an AMP", ui.amp?.issues?.single()?.title)
     }
 
     @Test

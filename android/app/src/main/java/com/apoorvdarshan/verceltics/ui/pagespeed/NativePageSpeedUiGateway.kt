@@ -9,6 +9,7 @@ import com.apoorvdarshan.verceltics.data.pagespeed.PageSpeedConnectionRepository
 import com.apoorvdarshan.verceltics.data.pagespeed.PageSpeedConnectionStore
 import com.apoorvdarshan.verceltics.data.pagespeed.PageSpeedCredentials
 import com.apoorvdarshan.verceltics.data.pagespeed.PageSpeedFetchResult
+import com.apoorvdarshan.verceltics.data.pagespeed.PageSpeedReport
 import com.apoorvdarshan.verceltics.data.pagespeed.PageSpeedRestoreProblem
 import com.apoorvdarshan.verceltics.data.pagespeed.PageSpeedRestoreResult
 import com.apoorvdarshan.verceltics.data.pagespeed.PageSpeedSnapshot
@@ -73,7 +74,7 @@ class NativePageSpeedUiGateway internal constructor(
         val snapshot = result.snapshotOrThrow()
         val commit = persistValidatedConnectionAwait(executor, connectionStore, credentials, result)
         connectionStore.acceptValidatedConnection(commit)
-        snapshot.toUi(PageSpeedCacheState.LIVE)
+        snapshot.toUi(PageSpeedCacheState.LIVE, result.reportOrNull())
     }
 
     override suspend fun refresh(): Result<PageSpeedDashboardUi> = capture {
@@ -86,7 +87,7 @@ class NativePageSpeedUiGateway internal constructor(
                 "The saved PageSpeed connection disappeared during refresh."
             }
         }
-        snapshot.toUi(PageSpeedCacheState.LIVE)
+        snapshot.toUi(PageSpeedCacheState.LIVE, result.reportOrNull())
     }
 
     override suspend fun disconnect(): Result<Unit> = capture {
@@ -103,7 +104,16 @@ class NativePageSpeedUiGateway internal constructor(
         is PageSpeedFetchResult.Failure -> throw PageSpeedUiException(failure.message)
     }
 
-    private fun PageSpeedSnapshot.toUi(cacheState: PageSpeedCacheState): PageSpeedDashboardUi =
+    private fun PageSpeedFetchResult.reportOrNull(): PageSpeedReport? = when (this) {
+        is PageSpeedFetchResult.Complete -> report
+        is PageSpeedFetchResult.Partial -> report
+        is PageSpeedFetchResult.Failure -> null
+    }
+
+    private fun PageSpeedSnapshot.toUi(
+        cacheState: PageSpeedCacheState,
+        report: PageSpeedReport? = null,
+    ): PageSpeedDashboardUi =
         PageSpeedDashboardUi(
             siteUrl = siteUrl.toASCIIString(),
             siteName = siteName,
@@ -125,6 +135,7 @@ class NativePageSpeedUiGateway internal constructor(
             ),
             warnings = warnings,
             cacheState = cacheState,
+            report = report,
         )
 
     private fun PageSpeedSourceState.toUi(): PageSpeedSourceUiState =

@@ -12,9 +12,60 @@ class PageSpeedApi(
     private val transport: PageSpeedHttpTransport = SecurePageSpeedHttpTransport(),
     private val jsonParser: PageSpeedJsonParser = AndroidPageSpeedJsonParser(),
     private val nowMillis: () -> Long = System::currentTimeMillis,
+    private val includeFullReport: Boolean = true,
 ) {
+    /**
+     * Runs the mobile/desktop Lighthouse audits and current CrUX lookup for the summary. With
+     * [includeFullReport] the same responses also build the full report, plus one CrUX History
+     * request, so the Pro breakdown never re-runs a slow Lighthouse audit.
+     */
     fun newSnapshotCall(credentials: PageSpeedCredentials): CancelableCall<PageSpeedFetchResult> =
-        PageSpeedSnapshotCall(credentials, transport, jsonParser, nowMillis)
+        PageSpeedSnapshotCall(credentials, transport, jsonParser, nowMillis, includeFullReport)
+}
+
+/** Collects report pieces; a malformed optional section becomes a warning, never a failed audit. */
+private class PageSpeedReportBuilder {
+    val strategies = mutableListOf<PageSpeedStrategyReport>()
+    val raw = LinkedHashMap<String, com.apoorvdarshan.verceltics.data.network.ProviderJsonValue>()
+    val warnings = mutableListOf<String>()
+    var crux: PageSpeedCruxRecord? = null
+    var history: PageSpeedCruxHistory? = null
+
+    fun addLighthouse(strategy: PageSpeedStrategy, body: ByteArray) {
+        try {
+            val tree = PageSpeedReportParser.parseJson(body)
+            raw["pagespeed.${strategy.wireValue}"] = tree
+            strategies += PageSpeedReportParser.lighthouse(tree, strategy)
+        } catch (_: Exception) {
+            warnings += "The full ${strategy.label.lowercase()} Lighthouse report could not be read."
+        }
+    }
+
+    fun addCrux(body: ByteArray) {
+        try {
+            val tree = PageSpeedReportParser.parseJson(body)
+            raw["crux.current"] = tree
+            crux = PageSpeedReportParser.cruxRecord(tree)
+        } catch (_: Exception) {
+            warnings += "Current Chrome UX field distributions could not be read."
+        }
+    }
+
+    /** Throws [PageSpeedResponseFormatException] so the request reports an invalid response. */
+    fun addHistory(body: ByteArray) {
+        val tree = PageSpeedReportParser.parseJson(body)
+        history = PageSpeedReportParser.cruxHistory(tree)
+        raw["crux.history"] = tree
+    }
+
+    fun build(fetchedAtMillis: Long): PageSpeedReport = PageSpeedReport(
+        strategies = strategies.sortedBy { it.strategy.ordinal },
+        crux = crux,
+        cruxHistory = history,
+        rawResponses = raw.toMap(),
+        warnings = warnings.toList(),
+        fetchedAtMillis = fetchedAtMillis,
+    )
 }
 
 private class PageSpeedSnapshotCall(
@@ -22,7 +73,9 @@ private class PageSpeedSnapshotCall(
     private val transport: PageSpeedHttpTransport,
     private val jsonParser: PageSpeedJsonParser,
     private val nowMillis: () -> Long,
+    includeFullReport: Boolean,
 ) : CancelableCall<PageSpeedFetchResult> {
+    private val report: PageSpeedReportBuilder? = if (includeFullReport) PageSpeedReportBuilder() else null
     private val started = AtomicBoolean(false)
     private val cancelled = AtomicBoolean(false)
     private val activeCall = AtomicReference<CancelableCall<HttpResponse>?>()
@@ -56,6 +109,14 @@ private class PageSpeedSnapshotCall(
             warnings += "Chrome UX field data is unavailable: ${error.failure.message}"
         }
 
+        report?.let { builder ->
+            try {
+                executeCruxHistory(builder)
+            } catch (error: PageSpeedRequestFailure) {
+                builder.warnings += "Chrome UX history is unavailable: ${error.failure.message}"
+            }
+        }
+
         throwIfCancelled()
         val performance = metrics
             .filter {
@@ -82,10 +143,11 @@ private class PageSpeedSnapshotCall(
             availability = availability,
             warnings = warnings,
         )
+        val fullReport = report?.build(snapshot.fetchedAtMillis)
         return if (availability.isPartial) {
-            PageSpeedFetchResult.Partial(snapshot)
+            PageSpeedFetchResult.Partial(snapshot, fullReport)
         } else {
-            PageSpeedFetchResult.Complete(snapshot)
+            PageSpeedFetchResult.Complete(snapshot, fullReport)
         }
     }
 
@@ -98,12 +160,19 @@ private class PageSpeedSnapshotCall(
         executeRequest(
             call = transport.newInsightsCall(credentials, strategy),
             operation = "load ${strategy.wireValue} PageSpeed data",
-        ) { body -> jsonParser.parseInsights(body, strategy) }
+        ) { body ->
+            jsonParser.parseInsights(body, strategy).also { report?.addLighthouse(strategy, body) }
+        }
 
     private fun executeCrux(): List<PageSpeedMetric> = executeRequest(
         call = transport.newCruxCall(credentials),
         operation = "load Chrome UX field data",
-    ) { body -> jsonParser.parseCrux(body) }
+    ) { body -> jsonParser.parseCrux(body).also { report?.addCrux(body) } }
+
+    private fun executeCruxHistory(builder: PageSpeedReportBuilder) = executeRequest(
+        call = transport.newCruxHistoryCall(credentials),
+        operation = "load Chrome UX history",
+    ) { body -> builder.addHistory(body) }
 
     private fun <T> executeRequest(
         call: CancelableCall<HttpResponse>,

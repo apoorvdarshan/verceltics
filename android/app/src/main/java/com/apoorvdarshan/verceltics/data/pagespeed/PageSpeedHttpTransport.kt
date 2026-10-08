@@ -25,6 +25,9 @@ interface PageSpeedHttpTransport {
     ): CancelableCall<HttpResponse>
 
     fun newCruxCall(credentials: PageSpeedCredentials): CancelableCall<HttpResponse>
+
+    /** Chrome UX Report History API: the last [PageSpeedReportParser.HISTORY_PERIOD_COUNT] periods. */
+    fun newCruxHistoryCall(credentials: PageSpeedCredentials): CancelableCall<HttpResponse>
 }
 
 /**
@@ -105,11 +108,39 @@ class SecurePageSpeedHttpTransport(
             )
         }
 
+    override fun newCruxHistoryCall(credentials: PageSpeedCredentials): CancelableCall<HttpResponse> =
+        prepareCruxHistoryUri(credentials).let { uri ->
+            val body = jsonUrlBody(credentials.siteUrl, PageSpeedReportParser.HISTORY_PERIOD_COUNT)
+            try {
+                BoundedPageSpeedHttpCall(
+                    method = "POST",
+                    initialUri = uri,
+                    endpointPolicy = cruxPolicy,
+                    requestBody = body,
+                    connectTimeoutMillis = connectTimeoutMillis,
+                    readTimeoutMillis = readTimeoutMillis,
+                    maximumResponseBytes = maximumResponseBytes,
+                    maximumRedirects = maximumRedirects,
+                )
+            } finally {
+                body.fill(0)
+            }
+        }
+
+    internal fun prepareCruxHistoryUri(credentials: PageSpeedCredentials): URI =
+        credentials.apiKey.use { key ->
+            cruxPolicy.resolve(
+                relativePath = CRUX_HISTORY_PATH,
+                queryParameters = listOf("key" to key),
+            )
+        }
+
     companion object {
         const val INSIGHTS_BASE_URL = "https://www.googleapis.com/"
         const val CRUX_BASE_URL = "https://chromeuxreport.googleapis.com/"
         internal const val INSIGHTS_PATH = "/pagespeedonline/v5/runPagespeed"
         internal const val CRUX_PATH = "/v1/records:queryRecord"
+        internal const val CRUX_HISTORY_PATH = "/v1/records:queryHistoryRecord"
         internal val CATEGORIES = listOf("performance", "accessibility", "best-practices", "seo")
 
         private const val DEFAULT_CONNECT_TIMEOUT_MILLIS = 15_000
@@ -120,7 +151,10 @@ class SecurePageSpeedHttpTransport(
         private const val HARD_MAXIMUM_RESPONSE_BYTES = 8 * 1024 * 1024
         private const val HARD_MAXIMUM_REDIRECTS = 5
 
-        internal fun jsonUrlBody(siteUrl: URI): ByteArray {
+        internal fun jsonUrlBody(siteUrl: URI, collectionPeriodCount: Int? = null): ByteArray {
+            require(collectionPeriodCount == null || collectionPeriodCount in 1..PageSpeedReportParser.HISTORY_PERIOD_COUNT) {
+                "Invalid CrUX history period count."
+            }
             val escaped = buildString {
                 siteUrl.toASCIIString().forEach { character ->
                     when (character) {
@@ -140,7 +174,8 @@ class SecurePageSpeedHttpTransport(
                     }
                 }
             }
-            return "{\"url\":\"$escaped\"}".toByteArray(StandardCharsets.UTF_8)
+            val periods = collectionPeriodCount?.let { ",\"collectionPeriodCount\":$it" }.orEmpty()
+            return "{\"url\":\"$escaped\"$periods}".toByteArray(StandardCharsets.UTF_8)
         }
     }
 }

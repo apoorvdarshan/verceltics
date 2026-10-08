@@ -2,6 +2,7 @@ package com.apoorvdarshan.verceltics.ui.pagespeed
 
 import com.apoorvdarshan.verceltics.data.account.SecretValue
 import com.apoorvdarshan.verceltics.data.pagespeed.PageSpeedMetricUnit
+import com.apoorvdarshan.verceltics.data.pagespeed.PageSpeedReport
 
 /** UI boundary for the native PageSpeed & CrUX slice. API keys never enter UI state models. */
 interface PageSpeedUiGateway {
@@ -61,6 +62,8 @@ data class PageSpeedDashboardUi(
     val sources: PageSpeedSourcesUi,
     val warnings: List<String>,
     val cacheState: PageSpeedCacheState,
+    /** Full Lighthouse + CrUX breakdown from the latest live audit; null for a restored cache. */
+    val report: PageSpeedReport? = null,
 ) {
     val isPartial: Boolean
         get() = sources.desktop == PageSpeedSourceUiState.UNAVAILABLE ||

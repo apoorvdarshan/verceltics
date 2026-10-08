@@ -1,7 +1,6 @@
 package com.apoorvdarshan.verceltics.ui.sites
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -52,13 +51,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -587,13 +580,30 @@ private fun SeriesCard(series: SiteDetailSeries, providerId: String) {
                     modifier = Modifier.heightIn(min = 80.dp),
                 )
             } else {
-                val values = points.mapNotNull { it.values[selected] }
-                SeriesChart(values, accent, Modifier.fillMaxWidth().height(180.dp).semantics { contentDescription = "${series.title}: $label" })
-                Row(Modifier.fillMaxWidth()) {
-                    Text(points.first().x, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.weight(1f))
-                    Text(points.last().x, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                val chartPoints = points.mapNotNull { point ->
+                    point.values[selected]?.let { TimelineChartPoint(point.x, it) }
                 }
+                var scrubbed by remember(series.id, selected) { mutableStateOf<Int?>(null) }
+                scrubbed?.let { index ->
+                    chartPoints.getOrNull(index)?.let { point ->
+                        Text(
+                            "${point.label} · ${SiteServiceFormat.display(ProviderJsonValue.Num.of(point.value))}",
+                            color = accent,
+                            style = MaterialTheme.typography.labelMedium,
+                        )
+                    }
+                }
+                SiteTimelineChart(
+                    points = chartPoints,
+                    accent = accent,
+                    formatValue = ::formatCompactAxisValue,
+                    description = "${series.title}: $label",
+                    modifier = Modifier.fillMaxWidth(),
+                    chartHeight = 180.dp,
+                    selectedIndex = scrubbed,
+                    onSelectedIndexChange = { scrubbed = it },
+                    testTag = "siteService.detail.series.${series.id}.chart",
+                )
             }
             Row(Modifier.fillMaxWidth()) {
                 Text(label, color = accent, style = MaterialTheme.typography.labelMedium, modifier = Modifier.weight(1f))
@@ -608,44 +618,6 @@ private fun SeriesCard(series: SiteDetailSeries, providerId: String) {
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun SeriesChart(values: List<Double>, accent: Color, modifier: Modifier) {
-    val grid = MaterialTheme.colorScheme.outline
-    Canvas(modifier) {
-        if (values.isEmpty()) return@Canvas
-        val minimum = minOf(0.0, values.min())
-        val maximum = values.max().let { if (it == minimum) minimum + 1 else it }
-        val stepX = if (values.size == 1) 0f else size.width / (values.size - 1)
-        fun point(index: Int): Offset {
-            val fraction = ((values[index] - minimum) / (maximum - minimum)).toFloat()
-            val x = if (values.size == 1) size.width / 2 else index * stepX
-            return Offset(x, size.height - fraction * size.height)
-        }
-        repeat(4) { line ->
-            val y = size.height * line / 3f
-            drawLine(grid, Offset(0f, y), Offset(size.width, y), strokeWidth = 1f)
-        }
-        val line = Path()
-        val area = Path()
-        values.indices.forEach { index ->
-            val offset = point(index)
-            if (index == 0) {
-                line.moveTo(offset.x, offset.y)
-                area.moveTo(offset.x, size.height)
-                area.lineTo(offset.x, offset.y)
-            } else {
-                line.lineTo(offset.x, offset.y)
-                area.lineTo(offset.x, offset.y)
-            }
-        }
-        area.lineTo(point(values.lastIndex).x, size.height)
-        area.close()
-        drawPath(area, Brush.verticalGradient(listOf(accent.copy(alpha = 0.24f), accent.copy(alpha = 0.02f))))
-        drawPath(line, accent, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
-        if (values.size == 1) drawCircle(accent, radius = 4.dp.toPx(), center = point(0))
     }
 }
 

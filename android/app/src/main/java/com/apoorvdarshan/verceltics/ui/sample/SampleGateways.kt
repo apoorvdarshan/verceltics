@@ -117,14 +117,29 @@ object SampleSearchConsoleGateway : SearchConsoleUiGateway {
                     else -> value.contains(filter.expression, true)
                 }
             } }
-            .sortedBy { when (query.sortField) {
-                SearchConsoleSortFieldUi.CLICKS -> it.clicks
-                SearchConsoleSortFieldUi.IMPRESSIONS -> it.impressions
-                SearchConsoleSortFieldUi.CTR -> it.ctr
-                SearchConsoleSortFieldUi.POSITION -> it.position
-            } }.let { if (query.sortAscending) it else it.reversed() }
-        return SearchConsolePerformanceUi(timeline.sumOf { it.clicks }, timeline.sumOf { it.impressions }, 1.0 / 22, 7.4, timeline,
-            rows.drop(query.page * query.pageSize).take(query.pageSize), rows.size, query.page > 0, (query.page + 1) * query.pageSize < rows.size, null, null)
+        // Sorting and paging happen on device, so the sample returns every row like Google does.
+        return SearchConsolePerformanceUi(
+            clicks = timeline.sumOf { it.clicks },
+            impressions = timeline.sumOf { it.impressions },
+            ctr = 1.0 / 22,
+            position = 7.4,
+            timeline = timeline,
+            breakdownRows = rows,
+            firstIncompleteDate = null,
+            firstIncompleteHour = null,
+            timelineIsHourly = query.dataState == SearchConsoleDataStateUi.HOURLY_ALL,
+            timelineAggregationType = "byProperty",
+            breakdownAggregationType = "byProperty",
+        )
+    }
+    override suspend fun loadPropertySummaries(
+        siteUrls: List<String>,
+        onSummary: suspend (SearchConsolePropertySummaryUi) -> Unit,
+    ): Result<Unit> {
+        siteUrls.forEachIndexed { index, siteUrl ->
+            onSummary(SearchConsolePropertySummaryUi(siteUrl, 4_820.0 / (index + 1), 96_400.0 / (index + 1), 0.05, 7.4 + index, 2, "Indexed", "PASS", "2026-09-29T08:30:00Z", isPartial = false))
+        }
+        return Result.success(Unit)
     }
     override suspend fun loadProperty(property: SearchConsolePropertyUi, performanceQuery: SearchConsolePerformanceQueryUi) = Result.success(SearchConsolePropertyWorkspaceUi(
         property, SearchConsoleResourceUi.Available(performance(performanceQuery)), SearchConsoleResourceUi.Available(listOf(
