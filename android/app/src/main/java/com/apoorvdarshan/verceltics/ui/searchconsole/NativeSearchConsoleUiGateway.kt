@@ -1,6 +1,9 @@
 package com.apoorvdarshan.verceltics.ui.searchconsole
 
 import android.content.Context
+import com.apoorvdarshan.verceltics.data.googleoauth.GoogleOAuthCredential
+import com.apoorvdarshan.verceltics.data.googleoauth.GoogleOAuthException
+import com.apoorvdarshan.verceltics.data.googleoauth.GoogleOAuthSession
 import com.apoorvdarshan.verceltics.data.network.CancelableCall
 import com.apoorvdarshan.verceltics.data.searchconsole.NativeSearchConsoleOAuthAuthorizer
 import com.apoorvdarshan.verceltics.data.searchconsole.SearchConsoleAnalyticsQuery
@@ -28,6 +31,14 @@ import com.apoorvdarshan.verceltics.data.searchconsole.SearchConsoleSnapshot
 import com.apoorvdarshan.verceltics.data.searchconsole.SearchConsoleSearchType
 import com.apoorvdarshan.verceltics.data.searchconsole.SearchConsoleDataState
 import com.apoorvdarshan.verceltics.data.searchconsole.SearchConsoleUrlInspectionResult
+import com.apoorvdarshan.verceltics.data.searchconsole.SearchConsoleVersionedRecord
+import com.apoorvdarshan.verceltics.data.searchconsole.toGoogleCredential
+import com.apoorvdarshan.verceltics.data.searchconsole.toSearchConsoleCredential
+import com.apoorvdarshan.verceltics.data.sites.SiteAccountCommit
+import com.apoorvdarshan.verceltics.data.sites.SiteAccountIds
+import com.apoorvdarshan.verceltics.data.sites.SiteAccountIndex
+import com.apoorvdarshan.verceltics.ui.sites.SiteAccountOptionUi
+import com.apoorvdarshan.verceltics.ui.sites.SiteAccountsUi
 import java.time.Clock
 import java.util.concurrent.CancellationException
 import java.util.concurrent.ExecutorService
@@ -42,11 +53,16 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 
-/** Production bridge from encrypted Google credentials to bounded, display-only Compose models. */
+/**
+ * Production bridge from encrypted Google credentials to bounded, display-only Compose models.
+ * Several Google accounts can be saved; each has its own OAuth slot and offline cache, and every
+ * request runs against the account that was active when it started.
+ */
 class NativeSearchConsoleUiGateway internal constructor(
     private val connectionStore: SearchConsoleConnectionStore,
     private val dataSource: SearchConsoleDataSource,
     private val authorizer: SearchConsoleOAuthAuthorizer,
+    private val sessionFor: (accountId: String) -> GoogleOAuthSession,
     private val networkExecutor: ExecutorService,
     private val storageExecutor: ExecutorService,
     private val clock: Clock = Clock.systemUTC(),
@@ -63,43 +79,33 @@ class NativeSearchConsoleUiGateway internal constructor(
         }
 
     override suspend fun restore(): Result<SearchConsoleRestoreUi> = capture {
-        when (val restored = executeAwait(storageExecutor, connectionStore::restore)) {
-            SearchConsoleRestoreResult.NotConnected -> SearchConsoleRestoreUi.NotConnected
-            is SearchConsoleRestoreResult.Restored -> {
-                val account = SearchConsoleAccountUi(restored.id, restored.email)
-                restored.cachedSnapshot?.let { snapshot ->
-                    SearchConsoleRestoreUi.Available(
-                        snapshot.toDashboardUi(
-                            account,
-                            if (restored.cacheIsStale) {
-                                SearchConsoleCacheState.CACHED_STALE
-                            } else {
-                                SearchConsoleCacheState.CACHED_FRESH
-                            },
-                        ),
-                    )
-                } ?: SearchConsoleRestoreUi.SavedWithoutInventory(account)
-            }
-            is SearchConsoleRestoreResult.Unavailable -> SearchConsoleRestoreUi.SavedUnavailable(
-                when (restored.problem) {
-                    SearchConsoleRestoreProblem.SAVED_RECORD_UNREADABLE ->
-                        "The saved Google connection could not be opened. It was not deleted or replaced."
-                    SearchConsoleRestoreProblem.SECURE_STORAGE_UNAVAILABLE ->
-                        "Secure storage is unavailable. Unlock the device and try again."
-                },
-            )
-        }
+        executeAwait(storageExecutor, connectionStore::restore).toUi()
     }
 
     override suspend fun connect(): Result<SearchConsoleDashboardUi> = capture {
         val credential = authorizer.authorize()
         val result = dataSource.newPropertiesCall(credential).executeAwait(networkExecutor)
         val snapshot = result.valueOrThrow()
-        var pendingCommit = null as com.apoorvdarshan.verceltics.data.searchconsole.SearchConsoleRecordCommit?
+        val googleCredential = try {
+            credential.toGoogleCredential()
+        } catch (_: IllegalArgumentException) {
+            throw SearchConsoleUiException("Google returned a credential this device cannot save. Try again.")
+        }
+        // The same Google identity rotates its saved account in place; anyone else is added.
+        val accountId = executeAwait(storageExecutor) {
+            connectionStore.matchingAccountId(credential.subject, credential.email)
+        } ?: SiteAccountIds.newId()
+        val session = sessionFor(accountId)
+        var previousCredential: GoogleOAuthCredential? = null
+        var credentialSaved = false
+        var pendingCommit: SiteAccountCommit? = null
         try {
+            previousCredential = withContext(NonCancellable) { session.save(googleCredential) }
+            credentialSaved = true
             val commit = persistValidatedConnectionAwait(
                 storageExecutor,
                 connectionStore,
+                accountId,
                 credential,
                 result,
             )
@@ -109,28 +115,34 @@ class NativeSearchConsoleUiGateway internal constructor(
                 executeAwait(storageExecutor) { connectionStore.acceptValidatedConnection(commit) }
                 pendingCommit = null
                 afterAcceptValidatedConnection()
-                snapshot.toDashboardUi(credential.toAccountUi(), SearchConsoleCacheState.LIVE)
+                snapshot.toDashboardUi(SearchConsoleAccountUi(accountId, credential.email), SearchConsoleCacheState.LIVE)
             }
         } catch (error: CancellationException) {
-            withContext(NonCancellable) {
-                pendingCommit?.let { commit ->
-                    executeAwait(storageExecutor) {
-                        connectionStore.rollbackValidatedConnection(commit)
-                    }
-                }
-                executeAwait(storageExecutor) {}
-            }
+            withContext(NonCancellable) { compensateConnect(session, pendingCommit, credentialSaved, previousCredential) }
             throw error
         } catch (error: Exception) {
-            withContext(NonCancellable) {
-                pendingCommit?.let { commit ->
-                    executeAwait(storageExecutor) {
-                        connectionStore.rollbackValidatedConnection(commit)
-                    }
-                }
-            }
+            withContext(NonCancellable) { compensateConnect(session, pendingCommit, credentialSaved, previousCredential) }
             throw error
         }
+    }
+
+    /**
+     * Undoes a connect that did not finish: the account record and index are rolled back only while
+     * they are still the ones this connect wrote, and the OAuth slot gets its previous credential
+     * back only if the record was undone too (or was never written).
+     */
+    private suspend fun compensateConnect(
+        session: GoogleOAuthSession,
+        commit: SiteAccountCommit?,
+        credentialSaved: Boolean,
+        previousCredential: GoogleOAuthCredential?,
+    ) {
+        val recordUndone = commit?.let { pending ->
+            executeAwait(storageExecutor) { connectionStore.rollbackValidatedConnection(pending) }
+        } ?: true
+        if (credentialSaved && recordUndone) runCatching { session.restore(previousCredential) }
+        // Drain any queued compensation so callers observe a settled store.
+        executeAwait(storageExecutor) {}
     }
 
     override suspend fun refresh(): Result<SearchConsoleDashboardUi> = capture {
@@ -221,7 +233,41 @@ class NativeSearchConsoleUiGateway internal constructor(
     }
 
     override suspend fun disconnect(): Result<Unit> = capture {
-        executeAwait(storageExecutor, connectionStore::disconnect)
+        withContext(NonCancellable) {
+            executeAwait(storageExecutor) { connectionStore.disconnect() }?.let { sessionFor(it).signOut() }
+        }
+    }
+
+    override suspend fun accounts(): Result<SiteAccountsUi> = capture {
+        executeAwait(storageExecutor) { connectionStore.accounts() }.toAccountsUi()
+    }
+
+    override suspend fun switchAccount(accountId: String): Result<SearchConsoleRestoreUi> = capture {
+        executeAwait(storageExecutor) {
+            connectionStore.switchAccount(accountId)
+                ?: throw SearchConsoleUiException("This Google account is no longer saved.")
+            connectionStore.restore()
+        }.toUi()
+    }
+
+    override suspend fun removeAccount(accountId: String): Result<SearchConsoleRestoreUi> = capture {
+        removeSavedAccount(accountId)
+        executeAwait(storageExecutor, connectionStore::restore).toUi()
+    }
+
+    override suspend fun removeAllAccounts(): Result<Unit> = capture {
+        withContext(NonCancellable) {
+            val removed = executeAwait(storageExecutor) { connectionStore.removeAllAccounts() }
+            removed.forEach { accountId -> sessionFor(accountId).signOut() }
+        }
+    }
+
+    /** Removes one account's record and clears its Google OAuth slot. */
+    private suspend fun removeSavedAccount(accountId: String) {
+        withContext(NonCancellable) {
+            executeAwait(storageExecutor) { connectionStore.removeAccount(accountId) }
+            sessionFor(accountId).signOut()
+        }
     }
 
     private suspend fun loadPerformance(
@@ -260,47 +306,50 @@ class NativeSearchConsoleUiGateway internal constructor(
         combinePerformance(timeline.await(), breakdown.await(), query)
     }
 
+    /**
+     * The active account's credential, refreshed through its own OAuth slot when it is about to
+     * expire. Refreshes are serialized per slot, so concurrent requests share one token refresh.
+     */
     private suspend fun currentCredential(): RequestCredential {
-        while (true) {
-            var saved = executeAwait(storageExecutor, connectionStore::loadForRefresh)
-                ?: throw SearchConsoleUiException("Connect a Google Search Console account first.")
-            if (!saved.connection.credential.needsRefresh(clock.millis())) {
-                return RequestCredential(
-                    saved.connection.credential,
-                    SearchConsoleAccountUi(saved.connection.id, saved.connection.credential.email),
-                    saved,
-                )
-            }
-            val refreshed = authorizer.refresh(saved.connection.credential)
-            val persisted = executeAwait(storageExecutor) {
-                connectionStore.persistRefreshedCredential(saved, refreshed)
-            }
-            if (persisted) {
-                val refreshedRecord = executeAwait(storageExecutor, connectionStore::loadForRefresh)
-                    ?: throw SearchConsoleUiException("The Google account was disconnected during refresh.")
-                if (refreshedRecord.connection.id == saved.connection.id &&
-                    refreshedRecord.connection.credential.accessToken == refreshed.accessToken
-                ) {
-                    return RequestCredential(
-                        refreshed,
-                        SearchConsoleAccountUi(saved.connection.id, refreshed.email),
-                        refreshedRecord,
-                    )
-                }
-                // A replacement won after the credential CAS. Restart with that exact record.
-                continue
-            }
-            saved = executeAwait(storageExecutor, connectionStore::loadForRefresh)
-                ?: throw SearchConsoleUiException("The Google account was disconnected during refresh.")
-            if (saved.connection.credential.needsRefresh(clock.millis())) {
-                throw SearchConsoleUiException("The saved Google credential could not be refreshed. Reconnect the account.")
-            }
-            return RequestCredential(
-                saved.connection.credential,
-                SearchConsoleAccountUi(saved.connection.id, saved.connection.credential.email),
-                saved,
+        val source = executeAwait(storageExecutor, connectionStore::loadForRefresh)
+            ?: throw SearchConsoleUiException("Connect a Google Search Console account first.")
+        val google = sessionFor(source.record.id).validCredential(REQUIRED_SCOPES)
+            ?: throw SearchConsoleUiException(
+                "Google access for ${source.record.email ?: "this account"} expired or was revoked. Reconnect the account.",
             )
+        val credential = try {
+            google.toSearchConsoleCredential()
+        } catch (_: IllegalArgumentException) {
+            throw SearchConsoleUiException("The saved Google credential could not be used. Reconnect the account.")
         }
+        return RequestCredential(
+            credential,
+            SearchConsoleAccountUi(source.record.id, source.record.email ?: google.email),
+            source,
+        )
+    }
+
+    private fun SearchConsoleRestoreResult.toUi(): SearchConsoleRestoreUi = when (this) {
+        SearchConsoleRestoreResult.NotConnected -> SearchConsoleRestoreUi.NotConnected
+        is SearchConsoleRestoreResult.Restored -> {
+            val account = SearchConsoleAccountUi(accountId, email)
+            cachedSnapshot?.let { snapshot ->
+                SearchConsoleRestoreUi.Available(
+                    snapshot.toDashboardUi(
+                        account,
+                        if (cacheIsStale) SearchConsoleCacheState.CACHED_STALE else SearchConsoleCacheState.CACHED_FRESH,
+                    ),
+                )
+            } ?: SearchConsoleRestoreUi.SavedWithoutInventory(account)
+        }
+        is SearchConsoleRestoreResult.Unavailable -> SearchConsoleRestoreUi.SavedUnavailable(
+            when (problem) {
+                SearchConsoleRestoreProblem.SAVED_RECORD_UNREADABLE ->
+                    "The saved Google connection could not be opened. It was not deleted or replaced."
+                SearchConsoleRestoreProblem.SECURE_STORAGE_UNAVAILABLE ->
+                    "Secure storage is unavailable. Unlock the device and try again."
+            },
+        )
     }
 
     private fun SearchConsoleFetchResult<SearchConsoleSnapshot>.valueOrThrow(): SearchConsoleSnapshot =
@@ -332,6 +381,7 @@ class NativeSearchConsoleUiGateway internal constructor(
         const val MAXIMUM_BREAKDOWN_ROWS = 100_000
         const val MAXIMUM_CONCURRENT_SUMMARIES = 3
         private const val PAGE_ROWS = 25_000
+        private val REQUIRED_SCOPES: Set<String> = SearchConsoleOAuthCredential.REQUIRED_SCOPES.toSet()
 
         fun create(context: Context): NativeSearchConsoleUiGateway {
             val applicationContext = context.applicationContext
@@ -341,6 +391,9 @@ class NativeSearchConsoleUiGateway internal constructor(
                 ),
                 dataSource = SearchConsoleDataSource(),
                 authorizer = NativeSearchConsoleOAuthAuthorizer(applicationContext),
+                sessionFor = { accountId ->
+                    GoogleOAuthSession.create(applicationContext, SearchConsoleConnectionRepository.credentialSlot(accountId))
+                },
                 networkExecutor = Executors.newFixedThreadPool(4) { runnable ->
                     Thread(runnable, "verceltics-search-console").apply { isDaemon = true }
                 },
@@ -352,14 +405,18 @@ class NativeSearchConsoleUiGateway internal constructor(
     }
 }
 
-private data class RequestCredential(
+private class RequestCredential(
     val credential: SearchConsoleOAuthCredential,
     val account: SearchConsoleAccountUi,
-    val source: com.apoorvdarshan.verceltics.data.searchconsole.SearchConsoleVersionedConnection,
-)
+    val source: SearchConsoleVersionedRecord,
+) {
+    override fun toString(): String = "RequestCredential(account=${account.id}, credential=<redacted>)"
+}
 
-private fun SearchConsoleOAuthCredential.toAccountUi(): SearchConsoleAccountUi =
-    SearchConsoleAccountUi(subject ?: email ?: "google-account", email)
+private fun SiteAccountIndex.toAccountsUi(): SiteAccountsUi = SiteAccountsUi(
+    accounts = accounts.map { SiteAccountOptionUi(it.id, it.name, it.detail) },
+    activeAccountId = activeId,
+)
 
 private fun SearchConsoleProperty.toUi(): SearchConsolePropertyUi {
     val name = siteUrl.removePrefix("sc-domain:").removeSuffix("/")
@@ -687,11 +744,12 @@ private suspend fun <T> executeAwait(executor: ExecutorService, block: () -> T):
 private suspend fun persistValidatedConnectionAwait(
     executor: ExecutorService,
     connectionStore: SearchConsoleConnectionStore,
+    accountId: String,
     credential: SearchConsoleOAuthCredential,
     result: SearchConsoleFetchResult<SearchConsoleSnapshot>,
-): com.apoorvdarshan.verceltics.data.searchconsole.SearchConsoleRecordCommit =
+): SiteAccountCommit =
     suspendCancellableCoroutine { continuation ->
-        val committed = AtomicReference<com.apoorvdarshan.verceltics.data.searchconsole.SearchConsoleRecordCommit?>()
+        val committed = AtomicReference<SiteAccountCommit?>()
         val cleanupScheduled = AtomicBoolean(false)
 
         fun scheduleRollback() {
@@ -707,7 +765,7 @@ private suspend fun persistValidatedConnectionAwait(
         executor.execute {
             if (!continuation.isActive) return@execute
             try {
-                val commit = connectionStore.saveValidatedConnection(credential, result)
+                val commit = connectionStore.saveValidatedConnection(accountId, credential.subject, credential.email, result)
                 committed.set(commit)
                 continuation.resume(commit) { _, _, _ -> scheduleRollback() }
             } catch (error: Exception) {
@@ -722,6 +780,10 @@ private suspend inline fun <T> capture(crossinline block: suspend () -> T): Resu
     throw error
 } catch (error: SearchConsoleUiException) {
     Result.failure(error)
+} catch (error: GoogleOAuthException) {
+    Result.failure(
+        SearchConsoleUiException(error.message ?: "Google Search Console could not complete this request."),
+    )
 } catch (_: SecurityException) {
     Result.failure(SearchConsoleUiException("Secure storage is unavailable."))
 } catch (_: Exception) {

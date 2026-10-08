@@ -1,6 +1,9 @@
 package com.apoorvdarshan.verceltics.data.searchconsole
 
 import com.apoorvdarshan.verceltics.data.account.SecretValue
+import com.apoorvdarshan.verceltics.data.sites.SiteAccountEntry
+import com.apoorvdarshan.verceltics.data.sites.SiteAccountIds
+import com.apoorvdarshan.verceltics.data.sites.SiteAccountIndex
 
 /** OAuth credential material. Secret fields are deliberately non-printable. */
 class SearchConsoleOAuthCredential(
@@ -364,19 +367,46 @@ data class SearchConsoleStoredConnection(
             "updatedAtMillis=$updatedAtMillis, cachedSnapshot=${cachedSnapshot != null})"
 }
 
+/**
+ * One saved Search Console account (multi-account storage). It holds only the non-secret Google
+ * identity and the bounded offline property cache; the account's tokens live in its own
+ * `GoogleOAuthSession` slot ([SearchConsoleConnectionRepository.credentialSlot]).
+ */
+data class SearchConsoleAccountRecord(
+    val id: String,
+    val subject: String?,
+    val email: String?,
+    val createdAtMillis: Long,
+    val updatedAtMillis: Long,
+    val cachedSnapshot: SearchConsoleSnapshot?,
+) {
+    init {
+        require(SiteAccountIds.isValid(id)) { "Invalid Search Console account id." }
+        require(createdAtMillis >= 0L && updatedAtMillis >= createdAtMillis) { "Invalid account timestamps." }
+        require(subject == null || subject.isNotBlank() && subject.length <= MAX_ID_CHARACTERS) { "Invalid Google subject." }
+        require(email == null || email.isNotBlank() && email.length <= MAX_EMAIL_CHARACTERS) { "Invalid Google email." }
+    }
+
+    val entry: SiteAccountEntry
+        get() = SiteAccountEntry(id, SiteAccountIds.label(email ?: "Google account"))
+}
+
 enum class SearchConsoleRestoreProblem { SAVED_RECORD_UNREADABLE, SECURE_STORAGE_UNAVAILABLE }
 
 sealed interface SearchConsoleRestoreResult {
     data object NotConnected : SearchConsoleRestoreResult
     data class Restored(
-        val id: String,
+        val accountId: String,
         val subject: String?,
         val email: String?,
         val cachedSnapshot: SearchConsoleSnapshot?,
         val cacheIsStale: Boolean,
-        val credentialNeedsRefresh: Boolean,
+        val accounts: SiteAccountIndex,
     ) : SearchConsoleRestoreResult
-    data class Unavailable(val problem: SearchConsoleRestoreProblem) : SearchConsoleRestoreResult
+    data class Unavailable(
+        val problem: SearchConsoleRestoreProblem,
+        val accounts: SiteAccountIndex = SiteAccountIndex.EMPTY,
+    ) : SearchConsoleRestoreResult
 }
 
 internal const val MAX_ID_CHARACTERS = 1_024

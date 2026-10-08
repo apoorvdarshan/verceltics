@@ -6,196 +6,171 @@ import com.apoorvdarshan.verceltics.data.account.AccountEnvelopeCodec
 import com.apoorvdarshan.verceltics.data.account.AndroidKeystoreAccountCipher
 import com.apoorvdarshan.verceltics.data.account.AtomicBytesStore
 import com.apoorvdarshan.verceltics.data.account.NoBackupAtomicFileStore
+import com.apoorvdarshan.verceltics.data.googleoauth.EncryptedGoogleOAuthCredentialStore
+import com.apoorvdarshan.verceltics.data.googleoauth.GoogleOAuthCredential
+import com.apoorvdarshan.verceltics.data.googleoauth.GoogleOAuthCredentialStore
+import com.apoorvdarshan.verceltics.data.sites.SiteAccountCommit
+import com.apoorvdarshan.verceltics.data.sites.SiteAccountIds
+import com.apoorvdarshan.verceltics.data.sites.SiteAccountIndex
+import com.apoorvdarshan.verceltics.data.sites.SiteAccountVault
+import com.apoorvdarshan.verceltics.data.sites.SiteConnectionRevision
+import com.apoorvdarshan.verceltics.data.sites.SiteLegacyAccountSource
+import com.apoorvdarshan.verceltics.data.sites.migratedIndex
 import java.nio.charset.StandardCharsets
-import java.security.MessageDigest
 
-internal class SearchConsoleRecordRevision private constructor(private val digest: ByteArray) {
-    fun matches(envelope: ByteArray): Boolean {
-        val candidate = MessageDigest.getInstance("SHA-256").digest(envelope)
-        return try {
-            MessageDigest.isEqual(digest, candidate)
-        } finally {
-            candidate.fill(0)
-        }
-    }
-
-    override fun toString(): String = "SearchConsoleRecordRevision(<redacted>)"
-
-    companion object {
-        fun from(envelope: ByteArray) = SearchConsoleRecordRevision(
-            MessageDigest.getInstance("SHA-256").digest(envelope),
-        )
-    }
-}
-
-internal class SearchConsoleRecordCommit(
-    val revision: SearchConsoleRecordRevision,
-    previousEnvelope: ByteArray?,
-) {
-    private var state = State.PENDING
-    private var rollbackEnvelope: ByteArray? = previousEnvelope
-
-    @Synchronized
-    fun accept(): ByteArray? {
-        if (state != State.PENDING) return null
-        state = State.ACCEPTED
-        return rollbackEnvelope.also { rollbackEnvelope = null }
-    }
-
-    @Synchronized
-    fun claimRollback(): SearchConsoleRollbackEnvelope? {
-        if (state != State.PENDING) return null
-        state = State.ROLLBACK_CLAIMED
-        return SearchConsoleRollbackEnvelope(rollbackEnvelope).also { rollbackEnvelope = null }
-    }
-
-    override fun toString(): String = "SearchConsoleRecordCommit(<redacted>)"
-
-    private enum class State { PENDING, ACCEPTED, ROLLBACK_CLAIMED }
-}
-
-internal class SearchConsoleRollbackEnvelope(val bytes: ByteArray?) {
-    override fun toString(): String = "SearchConsoleRollbackEnvelope(<redacted>)"
-}
-
-internal data class SearchConsoleVersionedConnection(
-    val connection: SearchConsoleStoredConnection,
-    val revision: SearchConsoleRecordRevision,
+internal class SearchConsoleVersionedRecord(
+    val record: SearchConsoleAccountRecord,
+    val revision: SiteConnectionRevision,
 )
 
-/** Atomic encrypted Google Search Console storage in a provider-specific no-backup slot. */
-class SearchConsoleConnectionRepository(
-    private val store: AtomicBytesStore,
-    private val cipher: AccountCipher,
+/**
+ * Encrypted multi-account Google Search Console storage: an account index and one no-backup
+ * record per account (identity and offline property cache). Each account's Google credential lives
+ * in its own `GoogleOAuthSession` slot, `search-console.<accountId>`. The pre-multi-account record
+ * (which embedded the credential) migrates losslessly into the first account on first access.
+ */
+class SearchConsoleConnectionRepository internal constructor(
+    private val vault: SiteAccountVault<SearchConsoleAccountRecord>,
+    private val legacy: SiteLegacyAccountSource<SearchConsoleAccountRecord>,
 ) {
-    private var pendingCommit: SearchConsoleRecordCommit? = null
+    constructor(
+        storeFor: (relativePath: String) -> AtomicBytesStore,
+        cipher: AccountCipher,
+        credentialStore: (slot: String) -> GoogleOAuthCredentialStore,
+    ) : this(
+        vault = SiteAccountVault(
+            domain = DOMAIN,
+            indexStore = storeFor(INDEX_PATH),
+            recordStoreFor = { accountId -> storeFor(recordPath(accountId)) },
+            cipher = cipher,
+            codec = SearchConsoleAccountRecordCodec,
+        ),
+        legacy = LegacySearchConsoleAccount(storeFor(ACCOUNT_PATH), cipher, credentialStore),
+    )
 
-    @Synchronized
-    fun load(): SearchConsoleStoredConnection? = loadWithRevision()?.connection
+    /** Saved accounts, migrating the legacy single-account record first. Throws when unreadable. */
+    fun index(): SiteAccountIndex = vault.migratedIndex(legacy, entry = { record, _ -> record.entry })
 
-    @Synchronized
-    internal fun loadWithRevision(): SearchConsoleVersionedConnection? {
-        val envelope = store.read() ?: return null
-        val aad = ASSOCIATED_DATA.toByteArray(StandardCharsets.UTF_8)
-        var plaintext: ByteArray? = null
-        return try {
-            val revision = SearchConsoleRecordRevision.from(envelope)
-            plaintext = cipher.decrypt(AccountEnvelopeCodec.decode(envelope), aad)
-            SearchConsoleVersionedConnection(
-                SearchConsoleConnectionPayloadCodec.decode(plaintext),
-                revision,
-            )
-        } finally {
-            envelope.fill(0)
-            aad.fill(0)
-            plaintext?.fill(0)
-        }
+    fun writeIndex(index: SiteAccountIndex) = vault.writeIndex(index)
+
+    fun load(accountId: String): SearchConsoleAccountRecord? = vault.read(accountId)
+
+    internal fun loadWithRevision(accountId: String): SearchConsoleVersionedRecord? =
+        vault.readVersioned(accountId)?.let { SearchConsoleVersionedRecord(it.record, it.revision) }
+
+    /** Writes a record and the index together; the commit can undo both while still current. */
+    internal fun commit(record: SearchConsoleAccountRecord, index: SiteAccountIndex): SiteAccountCommit =
+        vault.commit(record.id, record, index)
+
+    internal fun accept(commit: SiteAccountCommit) = vault.accept(commit)
+
+    internal fun rollbackIfCurrent(commit: SiteAccountCommit): Boolean = vault.rollbackIfCurrent(commit)
+
+    internal fun saveIfRevisionMatches(expected: SiteConnectionRevision, record: SearchConsoleAccountRecord): Boolean =
+        vault.writeIfRevisionMatches(record.id, expected, record)
+
+    fun delete(accountId: String) = vault.delete(accountId)
+
+    /** Drops an unreadable index (and any legacy record) so a corrupt connection can be replaced. */
+    fun resetUnreadable() {
+        vault.deleteIndex()
+        legacy.delete()
     }
 
-    @Synchronized
-    fun save(connection: SearchConsoleStoredConnection) {
-        check(pendingCommit == null) { "A Search Console replacement is already pending." }
-        val envelope = encryptedEnvelope(connection)
-        try {
-            store.write(envelope)
-        } finally {
-            envelope.fill(0)
-        }
-    }
-
-    @Synchronized
-    internal fun saveWithRevision(connection: SearchConsoleStoredConnection): SearchConsoleRecordCommit {
-        check(pendingCommit == null) { "A Search Console replacement is already pending." }
-        var previousEnvelope = store.read()
-        var envelope: ByteArray? = null
-        return try {
-            envelope = encryptedEnvelope(connection)
-            store.write(envelope)
-            SearchConsoleRecordCommit(
-                SearchConsoleRecordRevision.from(envelope),
-                previousEnvelope,
-            ).also {
-                pendingCommit = it
-                previousEnvelope = null
-            }
-        } finally {
-            envelope?.fill(0)
-            previousEnvelope?.fill(0)
-        }
-    }
-
-    @Synchronized
-    internal fun saveIfRevisionMatches(
-        expected: SearchConsoleRecordRevision,
-        connection: SearchConsoleStoredConnection,
-    ): Boolean {
-        if (pendingCommit != null) return false
-        val current = store.read() ?: return false
-        var replacement: ByteArray? = null
-        return try {
-            if (!expected.matches(current)) return false
-            replacement = encryptedEnvelope(connection)
-            store.write(replacement)
-            true
-        } finally {
-            current.fill(0)
-            replacement?.fill(0)
-        }
-    }
-
-    @Synchronized
-    internal fun accept(commit: SearchConsoleRecordCommit) {
-        if (pendingCommit === commit) pendingCommit = null
-        commit.accept()?.fill(0)
-    }
-
-    @Synchronized
-    internal fun rollbackIfRevisionMatches(commit: SearchConsoleRecordCommit): Boolean {
-        if (pendingCommit !== commit) return false
-        val rollback = commit.claimRollback() ?: return false
-        pendingCommit = null
-        val previous = rollback.bytes
-        val current = store.read()
-        return try {
-            if (current == null || !commit.revision.matches(current)) {
-                false
-            } else {
-                if (previous == null) store.delete() else store.write(previous)
-                true
-            }
-        } finally {
-            current?.fill(0)
-            previous?.fill(0)
-        }
-    }
-
-    @Synchronized
-    fun delete() {
-        pendingCommit?.accept()?.fill(0)
-        pendingCommit = null
-        store.delete()
-    }
-
-    private fun encryptedEnvelope(connection: SearchConsoleStoredConnection): ByteArray {
-        val plaintext = SearchConsoleConnectionPayloadCodec.encode(connection)
-        val aad = ASSOCIATED_DATA.toByteArray(StandardCharsets.UTF_8)
-        return try {
-            AccountEnvelopeCodec.encode(cipher.encrypt(plaintext, aad))
-        } finally {
-            plaintext.fill(0)
-            aad.fill(0)
-        }
-    }
+    fun <R> transaction(block: () -> R): R = vault.transaction(block)
 
     companion object {
-        internal const val ASSOCIATED_DATA =
-            "verceltics.account-envelope.v1:google-search-console-oauth"
+        /** Legacy single-account record (read only for migration). */
+        internal const val ASSOCIATED_DATA = "verceltics.account-envelope.v1:google-search-console-oauth"
         internal const val ACCOUNT_PATH = "accounts/google-search-console-oauth.account"
         internal const val KEY_ALIAS = "verceltics.account-storage.google-search-console.v1"
+        internal const val DOMAIN = "google-search-console"
+        internal const val INDEX_PATH = "accounts/google-search-console/accounts.index"
 
-        fun create(context: Context) = SearchConsoleConnectionRepository(
-            NoBackupAtomicFileStore(context, ACCOUNT_PATH),
-            AndroidKeystoreAccountCipher(keyAlias = KEY_ALIAS),
-        )
+        fun recordPath(accountId: String): String {
+            require(SiteAccountIds.isValid(accountId)) { "Invalid Search Console account id." }
+            return "accounts/google-search-console/$accountId.account"
+        }
+
+        /** Each Search Console account's own Google OAuth slot. */
+        fun credentialSlot(accountId: String): String {
+            require(SiteAccountIds.isValid(accountId)) { "Invalid Search Console account id." }
+            return "search-console.$accountId"
+        }
+
+        fun create(context: Context): SearchConsoleConnectionRepository {
+            val applicationContext = context.applicationContext
+            return SearchConsoleConnectionRepository(
+                storeFor = { path -> NoBackupAtomicFileStore(applicationContext, path) },
+                cipher = AndroidKeystoreAccountCipher(keyAlias = KEY_ALIAS),
+                credentialStore = { slot -> EncryptedGoogleOAuthCredentialStore.create(applicationContext, slot) },
+            )
+        }
     }
 }
+
+/**
+ * The pre-multi-account record, whose payload embedded the Google credential. Migration moves the
+ * credential into the first account's OAuth slot and the identity and cache into its record.
+ */
+private class LegacySearchConsoleAccount(
+    private val store: AtomicBytesStore,
+    private val cipher: AccountCipher,
+    private val credentialStore: (slot: String) -> GoogleOAuthCredentialStore,
+) : SiteLegacyAccountSource<SearchConsoleAccountRecord> {
+    private var loadedCredential: SearchConsoleOAuthCredential? = null
+
+    override fun load(): SearchConsoleAccountRecord? {
+        val envelope = store.read() ?: return null
+        val associatedData = SearchConsoleConnectionRepository.ASSOCIATED_DATA.toByteArray(StandardCharsets.UTF_8)
+        var plaintext: ByteArray? = null
+        val legacy = try {
+            plaintext = cipher.decrypt(AccountEnvelopeCodec.decode(envelope), associatedData)
+            SearchConsoleConnectionPayloadCodec.decode(plaintext)
+        } finally {
+            envelope.fill(0)
+            associatedData.fill(0)
+            plaintext?.fill(0)
+        }
+        loadedCredential = legacy.credential
+        return SearchConsoleAccountRecord(
+            id = SiteAccountIds.migrated(SearchConsoleConnectionRepository.DOMAIN),
+            subject = legacy.credential.subject,
+            email = legacy.credential.email,
+            createdAtMillis = legacy.createdAtMillis,
+            updatedAtMillis = legacy.updatedAtMillis,
+            cachedSnapshot = legacy.cachedSnapshot,
+        )
+    }
+
+    override fun migrateSecrets(record: SearchConsoleAccountRecord, accountId: String) {
+        val credential = loadedCredential ?: return
+        loadedCredential = null
+        // A credential the shared Google store cannot represent is dropped; the account then asks
+        // the user to reconnect instead of blocking the whole migration.
+        val google = runCatching { credential.toGoogleCredential() }.getOrNull() ?: return
+        credentialStore(SearchConsoleConnectionRepository.credentialSlot(accountId)).save(google)
+    }
+
+    override fun delete() = store.delete()
+}
+
+internal fun SearchConsoleOAuthCredential.toGoogleCredential(): GoogleOAuthCredential = GoogleOAuthCredential(
+    accessToken = accessToken,
+    refreshToken = refreshToken,
+    tokenType = tokenType,
+    scopes = scopes,
+    expiresAtMillis = expiresAtMillis,
+    subject = subject,
+    email = email,
+)
+
+internal fun GoogleOAuthCredential.toSearchConsoleCredential(): SearchConsoleOAuthCredential = SearchConsoleOAuthCredential(
+    accessToken = accessToken,
+    refreshToken = refreshToken,
+    tokenType = tokenType,
+    scopes = scopes,
+    expiresAtMillis = expiresAtMillis,
+    subject = subject,
+    email = email,
+)

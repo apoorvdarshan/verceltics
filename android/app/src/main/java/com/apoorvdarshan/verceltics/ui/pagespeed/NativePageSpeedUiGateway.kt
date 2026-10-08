@@ -14,6 +14,10 @@ import com.apoorvdarshan.verceltics.data.pagespeed.PageSpeedRestoreProblem
 import com.apoorvdarshan.verceltics.data.pagespeed.PageSpeedRestoreResult
 import com.apoorvdarshan.verceltics.data.pagespeed.PageSpeedSnapshot
 import com.apoorvdarshan.verceltics.data.pagespeed.PageSpeedSourceState
+import com.apoorvdarshan.verceltics.data.pagespeed.PageSpeedVersionedConnection
+import com.apoorvdarshan.verceltics.data.sites.SiteAccountIndex
+import com.apoorvdarshan.verceltics.ui.sites.SiteAccountOptionUi
+import com.apoorvdarshan.verceltics.ui.sites.SiteAccountsUi
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
@@ -30,33 +34,36 @@ class NativePageSpeedUiGateway internal constructor(
     private val executor: ExecutorService,
 ) : PageSpeedUiGateway {
     override suspend fun restore(): Result<PageSpeedRestoreUi> = capture {
-        when (val restored = executeAwait(executor, connectionStore::restore)) {
-            PageSpeedRestoreResult.NotConnected -> PageSpeedRestoreUi.NotConnected
-            is PageSpeedRestoreResult.Restored -> {
-                val snapshot = restored.cachedSnapshot
-                if (snapshot == null) {
-                    PageSpeedRestoreUi.SavedWithoutSnapshot(restored.siteUrl.toASCIIString())
-                } else {
-                    PageSpeedRestoreUi.Available(
-                        snapshot.toUi(
-                            cacheState = if (restored.cacheIsStale) {
-                                PageSpeedCacheState.CACHED_STALE
-                            } else {
-                                PageSpeedCacheState.CACHED_FRESH
-                            },
-                        ),
-                    )
-                }
+        executeAwait(executor, connectionStore::restore).toUi()
+    }
+
+    private fun PageSpeedRestoreResult.toUi(): PageSpeedRestoreUi = when (this) {
+        PageSpeedRestoreResult.NotConnected -> PageSpeedRestoreUi.NotConnected
+        is PageSpeedRestoreResult.Restored -> {
+            val snapshot = cachedSnapshot
+            if (snapshot == null) {
+                PageSpeedRestoreUi.SavedWithoutSnapshot(siteUrl.toASCIIString())
+            } else {
+                PageSpeedRestoreUi.Available(
+                    snapshot.toUi(
+                        cacheState = if (cacheIsStale) {
+                            PageSpeedCacheState.CACHED_STALE
+                        } else {
+                            PageSpeedCacheState.CACHED_FRESH
+                        },
+                        accountId = connectionId,
+                    ),
+                )
             }
-            is PageSpeedRestoreResult.Unavailable -> PageSpeedRestoreUi.SavedUnavailable(
-                message = when (restored.problem) {
-                    PageSpeedRestoreProblem.SAVED_RECORD_UNREADABLE ->
-                        "The saved PageSpeed connection could not be opened. It was not deleted or replaced."
-                    PageSpeedRestoreProblem.SECURE_STORAGE_UNAVAILABLE ->
-                        "Secure storage is unavailable. Unlock the device and try again."
-                },
-            )
         }
+        is PageSpeedRestoreResult.Unavailable -> PageSpeedRestoreUi.SavedUnavailable(
+            message = when (problem) {
+                PageSpeedRestoreProblem.SAVED_RECORD_UNREADABLE ->
+                    "The saved PageSpeed connection could not be opened. It was not deleted or replaced."
+                PageSpeedRestoreProblem.SECURE_STORAGE_UNAVAILABLE ->
+                    "Secure storage is unavailable. Unlock the device and try again."
+            },
+        )
     }
 
     override suspend fun connect(
@@ -74,20 +81,20 @@ class NativePageSpeedUiGateway internal constructor(
         val snapshot = result.snapshotOrThrow()
         val commit = persistValidatedConnectionAwait(executor, connectionStore, credentials, result)
         connectionStore.acceptValidatedConnection(commit)
-        snapshot.toUi(PageSpeedCacheState.LIVE, result.reportOrNull())
+        snapshot.toUi(PageSpeedCacheState.LIVE, result.reportOrNull(), commit.connectionId)
     }
 
     override suspend fun refresh(): Result<PageSpeedDashboardUi> = capture {
-        val saved = executeAwait(executor, connectionStore::loadForRefresh)
+        // The audit always belongs to the site that was active when the refresh started.
+        val saved: PageSpeedVersionedConnection = executeAwait(executor, connectionStore::loadForRefresh)
             ?: throw PageSpeedUiException("Connect PageSpeed & CrUX first.")
-        val result = api.newSnapshotCall(saved.credentials).executeAwait(executor)
+        val result = api.newSnapshotCall(saved.connection.credentials).executeAwait(executor)
         val snapshot = result.snapshotOrThrow()
-        executeAwait(executor) {
-            check(connectionStore.persistRefreshResult(result)) {
-                "The saved PageSpeed connection disappeared during refresh."
-            }
+        val persisted = executeAwait(executor) { connectionStore.persistRefreshResult(saved, result) }
+        if (!persisted) {
+            throw PageSpeedUiException("The saved PageSpeed site changed while it was refreshing. Try again.")
         }
-        snapshot.toUi(PageSpeedCacheState.LIVE, result.reportOrNull())
+        snapshot.toUi(PageSpeedCacheState.LIVE, result.reportOrNull(), saved.connection.id)
     }
 
     override suspend fun disconnect(): Result<Unit> = capture {
@@ -95,6 +102,39 @@ class NativePageSpeedUiGateway internal constructor(
             executeAwait(executor, connectionStore::disconnect)
         } catch (_: Exception) {
             throw PageSpeedUiException("The saved PageSpeed connection could not be removed.")
+        }
+    }
+
+    override suspend fun accounts(): Result<SiteAccountsUi> = capture {
+        executeAwait(executor) { connectionStore.accounts() }.toAccountsUi()
+    }
+
+    override suspend fun switchAccount(accountId: String): Result<PageSpeedRestoreUi> = capture {
+        executeAwait(executor) {
+            connectionStore.switchAccount(accountId)
+                ?: throw PageSpeedUiException("This PageSpeed site is no longer saved.")
+            connectionStore.restore()
+        }.toUi()
+    }
+
+    override suspend fun removeAccount(accountId: String): Result<PageSpeedRestoreUi> = capture {
+        try {
+            executeAwait(executor) {
+                connectionStore.removeAccount(accountId)
+                connectionStore.restore()
+            }.toUi()
+        } catch (error: PageSpeedUiException) {
+            throw error
+        } catch (_: Exception) {
+            throw PageSpeedUiException("The saved PageSpeed site could not be removed.")
+        }
+    }
+
+    override suspend fun removeAllAccounts(): Result<Unit> = capture {
+        try {
+            executeAwait(executor) { connectionStore.removeAllAccounts() }
+        } catch (_: Exception) {
+            throw PageSpeedUiException("The saved PageSpeed sites could not be removed.")
         }
     }
 
@@ -113,6 +153,7 @@ class NativePageSpeedUiGateway internal constructor(
     private fun PageSpeedSnapshot.toUi(
         cacheState: PageSpeedCacheState,
         report: PageSpeedReport? = null,
+        accountId: String? = null,
     ): PageSpeedDashboardUi =
         PageSpeedDashboardUi(
             siteUrl = siteUrl.toASCIIString(),
@@ -136,6 +177,7 @@ class NativePageSpeedUiGateway internal constructor(
             warnings = warnings,
             cacheState = cacheState,
             report = report,
+            accountId = accountId,
         )
 
     private fun PageSpeedSourceState.toUi(): PageSpeedSourceUiState =
@@ -157,6 +199,11 @@ class NativePageSpeedUiGateway internal constructor(
         )
     }
 }
+
+private fun SiteAccountIndex.toAccountsUi(): SiteAccountsUi = SiteAccountsUi(
+    accounts = accounts.map { SiteAccountOptionUi(it.id, it.name, it.detail) },
+    activeAccountId = activeId,
+)
 
 private suspend fun <T> CancelableCall<T>.executeAwait(executor: ExecutorService): T =
     suspendCancellableCoroutine { continuation ->

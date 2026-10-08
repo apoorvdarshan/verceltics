@@ -17,9 +17,36 @@ import java.time.LocalDate
 object SampleSiteServicesUiGateway : SiteServicesUiGateway {
     override val googleOAuthReadiness: SiteGoogleOAuthReadinessUi = SiteGoogleOAuthReadinessUi.Ready
 
+    /** The active fictional account per provider (Plausible has two sites to demo switching). */
+    private val activeAccounts = java.util.concurrent.ConcurrentHashMap<String, String>()
+
     override suspend fun restore(): Result<SiteServicesRestoreUi> = Result.success(
-        SiteServicesRestoreUi(SiteServiceProviderIds.associateWith { SiteServiceRestoreUi.Available(dashboard(it)) }),
+        SiteServicesRestoreUi(
+            services = SiteServiceProviderIds.associateWith { SiteServiceRestoreUi.Available(dashboard(it)) },
+            accounts = SiteServiceProviderIds.associateWith(::sampleAccounts),
+        ),
     )
+
+    override suspend fun accounts(providerId: String): Result<SiteAccountsUi> = Result.success(sampleAccounts(providerId))
+
+    override suspend fun switchAccount(providerId: String, accountId: String): Result<SiteServiceRestoreUi> {
+        if (sampleAccounts(providerId).accounts.none { it.id == accountId }) return unavailable(providerId)
+        activeAccounts[providerId] = accountId
+        return Result.success(SiteServiceRestoreUi.Available(dashboard(providerId)))
+    }
+
+    private fun sampleAccounts(providerId: String): SiteAccountsUi {
+        val options = if (providerId == "plausible") {
+            listOf(
+                SiteAccountOptionUi(PLAUSIBLE_STUDIO, "studio.example"),
+                SiteAccountOptionUi(PLAUSIBLE_DOCS, "docs.studio.example"),
+            )
+        } else {
+            val sample = dashboard(providerId)
+            listOf(SiteAccountOptionUi(checkNotNull(sample.accountId), sample.accountName, sample.accountDetail))
+        }
+        return SiteAccountsUi(options, activeAccounts[providerId] ?: options.first().id)
+    }
 
     override suspend fun connect(
         providerId: String,
@@ -110,7 +137,22 @@ object SampleSiteServicesUiGateway : SiteServicesUiGateway {
                     metric("clarity.scroll-depth.averagescrolldepth", "Average Scroll Depth", 58.2, SiteMetricUnit.PERCENT),
                 ),
             )
-            "plausible" -> Quintuple(
+            "plausible" -> if (activeAccounts[providerId] == PLAUSIBLE_DOCS) Quintuple(
+                "docs.studio.example", null, "Connected",
+                listOf(
+                    resource(
+                        "https://docs.studio.example", "docs.studio.example", "30d", "Connected",
+                        metric("plausible.visitors", "Visitors", 4_120.0, SiteMetricUnit.COUNT),
+                        metric("plausible.pageviews", "Page Views", 15_206.0, SiteMetricUnit.COUNT),
+                        url = "https://docs.studio.example",
+                    ),
+                ),
+                listOf(
+                    count("plausible.visitors", "Visitors", 4_120.0),
+                    count("plausible.pageviews", "Page Views", 15_206.0),
+                    metric("plausible.bounce_rate", "Bounce Rate", 36.0, SiteMetricUnit.PERCENT),
+                ),
+            ) else Quintuple(
                 "studio.example", null, "Connected",
                 listOf(
                     resource(
@@ -184,6 +226,7 @@ object SampleSiteServicesUiGateway : SiteServicesUiGateway {
         }
         return SiteServiceDashboardUi(
             providerId = providerId,
+            accountId = if (providerId == "plausible") activeAccounts[providerId] ?: PLAUSIBLE_STUDIO else "sample-${providerId.lowercase()}",
             accountName = name,
             accountDetail = detail,
             status = status,
@@ -194,6 +237,9 @@ object SampleSiteServicesUiGateway : SiteServicesUiGateway {
             cacheState = SiteServiceCacheState.LIVE,
         )
     }
+
+    private const val PLAUSIBLE_STUDIO = "sample-plausible-studio"
+    private const val PLAUSIBLE_DOCS = "sample-plausible-docs"
 
     private data class Quintuple(
         val name: String,

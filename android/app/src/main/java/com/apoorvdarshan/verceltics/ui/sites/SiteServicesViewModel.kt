@@ -33,6 +33,7 @@ enum class SiteServiceOperation {
     AUTHORIZING,
     REFRESHING,
     DISCONNECTING,
+    SWITCHING,
 }
 
 data class SiteServiceState(
@@ -43,9 +44,19 @@ data class SiteServiceState(
     val operation: SiteServiceOperation? = SiteServiceOperation.RESTORING,
     val error: String? = null,
     val notice: String? = null,
+    /** Confirmation for removing the active account (the single-account "Disconnect"). */
     val showDisconnectConfirmation: Boolean = false,
+    val showRemoveAllConfirmation: Boolean = false,
+    /** Saved accounts for this provider and the active one. */
+    val accounts: SiteAccountsUi = SiteAccountsUi.EMPTY,
+    /** True while the connect form adds another account without disconnecting the active one. */
+    val isAddingAccount: Boolean = false,
 ) {
     val isBusy: Boolean get() = operation != null
+
+    /** The connect form is on screen: no saved account yet, or adding another one. */
+    val showsConnectForm: Boolean
+        get() = status == SiteServiceConnectionStatus.DISCONNECTED || isAddingAccount
 
     val isConnected: Boolean
         get() = status == SiteServiceConnectionStatus.CONNECTED || status == SiteServiceConnectionStatus.SAVED_UNAVAILABLE
@@ -90,7 +101,7 @@ val SiteServicesUiState.requiresSecureWindow: Boolean
         val providerId = activeProviderId ?: return false
         val service = service(providerId)
         val usesOAuth = SiteProvider.fromId(providerId)?.usesGoogleOAuth == true
-        return (service.status == SiteServiceConnectionStatus.DISCONNECTED && !usesOAuth) ||
+        return (service.showsConnectForm && !usesOAuth) ||
             service.operation == SiteServiceOperation.CONNECTING ||
             service.operation == SiteServiceOperation.AUTHORIZING
     }
@@ -142,7 +153,11 @@ class SiteServicesViewModel(
                     _uiState.update { state ->
                         state.copy(
                             services = SiteServiceProviderIds.associateWith { id ->
-                                restoredState(id, restored.services[id] ?: SiteServiceRestoreUi.NotConnected)
+                                restoredState(
+                                    id,
+                                    restored.services[id] ?: SiteServiceRestoreUi.NotConnected,
+                                    restored.accounts[id] ?: SiteAccountsUi.EMPTY,
+                                )
                             },
                         )
                     }
@@ -204,10 +219,10 @@ class SiteServicesViewModel(
 
     fun connect(providerId: String, input: SiteServiceConnectionInputUi) {
         val baseline = service(providerId)
-        if (baseline.isBusy || baseline.status != SiteServiceConnectionStatus.DISCONNECTED) return
+        if (baseline.isBusy || !baseline.showsConnectForm) return
         launchOperation(providerId, SiteServiceOperation.CONNECTING, baseline.cleared()) { generation ->
             gateway.connect(providerId, input).fold(
-                onSuccess = { dashboard -> if (isCurrent(providerId, generation)) applyDashboard(providerId, dashboard) },
+                onSuccess = { dashboard -> applyConnected(providerId, generation, dashboard) },
                 onFailure = { error ->
                     if (isCurrent(providerId, generation)) {
                         setService(providerId, baseline.cleared().copy(error = safeMessage(error, providerId)))
@@ -219,11 +234,11 @@ class SiteServicesViewModel(
 
     fun connectGoogle(providerId: String) {
         val baseline = service(providerId)
-        if (baseline.isBusy || baseline.status != SiteServiceConnectionStatus.DISCONNECTED) return
+        if (baseline.isBusy || !baseline.showsConnectForm) return
         if (_uiState.value.googleOAuthReadiness !is SiteGoogleOAuthReadinessUi.Ready) return
         launchOperation(providerId, SiteServiceOperation.AUTHORIZING, baseline.cleared()) { generation ->
             gateway.connectGoogle(providerId).fold(
-                onSuccess = { dashboard -> if (isCurrent(providerId, generation)) applyDashboard(providerId, dashboard) },
+                onSuccess = { dashboard -> applyConnected(providerId, generation, dashboard) },
                 onFailure = { error ->
                     if (isCurrent(providerId, generation)) {
                         setService(providerId, baseline.cleared().copy(error = safeMessage(error, providerId)))
@@ -235,7 +250,7 @@ class SiteServicesViewModel(
 
     fun refresh(providerId: String) {
         val baseline = service(providerId)
-        if (!baseline.isConnected || baseline.isBusy) return
+        if (!baseline.isConnected || baseline.isBusy || baseline.isAddingAccount) return
         launchOperation(providerId, SiteServiceOperation.REFRESHING, baseline.cleared()) { generation ->
             gateway.refresh(providerId).fold(
                 onSuccess = { dashboard -> if (isCurrent(providerId, generation)) applyDashboard(providerId, dashboard) },
@@ -287,12 +302,20 @@ class SiteServicesViewModel(
                 onSuccess = { restored ->
                     if (!isCurrent(providerId, generation)) return@fold
                     val result = restored.services[providerId] ?: SiteServiceRestoreUi.NotConnected
+                    val accounts = restored.accounts[providerId] ?: SiteAccountsUi.EMPTY
+                    // While adding, only a new active account (or a longer list) proves completion.
+                    val completed = if (baseline.isAddingAccount) {
+                        accounts.activeAccountId != baseline.accounts.activeAccountId ||
+                            accounts.accounts.size != baseline.accounts.accounts.size
+                    } else {
+                        result is SiteServiceRestoreUi.Available
+                    }
                     setService(
                         providerId,
-                        restoredState(providerId, result).copy(
+                        restoredState(providerId, result, accounts).copy(
+                            isAddingAccount = baseline.isAddingAccount && !completed,
                             notice = when {
-                                result is SiteServiceRestoreUi.Available ->
-                                    "The connection completed before cancellation and remains saved."
+                                completed -> "The connection completed before cancellation and remains saved."
                                 authorizing -> "Google authorization cancelled."
                                 else -> "Request cancelled."
                             },
@@ -316,21 +339,79 @@ class SiteServicesViewModel(
         }
     }
 
+    /** Asks to remove the active account ("Remove current account" / "Disconnect"). */
     fun requestDisconnectConfirmation(providerId: String) {
         val current = service(providerId)
-        if (current.isConnected && !current.isBusy) setService(providerId, current.copy(showDisconnectConfirmation = true))
+        if (current.isConnected && !current.isBusy) {
+            setService(providerId, current.copy(showDisconnectConfirmation = true, showRemoveAllConfirmation = false))
+        }
     }
 
     fun dismissDisconnectConfirmation(providerId: String) {
         setService(providerId, service(providerId).copy(showDisconnectConfirmation = false))
     }
 
+    /** Removes the active account; the next saved account (if any) becomes active offline. */
     fun confirmDisconnect(providerId: String) {
         val baseline = service(providerId)
         if (!baseline.isConnected || baseline.isBusy) return
         if (_uiState.value.detail?.providerId == providerId) closeDetail()
-        launchOperation(providerId, SiteServiceOperation.DISCONNECTING, baseline.cleared()) { generation ->
-            gateway.disconnect(providerId).fold(
+        val activeId = baseline.accounts.activeAccountId ?: baseline.dashboard?.accountId
+        launchOperation(providerId, SiteServiceOperation.DISCONNECTING, baseline.cleared().copy(isAddingAccount = false)) { generation ->
+            val result = if (activeId == null) {
+                gateway.disconnect(providerId).map { SiteServiceRestoreUi.NotConnected }
+            } else {
+                gateway.removeAccount(providerId, activeId)
+            }
+            result.fold(
+                onSuccess = { next ->
+                    val accounts = if (next is SiteServiceRestoreUi.NotConnected) {
+                        SiteAccountsUi.EMPTY
+                    } else {
+                        gateway.accounts(providerId).getOrNull()
+                            ?: baseline.accounts.withoutAccount(activeId)
+                    }
+                    if (isCurrent(providerId, generation)) {
+                        setService(providerId, restoredState(providerId, next, accounts))
+                    }
+                },
+                onFailure = { error ->
+                    if (isCurrent(providerId, generation)) {
+                        setService(providerId, baseline.cleared().copy(error = safeMessage(error, providerId)))
+                    }
+                },
+            )
+        }
+        refreshWhenSettled(providerId)
+    }
+
+    /** Once the provider's current operation finishes, refreshes newly active accounts that are stale. */
+    private fun refreshWhenSettled(providerId: String) {
+        val job = operationJobs[providerId] ?: return
+        viewModelScope.launch {
+            job.join()
+            refreshStaleServicesIfForeground()
+        }
+    }
+
+    fun requestRemoveAllConfirmation(providerId: String) {
+        val current = service(providerId)
+        if (current.isConnected && !current.isBusy) {
+            setService(providerId, current.copy(showRemoveAllConfirmation = true, showDisconnectConfirmation = false))
+        }
+    }
+
+    fun dismissRemoveAllConfirmation(providerId: String) {
+        setService(providerId, service(providerId).copy(showRemoveAllConfirmation = false))
+    }
+
+    /** Removes every saved account for [providerId] (iOS "Remove All"). */
+    fun confirmRemoveAll(providerId: String) {
+        val baseline = service(providerId)
+        if (!baseline.isConnected || baseline.isBusy) return
+        if (_uiState.value.detail?.providerId == providerId) closeDetail()
+        launchOperation(providerId, SiteServiceOperation.DISCONNECTING, baseline.cleared().copy(isAddingAccount = false)) { generation ->
+            gateway.removeAllAccounts(providerId).fold(
                 onSuccess = {
                     if (isCurrent(providerId, generation)) {
                         setService(
@@ -346,6 +427,59 @@ class SiteServicesViewModel(
                 },
             )
         }
+    }
+
+    /** Makes another saved account active; an in-flight refresh of the old one is abandoned. */
+    fun switchAccount(providerId: String, accountId: String) {
+        val current = service(providerId)
+        if (!current.isConnected || accountId == current.accounts.activeAccountId) return
+        if (current.accounts.accounts.none { it.id == accountId }) return
+        val baseline = if (current.operation == SiteServiceOperation.REFRESHING) {
+            abandonOperation(providerId)
+        } else {
+            if (current.isBusy) return
+            current
+        }.cleared().copy(isAddingAccount = false)
+        if (_uiState.value.detail?.providerId == providerId) closeDetail()
+        launchOperation(providerId, SiteServiceOperation.SWITCHING, baseline) { generation ->
+            gateway.switchAccount(providerId, accountId).fold(
+                onSuccess = { restored ->
+                    val accounts = gateway.accounts(providerId).getOrNull()
+                        ?: baseline.accounts.copy(activeAccountId = accountId)
+                    if (isCurrent(providerId, generation)) {
+                        setService(providerId, restoredState(providerId, restored, accounts))
+                        resetSearchFor(providerId)
+                    }
+                },
+                onFailure = { error ->
+                    if (isCurrent(providerId, generation)) {
+                        setService(providerId, baseline.copy(error = safeMessage(error, providerId)))
+                    }
+                },
+            )
+        }
+        refreshWhenSettled(providerId)
+    }
+
+    /** Shows the connect form to add another account while the active one stays connected. */
+    fun startAddingAccount(providerId: String) {
+        val current = service(providerId)
+        if (!current.isConnected || current.isBusy || current.isAddingAccount) return
+        if (_uiState.value.detail?.providerId == providerId) closeDetail()
+        setService(
+            providerId,
+            current.cleared().copy(isAddingAccount = true),
+        )
+    }
+
+    fun cancelAddingAccount(providerId: String) {
+        val current = service(providerId)
+        if (!current.isAddingAccount) return
+        if (current.operation == SiteServiceOperation.CONNECTING || current.operation == SiteServiceOperation.AUTHORIZING) {
+            cancelOperation(providerId)
+            return
+        }
+        setService(providerId, current.cleared().copy(isAddingAccount = false))
     }
 
     fun updateResourceSearch(text: String) {
@@ -450,6 +584,14 @@ class SiteServicesViewModel(
             dismissDisconnectConfirmation(active)
             return true
         }
+        if (active != null && state.service(active).showRemoveAllConfirmation) {
+            dismissRemoveAllConfirmation(active)
+            return true
+        }
+        if (active != null && state.service(active).isAddingAccount) {
+            cancelAddingAccount(active)
+            return true
+        }
         if (state.detail != null && (active == null || state.detail.providerId == active)) {
             closeDetail()
             return true
@@ -523,6 +665,7 @@ class SiteServicesViewModel(
     private fun persistDetail() {
         val detail = _uiState.value.detail ?: return clearSavedDetail()
         savedStateHandle[DETAIL_PROVIDER] = detail.providerId
+        savedStateHandle[DETAIL_ACCOUNT] = service(detail.providerId).dashboard?.accountId
         savedStateHandle[DETAIL_RESOURCE] = detail.resourceId
         savedStateHandle[DETAIL_PRESET] = detail.query.preset.name
         savedStateHandle[DETAIL_CUSTOM_START] = detail.query.customStartDate
@@ -533,7 +676,7 @@ class SiteServicesViewModel(
 
     private fun clearSavedDetail() {
         listOf(
-            DETAIL_PROVIDER, DETAIL_RESOURCE, DETAIL_PRESET, DETAIL_CUSTOM_START,
+            DETAIL_PROVIDER, DETAIL_ACCOUNT, DETAIL_RESOURCE, DETAIL_PRESET, DETAIL_CUSTOM_START,
             DETAIL_CUSTOM_END, DETAIL_CLARITY_DAYS, DETAIL_CLARITY_DIMENSIONS,
         ).forEach { savedStateHandle.remove<Any>(it) }
     }
@@ -542,6 +685,10 @@ class SiteServicesViewModel(
     private fun reopenSavedDetail() {
         val providerId: String = savedStateHandle[DETAIL_PROVIDER] ?: return
         val dashboard = service(providerId).dashboard ?: return clearSavedDetail()
+        // A workspace saved for another account must never reopen against the active one.
+        // (State saved before multi-account support has no account and belongs to the migrated one.)
+        val savedAccount = savedStateHandle.get<String>(DETAIL_ACCOUNT)
+        if (savedAccount != null && savedAccount != dashboard.accountId) return clearSavedDetail()
         val query = runCatching {
             SiteServiceDetailQueryUi(
                 preset = savedStateHandle.get<String>(DETAIL_PRESET)
@@ -569,7 +716,7 @@ class SiteServicesViewModel(
         val now = nowMillis()
         SiteServiceProviderIds.forEach { providerId ->
             val service = service(providerId)
-            if (service.isBusy) return@forEach
+            if (service.isBusy || service.isAddingAccount) return@forEach
             val provider = SiteProvider.fromId(providerId) ?: return@forEach
             val dashboard = service.dashboard
             val stale = when {
@@ -580,15 +727,21 @@ class SiteServicesViewModel(
                     dashboard == null && service.savedAccountName != null && service.error == null
                 else -> false
             }
-            val lastAttempt = lastAutomaticRefresh[providerId]
+            // Spaced per account, so switching to a stale account still refreshes it right away.
+            val refreshKey = "$providerId|${service.accounts.activeAccountId.orEmpty()}"
+            val lastAttempt = lastAutomaticRefresh[refreshKey]
             if (stale && (lastAttempt == null || now - lastAttempt >= MINIMUM_AUTOMATIC_REFRESH_SPACING_MILLIS)) {
-                lastAutomaticRefresh[providerId] = now
+                lastAutomaticRefresh[refreshKey] = now
                 refresh(providerId)
             }
         }
     }
 
-    private fun restoredState(providerId: String, restored: SiteServiceRestoreUi): SiteServiceState = when (restored) {
+    private fun restoredState(
+        providerId: String,
+        restored: SiteServiceRestoreUi,
+        accounts: SiteAccountsUi,
+    ): SiteServiceState = when (restored) {
         SiteServiceRestoreUi.NotConnected ->
             SiteServiceState(providerId, status = SiteServiceConnectionStatus.DISCONNECTED, operation = null)
         is SiteServiceRestoreUi.Available -> SiteServiceState(
@@ -597,6 +750,7 @@ class SiteServicesViewModel(
             dashboard = restored.dashboard,
             savedAccountName = restored.dashboard.accountName,
             operation = null,
+            accounts = accounts,
         )
         is SiteServiceRestoreUi.SavedWithoutInventory -> SiteServiceState(
             providerId = providerId,
@@ -604,16 +758,38 @@ class SiteServicesViewModel(
             savedAccountName = restored.accountName,
             operation = null,
             notice = "This connection has no saved data yet. Refresh when you are online.",
+            accounts = accounts,
         )
         is SiteServiceRestoreUi.SavedUnavailable -> SiteServiceState(
             providerId = providerId,
             status = SiteServiceConnectionStatus.SAVED_UNAVAILABLE,
             operation = null,
             error = restored.message,
+            accounts = accounts,
         )
     }
 
-    private fun applyDashboard(providerId: String, dashboard: SiteServiceDashboardUi) {
+    /** A connect or Google sign-in finished: the new (or rotated) account is now active. */
+    private suspend fun applyConnected(providerId: String, generation: Long, dashboard: SiteServiceDashboardUi) {
+        if (!isCurrent(providerId, generation)) return
+        val previous = service(providerId).accounts
+        val accounts = gateway.accounts(providerId).getOrNull()
+            ?.takeIf { it.accounts.isNotEmpty() }
+            ?: previous.including(dashboard)
+        if (!isCurrent(providerId, generation)) return
+        val detail = _uiState.value.detail
+        if (detail?.providerId == providerId && dashboard.accountId != service(providerId).dashboard?.accountId) {
+            closeDetail()
+        }
+        if (dashboard.accountId != service(providerId).dashboard?.accountId) resetSearchFor(providerId)
+        applyDashboard(providerId, dashboard, accounts)
+    }
+
+    private fun applyDashboard(
+        providerId: String,
+        dashboard: SiteServiceDashboardUi,
+        accounts: SiteAccountsUi = service(providerId).accounts.including(dashboard),
+    ) {
         setService(
             providerId,
             SiteServiceState(
@@ -622,6 +798,7 @@ class SiteServicesViewModel(
                 dashboard = dashboard,
                 savedAccountName = dashboard.accountName,
                 operation = null,
+                accounts = accounts,
             ),
         )
         val detail = _uiState.value.detail
@@ -630,6 +807,18 @@ class SiteServicesViewModel(
         ) {
             closeDetail()
         }
+    }
+
+    /** Cancels the provider's in-flight operation and returns the state it started from. */
+    private fun abandonOperation(providerId: String): SiteServiceState {
+        val baseline = operationBaselines.remove(providerId) ?: service(providerId).copy(operation = null)
+        nextGeneration(providerId)
+        operationJobs.remove(providerId)?.cancel()
+        return baseline.copy(operation = null)
+    }
+
+    private fun resetSearchFor(providerId: String) {
+        if (_uiState.value.activeProviderId == providerId) _uiState.update { it.copy(resourceSearch = "") }
     }
 
     private fun launchOperation(
@@ -641,7 +830,16 @@ class SiteServicesViewModel(
         if (operationJobs[providerId]?.isActive == true) return
         val generation = nextGeneration(providerId)
         operationBaselines[providerId] = baseline
-        setService(providerId, baseline.copy(operation = operation, error = null, notice = null, showDisconnectConfirmation = false))
+        setService(
+            providerId,
+            baseline.copy(
+                operation = operation,
+                error = null,
+                notice = null,
+                showDisconnectConfirmation = false,
+                showRemoveAllConfirmation = false,
+            ),
+        )
         operationJobs[providerId] = viewModelScope.launch {
             try {
                 block(generation)
@@ -672,7 +870,13 @@ class SiteServicesViewModel(
     }
 
     private fun SiteServiceState.cleared(): SiteServiceState =
-        copy(operation = null, error = null, notice = null, showDisconnectConfirmation = false)
+        copy(
+            operation = null,
+            error = null,
+            notice = null,
+            showDisconnectConfirmation = false,
+            showRemoveAllConfirmation = false,
+        )
 
     private fun displayName(providerId: String): String = SiteProvider.fromId(providerId)?.displayName ?: "site service"
 
@@ -701,6 +905,7 @@ class SiteServicesViewModel(
 
     companion object {
         internal const val DETAIL_PROVIDER = "sites.detail.providerId"
+        internal const val DETAIL_ACCOUNT = "sites.detail.accountId"
         internal const val DETAIL_RESOURCE = "sites.detail.resourceId"
         internal const val DETAIL_PRESET = "sites.detail.preset"
         internal const val DETAIL_CUSTOM_START = "sites.detail.customStart"
@@ -711,4 +916,20 @@ class SiteServicesViewModel(
         private const val MINIMUM_AUTOMATIC_REFRESH_SPACING_MILLIS = 60_000L
         private const val MAXIMUM_SEARCH_CHARACTERS = 256
     }
+}
+
+/** The list with [dashboard]'s account present and active (used when a fresh list is unavailable). */
+internal fun SiteAccountsUi.including(dashboard: SiteServiceDashboardUi): SiteAccountsUi {
+    val id = dashboard.accountId ?: return this
+    val option = SiteAccountOptionUi(id, dashboard.accountName, dashboard.accountDetail)
+    val position = accounts.indexOfFirst { it.id == id }
+    val updated = if (position < 0) accounts + option else accounts.toMutableList().also { it[position] = option }
+    return SiteAccountsUi(updated, id)
+}
+
+internal fun SiteAccountsUi.withoutAccount(id: String?): SiteAccountsUi {
+    if (id == null) return this
+    val remaining = accounts.filterNot { it.id == id }
+    val active = activeAccountId?.takeIf { it != id } ?: remaining.firstOrNull()?.id
+    return SiteAccountsUi(remaining, active)
 }

@@ -10,6 +10,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import com.apoorvdarshan.verceltics.ui.sites.SiteAccountOptionUi
+import com.apoorvdarshan.verceltics.ui.sites.SiteAccountsUi
+import com.apoorvdarshan.verceltics.ui.sites.withoutAccount
 
 enum class PageSpeedConnectionStatus {
     RESTORING,
@@ -23,6 +26,7 @@ enum class PageSpeedOperation {
     CONNECTING,
     REFRESHING,
     DISCONNECTING,
+    SWITCHING,
 }
 
 data class PageSpeedUiState(
@@ -34,9 +38,18 @@ data class PageSpeedUiState(
     val notice: String? = null,
     val showDisconnectConfirmation: Boolean = false,
     val canDisconnect: Boolean = false,
+    /** Saved audited sites and the active one. */
+    val accounts: SiteAccountsUi = SiteAccountsUi.EMPTY,
+    /** True while the form adds another site without disconnecting the active one. */
+    val isAddingAccount: Boolean = false,
+    val showRemoveAllConfirmation: Boolean = false,
 ) {
     val isBusy: Boolean
         get() = operation != null
+
+    /** The connect form is on screen: no saved site yet, or adding another one. */
+    val showsConnectForm: Boolean
+        get() = status == PageSpeedConnectionStatus.DISCONNECTED || isAddingAccount
 
     val isConnected: Boolean
         get() = status == PageSpeedConnectionStatus.CONNECTED ||
@@ -65,7 +78,8 @@ class PageSpeedViewModel(
             _uiState.value = PageSpeedUiState()
             gateway.restore().fold(
                 onSuccess = { restored ->
-                    if (isCurrent(currentGeneration)) applyRestore(restored)
+                    val accounts = savedAccounts(restored)
+                    if (isCurrent(currentGeneration)) applyRestore(restored, accounts)
                 },
                 onFailure = { error ->
                     if (isCurrent(currentGeneration)) {
@@ -96,7 +110,10 @@ class PageSpeedViewModel(
             )
             gateway.connect(apiKey, siteUrl.trim()).fold(
                 onSuccess = { dashboard ->
-                    if (isCurrent(currentGeneration)) applyDashboard(dashboard)
+                    val accounts = gateway.accounts().getOrNull()?.takeIf { it.accounts.isNotEmpty() }
+                    if (isCurrent(currentGeneration)) {
+                        applyDashboard(dashboard, accounts ?: _uiState.value.accounts.includingSite(dashboard))
+                    }
                 },
                 onFailure = { error ->
                     if (isCurrent(currentGeneration)) {
@@ -114,7 +131,7 @@ class PageSpeedViewModel(
 
     fun refresh() {
         val current = _uiState.value
-        if (current.status == PageSpeedConnectionStatus.DISCONNECTED || current.isBusy) return
+        if (current.status == PageSpeedConnectionStatus.DISCONNECTED || current.isBusy || current.isAddingAccount) return
         launchExclusive(PageSpeedOperation.REFRESHING) { currentGeneration ->
             val visible = _uiState.value
             _uiState.value = visible.copy(
@@ -154,9 +171,114 @@ class PageSpeedViewModel(
         )
     }
 
+    /** Asks to remove the active site ("Remove current account" / "Disconnect"). */
     fun requestDisconnectConfirmation() {
         if (_uiState.value.canDisconnect && !_uiState.value.isBusy) {
-            _uiState.value = _uiState.value.copy(showDisconnectConfirmation = true)
+            _uiState.value = _uiState.value.copy(showDisconnectConfirmation = true, showRemoveAllConfirmation = false)
+        }
+    }
+
+    fun requestRemoveAllConfirmation() {
+        if (_uiState.value.canDisconnect && !_uiState.value.isBusy) {
+            _uiState.value = _uiState.value.copy(showRemoveAllConfirmation = true, showDisconnectConfirmation = false)
+        }
+    }
+
+    fun dismissRemoveAllConfirmation() {
+        _uiState.value = _uiState.value.copy(showRemoveAllConfirmation = false)
+    }
+
+    /** Removes every saved PageSpeed site (iOS "Remove All"). */
+    fun confirmRemoveAll() {
+        if (!_uiState.value.canDisconnect) return
+        launchExclusive(PageSpeedOperation.DISCONNECTING) { currentGeneration ->
+            val previous = _uiState.value
+            _uiState.value = previous.copy(
+                operation = PageSpeedOperation.DISCONNECTING,
+                error = null,
+                notice = null,
+                showRemoveAllConfirmation = false,
+                isAddingAccount = false,
+            )
+            gateway.removeAllAccounts().fold(
+                onSuccess = {
+                    if (isCurrent(currentGeneration)) {
+                        _uiState.value = PageSpeedUiState(status = PageSpeedConnectionStatus.DISCONNECTED, operation = null)
+                    }
+                },
+                onFailure = { error ->
+                    if (isCurrent(currentGeneration)) {
+                        _uiState.value = previous.copy(
+                            operation = null,
+                            error = safeMessage(error),
+                            showRemoveAllConfirmation = false,
+                        )
+                    }
+                },
+            )
+        }
+    }
+
+    /** Makes another saved site active offline; an in-flight refresh of the old one is dropped. */
+    fun switchAccount(accountId: String) {
+        val current = _uiState.value
+        if (!current.isConnected || accountId == current.accounts.activeAccountId) return
+        if (current.accounts.accounts.none { it.id == accountId }) return
+        if (current.isBusy && current.operation != PageSpeedOperation.REFRESHING) return
+        launchExclusive(PageSpeedOperation.SWITCHING) { currentGeneration ->
+            val previous = _uiState.value.copy(operation = null, isAddingAccount = false)
+            _uiState.value = previous.copy(operation = PageSpeedOperation.SWITCHING, error = null, notice = null)
+            gateway.switchAccount(accountId).fold(
+                onSuccess = { restored ->
+                    val accounts = gateway.accounts().getOrNull() ?: previous.accounts.copy(activeAccountId = accountId)
+                    if (isCurrent(currentGeneration)) applyRestore(restored, accounts)
+                },
+                onFailure = { error ->
+                    if (isCurrent(currentGeneration)) {
+                        _uiState.value = previous.copy(error = safeMessage(error))
+                    }
+                },
+            )
+        }
+    }
+
+    /** Shows the connect form to audit another site while the active one stays saved. */
+    fun startAddingAccount() {
+        val current = _uiState.value
+        if (!current.isConnected || current.isBusy || current.isAddingAccount) return
+        _uiState.value = current.copy(
+            isAddingAccount = true,
+            error = null,
+            notice = null,
+            showDisconnectConfirmation = false,
+            showRemoveAllConfirmation = false,
+        )
+    }
+
+    fun cancelAddingAccount() {
+        val current = _uiState.value
+        if (!current.isAddingAccount) return
+        if (current.operation == PageSpeedOperation.CONNECTING) cancelOperation()
+        _uiState.value = _uiState.value.copy(isAddingAccount = false, error = null, notice = null)
+    }
+
+    /** Returns true when back closed a dialog or the add-site form instead of leaving the route. */
+    fun handleBack(): Boolean {
+        val current = _uiState.value
+        return when {
+            current.showDisconnectConfirmation -> {
+                dismissDisconnectConfirmation()
+                true
+            }
+            current.showRemoveAllConfirmation -> {
+                dismissRemoveAllConfirmation()
+                true
+            }
+            current.isAddingAccount -> {
+                cancelAddingAccount()
+                true
+            }
+            else -> false
         }
     }
 
@@ -173,15 +295,22 @@ class PageSpeedViewModel(
                 error = null,
                 notice = null,
                 showDisconnectConfirmation = false,
+                isAddingAccount = false,
             )
-            gateway.disconnect().fold(
-                onSuccess = {
-                    if (isCurrent(currentGeneration)) {
-                        _uiState.value = PageSpeedUiState(
-                            status = PageSpeedConnectionStatus.DISCONNECTED,
-                            operation = null,
-                        )
+            val activeId = previous.accounts.activeAccountId
+            val result = if (activeId == null) {
+                gateway.disconnect().map { PageSpeedRestoreUi.NotConnected }
+            } else {
+                gateway.removeAccount(activeId)
+            }
+            result.fold(
+                onSuccess = { next ->
+                    val accounts = if (next is PageSpeedRestoreUi.NotConnected) {
+                        SiteAccountsUi.EMPTY
+                    } else {
+                        gateway.accounts().getOrNull() ?: previous.accounts.withoutAccount(activeId)
                     }
+                    if (isCurrent(currentGeneration)) applyRestore(next, accounts)
                 },
                 onFailure = { error ->
                     if (isCurrent(currentGeneration)) {
@@ -201,7 +330,15 @@ class PageSpeedViewModel(
         _uiState.value = _uiState.value.copy(error = null, notice = null)
     }
 
-    private fun applyRestore(restored: PageSpeedRestoreUi) {
+    /** Saved sites after a restore; a restore with no site never needs another read. */
+    private suspend fun savedAccounts(restored: PageSpeedRestoreUi): SiteAccountsUi =
+        if (restored is PageSpeedRestoreUi.NotConnected) {
+            SiteAccountsUi.EMPTY
+        } else {
+            gateway.accounts().getOrNull() ?: SiteAccountsUi.EMPTY
+        }
+
+    private fun applyRestore(restored: PageSpeedRestoreUi, accounts: SiteAccountsUi = SiteAccountsUi.EMPTY) {
         _uiState.value = when (restored) {
             PageSpeedRestoreUi.NotConnected -> PageSpeedUiState(
                 status = PageSpeedConnectionStatus.DISCONNECTED,
@@ -213,6 +350,7 @@ class PageSpeedViewModel(
                 savedSiteUrl = restored.dashboard.siteUrl,
                 operation = null,
                 canDisconnect = true,
+                accounts = accounts,
             )
             is PageSpeedRestoreUi.SavedWithoutSnapshot -> PageSpeedUiState(
                 status = PageSpeedConnectionStatus.SAVED_UNAVAILABLE,
@@ -220,23 +358,29 @@ class PageSpeedViewModel(
                 operation = null,
                 notice = "This connection has no saved audit yet. Refresh when you are online.",
                 canDisconnect = true,
+                accounts = accounts,
             )
             is PageSpeedRestoreUi.SavedUnavailable -> PageSpeedUiState(
                 status = PageSpeedConnectionStatus.SAVED_UNAVAILABLE,
                 operation = null,
                 error = restored.message,
                 canDisconnect = restored.canDisconnect,
+                accounts = accounts,
             )
         }
     }
 
-    private fun applyDashboard(dashboard: PageSpeedDashboardUi) {
+    private fun applyDashboard(
+        dashboard: PageSpeedDashboardUi,
+        accounts: SiteAccountsUi = _uiState.value.accounts.includingSite(dashboard),
+    ) {
         _uiState.value = PageSpeedUiState(
             status = PageSpeedConnectionStatus.CONNECTED,
             dashboard = dashboard,
             savedSiteUrl = dashboard.siteUrl,
             operation = null,
             canDisconnect = true,
+            accounts = accounts,
         )
     }
 
@@ -290,4 +434,14 @@ class PageSpeedViewModel(
             return PageSpeedViewModel(gateway) as T
         }
     }
+}
+
+/** The list with [dashboard]'s site present and active (used when a fresh list is unavailable). */
+internal fun SiteAccountsUi.includingSite(dashboard: PageSpeedDashboardUi): SiteAccountsUi {
+    val id = dashboard.accountId ?: return this
+    val title = dashboard.siteUrl.removePrefix("https://").removeSuffix("/")
+    val option = SiteAccountOptionUi(id, title, dashboard.siteName)
+    val position = accounts.indexOfFirst { it.id == id }
+    val updated = if (position < 0) accounts + option else accounts.toMutableList().also { it[position] = option }
+    return SiteAccountsUi(updated, id)
 }

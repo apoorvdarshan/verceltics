@@ -5,10 +5,12 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -18,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -48,6 +51,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -66,6 +70,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.apoorvdarshan.verceltics.domain.IntegrationCatalog
 import com.apoorvdarshan.verceltics.ui.billing.LocalProAccess
+import com.apoorvdarshan.verceltics.ui.components.AppPullToRefresh
 import com.apoorvdarshan.verceltics.ui.components.AppToolbarAction
 import com.apoorvdarshan.verceltics.ui.components.ControlSearchField
 import com.apoorvdarshan.verceltics.ui.components.LabelChip
@@ -77,6 +82,14 @@ import com.apoorvdarshan.verceltics.ui.components.ThemedActionButton
 import com.apoorvdarshan.verceltics.ui.components.ThemedActionTone
 import com.apoorvdarshan.verceltics.ui.components.ThemedAlertDialog
 import com.apoorvdarshan.verceltics.ui.components.ThemedGlassControl
+import com.apoorvdarshan.verceltics.ui.sites.SiteAccountMenu
+import com.apoorvdarshan.verceltics.ui.sites.SiteAccountOptionUi
+import com.apoorvdarshan.verceltics.ui.sites.SiteAccountRemoval
+import com.apoorvdarshan.verceltics.ui.sites.SiteAccountRemovalDialog
+import com.apoorvdarshan.verceltics.ui.sites.SiteAccountsUi
+import com.apoorvdarshan.verceltics.ui.sites.SiteLayout
+import com.apoorvdarshan.verceltics.ui.sites.SiteWidthClass
+import com.apoorvdarshan.verceltics.ui.sites.adaptiveGridItems
 import java.text.DateFormat
 import java.util.Date
 import java.util.Locale
@@ -307,6 +320,12 @@ fun SearchConsoleRoute(
         onConfirmDisconnect = viewModel::confirmDisconnect,
         performanceActions = performanceActions,
         onRetryPropertySummaries = viewModel::retryPropertySummaries,
+        onSwitchAccount = viewModel::switchAccount,
+        onAddAccount = viewModel::startAddingAccount,
+        onCancelAddAccount = viewModel::cancelAddingAccount,
+        onRequestRemoveAll = viewModel::requestRemoveAllConfirmation,
+        onDismissRemoveAll = viewModel::dismissRemoveAllConfirmation,
+        onConfirmRemoveAll = viewModel::confirmRemoveAll,
         modifier = modifier,
     )
 }
@@ -337,6 +356,12 @@ fun SearchConsoleScreen(
     modifier: Modifier = Modifier,
     performanceActions: SearchConsolePerformanceActions = SearchConsolePerformanceActions(),
     onRetryPropertySummaries: () -> Unit = {},
+    onSwitchAccount: (String) -> Unit = {},
+    onAddAccount: () -> Unit = {},
+    onCancelAddAccount: () -> Unit = {},
+    onRequestRemoveAll: () -> Unit = {},
+    onDismissRemoveAll: () -> Unit = {},
+    onConfirmRemoveAll: () -> Unit = {},
 ) {
     val haptic = LocalHapticFeedback.current
     val propertySearchFocusRequester = remember { FocusRequester() }
@@ -360,19 +385,27 @@ fun SearchConsoleScreen(
         )
     }
     if (state.showDisconnectConfirmation) {
-        ThemedAlertDialog(
-            title = "Disconnect Google Search Console?",
-            message = "The encrypted Google credential and saved property list will be removed from this device.",
-            confirmText = "DISCONNECT",
-            confirmTone = ThemedActionTone.DESTRUCTIVE,
-            dismissText = "KEEP ACCOUNT",
+        SiteAccountRemovalDialog(
+            removal = SiteAccountRemoval.CURRENT,
+            serviceName = "Google Search Console",
+            accountTitle = state.accounts.active?.title ?: (state.dashboard?.account ?: state.savedAccount)?.displayName,
+            credentialNoun = "Google credential",
             enabled = state.operation != SearchConsoleOperation.DISCONNECTING,
-            onConfirm = {
-                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                onConfirmDisconnect()
-            },
-            onDismissRequest = onDismissDisconnect,
+            onConfirm = onConfirmDisconnect,
+            onDismiss = onDismissDisconnect,
             testTag = "searchConsole.disconnectDialog",
+        )
+    }
+    if (state.showRemoveAllConfirmation) {
+        SiteAccountRemovalDialog(
+            removal = SiteAccountRemoval.ALL,
+            serviceName = "Google Search Console",
+            accountTitle = null,
+            credentialNoun = "Google credential",
+            enabled = state.operation != SearchConsoleOperation.DISCONNECTING,
+            onConfirm = onConfirmRemoveAll,
+            onDismiss = onDismissRemoveAll,
+            testTag = "searchConsole.removeAllDialog",
         )
     }
 
@@ -382,11 +415,29 @@ fun SearchConsoleScreen(
             .background(MaterialTheme.colorScheme.background)
             .testTag("searchConsole.screen"),
     ) {
+        val showsAccountMenu = state.isConnected && !state.isAddingAccount && state.selectedPropertyUrl == null
         SearchConsoleTopBar(
             title = if (state.selectedPropertyUrl == null) "Search Console" else "Property details",
             operation = state.operation,
             isLoadingProperty = state.isLoadingProperty,
-            canRefresh = state.isConnected,
+            canRefresh = state.isConnected && !state.isAddingAccount,
+            accountMenu = if (showsAccountMenu) {
+                {
+                    SiteAccountMenu(
+                        provider = searchConsoleProvider(),
+                        accounts = state.accounts.takeIf { it.accounts.isNotEmpty() } ?: fallbackAccounts(state),
+                        addLabel = "Add Google account",
+                        onSwitch = onSwitchAccount,
+                        onAdd = onAddAccount,
+                        onRemoveCurrent = onRequestDisconnect,
+                        onRemoveAll = onRequestRemoveAll,
+                        testTagPrefix = "searchConsole",
+                        enabled = state.operation == null || state.operation == SearchConsoleOperation.REFRESHING,
+                    )
+                }
+            } else {
+                null
+            },
             onBack = {
                 haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                 onBack()
@@ -406,42 +457,75 @@ fun SearchConsoleScreen(
                 "Opening saved Search Console workspace…",
                 Modifier.weight(1f),
             )
-            state.status == SearchConsoleConnectionStatus.DISCONNECTED -> SearchConsoleConnectionPanel(
+            state.showsConnectPanel -> SearchConsoleConnectionPanel(
                 readiness = state.oauthReadiness,
                 isAuthorizing = state.operation == SearchConsoleOperation.AUTHORIZING,
                 error = state.error,
                 notice = state.notice,
                 onConnect = onConnect,
+                addingAccount = state.isAddingAccount,
+                currentAccountName = state.accounts.active?.title ?: state.dashboard?.account?.displayName,
+                onCancelAdd = onCancelAddAccount,
                 modifier = Modifier.weight(1f),
             )
-            state.selectedPropertyUrl != null -> SearchConsolePropertyDetail(
-                state = state,
-                onRequestPropertySwitcher = onRequestPropertySwitcher,
-                onSelectSection = onSelectSection,
-                onPerformanceQueryChange = onPerformanceQueryChange,
-                onSelectPerformanceMetric = onSelectPerformanceMetric,
-                onPreviousPerformancePage = onPreviousPerformancePage,
-                onNextPerformancePage = onNextPerformancePage,
-                onInspectionUrlChange = onInspectionUrlChange,
-                onInspect = onInspect,
-                performanceActions = performanceActions,
-                modifier = Modifier.weight(1f),
-            )
-            state.dashboard != null -> SearchConsoleDashboard(
-                state = state,
-                onSearchChange = onSearchChange,
-                searchFocusRequester = propertySearchFocusRequester,
-                onOpenProperty = onOpenProperty,
-                onRequestDisconnect = onRequestDisconnect,
-                onRetrySummaries = onRetryPropertySummaries,
-                modifier = Modifier.weight(1f),
-            )
-            else -> SavedConnectionRecovery(
-                state = state,
+            state.selectedPropertyUrl != null -> AppPullToRefresh(
+                isRefreshing = state.isLoadingProperty,
+                onRefresh = onRefreshProperty,
+                enabled = state.operation == null,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                testTag = "searchConsole.detail.pullToRefresh",
+            ) {
+                SearchConsolePropertyDetail(
+                    state = state,
+                    onRequestPropertySwitcher = onRequestPropertySwitcher,
+                    onSelectSection = onSelectSection,
+                    onPerformanceQueryChange = onPerformanceQueryChange,
+                    onSelectPerformanceMetric = onSelectPerformanceMetric,
+                    onPreviousPerformancePage = onPreviousPerformancePage,
+                    onNextPerformancePage = onNextPerformancePage,
+                    onInspectionUrlChange = onInspectionUrlChange,
+                    onInspect = onInspect,
+                    performanceActions = performanceActions,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            state.dashboard != null -> AppPullToRefresh(
+                isRefreshing = state.operation == SearchConsoleOperation.REFRESHING,
                 onRefresh = onRefresh,
-                onRequestDisconnect = onRequestDisconnect,
-                modifier = Modifier.weight(1f),
-            )
+                enabled = state.operation == null || state.operation == SearchConsoleOperation.REFRESHING,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                testTag = "searchConsole.pullToRefresh",
+            ) {
+                SearchConsoleDashboard(
+                    state = state,
+                    onSearchChange = onSearchChange,
+                    searchFocusRequester = propertySearchFocusRequester,
+                    onOpenProperty = onOpenProperty,
+                    onRequestDisconnect = onRequestDisconnect,
+                    onRetrySummaries = onRetryPropertySummaries,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            else -> AppPullToRefresh(
+                isRefreshing = state.operation == SearchConsoleOperation.REFRESHING,
+                onRefresh = onRefresh,
+                enabled = state.operation == null || state.operation == SearchConsoleOperation.REFRESHING,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                testTag = "searchConsole.recovery.pullToRefresh",
+            ) {
+                SavedConnectionRecovery(
+                    state = state,
+                    onRefresh = onRefresh,
+                    onRequestDisconnect = onRequestDisconnect,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
         }
     }
 }
@@ -455,6 +539,7 @@ private fun SearchConsoleTopBar(
     onBack: () -> Unit,
     onRefresh: () -> Unit,
     onCancel: () -> Unit,
+    accountMenu: (@Composable () -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier
@@ -483,6 +568,7 @@ private fun SearchConsoleTopBar(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+        accountMenu?.invoke()
         val isCancelable = operation == SearchConsoleOperation.AUTHORIZING ||
             operation == SearchConsoleOperation.REFRESHING
         AppToolbarAction(
@@ -524,20 +610,33 @@ private fun SearchConsoleConnectionPanel(
     notice: String?,
     onConnect: () -> Unit,
     modifier: Modifier = Modifier,
+    addingAccount: Boolean = false,
+    currentAccountName: String? = null,
+    onCancelAdd: () -> Unit = {},
 ) {
     val haptic = LocalHapticFeedback.current
+    BoxWithConstraints(modifier.fillMaxWidth()) {
     LazyColumn(
-        modifier = modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 120.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .testTag("searchConsole.connectionPanel"),
+        contentPadding = SiteLayout.padding(maxWidth, 20.dp, SiteLayout.FormMaxWidth, top = 16.dp, bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                 ProviderMark(searchConsoleProvider(), size = 72.dp)
                 Spacer(Modifier.height(14.dp))
-                Text("Connect Google Search Console", style = MaterialTheme.typography.headlineLarge)
                 Text(
-                    "Search performance, indexing, sitemaps, and URL inspection",
+                    if (addingAccount) "Add a Google account" else "Connect Google Search Console",
+                    style = MaterialTheme.typography.headlineLarge,
+                )
+                Text(
+                    if (addingAccount) {
+                        "Your current account stays connected. Signing in to a saved account refreshes it in place."
+                    } else {
+                        "Search performance, indexing, sitemaps, and URL inspection"
+                    },
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodyMedium,
                 )
@@ -620,7 +719,25 @@ private fun SearchConsoleConnectionPanel(
         notice?.let { message ->
             item { FeedbackPanel("SEARCH STATUS", message, SearchConsoleWarning) }
         }
+        if (addingAccount) {
+            item {
+                ThemedActionButton(
+                    text = "BACK TO ${(currentAccountName ?: "SAVED ACCOUNT").uppercase()}",
+                    onClick = onCancelAdd,
+                    tone = ThemedActionTone.NEUTRAL,
+                    modifier = Modifier.fillMaxWidth(),
+                    testTag = "searchConsole.cancelAddAccount",
+                )
+            }
+        }
     }
+    }
+}
+
+/** Menu accounts when only a dashboard is known (fixtures and gateways without an index). */
+private fun fallbackAccounts(state: SearchConsoleUiState): SiteAccountsUi {
+    val account = state.dashboard?.account ?: state.savedAccount ?: return SiteAccountsUi.EMPTY
+    return SiteAccountsUi(listOf(SiteAccountOptionUi(account.id, account.displayName)), account.id)
 }
 
 @Composable
@@ -637,6 +754,11 @@ private fun CapabilityRow(text: String) {
     }
 }
 
+/**
+ * Property overview. Phones keep one column; regular windows cap the content (iOS
+ * `dashboardMaxWidth`) and grid the property cards, and expanded windows move the account summary
+ * into a side pane next to the searchable property list.
+ */
 @Composable
 private fun SearchConsoleDashboard(
     state: SearchConsoleUiState,
@@ -649,105 +771,165 @@ private fun SearchConsoleDashboard(
 ) {
     val dashboard = checkNotNull(state.dashboard)
     val haptic = LocalHapticFeedback.current
-    LazyColumn(
-        modifier = modifier
-            .fillMaxWidth()
-            .testTag("searchConsole.dashboard"),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 120.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        item {
-            SearchConsoleAccountPanel(
-                dashboard = dashboard,
-                totals = state.overviewTotals,
-                isLoadingSummaries = state.isLoadingPropertySummaries,
-            )
-        }
-        state.notice?.let { message -> item { FeedbackPanel("Saved data", message, SearchConsoleWarning) } }
-        state.error?.let { message -> item { FeedbackPanel("Refresh failed", message, MaterialTheme.colorScheme.error) } }
-        state.propertySummaryError?.let { message ->
-            item {
-                FeedbackPanel("28-day overview incomplete", message, SearchConsoleWarning) {
-                    ThemedActionButton(
-                        text = "RETRY OVERVIEW",
-                        onClick = onRetrySummaries,
-                        tone = ThemedActionTone.NEUTRAL,
-                        enabled = !state.isLoadingPropertySummaries,
-                        testTag = "searchConsole.overview.retry",
-                    )
+    BoxWithConstraints(modifier.fillMaxWidth()) {
+        val compactPadding = 20.dp
+        val spacing = 14.dp
+        if (SiteWidthClass.of(maxWidth) == SiteWidthClass.EXPANDED) {
+            val horizontal = SiteLayout.horizontalPadding(maxWidth, compactPadding, SiteLayout.DashboardMaxWidth)
+            val listWidth = SiteLayout.contentWidth(maxWidth, compactPadding, SiteLayout.DashboardMaxWidth) -
+                SiteLayout.SidePaneWidth - spacing
+            val columns = SiteLayout.columns(maxWidth, listWidth, minimum = 310.dp, spacing = spacing, maximumColumns = 3)
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = horizontal),
+                horizontalArrangement = Arrangement.spacedBy(spacing),
+            ) {
+                LazyColumn(
+                    modifier = Modifier
+                        .width(SiteLayout.SidePaneWidth)
+                        .fillMaxHeight()
+                        .testTag("searchConsole.dashboard.summaryPane"),
+                    contentPadding = PaddingValues(top = 8.dp, bottom = 120.dp),
+                    verticalArrangement = Arrangement.spacedBy(spacing),
+                ) {
+                    dashboardSummaryItems(state, dashboard, onRetrySummaries)
                 }
-            }
-        }
-        if (dashboard.isPartial || dashboard.warnings.isNotEmpty()) {
-            item {
-                FeedbackPanel(
-                    title = "PARTIAL PROPERTY LIST",
-                    message = dashboard.warnings.firstOrNull()
-                        ?: "The visible property list is intentionally bounded. Refresh online for current data.",
-                    color = SearchConsoleWarning,
-                )
-            }
-        }
-        item {
-            ControlSearchField(
-                value = state.propertySearch,
-                onValueChange = onSearchChange,
-                placeholder = "Search properties",
-                focusRequester = searchFocusRequester,
-                testTag = "searchConsole.propertySearch",
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-        item {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "VERIFIED PROPERTIES",
+                LazyColumn(
                     modifier = Modifier
                         .weight(1f)
-                        .semantics { heading() },
-                    color = MaterialTheme.colorScheme.primary,
-                    style = MaterialTheme.typography.labelMedium.copy(
-                        fontFamily = FontFamily.Monospace,
-                        letterSpacing = 1.2.sp,
-                    ),
-                )
-                LabelChip("${state.visibleProperties.size}")
-            }
-        }
-        if (state.visibleProperties.isEmpty()) {
-            item {
-                EmptyPanel(
-                    if (state.propertySearch.isBlank()) {
-                        "Google did not return any verified Search Console properties."
-                    } else {
-                        "No properties match “${state.propertySearch}”."
-                    },
-                )
-            }
-        } else {
-            items(state.visibleProperties, key = SearchConsolePropertyUi::siteUrl) { property ->
-                PropertyRow(
-                    property = property,
-                    summary = state.propertySummaries[property.siteUrl],
-                    isLoadingSummary = state.isLoadingPropertySummaries,
+                        .fillMaxHeight()
+                        .testTag("searchConsole.dashboard"),
+                    contentPadding = PaddingValues(top = 8.dp, bottom = 120.dp),
+                    verticalArrangement = Arrangement.spacedBy(spacing),
                 ) {
-                    haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                    onOpenProperty(property.siteUrl)
+                    dashboardPropertyItems(state, onSearchChange, searchFocusRequester, onOpenProperty, onRequestDisconnect, haptic, columns)
                 }
             }
+        } else {
+            val contentWidth = SiteLayout.contentWidth(maxWidth, compactPadding, SiteLayout.DashboardMaxWidth)
+            val columns = SiteLayout.columns(maxWidth, contentWidth, minimum = 310.dp, spacing = spacing, maximumColumns = 3)
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .testTag("searchConsole.dashboard"),
+                contentPadding = SiteLayout.padding(maxWidth, compactPadding, SiteLayout.DashboardMaxWidth, top = 8.dp, bottom = 120.dp),
+                verticalArrangement = Arrangement.spacedBy(spacing),
+            ) {
+                dashboardSummaryItems(state, dashboard, onRetrySummaries)
+                dashboardPropertyItems(state, onSearchChange, searchFocusRequester, onOpenProperty, onRequestDisconnect, haptic, columns)
+            }
         }
+    }
+}
+
+private fun LazyListScope.dashboardSummaryItems(
+    state: SearchConsoleUiState,
+    dashboard: SearchConsoleDashboardUi,
+    onRetrySummaries: () -> Unit,
+) {
+    item {
+        SearchConsoleAccountPanel(
+            dashboard = dashboard,
+            totals = state.overviewTotals,
+            isLoadingSummaries = state.isLoadingPropertySummaries,
+        )
+    }
+    state.notice?.let { message -> item { FeedbackPanel("Saved data", message, SearchConsoleWarning) } }
+    state.error?.let { message -> item { FeedbackPanel("Refresh failed", message, MaterialTheme.colorScheme.error) } }
+    state.propertySummaryError?.let { message ->
         item {
-            ThemedActionButton(
-                text = "DISCONNECT GOOGLE ACCOUNT",
-                onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.Reject)
-                    onRequestDisconnect()
-                },
-                modifier = Modifier.fillMaxWidth(),
-                tone = ThemedActionTone.DESTRUCTIVE,
-                testTag = "searchConsole.disconnect",
+            FeedbackPanel("28-day overview incomplete", message, SearchConsoleWarning) {
+                ThemedActionButton(
+                    text = "RETRY OVERVIEW",
+                    onClick = onRetrySummaries,
+                    tone = ThemedActionTone.NEUTRAL,
+                    enabled = !state.isLoadingPropertySummaries,
+                    testTag = "searchConsole.overview.retry",
+                )
+            }
+        }
+    }
+    if (dashboard.isPartial || dashboard.warnings.isNotEmpty()) {
+        item {
+            FeedbackPanel(
+                title = "PARTIAL PROPERTY LIST",
+                message = dashboard.warnings.firstOrNull()
+                    ?: "The visible property list is intentionally bounded. Refresh online for current data.",
+                color = SearchConsoleWarning,
             )
         }
+    }
+}
+
+private fun LazyListScope.dashboardPropertyItems(
+    state: SearchConsoleUiState,
+    onSearchChange: (String) -> Unit,
+    searchFocusRequester: FocusRequester,
+    onOpenProperty: (String) -> Unit,
+    onRequestDisconnect: () -> Unit,
+    haptic: HapticFeedback,
+    columns: Int,
+) {
+    item {
+        ControlSearchField(
+            value = state.propertySearch,
+            onValueChange = onSearchChange,
+            placeholder = "Search properties",
+            focusRequester = searchFocusRequester,
+            testTag = "searchConsole.propertySearch",
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+    item {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "VERIFIED PROPERTIES",
+                modifier = Modifier
+                    .weight(1f)
+                    .semantics { heading() },
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    letterSpacing = 1.2.sp,
+                ),
+            )
+            LabelChip("${state.visibleProperties.size}")
+        }
+    }
+    if (state.visibleProperties.isEmpty()) {
+        item {
+            EmptyPanel(
+                if (state.propertySearch.isBlank()) {
+                    "Google did not return any verified Search Console properties."
+                } else {
+                    "No properties match “${state.propertySearch}”."
+                },
+            )
+        }
+    } else {
+        adaptiveGridItems(state.visibleProperties, columns, key = SearchConsolePropertyUi::siteUrl, spacing = 14.dp) { property ->
+            PropertyRow(
+                property = property,
+                summary = state.propertySummaries[property.siteUrl],
+                isLoadingSummary = state.isLoadingPropertySummaries,
+            ) {
+                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                onOpenProperty(property.siteUrl)
+            }
+        }
+    }
+    item {
+        ThemedActionButton(
+            text = if (state.accounts.hasMultiple) "REMOVE THIS GOOGLE ACCOUNT" else "DISCONNECT GOOGLE ACCOUNT",
+            onClick = {
+                haptic.performHapticFeedback(HapticFeedbackType.Reject)
+                onRequestDisconnect()
+            },
+            modifier = Modifier.fillMaxWidth(),
+            tone = ThemedActionTone.DESTRUCTIVE,
+            testTag = "searchConsole.disconnect",
+        )
     }
 }
 
@@ -1040,9 +1222,10 @@ private fun SavedConnectionRecovery(
     modifier: Modifier = Modifier,
 ) {
     val haptic = LocalHapticFeedback.current
+    BoxWithConstraints(modifier.fillMaxWidth()) {
     LazyColumn(
-        modifier = modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(20.dp),
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = SiteLayout.padding(maxWidth, 20.dp, SiteLayout.FormMaxWidth, top = 20.dp, bottom = 20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
@@ -1089,12 +1272,14 @@ private fun SavedConnectionRecovery(
         }
         item {
             ThemedActionButton(
-                text = "DISCONNECT GOOGLE ACCOUNT",
+                text = if (state.accounts.hasMultiple) "REMOVE THIS GOOGLE ACCOUNT" else "DISCONNECT GOOGLE ACCOUNT",
                 onClick = onRequestDisconnect,
                 modifier = Modifier.fillMaxWidth(),
                 tone = ThemedActionTone.DESTRUCTIVE,
+                testTag = "searchConsole.recovery.disconnect",
             )
         }
+    }
     }
 }
 

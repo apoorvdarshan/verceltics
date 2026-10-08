@@ -108,7 +108,7 @@ class PageSpeedScreenTest {
     }
 
     @Test
-    fun searchRequestExplainsConnectedSingleSiteWorkspace() {
+    fun searchRequestPointsConnectedUsersToTheSiteMenu() {
         var searchRequestId by mutableIntStateOf(0)
         composeRule.setContent {
             VercelticsTheme {
@@ -135,7 +135,7 @@ class PageSpeedScreenTest {
         composeRule.runOnIdle { searchRequestId += 1 }
         composeRule.onNodeWithTag("pagespeed.searchNotice").assertIsDisplayed()
         composeRule.onNodeWithText(
-            "PageSpeed is a single-site workspace. Disconnect to audit a different HTTPS URL.",
+            "PageSpeed audits one site at a time. Add or switch sites from the account menu.",
         ).assertIsDisplayed()
     }
 

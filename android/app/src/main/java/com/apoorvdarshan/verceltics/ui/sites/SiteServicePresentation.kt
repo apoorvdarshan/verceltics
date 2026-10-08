@@ -164,6 +164,14 @@ object SiteServiceCopy {
         val singular = SiteProvider.fromId(providerId)?.resourceNoun ?: "Resource"
         return if (count == 1) singular else if (singular == "Property") "Properties" else "${singular}s"
     }
+
+    /** Account-menu "add" action, naming what another account adds (iOS "Add Site Service"). */
+    fun addAccountLabel(providerId: String): String = when (providerId) {
+        "googleAnalytics" -> "Add Google account"
+        "plausible" -> "Add Plausible site"
+        "clarity" -> "Add Clarity project"
+        else -> "Add ${SiteProvider.fromId(providerId)?.displayName ?: "site service"} account"
+    }
 }
 
 enum class SiteStatusTone {

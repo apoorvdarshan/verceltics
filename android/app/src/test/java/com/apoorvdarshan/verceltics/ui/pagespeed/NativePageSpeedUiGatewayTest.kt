@@ -14,6 +14,7 @@ import com.apoorvdarshan.verceltics.data.pagespeed.PageSpeedHttpTransport
 import com.apoorvdarshan.verceltics.data.pagespeed.PageSpeedJsonParser
 import com.apoorvdarshan.verceltics.data.pagespeed.PageSpeedMetric
 import com.apoorvdarshan.verceltics.data.pagespeed.PageSpeedMetricUnit
+import com.apoorvdarshan.verceltics.data.pagespeed.PageSpeedRestoreResult
 import com.apoorvdarshan.verceltics.data.pagespeed.PageSpeedStrategy
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.ExecutorService
@@ -31,10 +32,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class NativePageSpeedUiGatewayTest {
+    private val files = BlockingFiles()
+
     @Test
     fun cancellingDuringUninterruptiblePersistenceRollsBackTheExactSavedRevision() = runBlocking {
-        val atomicStore = BlockingAtomicBytesStore()
-        val repository = PageSpeedConnectionRepository(atomicStore, TestAccountCipher())
+        val repository = PageSpeedConnectionRepository(files::store, TestAccountCipher())
         val connectionStore = PageSpeedConnectionStore(repository, nowMillis = { 42L })
         val executor = Executors.newSingleThreadExecutor()
         val gateway = NativePageSpeedUiGateway(
@@ -44,107 +46,130 @@ class NativePageSpeedUiGatewayTest {
         )
 
         try {
-            cancelDuringBlockedWrite(gateway, atomicStore, executor, "cancelled-key")
+            cancelDuringBlockedWrite(gateway, executor, "cancelled-key")
 
-            assertNull(repository.load())
+            assertEquals(PageSpeedRestoreResult.NotConnected, connectionStore.restore())
+            assertTrue(files.savedPaths().isEmpty())
         } finally {
-            atomicStore.releaseBlockedWrite()
+            files.releaseBlockedWrite()
             executor.shutdownNow()
         }
     }
 
     @Test
-    fun cancelledReplacementRestoresTheExactPreviousEncryptedConnection() = runBlocking {
-        val atomicStore = BlockingAtomicBytesStore()
-        val repository = PageSpeedConnectionRepository(atomicStore, TestAccountCipher())
+    fun cancelledAdditionRestoresTheExactPreviousSitesAndActiveSite() = runBlocking {
+        val repository = PageSpeedConnectionRepository(files::store, TestAccountCipher())
         val connectionStore = PageSpeedConnectionStore(repository, nowMillis = { 42L })
         val executor = Executors.newSingleThreadExecutor()
         val api = PageSpeedApi(SuccessTransport(), SuccessParser(), nowMillis = { 42L })
         val gateway = NativePageSpeedUiGateway(connectionStore, api, executor)
-        val originalCredentials = PageSpeedCredentials.create(
-            "original-key",
-            "https://example.com/original",
-        )
-        val originalResult = api.newSnapshotCall(originalCredentials).execute()
-        val originalCommit = connectionStore.saveValidatedConnection(
-            originalCredentials,
-            originalResult,
-        )
+        val originalCredentials = PageSpeedCredentials.create("original-key", "https://example.com/original")
+        val originalCommit = connectionStore.saveValidatedConnection(originalCredentials, api.newSnapshotCall(originalCredentials).execute())
         connectionStore.acceptValidatedConnection(originalCommit)
-        val originalRecord = checkNotNull(repository.load())
-        val originalEnvelope = checkNotNull(atomicStore.snapshotBytes())
+        val originalRecord = checkNotNull(repository.load(originalCommit.connectionId))
+        val before = files.snapshot()
 
         try {
-            cancelDuringBlockedWrite(
-                gateway,
-                atomicStore,
-                executor,
-                apiKey = "replacement-key",
-                siteUrl = "https://example.com/replacement",
-            )
+            cancelDuringBlockedWrite(gateway, executor, apiKey = "replacement-key", siteUrl = "https://example.com/replacement")
 
-            assertArrayEquals(originalEnvelope, atomicStore.snapshotBytes())
-            val restored = checkNotNull(repository.load())
-            assertEquals(originalRecord.id, restored.id)
-            assertEquals(originalRecord.credentials.siteUrl, restored.credentials.siteUrl)
-            assertEquals(originalRecord.credentials.apiKey, restored.credentials.apiKey)
-            assertEquals(originalRecord.createdAtMillis, restored.createdAtMillis)
-            assertEquals(originalRecord.updatedAtMillis, restored.updatedAtMillis)
-            assertEquals(originalRecord.cachedSnapshot, restored.cachedSnapshot)
+            assertEquals(before.keys, files.snapshot().keys)
+            before.forEach { (path, bytes) -> assertArrayEquals(bytes, files.snapshot()[path]) }
+            val restored = connectionStore.restore() as PageSpeedRestoreResult.Restored
+            assertEquals(originalRecord.id, restored.connectionId)
+            assertEquals(originalRecord.credentials.siteUrl, restored.siteUrl)
+            assertEquals(listOf(originalRecord.id), restored.accounts.ids)
+            assertEquals(originalRecord.credentials.apiKey, repository.load(originalRecord.id)?.credentials?.apiKey)
         } finally {
-            originalEnvelope.fill(0)
-            atomicStore.releaseBlockedWrite()
+            files.releaseBlockedWrite()
+            executor.shutdownNow()
+        }
+    }
+
+    @Test
+    fun severalSitesConnectSwitchRefreshAndRemoveThroughTheGateway() = runBlocking {
+        val repository = PageSpeedConnectionRepository(files::store, TestAccountCipher())
+        val connectionStore = PageSpeedConnectionStore(repository, nowMillis = { 42L })
+        val executor = Executors.newSingleThreadExecutor()
+        val gateway = NativePageSpeedUiGateway(
+            connectionStore,
+            PageSpeedApi(SuccessTransport(), SuccessParser(), nowMillis = { 42L }),
+            executor,
+        )
+        try {
+            val first = gateway.connect(SecretValue.of("key-1"), "https://one.example").getOrThrow()
+            val second = gateway.connect(SecretValue.of("key-2"), "https://two.example").getOrThrow()
+            assertEquals(listOf(first.accountId, second.accountId), gateway.accounts().getOrThrow().accounts.map { it.id })
+            assertEquals(second.accountId, gateway.accounts().getOrThrow().activeAccountId)
+            assertEquals("one.example", gateway.accounts().getOrThrow().accounts.first().title)
+
+            // Re-entering a saved URL rotates its key without adding a site.
+            val rotated = gateway.connect(SecretValue.of("key-1b"), "https://ONE.example").getOrThrow()
+            assertEquals(first.accountId, rotated.accountId)
+            assertEquals(2, gateway.accounts().getOrThrow().accounts.size)
+            assertEquals("key-1b", repository.load(first.accountId!!)?.credentials?.apiKey?.use { it })
+
+            val switched = gateway.switchAccount(second.accountId!!).getOrThrow() as PageSpeedRestoreUi.Available
+            assertEquals("https://two.example", switched.dashboard.siteUrl)
+            assertEquals(second.accountId, switched.dashboard.accountId)
+            assertEquals(second.accountId, gateway.refresh().getOrThrow().accountId)
+
+            val next = gateway.removeAccount(second.accountId!!).getOrThrow() as PageSpeedRestoreUi.Available
+            assertEquals(first.accountId, next.dashboard.accountId)
+            gateway.removeAllAccounts().getOrThrow()
+            assertEquals(PageSpeedRestoreUi.NotConnected, gateway.restore().getOrThrow())
+            assertTrue(gateway.switchAccount("missing").isFailure)
+        } finally {
             executor.shutdownNow()
         }
     }
 
     private suspend fun cancelDuringBlockedWrite(
         gateway: NativePageSpeedUiGateway,
-        atomicStore: BlockingAtomicBytesStore,
         executor: ExecutorService,
         apiKey: String,
         siteUrl: String = "https://example.com",
     ) = coroutineScope {
-        atomicStore.blockNextWrite()
+        files.blockNextWrite()
         val connectJob = async(Dispatchers.Default) {
             gateway.connect(SecretValue.of(apiKey), siteUrl)
         }
-        assertTrue(atomicStore.awaitWriteStarted())
+        assertTrue(files.awaitWriteStarted())
 
         connectJob.cancelAndJoin()
-        atomicStore.releaseBlockedWrite()
+        files.releaseBlockedWrite()
         executor.submit {}.get(5, TimeUnit.SECONDS)
     }
 
-    private class BlockingAtomicBytesStore : AtomicBytesStore {
+    /** In-memory files whose next write (to any path) can be held mid-flight. */
+    private class BlockingFiles {
         private val blockLock = Any()
         private var shouldBlockNextWrite = false
         private var writeStarted = CountDownLatch(0)
         private var allowWriteToFinish = CountDownLatch(0)
+        private val contents = java.util.concurrent.ConcurrentHashMap<String, ByteArray>()
 
-        @Volatile
-        private var bytes: ByteArray? = null
+        fun store(path: String): AtomicBytesStore = object : AtomicBytesStore {
+            override fun read(): ByteArray? = contents[path]?.copyOf()
 
-        override fun read(): ByteArray? = bytes?.copyOf()
-
-        override fun write(bytes: ByteArray) {
-            val blockedWrite = synchronized(blockLock) {
-                if (!shouldBlockNextWrite) {
-                    null
-                } else {
-                    shouldBlockNextWrite = false
-                    writeStarted to allowWriteToFinish
+            override fun write(bytes: ByteArray) {
+                val blockedWrite = synchronized(blockLock) {
+                    if (!shouldBlockNextWrite) {
+                        null
+                    } else {
+                        shouldBlockNextWrite = false
+                        writeStarted to allowWriteToFinish
+                    }
                 }
+                blockedWrite?.let { (started, finish) ->
+                    started.countDown()
+                    awaitIgnoringInterrupt(finish)
+                }
+                contents[path] = bytes.copyOf()
             }
-            blockedWrite?.let { (started, finish) ->
-                started.countDown()
-                awaitIgnoringInterrupt(finish)
-            }
-            this.bytes = bytes.copyOf()
-        }
 
-        override fun delete() {
-            bytes = null
+            override fun delete() {
+                contents.remove(path)
+            }
         }
 
         fun blockNextWrite() = synchronized(blockLock) {
@@ -158,7 +183,9 @@ class NativePageSpeedUiGatewayTest {
 
         fun releaseBlockedWrite() = allowWriteToFinish.countDown()
 
-        fun snapshotBytes(): ByteArray? = bytes?.copyOf()
+        fun snapshot(): Map<String, ByteArray> = contents.mapValues { it.value.copyOf() }
+
+        fun savedPaths(): Set<String> = contents.keys.toSet()
 
         private fun awaitIgnoringInterrupt(latch: CountDownLatch) {
             while (true) {
