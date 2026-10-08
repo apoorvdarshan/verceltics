@@ -4,6 +4,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsFocused
@@ -12,6 +13,7 @@ import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -316,6 +318,93 @@ class HostingProviderScreenTest {
         }
     }
 
+    @Test
+    fun connectedDashboardAccountMenuSwitchesAndAddsAccounts() {
+        val switched = mutableListOf<String>()
+        var addRequests = 0
+        setScreen(
+            "render",
+            connected("render").copy(accounts = TWO_ACCOUNTS),
+            HostingProviderScreenCallbacks(onSwitchAccount = { switched += it }, onAddAccount = { addRequests += 1 }),
+        )
+
+        composeRule.onNodeWithTag("hosting.render.accountMenuButton").assertIsDisplayed().performClick()
+        composeRule.onNodeWithTag("hosting.render.account.second").assertIsDisplayed().performClick()
+        composeRule.onNodeWithTag("hosting.render.accountMenuButton").performClick()
+        composeRule.onNodeWithTag("hosting.render.addAccount").performClick()
+
+        composeRule.runOnIdle {
+            assertEquals(listOf("second"), switched)
+            assertEquals(1, addRequests)
+        }
+    }
+
+    @Test
+    fun accountMenuRemovalsOpenTheirConfirmationsThroughCallbacks() {
+        var removeCurrent = 0
+        var removeAll = 0
+        setScreen(
+            "render",
+            connected("render").copy(accounts = TWO_ACCOUNTS),
+            HostingProviderScreenCallbacks(
+                onRequestDisconnect = { removeCurrent += 1 },
+                onRequestRemoveAll = { removeAll += 1 },
+            ),
+        )
+
+        composeRule.onNodeWithTag("hosting.render.accountMenuButton").performClick()
+        composeRule.onNodeWithTag("hosting.render.removeCurrentAccount").performClick()
+        composeRule.onNodeWithTag("hosting.render.accountMenuButton").performClick()
+        composeRule.onNodeWithTag("hosting.render.removeAllAccounts").performClick()
+
+        composeRule.runOnIdle {
+            assertEquals(1, removeCurrent)
+            assertEquals(1, removeAll)
+        }
+    }
+
+    @Test
+    fun removeAllConfirmationIsShownFromStateAndConfirms() {
+        var confirmed = 0
+        setScreen(
+            "render",
+            connected("render").copy(accounts = TWO_ACCOUNTS, showRemoveAllConfirmation = true),
+            HostingProviderScreenCallbacks(onConfirmRemoveAll = { confirmed += 1 }),
+        )
+
+        composeRule.onNodeWithTag("hosting.render.removeAllDialog").assertIsDisplayed()
+        composeRule.onNodeWithText("REMOVE ALL ACCOUNTS").performClick()
+
+        composeRule.runOnIdle { assertEquals(1, confirmed) }
+    }
+
+    @Test
+    fun addingAnAccountShowsTheConnectFormWithABackButtonInsteadOfTheMenu() {
+        var cancelled = 0
+        setScreen(
+            "render",
+            connected("render").copy(accounts = TWO_ACCOUNTS, isAddingAccount = true),
+            HostingProviderScreenCallbacks(onCancelAddAccount = { cancelled += 1 }),
+        )
+
+        val form = composeRule.onNodeWithTag("hosting.render.connectionForm").assertIsDisplayed()
+        composeRule.onNodeWithText("Add Render account").assertIsDisplayed()
+        composeRule.onAllNodesWithTag("hosting.render.accountMenuButton").assertCountEquals(0)
+        composeRule.onAllNodesWithTag("hosting.render.dashboard").assertCountEquals(0)
+        form.performScrollToNode(hasTestTag("hosting.render.cancelAddAccount"))
+        composeRule.onNodeWithTag("hosting.render.cancelAddAccount").performClick()
+
+        composeRule.runOnIdle { assertEquals(1, cancelled) }
+    }
+
+    @Test
+    fun disconnectedProviderHasNoAccountMenu() {
+        setScreen("render", disconnected("render"))
+
+        composeRule.onAllNodesWithTag("hosting.render.accountMenuButton").assertCountEquals(0)
+        composeRule.onAllNodesWithTag("hosting.render.cancelAddAccount").assertCountEquals(0)
+    }
+
     private fun setScreen(
         providerId: String,
         state: HostingProviderUiState,
@@ -360,6 +449,11 @@ class HostingProviderScreenTest {
         override suspend fun disconnect(providerId: String) = Result.success(Unit)
     }
 }
+
+private val TWO_ACCOUNTS = listOf(
+    ProviderAccountUi("primary", "Primary account", "owner@example.com", isActive = true),
+    ProviderAccountUi("second", "Second account", "second@example.com"),
+)
 
 private fun dashboardUi(providerId: String) = HostingDashboardUi(
     providerId = providerId,
