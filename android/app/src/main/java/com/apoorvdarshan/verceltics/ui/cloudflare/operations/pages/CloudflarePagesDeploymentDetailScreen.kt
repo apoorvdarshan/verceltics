@@ -85,6 +85,8 @@ data class CloudflarePagesDeploymentDetailState(
     val deployment: CloudflarePagesDeployment? = null,
     val logs: List<CloudflarePagesDeploymentLog> = emptyList(),
     val isLoading: Boolean = true,
+    /** A reload over an already loaded deployment (pull-to-refresh / toolbar refresh). */
+    val isRefreshing: Boolean = false,
     val detailError: String? = null,
     val logsError: String? = null,
     val deleted: Boolean = false,
@@ -107,7 +109,9 @@ class CloudflarePagesDeploymentDetailViewModel(
 
     fun load() {
         loadJob?.cancel()
-        _state.update { it.copy(isLoading = it.deployment == null, detailError = null, logsError = null) }
+        _state.update {
+            it.copy(isLoading = it.deployment == null, isRefreshing = it.deployment != null, detailError = null, logsError = null)
+        }
         loadJob = viewModelScope.launch {
             val (detail, logs) = coroutineScope {
                 val detail = async { capture { api.fetchDeployment(accountId, projectName, deploymentId) } }
@@ -121,6 +125,7 @@ class CloudflarePagesDeploymentDetailViewModel(
                     logs = logs.getOrNull() ?: current.logs,
                     logsError = logs.exceptionOrNull()?.let(::cloudflareUserMessage),
                     isLoading = false,
+                    isRefreshing = false,
                 )
             }
         }
@@ -190,7 +195,13 @@ fun CloudflarePagesDeploymentDetailScreen(viewModel: CloudflarePagesDeploymentDe
     val uriHandler = LocalUriHandler.current
     val item = state.deployment
 
-    CloudflareOpsScreen("cloudflare.pages.deploymentDetail", modifier) {
+    CloudflareOpsScreen(
+        "cloudflare.pages.deploymentDetail",
+        modifier,
+        maximumContentWidth = 850.dp,
+        isRefreshing = state.isLoading || state.isRefreshing,
+        onRefresh = viewModel::load,
+    ) {
         if (item == null) {
             item("loading") {
                 if (state.isLoading) {

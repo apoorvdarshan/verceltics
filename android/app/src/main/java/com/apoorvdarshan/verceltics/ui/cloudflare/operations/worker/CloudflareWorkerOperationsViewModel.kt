@@ -39,6 +39,8 @@ data class CloudflareWorkerOperationsState(
     val accountSubdomain: String? = null,
     val warnings: List<String> = emptyList(),
     val isLoading: Boolean = true,
+    /** A reload over a cached or loaded snapshot (pull-to-refresh / toolbar refresh). */
+    val isRefreshing: Boolean = false,
 )
 
 /** Port of iOS `CloudflareWorkerOperationsViewModel`. Every change goes through a confirmation. */
@@ -64,13 +66,13 @@ class CloudflareWorkerOperationsViewModel(
         val key = CloudflareWorkerMemoryCache.operationsKey(accountId, scriptName)
         var hydrated = false
         cache.get<CloudflareWorkerOperationsState>(key)?.let { (cached, fresh) ->
-            _state.value = cached.copy(isLoading = false)
+            _state.value = cached.copy(isLoading = false, isRefreshing = false)
             hydrated = true
             if (!forceRefresh && fresh) return
         }
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
-            _state.update { it.copy(isLoading = !hydrated) }
+            _state.update { it.copy(isLoading = !hydrated, isRefreshing = hydrated) }
             val cachedWorker = cache.get<CloudflareWorkerScriptDetail>(CloudflareWorkerMemoryCache.workerKey(accountId, scriptName))
             val warnings = mutableListOf<String>()
             coroutineScope {

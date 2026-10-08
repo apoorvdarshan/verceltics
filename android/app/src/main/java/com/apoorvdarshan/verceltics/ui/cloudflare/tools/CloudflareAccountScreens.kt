@@ -82,13 +82,12 @@ internal fun CloudflareAccountDetailScreen(
     modifier: Modifier = Modifier,
 ) {
     val loaded = (detail as? CloudflareToolLoad.Loaded)?.value
-    LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .testTag("cloudflare.account"),
-        contentPadding = PaddingValues(start = 18.dp, top = 6.dp, end = 18.dp, bottom = 40.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
+    CloudflareToolsPage(
+        "cloudflare.account",
+        modifier,
+        maximumContentWidth = 760.dp,
+        spacing = 16.dp,
+    ) { _ ->
         item("header") { CloudflareEdgeHeader(context) }
         item("operations") {
             ToolPanel(accentAlpha = 0.07f) {
@@ -247,13 +246,14 @@ internal fun CloudflareAccountOperationsScreen(
         AuditSheet(event) { selectedAudit = null }
     }
 
-    LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .testTag("cloudflare.accountOperations"),
-        contentPadding = PaddingValues(start = 18.dp, top = 6.dp, end = 18.dp, bottom = 40.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
+    CloudflareToolsPage(
+        "cloudflare.accountOperations",
+        modifier,
+        maximumContentWidth = 820.dp,
+        spacing = 16.dp,
+        isRefreshing = state.isLoading,
+        onRefresh = onRetry,
+    ) { _ ->
         item("header") {
             ToolPanel(accentAlpha = 0.09f) {
                 Row(Modifier.padding(18.dp), verticalAlignment = Alignment.Top) {

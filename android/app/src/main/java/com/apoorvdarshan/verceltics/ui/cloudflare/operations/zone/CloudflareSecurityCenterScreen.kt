@@ -103,7 +103,13 @@ internal fun CloudflareSecurityCenterScreen(
     state.selectedItem?.let { item -> CloudflareSecurityItemSheet(item, onDismiss = viewModel::dismissItem) }
 
     val snapshot = state.snapshot
-    CloudflareOpsScreen("cloudflare.securityCenter", modifier) {
+    CloudflareOpsScreen(
+        "cloudflare.securityCenter",
+        modifier,
+        maximumContentWidth = 900.dp,
+        isRefreshing = state.isLoading || state.isRefreshing,
+        onRefresh = { viewModel.load(force = true) },
+    ) {
         item("posture") {
             CloudflareOpsPanel(accent = 0.09f) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
@@ -459,7 +465,13 @@ internal fun CloudflareRulesetDetailScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     LaunchedEffect(context.refreshSignal) { viewModel.onRefreshSignal(context.refreshSignal) }
     state.selectedItem?.let { item -> CloudflareSecurityItemSheet(item, onDismiss = viewModel::dismissItem) }
-    CloudflareOpsScreen("cloudflare.rulesetDetail", modifier) {
+    CloudflareOpsScreen(
+        "cloudflare.rulesetDetail",
+        modifier,
+        maximumContentWidth = 900.dp,
+        isRefreshing = state.isLoading || state.isRefreshing,
+        onRefresh = { viewModel.load(force = true) },
+    ) {
         item("card") { CloudflareSecurityItemCard(rulesetId, title, subtitle, status) }
         item("rules") {
             CloudflareOpsPanel {

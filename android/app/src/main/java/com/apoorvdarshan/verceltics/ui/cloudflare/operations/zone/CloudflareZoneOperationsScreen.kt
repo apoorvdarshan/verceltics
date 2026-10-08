@@ -117,7 +117,13 @@ internal fun CloudflareZoneOperationsScreen(
     }
 
     val zone = state.zone
-    CloudflareOpsScreen("cloudflare.zoneOperations", modifier) {
+    CloudflareOpsScreen(
+        "cloudflare.zoneOperations",
+        modifier,
+        maximumContentWidth = 900.dp,
+        isRefreshing = state.isLoading || state.isRefreshing,
+        onRefresh = { viewModel.load(force = true) },
+    ) {
         item("header") {
             CloudflareOpsHero(
                 title = zone?.name ?: zoneName,

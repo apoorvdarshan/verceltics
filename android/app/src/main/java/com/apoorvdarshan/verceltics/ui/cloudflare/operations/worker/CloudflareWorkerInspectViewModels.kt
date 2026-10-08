@@ -17,6 +17,8 @@ import kotlinx.coroutines.launch
 data class CloudflareWorkerVersionState(
     val detail: CloudflareWorkerVersionDetailInfo? = null,
     val isLoading: Boolean = true,
+    /** A reload over an already loaded version (pull-to-refresh / toolbar refresh). */
+    val isRefreshing: Boolean = false,
     val error: String? = null,
 )
 
@@ -48,7 +50,7 @@ class CloudflareWorkerVersionViewModel(
         }
         if (job?.isActive == true) return
         job = viewModelScope.launch {
-            _state.update { it.copy(isLoading = it.detail == null, error = null) }
+            _state.update { it.copy(isLoading = it.detail == null, isRefreshing = it.detail != null, error = null) }
             try {
                 val detail = api.fetchVersion(accountId, scriptName, versionId)
                 cache.put(key, detail)
@@ -57,7 +59,7 @@ class CloudflareWorkerVersionViewModel(
                 throw error
             } catch (error: Exception) {
                 _state.update {
-                    it.copy(isLoading = false, error = if (it.detail == null) cloudflareUserMessage(error) else null)
+                    it.copy(isLoading = false, isRefreshing = false, error = if (it.detail == null) cloudflareUserMessage(error) else null)
                 }
             }
         }
@@ -67,6 +69,8 @@ class CloudflareWorkerVersionViewModel(
 data class CloudflareWorkerContentState(
     val content: CloudflareWorkerContent? = null,
     val isLoading: Boolean = true,
+    /** A reload over already loaded source (pull-to-refresh / toolbar refresh). */
+    val isRefreshing: Boolean = false,
     val error: String? = null,
 )
 
@@ -90,7 +94,7 @@ class CloudflareWorkerContentViewModel(
     fun load() {
         if (job?.isActive == true) return
         job = viewModelScope.launch {
-            _state.update { it.copy(isLoading = it.content == null, error = null) }
+            _state.update { it.copy(isLoading = it.content == null, isRefreshing = it.content != null, error = null) }
             try {
                 val content = api.fetchContent(accountId, scriptName)
                 _state.value = CloudflareWorkerContentState(content = content, isLoading = false)
@@ -98,7 +102,7 @@ class CloudflareWorkerContentViewModel(
                 throw error
             } catch (error: Exception) {
                 _state.update {
-                    it.copy(isLoading = false, error = if (it.content == null) cloudflareUserMessage(error) else null)
+                    it.copy(isLoading = false, isRefreshing = false, error = if (it.content == null) cloudflareUserMessage(error) else null)
                 }
             }
         }

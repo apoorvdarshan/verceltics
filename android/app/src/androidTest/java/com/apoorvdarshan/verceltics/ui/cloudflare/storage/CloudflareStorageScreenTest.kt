@@ -12,6 +12,8 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeDown
 import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareCredential
 import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareRestClient
 import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareRestRequest
@@ -161,6 +163,25 @@ class CloudflareStorageScreenTest {
         compose.onNodeWithText("R2 requires a scoped token").assertIsDisplayed()
         compose.onNodeWithTag("cloudflare.storage.create.r2").assertDoesNotExist()
         compose.runOnIdle { assertTrue(transport.sentRequests().none { it.contains("/r2/") }) }
+    }
+
+    @Test
+    fun pullingDownTheDashboardAndKvNamespaceReloadsThem() {
+        val dashboard = CloudflareStorageDashboardViewModel(api, "acc")
+        compose.setContent {
+            VercelticsTheme {
+                CloudflareStorageDashboardScreen(dashboard, "Production", onOpenD1 = {}, onOpenKV = {}, onOpenR2 = {})
+            }
+        }
+        compose.waitUntil(5_000) { !dashboard.state.value.isLoading }
+        val namespaceLoads = transport.sentRequests().count { it == "GET /accounts/acc/storage/kv/namespaces" }
+        compose.onNodeWithTag("cloudflare.storage.dashboard.pullToRefresh").performTouchInput { swipeDown() }
+        compose.waitUntil(5_000) {
+            transport.sentRequests().count { it == "GET /accounts/acc/storage/kv/namespaces" } > namespaceLoads &&
+                !dashboard.state.value.isRefreshing
+        }
+        compose.onNodeWithTag("cloudflare.storage.dashboard").performScrollToNode(hasTestTag("cloudflare.storage.kv.ns"))
+        compose.onNodeWithTag("cloudflare.storage.kv.ns").assertIsDisplayed()
     }
 
     @Test

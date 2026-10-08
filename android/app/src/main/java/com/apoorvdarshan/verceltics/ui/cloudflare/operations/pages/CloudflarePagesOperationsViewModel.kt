@@ -47,6 +47,8 @@ data class CloudflarePagesOperationsState(
     val project: CloudflarePagesProjectDetail? = null,
     val domains: List<CloudflarePagesCustomDomain> = emptyList(),
     val isLoading: Boolean = true,
+    /** A reload over an already loaded project (pull-to-refresh / toolbar refresh). */
+    val isRefreshing: Boolean = false,
     val loadError: String? = null,
     val domainsError: String? = null,
     val environment: CloudflarePagesEnvironment = CloudflarePagesEnvironment.PRODUCTION,
@@ -83,7 +85,7 @@ class CloudflarePagesOperationsViewModel(
 
     fun load() {
         loadJob?.cancel()
-        _state.update { it.copy(isLoading = it.project == null) }
+        _state.update { it.copy(isLoading = it.project == null, isRefreshing = it.project != null) }
         loadJob = viewModelScope.launch {
             val (project, domains) = coroutineScope {
                 val project = async { capture { api.fetchProject(accountId, projectName) } }
@@ -97,6 +99,7 @@ class CloudflarePagesOperationsViewModel(
                     domains = domains.getOrNull()?.sortedBy { it.name.lowercase() } ?: current.domains,
                     domainsError = domains.exceptionOrNull()?.let(::cloudflareUserMessage),
                     isLoading = false,
+                    isRefreshing = false,
                 )
             }
         }
