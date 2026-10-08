@@ -66,6 +66,81 @@ class VercelAccountPayloadCodecTest {
     }
 
     @Test
+    fun versionThreeRoundTripsTheAvatar() {
+        val original = account("secret-token-value").withProfile(
+            displayName = "Apoorv Darshan",
+            email = "new@example.com",
+            username = "apoorvdarshan",
+            avatar = "0123456789abcdef",
+        )
+
+        val decoded = VercelAccountPayloadCodec.decode(VercelAccountPayloadCodec.encode(original))
+
+        assertEquals("0123456789abcdef", decoded.avatar)
+        assertEquals("Apoorv Darshan", decoded.displayName)
+        assertEquals("new@example.com", decoded.email)
+        assertEquals("apoorvdarshan", decoded.username)
+    }
+
+    @Test
+    fun legacyVersionTwoPayloadsDecodeWithoutAnAvatar() {
+        val legacy = ByteArrayOutputStream().also { bytes ->
+            DataOutputStream(bytes).use { output ->
+                output.writeInt(2)
+                output.writeUtf8("vercel")
+                output.writeUtf8("user_123")
+                output.writeUtf8("Apoorv")
+                output.writeBoolean(false)
+                output.writeUtf8("legacy-token")
+                output.writeLong(1_000L)
+                output.writeLong(2_000L)
+                output.writeBoolean(true)
+                output.writeUtf8("apoorv")
+                output.writeBoolean(true)
+            }
+        }.toByteArray()
+
+        val decoded = VercelAccountPayloadCodec.decode(legacy)
+
+        assertEquals("apoorv", decoded.username)
+        assertTrue(decoded.hasLongAnalyticsHistory)
+        assertNull(decoded.email)
+        assertNull(decoded.avatar)
+        assertEquals(SecretValue.of("legacy-token"), decoded.token)
+    }
+
+    @Test
+    fun profileRefreshKeepsTokenTimestampsAndAnalyticsFlag() {
+        val base = account("token").withUsername("apoorv").withLongAnalyticsHistory()
+
+        val refreshed = base.withProfile(displayName = "Renamed", email = null, username = null, avatar = "abc")
+
+        assertEquals("Renamed", refreshed.displayName)
+        assertNull(refreshed.email)
+        assertEquals("A missing username keeps the saved one.", "apoorv", refreshed.username)
+        assertEquals("abc", refreshed.avatar)
+        assertEquals(base.token, refreshed.token)
+        assertEquals(base.updatedAtMillis, refreshed.updatedAtMillis)
+        assertTrue(refreshed.hasLongAnalyticsHistory)
+        assertFalse(refreshed.hasSameProfile(base))
+        assertTrue(base.hasSameProfile(base.withLongAnalyticsHistory()))
+    }
+
+    @Test
+    fun anotherIdentityCannotReplaceAnAccount() {
+        val other = VercelAccount(
+            id = "user_other",
+            displayName = "Other",
+            email = null,
+            token = SecretValue.of("other"),
+            createdAtMillis = 1L,
+            updatedAtMillis = 1L,
+        )
+
+        assertThrows(IllegalArgumentException::class.java) { account("token").reconnectedAs(other, nowMillis = 5L) }
+    }
+
+    @Test
     fun unknownVersionsAndTrailingBytesAreRejected() {
         val encoded = VercelAccountPayloadCodec.encode(account("token"))
         val futureVersion = encoded.copyOf().also { it[3] = 9 }

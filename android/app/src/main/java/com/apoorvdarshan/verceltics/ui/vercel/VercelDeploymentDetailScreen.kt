@@ -3,6 +3,7 @@ package com.apoorvdarshan.verceltics.ui.vercel
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -46,6 +48,7 @@ import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -55,6 +58,7 @@ import com.apoorvdarshan.verceltics.ui.VercelDeploymentDetailUiState
 import com.apoorvdarshan.verceltics.ui.VercelDeploymentEventUi
 import com.apoorvdarshan.verceltics.ui.VercelDeploymentUi
 import com.apoorvdarshan.verceltics.ui.VercelProjectUi
+import com.apoorvdarshan.verceltics.ui.components.AppPullToRefresh
 import com.apoorvdarshan.verceltics.ui.components.AppToolbar
 import com.apoorvdarshan.verceltics.ui.components.AppToolbarAction
 import com.apoorvdarshan.verceltics.ui.components.OffsetPanel
@@ -68,6 +72,9 @@ const val VERCEL_MAX_RENDERED_EVENTS: Int = 80
 /**
  * One deployment (iOS `DeploymentDetailView`): status, Open and Inspect links, details, and the
  * newest build events with a retry banner when a refresh fails over cached events.
+ *
+ * Pull down to reload the events (iOS `.refreshable`). Regular-width windows center the page at
+ * 920dp and put the details beside the events when both columns fit; phones stack them.
  */
 @Composable
 fun VercelDeploymentDetailScreen(
@@ -126,82 +133,141 @@ fun VercelDeploymentDetailScreen(
                 }
             },
         )
-        LazyColumn(
+        AppPullToRefresh(
+            isRefreshing = state.isLoading,
+            onRefresh = onRefresh,
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
-            contentPadding = PaddingValues(start = 18.dp, top = 6.dp, end = 18.dp, bottom = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            testTag = "workspace.hosting.deployment.pullToRefresh",
         ) {
-            item(key = "header") { DeploymentHeader(project, deployment, onOpenUrl) }
-            item(key = "details") { DeploymentDetails(deployment) }
-            item(key = "events-header") {
-                VercelInfoPanel(
-                    title = "Build Events",
-                    icon = Icons.Rounded.Terminal,
-                    testTag = "workspace.hosting.deployment.events",
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+                val metrics = VercelLayout.page(
+                    availableWidthDp = maxWidth.value,
+                    windowWidthDp = vercelWindowWidthDp(),
+                    compactPaddingDp = 18f,
+                    maxContentWidthDp = VercelLayout.DETAIL_MAX_WIDTH_DP,
+                )
+                val twoColumns = VercelLayout.deploymentUsesTwoColumns(metrics)
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .testTag("workspace.hosting.deployment.list")
+                        .semantics { stateDescription = if (twoColumns) "Two columns" else "One column" },
+                    contentPadding = PaddingValues(
+                        start = metrics.horizontalPadding,
+                        top = 6.dp,
+                        end = metrics.horizontalPadding,
+                        bottom = 28.dp,
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
-                    when {
-                        state.isLoading && !state.hasLoaded -> Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 32.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
-                            Text(
-                                "Loading events",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-
-                        state.error != null && !state.hasLoaded -> Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 22.dp, vertical = 28.dp)
-                                .testTag("workspace.hosting.deployment.events.error"),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(10.dp),
-                        ) {
-                            Icon(Icons.Rounded.Warning, contentDescription = null, tint = vercelWarningColor())
-                            Text(
-                                state.error,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = TextAlign.Center,
-                            )
-                        }
-
-                        else -> {
-                            if (state.error != null) {
-                                VercelFeedbackBanner(
-                                    title = "Event refresh failed",
-                                    message = "${state.error} Showing the last successful result.",
-                                    tint = vercelWarningColor(),
-                                    actionTitle = "Retry",
-                                    onAction = onRefresh,
-                                    modifier = Modifier.padding(12.dp),
-                                    testTag = "workspace.hosting.deployment.events.retry",
+                    item(key = "header") { DeploymentHeader(project, deployment, onOpenUrl) }
+                    if (twoColumns) {
+                        // iOS regular width: a fixed details column beside the build events.
+                        item(key = "columns") {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("workspace.hosting.deployment.columns"),
+                                horizontalArrangement = Arrangement.spacedBy(VercelLayout.PANEL_SPACING_DP.dp),
+                                verticalAlignment = Alignment.Top,
+                            ) {
+                                DeploymentDetails(
+                                    deployment = deployment,
+                                    modifier = Modifier.width(VercelLayout.DEPLOYMENT_DETAILS_WIDTH_DP.dp),
+                                )
+                                DeploymentEvents(
+                                    state = state,
+                                    timeFormat = timeFormat,
+                                    onRefresh = onRefresh,
+                                    modifier = Modifier.weight(1f),
                                 )
                             }
-                            if (state.events.isEmpty()) {
-                                Text(
-                                    "No build events returned",
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 30.dp),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    textAlign = TextAlign.Center,
-                                )
-                            } else {
-                                state.events.take(VERCEL_MAX_RENDERED_EVENTS).forEach { event ->
-                                    DeploymentEventRow(event, timeFormat.format(Date(event.createdAtMillis)))
-                                }
-                            }
                         }
+                    } else {
+                        item(key = "details") { DeploymentDetails(deployment) }
+                        item(key = "events-header") {
+                            DeploymentEvents(state = state, timeFormat = timeFormat, onRefresh = onRefresh)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DeploymentEvents(
+    state: VercelDeploymentDetailUiState,
+    timeFormat: DateFormat,
+    onRefresh: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    VercelInfoPanel(
+        title = "Build Events",
+        icon = Icons.Rounded.Terminal,
+        modifier = modifier,
+        testTag = "workspace.hosting.deployment.events",
+    ) {
+        when {
+            state.isLoading && !state.hasLoaded -> Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+                Text(
+                    "Loading events",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            state.error != null && !state.hasLoaded -> Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 22.dp, vertical = 28.dp)
+                    .testTag("workspace.hosting.deployment.events.error"),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Icon(Icons.Rounded.Warning, contentDescription = null, tint = vercelWarningColor())
+                Text(
+                    state.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+            }
+
+            else -> {
+                if (state.error != null) {
+                    VercelFeedbackBanner(
+                        title = "Event refresh failed",
+                        message = "${state.error} Showing the last successful result.",
+                        tint = vercelWarningColor(),
+                        actionTitle = "Retry",
+                        onAction = onRefresh,
+                        modifier = Modifier.padding(12.dp),
+                        testTag = "workspace.hosting.deployment.events.retry",
+                    )
+                }
+                if (state.events.isEmpty()) {
+                    Text(
+                        "No build events returned",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 30.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                } else {
+                    state.events.take(VERCEL_MAX_RENDERED_EVENTS).forEach { event ->
+                        DeploymentEventRow(event, timeFormat.format(Date(event.createdAtMillis)))
                     }
                 }
             }
@@ -290,10 +356,11 @@ private fun DeploymentLinkButton(title: String, icon: ImageVector, testTag: Stri
 }
 
 @Composable
-private fun DeploymentDetails(deployment: VercelDeploymentUi) {
+private fun DeploymentDetails(deployment: VercelDeploymentUi, modifier: Modifier = Modifier) {
     VercelInfoPanel(
         title = "Details",
         icon = Icons.Rounded.Inventory2,
+        modifier = modifier,
         testTag = "workspace.hosting.deployment.details",
     ) {
         VercelDetailRow(Icons.Rounded.TrackChanges, "Target", deployment.target)

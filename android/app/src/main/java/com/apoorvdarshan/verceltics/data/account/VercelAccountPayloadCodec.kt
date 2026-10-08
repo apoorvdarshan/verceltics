@@ -9,16 +9,24 @@ import java.nio.charset.StandardCharsets
 /**
  * Plaintext codec used only immediately before encryption or immediately after decryption.
  *
- * Version 2 appends the optional username and the long-analytics-history flag. Version 1 payloads
- * written by earlier builds still decode, with both new fields absent.
+ * Version 2 appended the optional username and the long-analytics-history flag; version 3 appends
+ * the optional avatar. Version 1 and 2 payloads written by earlier builds still decode, with the
+ * newer fields absent.
  */
 object VercelAccountPayloadCodec {
-    private const val LEGACY_PAYLOAD_VERSION = 1
-    private const val PAYLOAD_VERSION = 2
+    private const val FIRST_PAYLOAD_VERSION = 1
+    private const val USERNAME_PAYLOAD_VERSION = 2
+    private const val PAYLOAD_VERSION = 3
     private const val MAX_ID_BYTES = 1_024
     private const val MAX_DISPLAY_NAME_BYTES = 1_024
     private const val MAX_EMAIL_BYTES = 2_048
     private const val MAX_TOKEN_BYTES = 65_536
+    private const val MAX_AVATAR_BYTES = 4_096
+
+    /** Upper bound of one encoded account, used by the account-list codec. */
+    internal const val MAX_ENCODED_BYTES: Int =
+        4 + 3 * (4 + MAX_ID_BYTES) + 2 * (5 + MAX_DISPLAY_NAME_BYTES) + (5 + MAX_EMAIL_BYTES) +
+            (4 + MAX_TOKEN_BYTES) + 16 + 1 + (5 + MAX_AVATAR_BYTES)
 
     fun encode(account: VercelAccount): ByteArray {
         val bytes = WipingByteArrayOutputStream()
@@ -39,6 +47,7 @@ object VercelAccountPayloadCodec {
             output.writeLong(account.updatedAtMillis)
             writeNullableString(output, account.username, MAX_DISPLAY_NAME_BYTES)
             output.writeBoolean(account.hasLongAnalyticsHistory)
+            writeNullableString(output, account.avatar, MAX_AVATAR_BYTES)
             output.flush()
             bytes.toByteArray()
         } finally {
@@ -49,7 +58,7 @@ object VercelAccountPayloadCodec {
     fun decode(bytes: ByteArray): VercelAccount {
         DataInputStream(ByteArrayInputStream(bytes)).use { input ->
             val version = input.readInt()
-            require(version == PAYLOAD_VERSION || version == LEGACY_PAYLOAD_VERSION) {
+            require(version in FIRST_PAYLOAD_VERSION..PAYLOAD_VERSION) {
                 "Unsupported account payload version."
             }
             require(readString(input, MAX_ID_BYTES) == VercelAccount.PROVIDER_ID) {
@@ -68,9 +77,13 @@ object VercelAccountPayloadCodec {
             val updatedAtMillis = input.readLong()
             var username: String? = null
             var hasLongAnalyticsHistory = false
-            if (version >= PAYLOAD_VERSION) {
+            var avatar: String? = null
+            if (version >= USERNAME_PAYLOAD_VERSION) {
                 username = readNullableString(input, MAX_DISPLAY_NAME_BYTES)
                 hasLongAnalyticsHistory = input.readBoolean()
+            }
+            if (version >= PAYLOAD_VERSION) {
+                avatar = readNullableString(input, MAX_AVATAR_BYTES)
             }
             require(input.available() == 0) { "Unexpected trailing account data." }
             return VercelAccount(
@@ -82,6 +95,7 @@ object VercelAccountPayloadCodec {
                 updatedAtMillis = updatedAtMillis,
                 username = username,
                 hasLongAnalyticsHistory = hasLongAnalyticsHistory,
+                avatar = avatar,
             )
         }
     }
@@ -131,7 +145,7 @@ object VercelAccountPayloadCodec {
     }
 }
 
-private class WipingByteArrayOutputStream : ByteArrayOutputStream() {
+internal class WipingByteArrayOutputStream : ByteArrayOutputStream() {
     override fun close() {
         buf.fill(0)
         reset()

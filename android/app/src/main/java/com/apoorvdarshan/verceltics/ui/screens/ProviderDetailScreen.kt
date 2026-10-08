@@ -5,10 +5,6 @@ import com.apoorvdarshan.verceltics.ui.components.ProviderSummaryCard
 import com.apoorvdarshan.verceltics.ui.components.AccountMenuButton
 import com.apoorvdarshan.verceltics.ui.components.AppToolbarAction
 import com.apoorvdarshan.verceltics.ui.components.AppToolbar
-import android.app.Activity
-import android.content.Context
-import android.content.ContextWrapper
-import android.view.WindowManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,24 +21,19 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.Visibility
-import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,8 +44,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
@@ -64,10 +53,6 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -76,6 +61,11 @@ import com.apoorvdarshan.verceltics.domain.CredentialField
 import com.apoorvdarshan.verceltics.domain.IntegrationProvider
 import com.apoorvdarshan.verceltics.ui.VercelAccountUi
 import com.apoorvdarshan.verceltics.ui.VercelConnectionStatus
+import com.apoorvdarshan.verceltics.ui.VercelConnectionMutation
+import com.apoorvdarshan.verceltics.ui.vercel.ProtectVercelCredentialWindow
+import com.apoorvdarshan.verceltics.ui.vercel.VercelConnectErrorNotice
+import com.apoorvdarshan.verceltics.ui.vercel.VercelSavedAccountsList
+import com.apoorvdarshan.verceltics.ui.vercel.VercelTokenConnectForm
 import com.apoorvdarshan.verceltics.ui.VercelConnectionUiState
 import com.apoorvdarshan.verceltics.ui.VercelConnectionViewModel
 import com.apoorvdarshan.verceltics.ui.VercelProjectUi
@@ -89,7 +79,6 @@ import com.apoorvdarshan.verceltics.ui.components.ThemedGlassControl
 import com.apoorvdarshan.verceltics.ui.components.ThemedActionButton
 import com.apoorvdarshan.verceltics.ui.components.ThemedActionTone
 import com.apoorvdarshan.verceltics.ui.components.ThemedAlertDialog
-import com.apoorvdarshan.verceltics.ui.components.ThemedAuthTextField
 import com.apoorvdarshan.verceltics.ui.components.contrastingContentColor
 import com.apoorvdarshan.verceltics.ui.vercel.visibleVercelProjects
 import java.text.DateFormat
@@ -102,7 +91,7 @@ fun ProviderDetailScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    if (provider.id == "vercel") ProtectCredentialWindow()
+    if (provider.id == "vercel") ProtectVercelCredentialWindow()
     LazyColumn(
         modifier = modifier.testTag("providerDetail.${provider.id}"),
         contentPadding = PaddingValues(start = 18.dp, top = 14.dp, end = 18.dp, bottom = 28.dp),
@@ -255,26 +244,26 @@ private fun VercelConnectionPanel(
     vercelConnectionViewModel: VercelConnectionViewModel,
 ) {
     val state by vercelConnectionViewModel.uiState.collectAsStateWithLifecycle()
-    // Credentials must never be serialized into Android saved instance state.
-    var token by remember { mutableStateOf("") }
-    var tokenVisible by rememberSaveable { mutableStateOf(false) }
     var showDisconnectConfirmation by rememberSaveable { mutableStateOf(false) }
     var projectQuery by rememberSaveable { mutableStateOf("") }
     val haptic = LocalHapticFeedback.current
+    val isSaved = state.status == VercelConnectionStatus.CONNECTED ||
+        state.status == VercelConnectionStatus.SAVED_UNAVAILABLE
+    val isAddingAccount = state.isAddingAccount && isSaved
 
     if (showDisconnectConfirmation) {
         ThemedAlertDialog(
             onDismissRequest = { showDisconnectConfirmation = false },
-            title = "Disconnect Vercel?",
-            message = "The saved token will be removed from this device.",
-            confirmText = "DISCONNECT",
+            title = state.activeAccount?.let { "Remove ${it.displayName}?" } ?: "Disconnect Vercel?",
+            message = "The saved token will be removed from this device only.",
+            confirmText = "REMOVE ACCOUNT",
             confirmTone = ThemedActionTone.DESTRUCTIVE,
             dismissText = "KEEP ACCOUNT",
             onConfirm = {
                 haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                 showDisconnectConfirmation = false
                 projectQuery = ""
-                vercelConnectionViewModel.disconnect()
+                vercelConnectionViewModel.removeCurrentAccount()
             },
             testTag = "vercel.disconnectDialog",
         )
@@ -290,191 +279,77 @@ private fun VercelConnectionPanel(
                 state.status == VercelConnectionStatus.RESTORING ->
                     RestoringVercelConnectionContent()
 
+                // Adding keeps every saved account; the same identity only has its token rotated.
+                isAddingAccount -> {
+                    VercelTokenConnectForm(
+                        title = "Add Vercel account",
+                        subtitle = state.activeAccount?.let { "${it.displayName} stays connected." }
+                            ?: "Use a personal access token. It never appears again after saving.",
+                        isBusy = state.mutation == VercelConnectionMutation.CONNECTING,
+                        error = state.connectError,
+                        onConnect = vercelConnectionViewModel::connect,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    ThemedActionButton(
+                        text = "CANCEL",
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                            vercelConnectionViewModel.cancelAddingAccount()
+                        },
+                        enabled = state.mutation != VercelConnectionMutation.CONNECTING,
+                        tone = ThemedActionTone.NEUTRAL,
+                        modifier = Modifier.fillMaxWidth(),
+                        testTag = "vercel.cancelAddAccount",
+                    )
+                }
+
                 state.status == VercelConnectionStatus.CONNECTED && state.dashboard != null ->
                     ConnectedVercelContent(
-                    state = state,
-                    projectQuery = projectQuery,
-                    onProjectQueryChange = { projectQuery = it },
-                    onRefresh = {
-                        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                        vercelConnectionViewModel.refresh()
-                    },
-                    onDisconnect = {
-                        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                        showDisconnectConfirmation = true
-                    },
-                )
+                        state = state,
+                        projectQuery = projectQuery,
+                        onProjectQueryChange = { projectQuery = it },
+                        onRefresh = {
+                            haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                            vercelConnectionViewModel.refresh()
+                        },
+                        onSwitchAccount = { account -> vercelConnectionViewModel.switchAccount(account.id) },
+                        onAddAccount = {
+                            haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                            vercelConnectionViewModel.startAddingAccount()
+                        },
+                        onDisconnect = {
+                            haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                            showDisconnectConfirmation = true
+                        },
+                    )
 
                 state.status == VercelConnectionStatus.SAVED_UNAVAILABLE ->
                     SavedVercelUnavailableContent(
-                    account = state.savedAccount,
-                    loading = state.isBusy,
-                    onRetry = vercelConnectionViewModel::refresh,
-                    onDisconnect = { showDisconnectConfirmation = true },
+                        account = state.savedAccount,
+                        accounts = state.savedAccounts,
+                        loading = state.isBusy,
+                        onRetry = vercelConnectionViewModel::refresh,
+                        onSwitchAccount = { account -> vercelConnectionViewModel.switchAccount(account.id) },
+                        onAddAccount = vercelConnectionViewModel::startAddingAccount,
+                        onDisconnect = { showDisconnectConfirmation = true },
+                    )
+
+                else -> VercelTokenConnectForm(
+                    title = "Connect Vercel",
+                    subtitle = "Use a personal access token. It never appears again after saving.",
+                    isBusy = state.isBusy,
+                    error = state.error,
+                    onConnect = vercelConnectionViewModel::connect,
                 )
+            }
 
-                else -> {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text("Connect Vercel", style = MaterialTheme.typography.headlineMedium)
-                            Text(
-                                "Use a personal access token. It never appears again after saving.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        Icon(
-                            Icons.Rounded.Lock,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(32.dp),
-                        )
-                    }
-                    Spacer(Modifier.height(14.dp))
-                    VercelTokenInstructions()
-                    Spacer(Modifier.height(14.dp))
-                    ThemedAuthTextField(
-                        value = token,
-                        onValueChange = { token = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("vercel.token"),
-                        enabled = !state.isBusy,
-                        label = "Personal access token",
-                        visualTransformation = if (tokenVisible) {
-                            VisualTransformation.None
-                        } else {
-                            PasswordVisualTransformation()
-                        },
-                        keyboardOptions = KeyboardOptions(
-                            autoCorrectEnabled = false,
-                            keyboardType = KeyboardType.Password,
-                        ),
-                        trailingIcon = {
-                            ThemedGlassControl(
-                                modifier = Modifier.size(42.dp),
-                                enabled = !state.isBusy,
-                                shape = RoundedCornerShape(10.dp),
-                                onClick = {
-                                    tokenVisible = !tokenVisible
-                                    haptic.performHapticFeedback(
-                                        if (tokenVisible) {
-                                            HapticFeedbackType.ToggleOn
-                                        } else {
-                                            HapticFeedbackType.ToggleOff
-                                        },
-                                    )
-                                },
-                            ) {
-                                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        if (tokenVisible) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
-                                        contentDescription = if (tokenVisible) "Hide token" else "Show token",
-                                    )
-                                }
-                            }
-                        },
-                    )
+            if (isSaved && !isAddingAccount) {
+                state.error?.let {
                     Spacer(Modifier.height(12.dp))
-                    ThemedActionButton(
-                        text = if (state.isBusy) "CHECKING TOKEN" else "CONNECT SECURELY",
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                            if (token.isBlank()) {
-                                vercelConnectionViewModel.connect(token)
-                            } else {
-                                val pendingToken = token.trim()
-                                token = ""
-                                vercelConnectionViewModel.connect(pendingToken)
-                            }
-                        },
-                        enabled = !state.isBusy,
-                        isBusy = state.isBusy,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 50.dp),
-                        testTag = "vercel.connect",
-                    )
-                }
-            }
-
-            state.error?.let {
-                Spacer(Modifier.height(12.dp))
-                ErrorNotice(it)
-            }
-        }
-    }
-}
-
-/** Steps from iOS `LoginView` for creating a Vercel personal access token. */
-internal val VERCEL_TOKEN_STEPS: List<String> = listOf(
-    "Go to vercel.com/account/tokens",
-    "Tap \"Create Token\"",
-    "Name it anything (e.g. Verceltics)",
-    "Set scope to your account",
-    "Copy and paste below",
-)
-
-internal const val VERCEL_TOKENS_URL = "https://vercel.com/account/tokens"
-
-@Composable
-private fun VercelTokenInstructions() {
-    val haptic = LocalHapticFeedback.current
-    val uriHandler = LocalUriHandler.current
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(13.dp))
-                .padding(16.dp)
-                .testTag("vercel.tokenSteps"),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(
-                "How to get your token",
-                modifier = Modifier.semantics { heading() },
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-            )
-            VERCEL_TOKEN_STEPS.forEachIndexed { index, step ->
-                Row(
-                    modifier = Modifier.semantics(mergeDescendants = true) {},
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f), CircleShape),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            "${index + 1}",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                    }
-                    Text(step, style = MaterialTheme.typography.bodyMedium)
+                    VercelConnectErrorNotice(it)
                 }
             }
         }
-        ThemedActionButton(
-            text = "Open Vercel Tokens Page",
-            onClick = {
-                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                runCatching { uriHandler.openUri(VERCEL_TOKENS_URL) }
-            },
-            tone = ThemedActionTone.NEUTRAL,
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 46.dp),
-            testTag = "vercel.openTokensPage",
-        )
     }
 }
 
@@ -509,8 +384,11 @@ private fun RestoringVercelConnectionContent() {
 @Composable
 private fun SavedVercelUnavailableContent(
     account: VercelAccountUi?,
+    accounts: List<VercelAccountUi>,
     loading: Boolean,
     onRetry: () -> Unit,
+    onSwitchAccount: (VercelAccountUi) -> Unit,
+    onAddAccount: () -> Unit,
     onDisconnect: () -> Unit,
 ) {
     val haptic = LocalHapticFeedback.current
@@ -529,7 +407,7 @@ private fun SavedVercelUnavailableContent(
     }
     Spacer(Modifier.height(8.dp))
     Text(
-        "The encrypted account remains on this device. Its live dashboard could not be loaded, so connecting another token is disabled.",
+        "The encrypted account remains on this device. Its live dashboard could not be loaded; adding another account keeps it saved.",
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
     Spacer(Modifier.height(12.dp))
@@ -545,7 +423,18 @@ private fun SavedVercelUnavailableContent(
             modifier = Modifier.fillMaxWidth(),
         )
         ThemedActionButton(
-            text = "DISCONNECT",
+            text = "ADD ANOTHER ACCOUNT",
+            onClick = {
+                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                onAddAccount()
+            },
+            enabled = !loading,
+            tone = ThemedActionTone.NEUTRAL,
+            modifier = Modifier.fillMaxWidth(),
+            testTag = "vercel.addAccount",
+        )
+        ThemedActionButton(
+            text = "REMOVE ACCOUNT",
             onClick = {
                 haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                 onDisconnect()
@@ -553,6 +442,15 @@ private fun SavedVercelUnavailableContent(
             enabled = !loading,
             tone = ThemedActionTone.DESTRUCTIVE,
             modifier = Modifier.fillMaxWidth(),
+        )
+    }
+    if (accounts.size > 1) {
+        Spacer(Modifier.height(14.dp))
+        VercelSavedAccountsList(
+            accounts = accounts,
+            activeAccountId = account?.id,
+            enabled = !loading,
+            onSwitch = onSwitchAccount,
         )
     }
 }
@@ -563,6 +461,8 @@ private fun ConnectedVercelContent(
     projectQuery: String,
     onProjectQueryChange: (String) -> Unit,
     onRefresh: () -> Unit,
+    onSwitchAccount: (VercelAccountUi) -> Unit,
+    onAddAccount: () -> Unit,
     onDisconnect: () -> Unit,
 ) {
     val dashboard = requireNotNull(state.dashboard)
@@ -696,16 +596,35 @@ private fun ConnectedVercelContent(
             }
         }
     }
+    if (state.savedAccounts.size > 1) {
+        Spacer(Modifier.height(16.dp))
+        VercelSavedAccountsList(
+            accounts = state.savedAccounts,
+            activeAccountId = dashboard.account.id,
+            enabled = !state.isBusy,
+            onSwitch = onSwitchAccount,
+        )
+    }
     Spacer(Modifier.height(14.dp))
-    ThemedActionButton(
-        text = "DISCONNECT ACCOUNT",
-        onClick = onDisconnect,
-        enabled = !state.isBusy,
-        tone = ThemedActionTone.DESTRUCTIVE,
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag("vercel.disconnect"),
-    )
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        ThemedActionButton(
+            text = "ADD ANOTHER ACCOUNT",
+            onClick = onAddAccount,
+            enabled = !state.isBusy,
+            tone = ThemedActionTone.NEUTRAL,
+            modifier = Modifier.fillMaxWidth(),
+            testTag = "vercel.addAccount",
+        )
+        ThemedActionButton(
+            text = "REMOVE CURRENT ACCOUNT",
+            onClick = onDisconnect,
+            enabled = !state.isBusy,
+            tone = ThemedActionTone.DESTRUCTIVE,
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("vercel.disconnect"),
+        )
+    }
 }
 
 @Composable
@@ -747,48 +666,6 @@ internal fun providerDetailProjectPreview(
 ): List<VercelProjectUi> = projects.take(PROVIDER_DETAIL_PROJECT_PREVIEW_LIMIT)
 
 private const val PROVIDER_DETAIL_PROJECT_PREVIEW_LIMIT = 12
-
-@Composable
-private fun ErrorNotice(message: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .semantics { liveRegion = LiveRegionMode.Assertive }
-            .background(MaterialTheme.colorScheme.error.copy(alpha = 0.12f), RoundedCornerShape(13.dp))
-            .padding(12.dp),
-        verticalAlignment = Alignment.Top,
-    ) {
-        Text(
-            text = "!",
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.error,
-        )
-        Spacer(Modifier.width(10.dp))
-        Text(
-            text = message,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-    }
-}
-
-@Composable
-private fun ProtectCredentialWindow() {
-    val context = LocalView.current.context
-    val activity = remember(context) { context.findActivity() }
-    DisposableEffect(activity) {
-        activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        onDispose {
-            activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        }
-    }
-}
-
-private tailrec fun Context.findActivity(): Activity? = when (this) {
-    is Activity -> this
-    is ContextWrapper -> baseContext.findActivity()
-    else -> null
-}
 
 private fun credentialName(field: CredentialField): String = field.name
     .lowercase()

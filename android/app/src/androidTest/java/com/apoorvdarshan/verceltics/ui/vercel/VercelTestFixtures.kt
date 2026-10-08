@@ -1,6 +1,8 @@
 package com.apoorvdarshan.verceltics.ui.vercel
 
+import androidx.compose.ui.graphics.ImageBitmap
 import com.apoorvdarshan.verceltics.ui.VercelAccountUi
+import com.apoorvdarshan.verceltics.ui.VercelAccountsUi
 import com.apoorvdarshan.verceltics.ui.VercelAnalyticsBreakdownUi
 import com.apoorvdarshan.verceltics.ui.VercelAnalyticsDataUi
 import com.apoorvdarshan.verceltics.ui.VercelAnalyticsEnvironment
@@ -131,4 +133,90 @@ internal class FakeVercelGateway(
     }
 
     override suspend fun disconnect(): Result<Unit> = Result.success(Unit)
+}
+
+/** Two saved accounts (personal plus a team token); a connect with any other token adds a third. */
+internal class MultiAccountFakeVercelGateway(
+    savedIds: List<String> = listOf(PERSONAL.id, TEAM.id),
+) : VercelUiGateway {
+    private val saved = savedIds.toMutableList()
+    @Volatile
+    private var activeId: String? = savedIds.firstOrNull()
+    val switchCalls = AtomicInteger()
+    val removals = AtomicInteger()
+    val removeAllCalls = AtomicInteger()
+    val refreshCalls = AtomicInteger()
+
+    @Synchronized
+    private fun accounts() = VercelAccountsUi(ALL.filter { it.id in saved }, activeId)
+
+    private fun dashboardFor(id: String?) = when (id) {
+        TEAM.id -> VercelDashboardUi(TEAM, listOf(TEAM_PROJECT))
+        NEW.id -> VercelDashboardUi(NEW, listOf(VercelTestFixtures.BARE))
+        else -> VercelDashboardUi(PERSONAL, listOf(PERSONAL_PROJECT, VercelTestFixtures.DOCS))
+    }
+
+    override suspend fun restore(): Result<VercelRestoreUi> {
+        val active = activeId ?: return Result.success(VercelRestoreUi.NoSavedAccount)
+        return Result.success(VercelRestoreUi.Available(dashboardFor(active), accounts()))
+    }
+
+    override suspend fun connect(personalToken: String): Result<VercelDashboardUi> {
+        synchronized(this) {
+            if (NEW.id !in saved) saved += NEW.id
+            activeId = NEW.id
+        }
+        return Result.success(dashboardFor(NEW.id))
+    }
+
+    override suspend fun refresh(): Result<VercelDashboardUi> {
+        refreshCalls.incrementAndGet()
+        return Result.success(dashboardFor(activeId))
+    }
+
+    override suspend fun loadAccounts(): Result<VercelAccountsUi> = Result.success(accounts())
+
+    override suspend fun switchAccount(accountId: String): Result<VercelAccountsUi> {
+        switchCalls.incrementAndGet()
+        synchronized(this) { activeId = accountId }
+        return Result.success(accounts())
+    }
+
+    override suspend fun removeAccount(accountId: String): Result<VercelAccountsUi> {
+        removals.incrementAndGet()
+        synchronized(this) {
+            saved -= accountId
+            if (activeId == accountId) activeId = saved.firstOrNull()
+        }
+        return Result.success(accounts())
+    }
+
+    override suspend fun removeAllAccounts(): Result<Unit> {
+        removeAllCalls.incrementAndGet()
+        synchronized(this) {
+            saved.clear()
+            activeId = null
+        }
+        return Result.success(Unit)
+    }
+
+    override suspend fun loadAvatar(url: String): ImageBitmap? = if (url == AVATAR_URL) ImageBitmap(8, 8) else null
+
+    override suspend fun loadProjectAnalytics(
+        project: VercelProjectUi,
+        range: VercelAnalyticsRange,
+        environment: VercelAnalyticsEnvironment,
+    ): Result<VercelAnalyticsLoadUi> = Result.success(VercelAnalyticsLoadUi.Available(VercelTestFixtures.analytics()))
+
+    override suspend fun disconnect(): Result<Unit> = removeAccount(activeId.orEmpty()).map { }
+
+    companion object {
+        const val AVATAR_URL = "https://api.vercel.com/www/avatar/personal"
+        val PERSONAL = VercelAccountUi("Apoorv", "apoorv@example.com", username = "apoorv", id = "user_personal", avatarUrl = AVATAR_URL)
+        val TEAM = VercelAccountUi("Studio token", "studio@example.com", username = "studio", id = "user_team")
+        val NEW = VercelAccountUi("New Person", "new@example.com", username = "new", id = "user_new")
+        private val ALL = listOf(PERSONAL, TEAM, NEW)
+        val PERSONAL_PROJECT = VercelProjectUi("prj_personal", "portfolio", "vite", 1L, primaryDomain = "portfolio.example")
+        val TEAM_PROJECT = VercelProjectUi("prj_team", "admin", "remix", 1L, teamId = "team_studio")
+    }
 }

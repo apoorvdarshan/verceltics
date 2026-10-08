@@ -15,27 +15,72 @@ object SampleVercelGateway : VercelUiGateway {
     private const val HOUR = 60 * MINUTE
     private val team = VercelProjectScopeUi("Studio", "studio-sample", isTeam = true)
     private val personal = VercelProjectScopeUi("Personal", null, isTeam = false)
+    private val sampleAccounts = listOf(
+        VercelAccountUi("Apoorv · Sample workspace", "apoorv@example.com", username = "apoorv-sample", id = "sample-apoorv"),
+        VercelAccountUi("Studio · Sample team token", "studio@example.com", username = "studio-sample", id = "sample-studio"),
+    )
+    private val lock = Any()
+
+    // An in-memory preview of switching and removal; restore() puts both sample accounts back.
+    private var savedIds = sampleAccounts.map(VercelAccountUi::id)
+    private var activeId: String? = sampleAccounts.first().id
+
+    private fun accounts(): VercelAccountsUi = synchronized(lock) {
+        VercelAccountsUi(sampleAccounts.filter { it.id in savedIds }, activeId)
+    }
 
     private fun dashboard(): VercelDashboardUi {
         val now = System.currentTimeMillis()
         fun project(index: Int, name: String, framework: String?, domain: String?, repository: String?, scope: VercelProjectScopeUi, commit: String?, deployedAgo: Long?) =
             VercelProjectUi("sample-$index", name, framework, now - (index + 1) * HOUR, teamId = if (scope.isTeam) "team_sample" else null, primaryDomain = domain,
                 repository = repository, scope = scope, lastDeployment = deployedAgo?.let { VercelProjectDeploymentUi(commit, now - it) })
-        return VercelDashboardUi(
-            VercelAccountUi("Apoorv · Sample workspace", "apoorv@example.com", username = "apoorv-sample"),
-            listOf(
-                project(0, "studio-web", "nextjs", "studio.example", "studio/web", team, "Ship the pricing page refresh", 12 * MINUTE),
-                project(1, "commerce-store", "nextjs", "commerce.example", "studio/commerce", team, "Fix cart totals rounding", 3 * HOUR),
-                project(2, "docs-site", "astro", "docs.studio.example", "studio/docs", team, "Document webhook retries", 26 * HOUR),
+        val account = accounts().activeAccount ?: sampleAccounts.first()
+        val teamProjects = listOf(
+            project(0, "studio-web", "nextjs", "studio.example", "studio/web", team, "Ship the pricing page refresh", 12 * MINUTE),
+            project(1, "commerce-store", "nextjs", "commerce.example", "studio/commerce", team, "Fix cart totals rounding", 3 * HOUR),
+            project(2, "docs-site", "astro", "docs.studio.example", "studio/docs", team, "Document webhook retries", 26 * HOUR),
+        )
+        val projects = if (account.id == "sample-studio") {
+            teamProjects + project(5, "studio-admin", "remix", "admin.studio.example", "studio/admin", team, "Add audit log export", 5 * HOUR)
+        } else {
+            teamProjects + listOf(
                 project(3, "portfolio", "vite", "portfolio-sample.vercel.app", "apoorv/portfolio", personal, "Update case studies", 96 * HOUR),
                 project(4, "api-gateway", null, null, null, personal, null, null),
-            ),
-        )
+            )
+        }
+        return VercelDashboardUi(account, projects)
     }
-    override suspend fun restore() = Result.success<VercelRestoreUi>(VercelRestoreUi.Available(dashboard()))
+
+    override suspend fun restore(): Result<VercelRestoreUi> {
+        synchronized(lock) {
+            savedIds = sampleAccounts.map(VercelAccountUi::id)
+            activeId = sampleAccounts.first().id
+        }
+        return Result.success(VercelRestoreUi.Available(dashboard(), accounts()))
+    }
     override suspend fun connect(personalToken: String) = Result.success(dashboard())
     override suspend fun refresh() = Result.success(dashboard())
-    override suspend fun disconnect() = Result.success(Unit)
+    override suspend fun loadAccounts() = Result.success(accounts())
+    override suspend fun refreshAccountProfiles() = Result.success(accounts())
+    override suspend fun switchAccount(accountId: String): Result<VercelAccountsUi> {
+        synchronized(lock) { if (accountId in savedIds) activeId = accountId }
+        return Result.success(accounts())
+    }
+    override suspend fun removeAccount(accountId: String): Result<VercelAccountsUi> {
+        synchronized(lock) {
+            savedIds = savedIds - accountId
+            if (activeId == accountId) activeId = savedIds.firstOrNull()
+        }
+        return Result.success(accounts())
+    }
+    override suspend fun removeAllAccounts(): Result<Unit> {
+        synchronized(lock) {
+            savedIds = emptyList()
+            activeId = null
+        }
+        return Result.success(Unit)
+    }
+    override suspend fun disconnect(): Result<Unit> = removeAccount(accounts().activeAccountId.orEmpty()).map { }
     override suspend fun loadProjectContext(project: VercelProjectUi): Result<VercelProjectContextUi> {
         val now = System.currentTimeMillis()
         val deployments = listOf(
