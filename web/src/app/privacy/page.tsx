@@ -45,27 +45,27 @@ const sections = [
 export default function Privacy() {
   return (
     <LegalShell
-      asideDescription="Privacy details for the Verceltics app, website, and Vercie Discord bot."
+      asideDescription="Privacy details for the Verceltics iOS and Android apps, website, and Vercie Discord bot."
       eyebrow="Direct-to-provider architecture"
       sections={sections}
       summary="The Verceltics app connects directly to providers. Vercie, our optional Discord bot, processes the questions and reports you submit through Cloudflare, Google Gemini, and GitHub as explained below."
       title="Privacy Policy"
-      updated="October 3, 2026"
+      updated="October 9, 2026"
     >
       <section id="overview">
         <h2>Overview</h2>
-        <p>Verceltics is an independent iPhone and iPad workspace for supported hosting platforms, domain registrars, and site-intelligence services. The app connects to services you choose using credentials or OAuth authorization you provide.</p>
-        <p>Verceltics is developed and operated by Apoorv Darshan. This policy covers the app, this website, and the optional Vercie Discord service, including the features prepared for iOS 2.1.</p>
+        <p>Verceltics is an independent iPhone, iPad, and Android workspace for supported hosting platforms, domain registrars, and site-intelligence services. The app connects to services you choose using credentials or OAuth authorization you provide.</p>
+        <p>Verceltics is developed and operated by Apoorv Darshan. This policy covers the iOS and Android apps, this website, and the optional Vercie Discord service. Where the platforms differ, the difference is stated below.</p>
         <p><strong>Verceltics does not operate a credential or provider-data proxy.</strong> Requests for provider data go from your device directly to the selected provider&apos;s HTTPS API or an explicitly selected HTTPS host for a supported self-hosted service.</p>
         <p>The app-data sections below describe information accessed through the app. Vercie is a separate, optional Discord service with its own processing described in <a href="#discord">Vercie on Discord</a>. Vercie cannot access your app&apos;s saved credentials or connected accounts.</p>
       </section>
 
       <section id="app-data">
-        <h2>Data the iOS app does not collect</h2>
-        <p>The iOS app does not send provider credentials, account data, projects, domains, DNS records, deployments, logs, analytics, search data, or uptime data to Verceltics infrastructure.</p>
+        <h2>Data the app does not collect</h2>
+        <p>The iOS and Android apps do not send provider credentials, account data, projects, domains, DNS records, deployments, logs, analytics, search data, or uptime data to Verceltics infrastructure.</p>
         <ul>
           <li>No advertising or cross-app tracking</li>
-          <li>No Verceltics-operated product analytics and no provider-data telemetry; RevenueCat processes limited purchase history and technical context for App Store purchase functionality and purchase analytics as described below</li>
+          <li>No Verceltics-operated product analytics and no provider-data telemetry; RevenueCat processes limited purchase history and technical context for App Store and Google Play purchase functionality and purchase analytics as described below</li>
           <li>No sale of credentials, provider data, or personal information</li>
           <li>No use of provider or Google user data for advertising, credit decisions, or training generalized AI models</li>
         </ul>
@@ -73,8 +73,8 @@ export default function Privacy() {
 
       <section id="credentials">
         <h2>Credentials and OAuth tokens</h2>
-        <p>Hosting, registrar, and site-service credentials are stored with device-only, when-unlocked iOS Keychain protection. Credentials are attached only to HTTPS requests for the selected provider&apos;s allowed API hosts. Cross-host redirects are blocked.</p>
-        <p>Google Search Console, Google Analytics, and Firebase Hosting connections use Google&apos;s official OAuth authorization and token endpoints. Authorization opens in the system authentication session. Access and refresh tokens returned by Google are stored in the iOS Keychain and are used only to provide the Google feature you connected.</p>
+        <p>On iOS, hosting, registrar, and site-service credentials are stored with device-only, when-unlocked iOS Keychain protection. On Android, they are encrypted with a key held by the Android Keystore and saved only in the app&apos;s private storage, which is excluded from device backups. Credentials are attached only to HTTPS requests for the selected provider&apos;s allowed API hosts. Cross-host redirects are blocked.</p>
+        <p>Google Search Console, Google Analytics, and Firebase Hosting connections use Google&apos;s official OAuth authorization and token endpoints. Authorization opens in the system authentication session on iOS and in your browser on Android, using PKCE. Access and refresh tokens returned by Google are stored in the iOS Keychain or encrypted with the Android Keystore, and are used only to provide the Google feature you connected.</p>
         <p>Provider credentials inherit the permissions granted by that provider. Supported writes and purchases are initiated by you; detected write, purchase, and destructive requests require confirmation in the app.</p>
       </section>
 
@@ -86,7 +86,7 @@ export default function Privacy() {
 
       <section id="google-data">
         <h2>Google API data</h2>
-        <p>When you connect a Google service, Verceltics requests your Google account identifier and email address through Google OpenID Connect. The app uses them only to identify the connected account, label it in account controls, and match later OAuth refreshes to the same saved connection. The identifier and email are stored in the iOS Keychain with the connection&apos;s OAuth tokens.</p>
+        <p>When you connect a Google service, Verceltics requests your Google account identifier and email address through Google OpenID Connect. The app uses them only to identify the connected account, label it in account controls, and match later OAuth refreshes to the same saved connection. The identifier and email are stored with the connection&apos;s OAuth tokens, in the iOS Keychain or encrypted with the Android Keystore.</p>
         <p>The Verceltics app uses Google API data only to provide the user-facing feature you select:</p>
         <ul>
           <li><strong>Google Search Console:</strong> verified properties, search performance, indexing, sitemaps, and URL inspection</li>
@@ -100,13 +100,13 @@ export default function Privacy() {
       <section id="provider-data">
         <h2>Provider data and local cache</h2>
         <p>Account, project, domain, deployment, configuration, DNS, Worker, search, analytics, performance, uptime, and API explorer responses are fetched directly from the selected provider to your device.</p>
-        <p>To avoid a blank dashboard on every launch, the Sites workspace can save recently viewed provider snapshots in the app&apos;s local Application Support directory. These files use iOS file protection and are excluded from device backups. In-memory caches also keep recently loaded screens responsive. Verceltics does not receive these caches.</p>
+        <p>To avoid a blank dashboard on every launch, the app can save recently viewed provider snapshots on your device. On iOS these files live in the app&apos;s Application Support directory with iOS file protection; on Android they are encrypted with the Android Keystore in app-private storage. On both platforms they are excluded from device backups. In-memory caches also keep recently loaded screens responsive. Verceltics does not receive these caches.</p>
       </section>
 
       <section id="images">
         <h2>Favicons, avatars, and update checks</h2>
         <p>To display a project favicon, the app may make bounded, credential-free GET requests to that project site&apos;s own HTTPS origin. If no safe icon is available, it draws a local letter tile. Project domains are not sent to a third-party favicon service. Vercel profile avatars may be loaded from Vercel without provider credentials.</p>
-        <p>The app may call Apple&apos;s public App Store lookup endpoint with the Verceltics app identifier and country to check whether a newer version is available. This request does not include provider credentials or provider account data.</p>
+        <p>The iOS app may call Apple&apos;s public App Store lookup endpoint with the Verceltics app identifier and country to check whether a newer version is available. This request does not include provider credentials or provider account data. On Android, updates are delivered by Google Play and the app does not run its own update check.</p>
       </section>
 
       <section id="website">
@@ -136,15 +136,15 @@ export default function Privacy() {
 
       <section id="purchases">
         <h2>Purchases and RevenueCat</h2>
-        <p>Subscriptions, lifetime access, and optional tips are processed by Apple through the App Store. Verceltics uses RevenueCat to manage the Verceltics Pro entitlement, restore purchases, and provide purchase status to the app. RevenueCat may receive an anonymous app-user identifier; device type, operating-system, platform, app-version, and locale context; Apple receipt information; product identifiers; purchase history; subscription or entitlement status; and purchase-service timestamps such as first-seen or last-seen app use. RevenueCat uses purchase history for app functionality and purchase analytics.</p>
+        <p>Subscriptions, lifetime access, and optional tips are processed by Apple through the App Store on iOS and by Google through Google Play Billing on Android. Verceltics uses RevenueCat to manage the Verceltics Pro entitlement, restore purchases, and provide purchase status to the app. RevenueCat may receive an anonymous app-user identifier; device type, operating-system, platform, app-version, and locale context; Apple receipt information or Google Play purchase tokens and order identifiers; product identifiers; purchase history; subscription or entitlement status; and purchase-service timestamps such as first-seen or last-seen app use. RevenueCat uses purchase history for app functionality and purchase analytics.</p>
         <p>RevenueCat does not receive provider credentials or provider account data from Verceltics. Verceltics does not receive or store payment-card details.</p>
-        <p>Refund decisions are made by Apple. If refund-request handling is enabled, RevenueCat may send Apple limited purchase delivery and consumption context in response to a refund request, subject to the consent described in the Terms of Service. Apple retains the final decision.</p>
+        <p>Refund decisions for App Store purchases are made by Apple. If refund-request handling is enabled, RevenueCat may send Apple limited purchase delivery and consumption context in response to a refund request, subject to the consent described in the Terms of Service. Apple retains the final decision. Google Play purchases are refunded under Google Play&apos;s refund policies.</p>
       </section>
 
       <section id="controls">
         <h2>Your controls and retention</h2>
         <p>You can remove a connected account or service inside Verceltics to delete its saved credential and associated local snapshot. You can also revoke OAuth access or rotate API credentials from the provider&apos;s own account settings. Provider-side retention is governed by that provider&apos;s policy.</p>
-        <p>External links—including Apple, GitHub, Discord, supported providers, Product Hunt, LinkedIn, Instagram, Ko-fi, PayPal, and X—open third-party services with their own privacy practices.</p>
+        <p>External links—including Apple, Google Play, GitHub, Discord, supported providers, Product Hunt, LinkedIn, Instagram, Ko-fi, PayPal, and X—open third-party services with their own privacy practices.</p>
       </section>
 
       <section id="changes">

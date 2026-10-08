@@ -45,9 +45,9 @@ export default function Terms() {
       asideDescription="Plain-language terms for using an independent provider workspace."
       eyebrow="Independent developer tool"
       sections={sections}
-      summary="These terms cover the Verceltics app and website, provider operations you control, purchases processed by Apple, and the optional Vercie Discord bot."
+      summary="These terms cover the Verceltics app and website, provider operations you control, purchases processed by Apple and Google Play, and the optional Vercie Discord bot."
       title="Terms of Service"
-      updated="October 3, 2026"
+      updated="October 9, 2026"
     >
       <section id="acceptance">
         <h2>Acceptance</h2>
@@ -56,8 +56,8 @@ export default function Terms() {
 
       <section id="service">
         <h2>The service</h2>
-        <p>Verceltics is an independent iPhone and iPad workspace for supported hosting platforms, domain registrars, and site-intelligence services. It uses credentials or OAuth authorization you provide to communicate directly with the provider, display provider data, and perform supported actions you initiate.</p>
-        <p>Verceltics is developed and operated by Apoorv Darshan. Features described on this website may reflect the prepared iOS 2.1 source build before that update reaches the App Store. Check the App Store listing for the version available to download. Provider capabilities depend on permissions, configuration, account plans, and API availability.</p>
+        <p>Verceltics is an independent iPhone, iPad, and Android workspace for supported hosting platforms, domain registrars, and site-intelligence services. It uses credentials or OAuth authorization you provide to communicate directly with the provider, display provider data, and perform supported actions you initiate.</p>
+        <p>Verceltics is developed and operated by Apoorv Darshan. Features described on this website may reflect source builds before they reach the App Store or Google Play. Check the store listing for the version available to download. Provider capabilities depend on permissions, configuration, account plans, and API availability.</p>
         <p>Verceltics is not affiliated with, endorsed by, or sponsored by any supported provider. Provider names, marks, APIs, plans, data, limits, and availability remain controlled by their respective owners.</p>
       </section>
 
@@ -84,7 +84,7 @@ export default function Terms() {
 
       <section id="purchases">
         <h2>Subscriptions, lifetime access, and tips</h2>
-        <p>Verceltics offers these App Store purchase options:</p>
+        <p>On the App Store, Verceltics offers these purchase options:</p>
         <ul>
           <li><strong>Monthly:</strong> $4.99 per month, auto-renewable, with no trial</li>
           <li><strong>Yearly:</strong> $34.99 per year, auto-renewable, with a 7-day introductory trial for eligible first-time subscribers</li>
@@ -92,21 +92,22 @@ export default function Terms() {
         </ul>
         <p>Prices may vary by country, currency, tax, or future App Store pricing changes. The price shown by Apple at confirmation controls.</p>
         <p>Payment is charged to your Apple Account at confirmation. Auto-renewable subscriptions continue unless cancelled at least 24 hours before the end of the current period. Manage or cancel them in <code>Settings → [your name] → Subscriptions</code>. Any unused trial portion may be forfeited when a subscription is purchased.</p>
+        <p>On Android, the same monthly, yearly, and lifetime options are sold through Google Play Billing, and the price, billing period, and any trial shown by Google Play at confirmation control. Payment is charged to your Google account. Subscriptions renew automatically until cancelled, and you can manage or cancel them in Google Play under <code>Payments &amp; subscriptions → Subscriptions</code> or from <code>About → Manage subscription</code> in the app.</p>
         <p>Optional Coffee, Lunch, Big, and Huge tips are one-time consumable purchases. They support development, unlock no feature or content, and are not subscriptions.</p>
-        <p>Apple processes purchases and decides refund requests under its policies. Verceltics uses RevenueCat for entitlement status, restoration, purchase context, and optional refund-request handling. Where that handling is enabled, RevenueCat may send Apple limited purchase delivery and consumption context in response to a refund request. By making an in-app purchase after accepting these terms, you consent to that limited sharing solely for Apple&apos;s refund evaluation. Apple makes the final decision, and Verceltics does not issue App Store refunds directly.</p>
+        <p>Apple processes App Store purchases and decides refund requests under its policies. Verceltics uses RevenueCat for entitlement status, restoration, purchase context, and optional refund-request handling. Where that handling is enabled, RevenueCat may send Apple limited purchase delivery and consumption context in response to a refund request. By making an in-app purchase after accepting these terms, you consent to that limited sharing solely for Apple&apos;s refund evaluation. Apple makes the final decision, and Verceltics does not issue App Store refunds directly. Google Play purchases are processed by Google, and refunds follow Google Play&apos;s refund policies.</p>
       </section>
 
       <section id="source">
         <h2>Building from source</h2>
-        <p>The source code is available under the MIT license at <a href="https://github.com/apoorvdarshan/verceltics" rel="noreferrer" target="_blank">github.com/apoorvdarshan/verceltics</a>. You may build it for personal use subject to that license, Apple&apos;s developer terms, provider terms, and your own credentials. The App Store version is offered for convenience and to fund ongoing development.</p>
+        <p>The source code is available under the MIT license at <a href="https://github.com/apoorvdarshan/verceltics" rel="noreferrer" target="_blank">github.com/apoorvdarshan/verceltics</a>. You may build it for personal use subject to that license, Apple&apos;s and Google&apos;s developer terms, provider terms, and your own credentials. The App Store and Google Play versions are offered for convenience and to fund ongoing development.</p>
         <p>Unofficial builds and forks are controlled by their maintainers. Verceltics does not provide warranties or support for modified builds.</p>
       </section>
 
       <section id="availability">
         <h2>Availability, updates, and external services</h2>
         <p>Provider APIs, endpoints, authentication rules, response formats, features, plans, and limits may change without notice. Verceltics may add, change, or remove provider integrations when required to keep the app safe and maintainable.</p>
-        <p>The app may check Apple&apos;s public App Store endpoint for updates. Installing an update is optional, but older builds may stop receiving fixes or working with changed provider APIs.</p>
-        <p>Links to Apple, GitHub, Discord, supported providers, Product Hunt, LinkedIn, Instagram, Ko-fi, PayPal, X, and other third parties are provided for convenience. Their content, availability, purchases, and policies are outside Verceltics&apos; control.</p>
+        <p>The iOS app may check Apple&apos;s public App Store endpoint for updates, and Google Play delivers Android updates. Installing an update is optional, but older builds may stop receiving fixes or working with changed provider APIs.</p>
+        <p>Links to Apple, Google Play, GitHub, Discord, supported providers, Product Hunt, LinkedIn, Instagram, Ko-fi, PayPal, X, and other third parties are provided for convenience. Their content, availability, purchases, and policies are outside Verceltics&apos; control.</p>
       </section>
 
       <section id="disclaimers">
