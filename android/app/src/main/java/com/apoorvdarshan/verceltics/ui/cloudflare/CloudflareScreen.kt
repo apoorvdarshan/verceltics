@@ -867,11 +867,12 @@ private fun CloudflareSavedRecovery(
     modifier: Modifier = Modifier,
 ) {
     val haptic = LocalHapticFeedback.current
+    ProviderAdaptivePage(ProviderLayout.FormMaxWidth, modifier.fillMaxWidth()) { metrics ->
     LazyColumn(
-        modifier = modifier
-            .fillMaxWidth()
+        modifier = Modifier
+            .fillMaxSize()
             .testTag("cloudflare.savedUnavailable"),
-        contentPadding = PaddingValues(18.dp),
+        contentPadding = metrics.contentPadding(top = 18.dp, bottom = 18.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
@@ -910,6 +911,7 @@ private fun CloudflareSavedRecovery(
                 }
             }
         }
+    }
     }
 }
 
