@@ -225,4 +225,13 @@ class DebugCloudflareUiGateway : CloudflareUiGateway {
     override suspend fun disconnect(): Result<Unit> = Result.success(
         DebugCloudflareGatewayController.disconnected(),
     )
+
+    /** One deterministic saved login whenever the debug scenario is connected. */
+    override suspend fun savedLogins(): Result<List<com.apoorvdarshan.verceltics.ui.hosting.ProviderAccountUi>> = Result.success(
+        if (DebugCloudflareGatewayController.scenario == DebugCloudflareScenario.DISCONNECTED) {
+            emptyList()
+        } else {
+            listOf(com.apoorvdarshan.verceltics.ui.hosting.ProviderAccountUi("debug-login", "Debug Cloudflare login", "Scoped API token", isActive = true))
+        },
+    )
 }
