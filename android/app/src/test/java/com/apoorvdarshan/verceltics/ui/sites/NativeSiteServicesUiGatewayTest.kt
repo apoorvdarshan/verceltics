@@ -15,6 +15,7 @@ import com.apoorvdarshan.verceltics.data.sites.MemoryBytesStore
 import com.apoorvdarshan.verceltics.data.sites.RecordedRequest
 import com.apoorvdarshan.verceltics.data.sites.SiteConnectionRepository
 import com.apoorvdarshan.verceltics.data.sites.SiteConnectionStore
+import com.apoorvdarshan.verceltics.data.sites.SiteGoogleSlots
 import com.apoorvdarshan.verceltics.data.sites.SiteProvider
 import com.apoorvdarshan.verceltics.data.sites.TEST_NOW_MILLIS
 import com.apoorvdarshan.verceltics.data.sites.TEST_ZONE
@@ -30,12 +31,24 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class NativeSiteServicesUiGatewayTest {
-    private val stores = HashMap<SiteProvider, MemoryBytesStore>()
+    private val files = HashMap<String, MemoryBytesStore>()
     private val connectionStore = SiteConnectionStore(
-        SiteConnectionRepository({ provider -> stores.getOrPut(provider) { MemoryBytesStore() } }, AesGcmTestCipher()),
+        SiteConnectionRepository({ path -> files.getOrPut(path) { MemoryBytesStore() } }, AesGcmTestCipher()),
     ) { TEST_NOW_MILLIS }
-    private val credentialStore = MemoryCredentialStore()
+    private val credentialStores = HashMap<String, MemoryCredentialStore>()
+    private val sessions = HashMap<String, GoogleOAuthSession>()
     private val authorizer = FakeAuthorizer()
+
+    /** The OAuth slot of the active Google Analytics account. */
+    private val credentialStore: MemoryCredentialStore
+        get() {
+            val accountId = connectionStore.accounts(SiteProvider.GOOGLE_ANALYTICS).activeId
+                ?: return credentialStores.values.singleOrNull() ?: MemoryCredentialStore()
+            return slot(accountId)
+        }
+
+    private fun slot(accountId: String): MemoryCredentialStore =
+        credentialStores.getOrPut(SiteGoogleSlots.forAccount(SiteProvider.GOOGLE_ANALYTICS, accountId)) { MemoryCredentialStore() }
 
     @Test
     fun apiKeyConnectValidatesPersistsEncryptedAndRestoresOffline() = runTest {
@@ -54,7 +67,8 @@ class NativeSiteServicesUiGatewayTest {
         assertEquals(SiteServiceCacheState.LIVE, dashboard.cacheState)
         assertEquals("Visitors", dashboard.metrics.first().label)
         assertEquals(mapOf("siteID" to "example.com"), connectionStore.loadForRequest(SiteProvider.PLAUSIBLE)?.connection?.metadata)
-        assertFalse(String(stores.getValue(SiteProvider.PLAUSIBLE).bytes!!, Charsets.ISO_8859_1).contains("plausible-secret"))
+        val recordPath = SiteConnectionRepository.recordPath(SiteProvider.PLAUSIBLE, checkNotNull(dashboard.accountId))
+        assertFalse(String(files.getValue(recordPath).bytes!!, Charsets.ISO_8859_1).contains("plausible-secret"))
 
         val restored = gateway.restore().getOrThrow().services
         val available = restored.getValue("plausible") as SiteServiceRestoreUi.Available
@@ -62,6 +76,9 @@ class NativeSiteServicesUiGatewayTest {
         assertEquals(SiteServiceRestoreUi.NotConnected, restored.getValue("umami"))
         assertEquals(SiteServiceProviderIds.toSet(), restored.keys)
         assertEquals(1, transport.requests.size)
+        val accounts = gateway.restore().getOrThrow().accounts.getValue("plausible")
+        assertEquals(listOf(SiteAccountOptionUi(dashboard.accountId!!, "example.com")), accounts.accounts)
+        assertEquals(dashboard.accountId, accounts.activeAccountId)
     }
 
     @Test
@@ -137,11 +154,11 @@ class NativeSiteServicesUiGatewayTest {
             if (request.bearer == "stale-token") FakeResponse(401, json("error" to mapOf("message" to "expired"))) else analyticsSummaries(request)
         }
         val gateway = gateway(transport)
-        credentialStore.credential = credential("stale-token")
-        connectionStore.saveValidatedConnection(
-            SiteProvider.GOOGLE_ANALYTICS, "GA", null, emptyMap(),
+        val saved = connectionStore.saveValidatedConnection(
+            SiteProvider.GOOGLE_ANALYTICS, null, "GA", null, emptyMap(),
             com.apoorvdarshan.verceltics.data.sites.SiteSnapshot(SiteProvider.GOOGLE_ANALYTICS, fetchedAtMillis = 1L),
         )
+        slot(saved.accountId).credential = credential("stale-token")
         authorizer.nextRefreshed = credential("fresh-token")
 
         val dashboard = gateway.refresh("googleAnalytics").getOrThrow()
@@ -155,7 +172,7 @@ class NativeSiteServicesUiGatewayTest {
     @Test
     fun revokedGoogleAccessAsksTheUserToReconnect() = runTest {
         connectionStore.saveValidatedConnection(
-            SiteProvider.GOOGLE_ANALYTICS, "GA", null, emptyMap(),
+            SiteProvider.GOOGLE_ANALYTICS, null, "GA", null, emptyMap(),
             com.apoorvdarshan.verceltics.data.sites.SiteSnapshot(SiteProvider.GOOGLE_ANALYTICS, fetchedAtMillis = 1L),
         )
         val result = gateway(FakeProviderTransport { error("unused") }).refresh("googleAnalytics")
@@ -236,13 +253,97 @@ class NativeSiteServicesUiGatewayTest {
     fun disconnectRemovesTheRecordSignsOutGoogleAndClearsCaches() = runTest {
         val transport = FakeProviderTransport(::analyticsSummaries)
         val gateway = gateway(transport)
-        gateway.connectGoogle("googleAnalytics").getOrThrow()
+        val connected = gateway.connectGoogle("googleAnalytics").getOrThrow()
 
         gateway.disconnect("googleAnalytics").getOrThrow()
 
         assertNull(connectionStore.loadForRequest(SiteProvider.GOOGLE_ANALYTICS))
-        assertNull(credentialStore.credential)
+        assertNull(slot(connected.accountId!!).credential)
         assertEquals(SiteServiceRestoreUi.NotConnected, gateway.restore().getOrThrow().services["googleAnalytics"])
+    }
+
+    @Test
+    fun addingAnotherSiteKeepsTheFirstAndEachAccountRestoresItsOwnOfflineData() = runTest {
+        val transport = FakeProviderTransport(::plausible)
+        val gateway = gateway(transport)
+        val first = gateway.connect("plausible", SiteServiceConnectionInputUi(SecretValue.of("key-a"), mapOf("siteID" to "a.example"))).getOrThrow()
+        val second = gateway.connect("plausible", SiteServiceConnectionInputUi(SecretValue.of("key-b"), mapOf("siteID" to "b.example"))).getOrThrow()
+
+        val accounts = gateway.accounts("plausible").getOrThrow()
+        assertEquals(listOf("a.example", "b.example"), accounts.accounts.map { it.title })
+        assertEquals(second.accountId, accounts.activeAccountId)
+
+        val restoredFirst = gateway.switchAccount("plausible", first.accountId!!).getOrThrow() as SiteServiceRestoreUi.Available
+        assertEquals("a.example", restoredFirst.dashboard.accountName)
+        assertEquals(first.accountId, restoredFirst.dashboard.accountId)
+        assertEquals(SiteServiceCacheState.CACHED_FRESH, restoredFirst.dashboard.cacheState)
+        assertEquals("key-a", connectionStore.loadForRequest(SiteProvider.PLAUSIBLE)?.connection?.credential?.use { it })
+
+        // Detail workspaces are cached per account, so switching never serves another site's report.
+        val request = SiteServiceDetailRequestUi("plausible", null, SiteServiceDetailQueryUi())
+        assertEquals("a.example", gateway.loadDetail(request).getOrThrow().title)
+        gateway.switchAccount("plausible", second.accountId!!).getOrThrow()
+        val beforeSecond = transport.requests.size
+        assertEquals("b.example", gateway.loadDetail(request).getOrThrow().title)
+        assertTrue(transport.requests.size > beforeSecond)
+        assertEquals("key-b", transport.requests.last().bearer)
+
+        assertTrue(gateway.switchAccount("plausible", "missing").isFailure)
+    }
+
+    @Test
+    fun reconnectingTheSameIdentityRotatesTheCredentialInPlace() = runTest {
+        val gateway = gateway(FakeProviderTransport(::plausible))
+        val first = gateway.connect("plausible", SiteServiceConnectionInputUi(SecretValue.of("old-key"), mapOf("siteID" to "example.com"))).getOrThrow()
+        val rotated = gateway.connect("plausible", SiteServiceConnectionInputUi(SecretValue.of("new-key"), mapOf("siteID" to "EXAMPLE.com"))).getOrThrow()
+
+        assertEquals(first.accountId, rotated.accountId)
+        assertEquals(1, gateway.accounts("plausible").getOrThrow().accounts.size)
+        assertEquals("new-key", connectionStore.loadForRequest(SiteProvider.PLAUSIBLE)?.connection?.credential?.use { it })
+    }
+
+    @Test
+    fun eachGoogleAccountUsesItsOwnOAuthSlotAndRemovalClearsOnlyItsSlot() = runTest {
+        val transport = FakeProviderTransport { request ->
+            assertTrue(request.bearer == "token-1" || request.bearer == "token-2")
+            analyticsSummaries(request)
+        }
+        val gateway = gateway(transport)
+        authorizer.nextAuthorized = credential("token-1", subject = "subject-1", email = "one@example.com")
+        val first = gateway.connectGoogle("googleAnalytics").getOrThrow()
+        authorizer.nextAuthorized = credential("token-2", subject = "subject-2", email = "two@example.com")
+        val second = gateway.connectGoogle("googleAnalytics").getOrThrow()
+
+        assertEquals(listOf("one@example.com", "two@example.com"), gateway.accounts("googleAnalytics").getOrThrow().accounts.map { it.detail })
+        assertEquals("token-1", slot(first.accountId!!).credential?.accessToken?.use { it })
+        assertEquals("token-2", slot(second.accountId!!).credential?.accessToken?.use { it })
+        assertEquals(
+            setOf(
+                "site.google-analytics.${first.accountId}",
+                "site.google-analytics.${second.accountId}",
+            ),
+            credentialStores.filterValues { it.credential != null }.keys,
+        )
+
+        // Signing in to the first Google account again rotates its own slot in place.
+        authorizer.nextAuthorized = credential("token-1", subject = "subject-1", email = "one@example.com")
+        assertEquals(first.accountId, gateway.connectGoogle("googleAnalytics").getOrThrow().accountId)
+        assertEquals(2, gateway.accounts("googleAnalytics").getOrThrow().accounts.size)
+
+        // Requests use the active account's slot.
+        gateway.switchAccount("googleAnalytics", second.accountId!!).getOrThrow()
+        gateway.refresh("googleAnalytics").getOrThrow()
+        assertEquals("token-2", transport.requests.last().bearer)
+
+        val next = gateway.removeAccount("googleAnalytics", second.accountId!!).getOrThrow() as SiteServiceRestoreUi.Available
+        assertEquals(first.accountId, next.dashboard.accountId)
+        assertNull(slot(second.accountId!!).credential)
+        assertEquals("token-1", slot(first.accountId!!).credential?.accessToken?.use { it })
+
+        gateway.removeAllAccounts("googleAnalytics").getOrThrow()
+        assertNull(slot(first.accountId!!).credential)
+        assertEquals(SiteServiceRestoreUi.NotConnected, gateway.restore().getOrThrow().services["googleAnalytics"])
+        assertEquals(SiteAccountsUi.EMPTY, gateway.accounts("googleAnalytics").getOrThrow())
     }
 
     @Test
@@ -271,10 +372,20 @@ class NativeSiteServicesUiGatewayTest {
     private fun gateway(transport: FakeProviderTransport) = NativeSiteServicesUiGateway(
         store = connectionStore,
         api = testApi(transport),
-        googleSessions = mapOf(
-            SiteProvider.GOOGLE_ANALYTICS to GoogleOAuthSession(
-                "site.google-analytics", credentialStore, authorizer, DirectExecutor, { TEST_NOW_MILLIS },
-            ),
+        googleSessions = SiteGoogleSessions(
+            configured = { authorizer.configured },
+            authorizeWith = authorizer::authorize,
+            sessionForSlot = { slot ->
+                sessions.getOrPut(slot) {
+                    GoogleOAuthSession(
+                        slot,
+                        credentialStores.getOrPut(slot) { MemoryCredentialStore() },
+                        authorizer,
+                        DirectExecutor,
+                        { TEST_NOW_MILLIS },
+                    )
+                }
+            },
         ),
         storageExecutor = DirectExecutor,
         workContext = EmptyCoroutineContext,
@@ -332,14 +443,14 @@ class NativeSiteServicesUiGatewayTest {
     }
 
     private companion object {
-        fun credential(token: String) = GoogleOAuthCredential(
+        fun credential(token: String, subject: String = "subject-1", email: String = "owner@example.com") = GoogleOAuthCredential(
             accessToken = SecretValue.of(token),
             refreshToken = SecretValue.of("refresh"),
             tokenType = "Bearer",
             scopes = GoogleOAuthScopes.GOOGLE_ANALYTICS_READ_ONLY.toList(),
             expiresAtMillis = TEST_NOW_MILLIS + 3_600_000L,
-            subject = "subject-1",
-            email = "owner@example.com",
+            subject = subject,
+            email = email,
         )
     }
 }

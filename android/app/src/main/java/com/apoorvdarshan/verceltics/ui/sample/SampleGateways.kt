@@ -7,6 +7,8 @@ import com.apoorvdarshan.verceltics.ui.cloudflare.*
 import com.apoorvdarshan.verceltics.ui.netlify.*
 import com.apoorvdarshan.verceltics.ui.pagespeed.*
 import com.apoorvdarshan.verceltics.ui.searchconsole.*
+import com.apoorvdarshan.verceltics.ui.sites.SiteAccountOptionUi
+import com.apoorvdarshan.verceltics.ui.sites.SiteAccountsUi
 import java.time.LocalDate
 
 /** Offline fixtures only. These gateways never access provider APIs or saved credentials. */
@@ -90,6 +92,9 @@ object SampleSearchConsoleGateway : SearchConsoleUiGateway {
     override suspend fun connect() = Result.success(dashboard())
     override suspend fun refresh() = Result.success(dashboard())
     override suspend fun disconnect() = Result.success(Unit)
+    override suspend fun accounts() = Result.success(
+        SiteAccountsUi(listOf(SiteAccountOptionUi("sample-google", "apoorv@example.com")), "sample-google"),
+    )
     private fun performance(query: SearchConsolePerformanceQueryUi): SearchConsolePerformanceUi {
         val start = LocalDate.parse(query.startDate)
         val days = java.time.temporal.ChronoUnit.DAYS.between(start, LocalDate.parse(query.endDate)).toInt() + 1
@@ -169,11 +174,15 @@ object SamplePageSpeedGateway : PageSpeedUiGateway {
             add(PageSpeedMetricUi("crux.interaction_to_next_paint", "INP (Page field p75)", 120.0, PageSpeedMetricUnit.MILLISECONDS, null))
             add(PageSpeedMetricUi("crux.cumulative_layout_shift", "CLS (Page field p75)", 0.03, PageSpeedMetricUnit.RATIO, null))
         }, System.currentTimeMillis(), PageSpeedSourcesUi(PageSpeedSourceUiState.AVAILABLE, PageSpeedSourceUiState.AVAILABLE, PageSpeedSourceUiState.AVAILABLE), emptyList(), PageSpeedCacheState.LIVE,
+        accountId = "sample-pagespeed",
     )
     override suspend fun restore() = Result.success<PageSpeedRestoreUi>(PageSpeedRestoreUi.Available(dashboard()))
     override suspend fun connect(apiKey: SecretValue, siteUrl: String) = Result.success(dashboard())
     override suspend fun refresh() = Result.success(dashboard())
     override suspend fun disconnect() = Result.success(Unit)
+    override suspend fun accounts() = Result.success(
+        SiteAccountsUi(listOf(SiteAccountOptionUi("sample-pagespeed", "studio.example", "Studio website")), "sample-pagespeed"),
+    )
 }
 
 /** Keep unrequested providers disconnected in sample mode, without using their real gateway. */

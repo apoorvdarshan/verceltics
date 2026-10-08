@@ -1,37 +1,72 @@
 package com.apoorvdarshan.verceltics.data.searchconsole
 
-/** Offline restore and race-safe persistence policy for the encrypted Search Console slot. */
+import com.apoorvdarshan.verceltics.data.sites.SiteAccountCommit
+import com.apoorvdarshan.verceltics.data.sites.SiteAccountIds
+import com.apoorvdarshan.verceltics.data.sites.SiteAccountIndex
+
+/** Offline restore, race-safe persistence, and account management for Search Console accounts. */
 class SearchConsoleConnectionStore(
     private val repository: SearchConsoleConnectionRepository,
     private val nowMillis: () -> Long = System::currentTimeMillis,
 ) {
-    internal fun loadForRefresh(): SearchConsoleVersionedConnection? = repository.loadWithRevision()
+    /** Saved accounts (migrating the legacy record first). Throws when unreadable. */
+    fun accounts(): SiteAccountIndex = repository.index()
 
-    fun restore(): SearchConsoleRestoreResult = try {
-        val connection = repository.load() ?: return SearchConsoleRestoreResult.NotConnected
-        val now = nowMillis()
-        SearchConsoleRestoreResult.Restored(
-            id = connection.id,
-            subject = connection.credential.subject,
-            email = connection.credential.email,
-            cachedSnapshot = connection.cachedSnapshot,
-            cacheIsStale = connection.cachedSnapshot?.let {
-                now - it.fetchedAtMillis > CACHE_STALE_AFTER_MILLIS
-            } ?: false,
-            credentialNeedsRefresh = connection.credential.needsRefresh(now),
-        )
-    } catch (_: SecurityException) {
-        SearchConsoleRestoreResult.Unavailable(
-            SearchConsoleRestoreProblem.SECURE_STORAGE_UNAVAILABLE,
-        )
-    } catch (_: Exception) {
-        SearchConsoleRestoreResult.Unavailable(SearchConsoleRestoreProblem.SAVED_RECORD_UNREADABLE)
+    /** The active account for a request, with its revision for compare-and-swap writes. */
+    internal fun loadForRefresh(): SearchConsoleVersionedRecord? {
+        val activeId = repository.index().activeId ?: return null
+        return repository.loadWithRevision(activeId)
     }
 
+    fun restore(): SearchConsoleRestoreResult {
+        val index = try {
+            repository.index()
+        } catch (_: SecurityException) {
+            return SearchConsoleRestoreResult.Unavailable(SearchConsoleRestoreProblem.SECURE_STORAGE_UNAVAILABLE)
+        } catch (_: Exception) {
+            return SearchConsoleRestoreResult.Unavailable(SearchConsoleRestoreProblem.SAVED_RECORD_UNREADABLE)
+        }
+        val active = index.active ?: return SearchConsoleRestoreResult.NotConnected
+        return try {
+            val record = repository.load(active.id)
+                ?: return SearchConsoleRestoreResult.Unavailable(SearchConsoleRestoreProblem.SAVED_RECORD_UNREADABLE, index)
+            val now = nowMillis()
+            SearchConsoleRestoreResult.Restored(
+                accountId = record.id,
+                subject = record.subject,
+                email = record.email,
+                cachedSnapshot = record.cachedSnapshot,
+                cacheIsStale = record.cachedSnapshot?.let { now - it.fetchedAtMillis > CACHE_STALE_AFTER_MILLIS } ?: false,
+                accounts = index,
+            )
+        } catch (_: SecurityException) {
+            SearchConsoleRestoreResult.Unavailable(SearchConsoleRestoreProblem.SECURE_STORAGE_UNAVAILABLE, index)
+        } catch (_: Exception) {
+            SearchConsoleRestoreResult.Unavailable(SearchConsoleRestoreProblem.SAVED_RECORD_UNREADABLE, index)
+        }
+    }
+
+    /** The saved account for the same Google identity (rotated in place on reconnect), if any. */
+    fun matchingAccountId(subject: String?, email: String?): String? {
+        val index = repository.index()
+        val records = index.ids.mapNotNull { id -> runCatching { repository.load(id) }.getOrNull() }
+        if (subject != null) return records.firstOrNull { it.subject == subject }?.id
+        if (email != null) return records.firstOrNull { it.subject == null && it.email.equals(email, ignoreCase = true) }?.id
+        return null
+    }
+
+    /**
+     * Saves a validated connection for [accountId] and makes it active. Reconnecting an existing
+     * account keeps its creation time and merges its offline cache. A corrupt or unavailable prior
+     * record is never treated as absent and overwritten.
+     */
     internal fun saveValidatedConnection(
-        credential: SearchConsoleOAuthCredential,
+        accountId: String,
+        subject: String?,
+        email: String?,
         result: SearchConsoleFetchResult<SearchConsoleSnapshot>,
-    ): SearchConsoleRecordCommit {
+    ): SiteAccountCommit {
+        require(SiteAccountIds.isValid(accountId)) { "Invalid Search Console account id." }
         val liveSnapshot = when (result) {
             is SearchConsoleFetchResult.Complete -> result.value
             is SearchConsoleFetchResult.Partial -> result.value
@@ -39,47 +74,34 @@ class SearchConsoleConnectionStore(
                 "A failed Search Console validation cannot be saved.",
             )
         }
-        // A corrupt or unavailable prior record is never treated as an empty slot and overwritten.
-        val current = repository.load()
-        val id = credential.subject ?: credential.email ?: stableCredentialId(credential)
-        val boundedLive = boundedSnapshot(liveSnapshot)
-        val cache = current
-            ?.takeIf { it.id == id }
-            ?.cachedSnapshot
-            ?.let { mergeCache(it, boundedLive) }
-            ?: boundedLive
-        val now = nowMillis()
-        return repository.saveWithRevision(
-            SearchConsoleStoredConnection(
-                id = id,
-                credential = credential,
-                createdAtMillis = current?.takeIf { it.id == id }?.createdAtMillis ?: now,
+        return repository.transaction {
+            val index = repository.index()
+            val current = if (accountId in index) repository.load(accountId) else null
+            if (current == null && index.accounts.size >= SiteAccountIndex.MAX_ACCOUNTS) {
+                throw IllegalStateException("Too many saved Search Console accounts.")
+            }
+            val boundedLive = boundedSnapshot(liveSnapshot)
+            val cache = current?.cachedSnapshot?.let { mergeCache(it, boundedLive) } ?: boundedLive
+            val now = nowMillis()
+            val record = SearchConsoleAccountRecord(
+                id = accountId,
+                subject = subject,
+                email = email,
+                createdAtMillis = current?.createdAtMillis ?: now,
                 updatedAtMillis = now,
                 cachedSnapshot = cache,
-            ),
-        )
+            )
+            repository.commit(record, index.upserting(record.entry, activate = true))
+        }
     }
 
-    internal fun acceptValidatedConnection(commit: SearchConsoleRecordCommit) = repository.accept(commit)
+    internal fun acceptValidatedConnection(commit: SiteAccountCommit) = repository.accept(commit)
 
-    internal fun rollbackValidatedConnection(commit: SearchConsoleRecordCommit): Boolean =
-        repository.rollbackIfRevisionMatches(commit)
-
-    /** CAS-update after token refresh; stale work cannot resurrect a disconnected account. */
-    internal fun persistRefreshedCredential(
-        expected: SearchConsoleVersionedConnection,
-        credential: SearchConsoleOAuthCredential,
-    ): Boolean = repository.saveIfRevisionMatches(
-        expected.revision,
-        expected.connection.copyWith(
-            credential = credential,
-            updatedAtMillis = nowMillis(),
-        ),
-    )
+    internal fun rollbackValidatedConnection(commit: SiteAccountCommit): Boolean = repository.rollbackIfCurrent(commit)
 
     /** CAS-update for an inventory refresh. Failures never erase a usable offline cache. */
     internal fun persistSnapshotRefresh(
-        expected: SearchConsoleVersionedConnection,
+        expected: SearchConsoleVersionedRecord,
         result: SearchConsoleFetchResult<SearchConsoleSnapshot>,
     ): Boolean {
         val snapshot = when (result) {
@@ -87,19 +109,59 @@ class SearchConsoleConnectionStore(
             is SearchConsoleFetchResult.Partial -> boundedSnapshot(result.value)
             is SearchConsoleFetchResult.Failure -> return false
         }
-        val existing = expected.connection.cachedSnapshot
+        val existing = expected.record.cachedSnapshot
         if (existing?.propertiesComplete == true && !snapshot.propertiesComplete) return false
         val cache = existing?.let { mergeCache(it, snapshot) } ?: snapshot
+        val now = nowMillis()
         return repository.saveIfRevisionMatches(
             expected.revision,
-            expected.connection.copyWith(
-                updatedAtMillis = nowMillis(),
+            expected.record.copy(
+                updatedAtMillis = maxOf(now, expected.record.createdAtMillis),
                 cachedSnapshot = cache,
             ),
         )
     }
 
-    fun disconnect() = repository.delete()
+    /** Makes [accountId] active; null when it is no longer saved. */
+    fun switchAccount(accountId: String): SiteAccountIndex? = repository.transaction {
+        val index = repository.index()
+        if (accountId !in index) return@transaction null
+        index.activating(accountId).also(repository::writeIndex)
+    }
+
+    /** Removes one account (index first, then its record) and returns the remaining accounts. */
+    fun removeAccount(accountId: String): SiteAccountIndex = repository.transaction {
+        val index = repository.index()
+        val remaining = index.removing(accountId)
+        if (remaining != index) repository.writeIndex(remaining)
+        repository.delete(accountId)
+        remaining
+    }
+
+    /** Removes every saved account and returns their ids (so their OAuth slots can be cleared). */
+    fun removeAllAccounts(): List<String> = repository.transaction {
+        val ids = repository.index().ids
+        repository.writeIndex(SiteAccountIndex.EMPTY)
+        ids.forEach(repository::delete)
+        ids
+    }
+
+    /**
+     * Removes the active account (the single-account "Disconnect") and returns its id, so its OAuth
+     * slot can be cleared. An undecodable account list is discarded instead; a locked keystore is
+     * never treated as corruption.
+     */
+    fun disconnect(): String? = repository.transaction {
+        val index = try {
+            repository.index()
+        } catch (error: SecurityException) {
+            throw error
+        } catch (_: Exception) {
+            repository.resetUnreadable()
+            return@transaction null
+        }
+        index.activeId?.also(::removeAccount)
+    }
 
     private fun boundedSnapshot(snapshot: SearchConsoleSnapshot): SearchConsoleSnapshot {
         val properties = snapshot.properties
@@ -144,25 +206,8 @@ class SearchConsoleConnectionStore(
         )
     }
 
-    private fun stableCredentialId(credential: SearchConsoleOAuthCredential): String {
-        val bytes = (credential.refreshToken ?: credential.accessToken).utf8Bytes()
-        return try {
-            java.security.MessageDigest.getInstance("SHA-256").digest(bytes)
-                .take(8)
-                .joinToString("") { "%02x".format(it) }
-        } finally {
-            bytes.fill(0)
-        }
-    }
-
     companion object {
         const val MAX_CACHED_PROPERTIES = 25
         const val CACHE_STALE_AFTER_MILLIS = 6 * 60 * 60 * 1_000L
     }
 }
-
-private fun SearchConsoleStoredConnection.copyWith(
-    credential: SearchConsoleOAuthCredential = this.credential,
-    updatedAtMillis: Long = this.updatedAtMillis,
-    cachedSnapshot: SearchConsoleSnapshot? = this.cachedSnapshot,
-) = SearchConsoleStoredConnection(id, credential, createdAtMillis, updatedAtMillis, cachedSnapshot)

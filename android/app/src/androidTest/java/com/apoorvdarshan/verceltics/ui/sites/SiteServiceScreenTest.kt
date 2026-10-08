@@ -144,7 +144,7 @@ class SiteServiceScreenTest {
             }
         }
         composeRule.onNodeWithTag("siteService.disconnectDialog").assertExists()
-        composeRule.onNodeWithText("Disconnect Plausible?").assertExists()
+        composeRule.onNodeWithText("Remove studio.example?").assertExists()
     }
 
     @Test

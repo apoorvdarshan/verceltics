@@ -1,5 +1,7 @@
 package com.apoorvdarshan.verceltics.ui.searchconsole
 
+import com.apoorvdarshan.verceltics.ui.sites.SiteAccountsUi
+
 sealed interface SearchConsoleOAuthReadinessUi {
     data object Ready : SearchConsoleOAuthReadinessUi
     data class ConfigurationNeeded(val message: String) : SearchConsoleOAuthReadinessUi
@@ -36,7 +38,22 @@ interface SearchConsoleUiGateway {
         onSummary: suspend (SearchConsolePropertySummaryUi) -> Unit,
     ): Result<Unit> = Result.success(Unit)
 
+    /** Removes the active account (the single-account "Disconnect"). */
     suspend fun disconnect(): Result<Unit>
+
+    /** Saved Google accounts and the active one, read offline. */
+    suspend fun accounts(): Result<SiteAccountsUi> = Result.success(SiteAccountsUi.EMPTY)
+
+    /** Makes a saved account active and returns its offline restore (no network request). */
+    suspend fun switchAccount(accountId: String): Result<SearchConsoleRestoreUi> =
+        Result.failure(SearchConsoleUiException("Switching Google accounts is not available."))
+
+    /** Removes one saved account and returns the restore of the account that becomes active. */
+    suspend fun removeAccount(accountId: String): Result<SearchConsoleRestoreUi> =
+        disconnect().map { SearchConsoleRestoreUi.NotConnected }
+
+    /** Removes every saved Google account. */
+    suspend fun removeAllAccounts(): Result<Unit> = disconnect()
 }
 
 sealed interface SearchConsoleRestoreUi {

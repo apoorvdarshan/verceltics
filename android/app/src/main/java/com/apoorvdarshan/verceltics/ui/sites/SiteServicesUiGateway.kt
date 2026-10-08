@@ -38,7 +38,22 @@ interface SiteServicesUiGateway {
         onPartial: suspend (SiteServiceDetailUi) -> Unit = {},
     ): Result<SiteServiceDetailUi>
 
+    /** Removes the active account (the single-account "Disconnect"). */
     suspend fun disconnect(providerId: String): Result<Unit>
+
+    /** Saved accounts for [providerId] and the active one, read offline. */
+    suspend fun accounts(providerId: String): Result<SiteAccountsUi> = Result.success(SiteAccountsUi.EMPTY)
+
+    /** Makes a saved account active and returns its offline restore (no network request). */
+    suspend fun switchAccount(providerId: String, accountId: String): Result<SiteServiceRestoreUi> =
+        Result.failure(SiteServicesUiException("Switching accounts is not available."))
+
+    /** Removes one saved account and returns the restore of the account that becomes active. */
+    suspend fun removeAccount(providerId: String, accountId: String): Result<SiteServiceRestoreUi> =
+        disconnect(providerId).map { SiteServiceRestoreUi.NotConnected }
+
+    /** Removes every saved account for [providerId]. */
+    suspend fun removeAllAccounts(providerId: String): Result<Unit> = disconnect(providerId)
 }
 
 sealed interface SiteGoogleOAuthReadinessUi {
@@ -49,6 +64,8 @@ sealed interface SiteGoogleOAuthReadinessUi {
 
 data class SiteServicesRestoreUi(
     val services: Map<String, SiteServiceRestoreUi>,
+    /** Saved accounts per provider; providers without an entry have none. */
+    val accounts: Map<String, SiteAccountsUi> = emptyMap(),
 )
 
 sealed interface SiteServiceRestoreUi {
@@ -88,6 +105,8 @@ data class SiteResourceUi(
 
 data class SiteServiceDashboardUi(
     val providerId: String,
+    /** The saved account this dashboard belongs to (null for fixtures without accounts). */
+    val accountId: String? = null,
     val accountName: String,
     /** Secondary identity such as the Google email or Umami username. */
     val accountDetail: String?,

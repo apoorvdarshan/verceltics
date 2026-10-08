@@ -1,5 +1,8 @@
 package com.apoorvdarshan.verceltics.data.pagespeed
 
+import com.apoorvdarshan.verceltics.data.sites.SiteAccountEntry
+import com.apoorvdarshan.verceltics.data.sites.SiteAccountIds
+import com.apoorvdarshan.verceltics.data.sites.SiteAccountIndex
 import java.net.URI
 
 enum class PageSpeedStrategy(val wireValue: String, val label: String) {
@@ -124,6 +127,14 @@ data class PageSpeedStoredConnection(
         }
     }
 
+    /** Non-secret account-menu identity: the audited URL without its scheme. */
+    val accountEntry: SiteAccountEntry
+        get() = SiteAccountEntry(
+            id = id,
+            name = SiteAccountIds.label(credentials.siteUrl.toASCIIString().removePrefix("https://").removeSuffix("/")),
+            detail = cachedSnapshot?.siteName?.takeIf(String::isNotBlank)?.let(SiteAccountIds::label),
+        )
+
     override fun toString(): String =
         "PageSpeedStoredConnection(id=$id, siteUrl=${credentials.siteUrl}, " +
             "createdAtMillis=$createdAtMillis, updatedAtMillis=$updatedAtMillis, " +
@@ -144,7 +155,11 @@ sealed interface PageSpeedRestoreResult {
         val siteUrl: URI,
         val cachedSnapshot: PageSpeedSnapshot?,
         val cacheIsStale: Boolean,
+        val accounts: SiteAccountIndex = SiteAccountIndex.EMPTY,
     ) : PageSpeedRestoreResult
 
-    data class Unavailable(val problem: PageSpeedRestoreProblem) : PageSpeedRestoreResult
+    data class Unavailable(
+        val problem: PageSpeedRestoreProblem,
+        val accounts: SiteAccountIndex = SiteAccountIndex.EMPTY,
+    ) : PageSpeedRestoreResult
 }

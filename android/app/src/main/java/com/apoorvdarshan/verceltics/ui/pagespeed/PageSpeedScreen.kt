@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -102,7 +103,15 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.apoorvdarshan.verceltics.data.account.SecretValue
 import com.apoorvdarshan.verceltics.data.pagespeed.PageSpeedMetricUnit
 import com.apoorvdarshan.verceltics.domain.IntegrationCatalog
+import com.apoorvdarshan.verceltics.ui.components.AppPullToRefresh
 import com.apoorvdarshan.verceltics.ui.components.OffsetPanel
+import com.apoorvdarshan.verceltics.ui.sites.SiteAccountMenu
+import com.apoorvdarshan.verceltics.ui.sites.SiteAccountOptionUi
+import com.apoorvdarshan.verceltics.ui.sites.SiteAccountRemoval
+import com.apoorvdarshan.verceltics.ui.sites.SiteAccountRemovalDialog
+import com.apoorvdarshan.verceltics.ui.sites.SiteAccountsUi
+import com.apoorvdarshan.verceltics.ui.sites.SiteLayout
+import com.apoorvdarshan.verceltics.ui.sites.adaptiveGridItems
 import com.apoorvdarshan.verceltics.ui.components.ProviderLogo
 import com.apoorvdarshan.verceltics.ui.components.StatusPill
 import com.apoorvdarshan.verceltics.ui.components.ThemedGlassControl
@@ -149,7 +158,8 @@ fun PageSpeedRoute(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var lastHandledSearchRequestId by rememberSaveable { mutableIntStateOf(searchRequestId) }
     var siteFocusRequestId by rememberSaveable { mutableIntStateOf(0) }
-    BackHandler(onBack = onBack)
+    val routeBack = { if (!viewModel.handleBack()) onBack() }
+    BackHandler(onBack = routeBack)
     LaunchedEffect(state.status) {
         if (state.status != PageSpeedConnectionStatus.RESTORING) {
             onConnectionChanged(state.isConnected)
@@ -163,7 +173,7 @@ fun PageSpeedRoute(
     }
     PageSpeedScreen(
         state = state,
-        onBack = onBack,
+        onBack = routeBack,
         onConnect = viewModel::connect,
         onRefresh = viewModel::refresh,
         onCancel = viewModel::cancelOperation,
@@ -172,6 +182,12 @@ fun PageSpeedRoute(
         onConfirmDisconnect = viewModel::confirmDisconnect,
         searchFocusRequestId = siteFocusRequestId,
         modifier = modifier,
+        onSwitchAccount = viewModel::switchAccount,
+        onAddAccount = viewModel::startAddingAccount,
+        onCancelAddAccount = viewModel::cancelAddingAccount,
+        onRequestRemoveAll = viewModel::requestRemoveAllConfirmation,
+        onDismissRemoveAll = viewModel::dismissRemoveAllConfirmation,
+        onConfirmRemoveAll = viewModel::confirmRemoveAll,
     )
 }
 
@@ -187,6 +203,12 @@ fun PageSpeedScreen(
     onConfirmDisconnect: () -> Unit,
     searchFocusRequestId: Int = 0,
     modifier: Modifier = Modifier,
+    onSwitchAccount: (String) -> Unit = {},
+    onAddAccount: () -> Unit = {},
+    onCancelAddAccount: () -> Unit = {},
+    onRequestRemoveAll: () -> Unit = {},
+    onDismissRemoveAll: () -> Unit = {},
+    onConfirmRemoveAll: () -> Unit = {},
 ) {
     var siteUrl by rememberSaveable { mutableStateOf(state.savedSiteUrl.orEmpty()) }
     val apiKeyController = remember { EphemeralSecretController() }
@@ -200,7 +222,8 @@ fun PageSpeedScreen(
     val keyboard = LocalSoftwareKeyboardController.current
     val haptic = LocalHapticFeedback.current
 
-    if (state.status == PageSpeedConnectionStatus.DISCONNECTED) {
+    // The API key field is visible for a first connect and while adding another site.
+    if (state.showsConnectForm) {
         ProtectCredentialWindow()
     }
 
@@ -208,7 +231,14 @@ fun PageSpeedScreen(
         onDispose { apiKeyController.clear() }
     }
     LaunchedEffect(state.savedSiteUrl) {
-        if (siteUrl.isBlank()) siteUrl = state.savedSiteUrl.orEmpty()
+        if (siteUrl.isBlank() && !state.isAddingAccount) siteUrl = state.savedSiteUrl.orEmpty()
+    }
+    // Adding a site starts from an empty URL instead of the active site's.
+    LaunchedEffect(state.isAddingAccount) {
+        if (state.isAddingAccount) {
+            siteUrl = ""
+            localFormError = null
+        }
     }
     LaunchedEffect(searchFocusRequestId, state.status) {
         if (
@@ -217,17 +247,17 @@ fun PageSpeedScreen(
             state.status != PageSpeedConnectionStatus.RESTORING
         ) {
             lastHandledSearchFocusRequestId = searchFocusRequestId
-            if (state.status == PageSpeedConnectionStatus.DISCONNECTED) {
+            if (state.showsConnectForm) {
                 searchNotice = null
                 siteUrlFocusRequester.requestFocus()
                 keyboard?.show()
             } else {
-                searchNotice = "PageSpeed is a single-site workspace. Disconnect to audit a different HTTPS URL."
+                searchNotice = "PageSpeed audits one site at a time. Add or switch sites from the account menu."
             }
         }
     }
-    LaunchedEffect(state.status) {
-        if (state.status == PageSpeedConnectionStatus.CONNECTED) {
+    LaunchedEffect(state.status, state.isAddingAccount) {
+        if (state.status == PageSpeedConnectionStatus.CONNECTED && !state.isAddingAccount) {
             apiKeyController.clear()
             hasApiKey = false
         }
@@ -237,6 +267,19 @@ fun PageSpeedScreen(
         DisconnectDialog(
             onDismiss = onDismissDisconnect,
             onConfirm = onConfirmDisconnect,
+            siteTitle = state.accounts.active?.title?.takeIf { state.accounts.hasMultiple },
+        )
+    }
+    if (state.showRemoveAllConfirmation) {
+        SiteAccountRemovalDialog(
+            removal = SiteAccountRemoval.ALL,
+            serviceName = "PageSpeed",
+            accountTitle = null,
+            credentialNoun = "API key",
+            enabled = state.operation != PageSpeedOperation.DISCONNECTING,
+            onConfirm = onConfirmRemoveAll,
+            onDismiss = onDismissRemoveAll,
+            testTag = "pagespeed.removeAllDialog",
         )
     }
 
@@ -248,6 +291,23 @@ fun PageSpeedScreen(
     ) {
         PageSpeedTopBar(
             state = state,
+            accountMenu = if (state.isConnected && !state.isAddingAccount && state.canDisconnect) {
+                {
+                    SiteAccountMenu(
+                        provider = remember { checkNotNull(IntegrationCatalog.provider("pageSpeed")) },
+                        accounts = state.accounts.takeIf { it.accounts.isNotEmpty() } ?: fallbackAccounts(state),
+                        addLabel = "Add another site",
+                        onSwitch = onSwitchAccount,
+                        onAdd = onAddAccount,
+                        onRemoveCurrent = onRequestDisconnect,
+                        onRemoveAll = onRequestRemoveAll,
+                        testTagPrefix = "pagespeed",
+                        enabled = state.operation == null || state.operation == PageSpeedOperation.REFRESHING,
+                    )
+                }
+            } else {
+                null
+            },
             onBack = {
                 haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                 onBack()
@@ -272,11 +332,11 @@ fun PageSpeedScreen(
             }
         }
 
-        when (state.status) {
-            PageSpeedConnectionStatus.RESTORING -> PageSpeedLoading(
+        when {
+            state.status == PageSpeedConnectionStatus.RESTORING -> PageSpeedLoading(
                 modifier = Modifier.weight(1f),
             )
-            PageSpeedConnectionStatus.DISCONNECTED -> ConnectionForm(
+            state.showsConnectForm -> ConnectionForm(
                 siteUrl = siteUrl,
                 onSiteUrlChange = {
                     siteUrl = it
@@ -305,22 +365,52 @@ fun PageSpeedScreen(
                 },
                 onCancel = onCancel,
                 modifier = Modifier.weight(1f),
+                addingAccount = state.isAddingAccount,
+                currentSiteTitle = state.accounts.active?.title ?: state.savedSiteUrl,
+                onCancelAdd = onCancelAddAccount,
             )
-            PageSpeedConnectionStatus.SAVED_UNAVAILABLE -> SavedConnectionRecovery(
-                state = state,
+            state.status == PageSpeedConnectionStatus.SAVED_UNAVAILABLE -> AppPullToRefresh(
+                isRefreshing = state.operation == PageSpeedOperation.REFRESHING,
                 onRefresh = onRefresh,
-                onDisconnect = onRequestDisconnect,
-                modifier = Modifier.weight(1f),
-            )
-            PageSpeedConnectionStatus.CONNECTED -> Dashboard(
-                state = state,
+                enabled = state.operation == null || state.operation == PageSpeedOperation.REFRESHING,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                testTag = "pagespeed.recovery.pullToRefresh",
+            ) {
+                SavedConnectionRecovery(
+                    state = state,
+                    onRefresh = onRefresh,
+                    onDisconnect = onRequestDisconnect,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            else -> AppPullToRefresh(
+                isRefreshing = state.operation == PageSpeedOperation.REFRESHING,
                 onRefresh = onRefresh,
-                onCancel = onCancel,
-                onDisconnect = onRequestDisconnect,
-                modifier = Modifier.weight(1f),
-            )
+                enabled = state.operation == null || state.operation == PageSpeedOperation.REFRESHING,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                testTag = "pagespeed.pullToRefresh",
+            ) {
+                Dashboard(
+                    state = state,
+                    onRefresh = onRefresh,
+                    onCancel = onCancel,
+                    onDisconnect = onRequestDisconnect,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
         }
     }
+}
+
+/** Menu sites when only a dashboard is known (fixtures and gateways without an index). */
+private fun fallbackAccounts(state: PageSpeedUiState): SiteAccountsUi {
+    val siteUrl = state.dashboard?.siteUrl ?: state.savedSiteUrl ?: return SiteAccountsUi.EMPTY
+    val id = state.dashboard?.accountId ?: "current"
+    return SiteAccountsUi(listOf(SiteAccountOptionUi(id, siteUrl.removePrefix("https://").removeSuffix("/"))), id)
 }
 
 @Composable
@@ -329,6 +419,7 @@ private fun PageSpeedTopBar(
     onBack: () -> Unit,
     onRefresh: () -> Unit,
     onCancel: () -> Unit,
+    accountMenu: (@Composable () -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier
@@ -357,8 +448,11 @@ private fun PageSpeedTopBar(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
-        val canRefresh = state.status == PageSpeedConnectionStatus.CONNECTED ||
-            state.status == PageSpeedConnectionStatus.SAVED_UNAVAILABLE
+        accountMenu?.invoke()
+        val canRefresh = (
+            state.status == PageSpeedConnectionStatus.CONNECTED ||
+                state.status == PageSpeedConnectionStatus.SAVED_UNAVAILABLE
+            ) && !state.isAddingAccount
         AppToolbarAction(
             modifier = Modifier.size(48.dp),
             onClick = if (
@@ -375,6 +469,7 @@ private fun PageSpeedTopBar(
                     -> Icon(Icons.Rounded.Cancel, contentDescription = "Cancel request")
                     PageSpeedOperation.RESTORING,
                     PageSpeedOperation.DISCONNECTING,
+                    PageSpeedOperation.SWITCHING,
                     -> CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                     null -> Icon(Icons.Rounded.Refresh, contentDescription = "Refresh audit")
                 }
@@ -412,12 +507,16 @@ private fun ConnectionForm(
     onConnect: () -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
+    addingAccount: Boolean = false,
+    currentSiteTitle: String? = null,
+    onCancelAdd: () -> Unit = {},
 ) {
+    BoxWithConstraints(modifier.fillMaxWidth()) {
     LazyColumn(
-        modifier = modifier
-            .fillMaxWidth()
+        modifier = Modifier
+            .fillMaxSize()
             .testTag("pagespeed.connectionForm"),
-        contentPadding = PaddingValues(start = 18.dp, top = 8.dp, end = 18.dp, bottom = 32.dp),
+        contentPadding = SiteLayout.padding(maxWidth, 18.dp, SiteLayout.FormMaxWidth, top = 8.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item(key = "intro") {
@@ -459,7 +558,17 @@ private fun ConnectionForm(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
-                    Text("CONNECT GOOGLE APIS", style = MaterialTheme.typography.headlineSmall)
+                    Text(
+                        if (addingAccount) "ADD ANOTHER SITE" else "CONNECT GOOGLE APIS",
+                        style = MaterialTheme.typography.headlineSmall,
+                    )
+                    if (addingAccount) {
+                        Text(
+                            "Your current site stays saved. Re-entering a saved URL replaces only that site's key.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                     BrandedInput(
                         value = siteUrl,
                         onValueChange = onSiteUrlChange,
@@ -491,7 +600,11 @@ private fun ConnectionForm(
         }
         item(key = "connect") {
             BrandedActionButton(
-                text = if (operation == PageSpeedOperation.CONNECTING) "Connecting…" else "Connect and run audit",
+                text = when {
+                    operation == PageSpeedOperation.CONNECTING -> "Connecting…"
+                    addingAccount -> "Add site and run audit"
+                    else -> "Connect and run audit"
+                },
                 icon = Icons.Rounded.Speed,
                 enabled = operation != PageSpeedOperation.CONNECTING && hasApiKey && siteUrl.isNotBlank(),
                 onClick = onConnect,
@@ -509,6 +622,18 @@ private fun ConnectionForm(
                 )
             }
         }
+        if (addingAccount) {
+            item(key = "cancelAdd") {
+                BrandedActionButton(
+                    text = "Back to ${currentSiteTitle?.removePrefix("https://")?.removeSuffix("/") ?: "saved site"}",
+                    icon = Icons.AutoMirrored.Rounded.ArrowBack,
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    onClick = onCancelAdd,
+                    testTag = "pagespeed.cancelAddAccount",
+                )
+            }
+        }
+    }
     }
 }
 
@@ -519,11 +644,12 @@ private fun SavedConnectionRecovery(
     onDisconnect: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    BoxWithConstraints(modifier.fillMaxWidth()) {
     LazyColumn(
-        modifier = modifier
-            .fillMaxWidth()
+        modifier = Modifier
+            .fillMaxSize()
             .testTag("pagespeed.savedUnavailable"),
-        contentPadding = PaddingValues(18.dp),
+        contentPadding = SiteLayout.padding(maxWidth, 18.dp, SiteLayout.FormMaxWidth, top = 18.dp, bottom = 18.dp),
         verticalArrangement = Arrangement.Center,
     ) {
         item {
@@ -557,7 +683,7 @@ private fun SavedConnectionRecovery(
                     )
                     if (state.canDisconnect) {
                         BrandedActionButton(
-                            text = "Disconnect",
+                            text = if (state.accounts.hasMultiple) "Remove this site" else "Disconnect",
                             icon = Icons.Rounded.DeleteOutline,
                             containerColor = MaterialTheme.colorScheme.surface,
                             enabled = !state.isBusy,
@@ -568,6 +694,7 @@ private fun SavedConnectionRecovery(
                 }
             }
         }
+    }
     }
 }
 
@@ -601,11 +728,16 @@ private fun Dashboard(
             MaterialTheme.colorScheme.tertiary,
         ),
     )
+    // Phones keep one column; regular windows cap the audit (iOS `dashboardMaxWidth`) and lay the
+    // lab and field metric groups out as an adaptive grid.
+    BoxWithConstraints(modifier.fillMaxWidth()) {
+    val contentWidth = SiteLayout.contentWidth(maxWidth, 18.dp, SiteLayout.DashboardMaxWidth)
+    val groupColumns = SiteLayout.columns(maxWidth, contentWidth, minimum = 310.dp, spacing = 15.dp, maximumColumns = 3)
     LazyColumn(
-        modifier = modifier
-            .fillMaxWidth()
+        modifier = Modifier
+            .fillMaxSize()
             .testTag("pagespeed.dashboard"),
-        contentPadding = PaddingValues(start = 18.dp, top = 8.dp, end = 18.dp, bottom = 36.dp),
+        contentPadding = SiteLayout.padding(maxWidth, 18.dp, SiteLayout.DashboardMaxWidth, top = 8.dp, bottom = 36.dp),
         verticalArrangement = Arrangement.spacedBy(15.dp),
     ) {
         item(key = "hero") { AuditHero(dashboard) }
@@ -635,11 +767,11 @@ private fun Dashboard(
         }
 
         if (proAccess.isUnlocked) {
-            metricGroups.forEach { group ->
-                val metrics = dashboard.metrics.filter { it.key.startsWith(group.prefix) }
-                if (metrics.isNotEmpty()) {
-                    item(key = group.prefix) { MetricGroupPanel(group, metrics) }
-                }
+            val groups = metricGroups.mapNotNull { group ->
+                dashboard.metrics.filter { it.key.startsWith(group.prefix) }.takeIf { it.isNotEmpty() }?.let { group to it }
+            }
+            adaptiveGridItems(groups, groupColumns, key = { it.first.prefix }, spacing = 15.dp) { (group, metrics) ->
+                MetricGroupPanel(group, metrics)
             }
             if (report == null) {
                 item(key = "full-report-pending") {
@@ -671,7 +803,7 @@ private fun Dashboard(
                     testTag = "pagespeed.dashboard.refresh",
                 )
                 BrandedActionButton(
-                    text = "Disconnect",
+                    text = if (state.accounts.hasMultiple) "Remove this site" else "Disconnect",
                     icon = Icons.Rounded.DeleteOutline,
                     containerColor = MaterialTheme.colorScheme.surface,
                     enabled = !state.isBusy,
@@ -680,6 +812,7 @@ private fun Dashboard(
                 )
             }
         }
+    }
     }
 }
 
@@ -1333,7 +1466,7 @@ private fun PageSpeedProviderMark() {
 }
 
 @Composable
-private fun DisconnectDialog(onDismiss: () -> Unit, onConfirm: () -> Unit) {
+private fun DisconnectDialog(onDismiss: () -> Unit, onConfirm: () -> Unit, siteTitle: String? = null) {
     Dialog(onDismissRequest = onDismiss) {
         OffsetPanel(
             modifier = Modifier.fillMaxWidth(),
@@ -1344,13 +1477,20 @@ private fun DisconnectDialog(onDismiss: () -> Unit, onConfirm: () -> Unit) {
                 modifier = Modifier.padding(18.dp),
                 verticalArrangement = Arrangement.spacedBy(13.dp),
             ) {
-                Text("Disconnect PageSpeed & CrUX?", style = MaterialTheme.typography.headlineMedium)
                 Text(
-                    "This removes the encrypted Google API key and saved audit from this device.",
+                    if (siteTitle != null) "Remove $siteTitle?" else "Disconnect PageSpeed & CrUX?",
+                    style = MaterialTheme.typography.headlineMedium,
+                )
+                Text(
+                    if (siteTitle != null) {
+                        "This removes the site's encrypted Google API key and saved audit from this device only. Other saved sites stay connected."
+                    } else {
+                        "This removes the encrypted Google API key and saved audit from this device."
+                    },
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 BrandedActionButton(
-                    text = "Disconnect",
+                    text = if (siteTitle != null) "Remove site" else "Disconnect",
                     icon = Icons.Rounded.DeleteOutline,
                     containerColor = MaterialTheme.colorScheme.error,
                     onClick = onConfirm,

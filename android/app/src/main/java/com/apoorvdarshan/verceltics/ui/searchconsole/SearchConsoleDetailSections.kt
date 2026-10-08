@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -92,7 +93,10 @@ import com.apoorvdarshan.verceltics.ui.components.ThemedAuthTextField
 import com.apoorvdarshan.verceltics.ui.components.ThemedGlassControl
 import com.apoorvdarshan.verceltics.ui.sites.SiteChoiceChip
 import com.apoorvdarshan.verceltics.ui.sites.SiteTimelineChart
+import com.apoorvdarshan.verceltics.ui.sites.SiteLayout
+import com.apoorvdarshan.verceltics.ui.sites.SiteWidthClass
 import com.apoorvdarshan.verceltics.ui.sites.TimelineChartPoint
+import com.apoorvdarshan.verceltics.ui.sites.adaptiveGridItems
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -151,11 +155,19 @@ internal fun SearchConsolePropertyDetail(
     var scrubbedIndex by remember(performance?.timeline, state.selectedPerformanceMetric) { mutableStateOf<Int?>(null) }
     val wideTable = LocalConfiguration.current.screenWidthDp >= 600 && LocalDensity.current.fontScale < 1.3f
 
+    // Phones keep one 20 dp-padded column. Regular windows cap the report (iOS
+    // `dashboardMaxWidth`), widen metrics and charts, grid the sitemaps, and split inspection
+    // findings into two panes once both fit (iOS `AppAdaptiveTwoPane(430, 340)`).
+    BoxWithConstraints(modifier.fillMaxWidth()) {
+    val regular = SiteWidthClass.of(maxWidth).isRegular
+    val contentWidth = SiteLayout.contentWidth(maxWidth, 20.dp, SiteLayout.DashboardMaxWidth)
+    val sitemapColumns = SiteLayout.columns(maxWidth, contentWidth, minimum = 380.dp, spacing = 14.dp, maximumColumns = 3)
+    val twoPaneInspection = regular && contentWidth >= 430.dp + 340.dp + 16.dp
     LazyColumn(
-        modifier = modifier
-            .fillMaxWidth()
+        modifier = Modifier
+            .fillMaxSize()
             .testTag("searchConsole.detail"),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 120.dp),
+        contentPadding = SiteLayout.padding(maxWidth, 20.dp, SiteLayout.DashboardMaxWidth, top = 8.dp, bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
@@ -200,15 +212,18 @@ internal fun SearchConsolePropertyDetail(
                     onSelectMetric = onSelectPerformanceMetric,
                     onPreviousPage = onPreviousPerformancePage,
                     onNextPage = onNextPerformancePage,
+                    regular = regular,
                 )
-                SearchConsoleDetailSection.SITEMAPS -> sitemapItems(state.propertyWorkspace?.sitemaps)
+                SearchConsoleDetailSection.SITEMAPS -> sitemapItems(state.propertyWorkspace?.sitemaps, sitemapColumns)
                 SearchConsoleDetailSection.INSPECT -> inspectionItems(
                     state = state,
                     onInspectionUrlChange = onInspectionUrlChange,
                     onInspect = onInspect,
+                    twoPane = twoPaneInspection,
                 )
             }
         }
+    }
     }
 }
 
@@ -317,6 +332,7 @@ private fun LazyListScope.performanceItems(
     onSelectMetric: (SearchConsoleMetricUi) -> Unit,
     onPreviousPage: () -> Unit,
     onNextPage: () -> Unit,
+    regular: Boolean = false,
 ) {
     val resource = state.propertyWorkspace?.performance
     val query = state.performanceQuery
@@ -343,7 +359,7 @@ private fun LazyListScope.performanceItems(
                 item { FeedbackPanel("Performance timeline unavailable", message, MaterialTheme.colorScheme.error) }
             }
             item(key = "performance.metrics") {
-                AdaptiveMetrics(performance, state.selectedPerformanceMetric, onSelectMetric)
+                AdaptiveMetrics(performance, state.selectedPerformanceMetric, onSelectMetric, regular)
             }
             item(key = "performance.chart") {
                 PerformanceChartCard(
@@ -352,6 +368,7 @@ private fun LazyListScope.performanceItems(
                     isUpdating = state.isLoadingPerformance,
                     scrubbedIndex = scrubbedIndex,
                     onScrub = onScrub,
+                    chartHeight = if (regular) 310.dp else 220.dp,
                 )
             }
             performance.firstIncompleteHour?.let { hour ->
@@ -611,6 +628,7 @@ private fun AdaptiveMetrics(
     performance: SearchConsolePerformanceUi,
     selectedMetric: SearchConsoleMetricUi,
     onSelectMetric: (SearchConsoleMetricUi) -> Unit,
+    regular: Boolean = false,
 ) {
     val values = listOf(
         SearchConsoleMetricUi.CLICKS to performance.clicks,
@@ -618,7 +636,12 @@ private fun AdaptiveMetrics(
         SearchConsoleMetricUi.CTR to performance.ctr,
         SearchConsoleMetricUi.POSITION to performance.position,
     )
-    val columns = if (LocalDensity.current.fontScale >= 1.35f) 1 else 2
+    // iOS uses four metric columns in regular width and two in compact width.
+    val columns = when {
+        LocalDensity.current.fontScale >= 1.35f -> 1
+        regular -> 4
+        else -> 2
+    }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         values.chunked(columns).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -689,6 +712,7 @@ private fun PerformanceChartCard(
     isUpdating: Boolean,
     scrubbedIndex: Int?,
     onScrub: (Int?) -> Unit,
+    chartHeight: Dp = 220.dp,
 ) {
     val hourly = performance.timelineIsHourly ||
         performance.timeline.firstOrNull()?.label?.contains('T') == true
@@ -750,7 +774,7 @@ private fun PerformanceChartCard(
                     description = "$cadence ${metric.displayLabel} chart. ${points.size} ${cadence.lowercase()} points. " +
                         "Total ${metric.format(searchConsoleHeadlineValue(performance.timeline, metric))}.",
                     modifier = Modifier.fillMaxWidth(),
-                    chartHeight = 220.dp,
+                    chartHeight = chartHeight,
                     showArea = metric == SearchConsoleMetricUi.CLICKS || metric == SearchConsoleMetricUi.IMPRESSIONS,
                     includeZero = metric != SearchConsoleMetricUi.POSITION,
                     selectedIndex = scrubbedIndex,
@@ -1125,6 +1149,7 @@ private fun PerformancePagination(
 
 private fun LazyListScope.sitemapItems(
     resource: SearchConsoleResourceUi<List<SearchConsoleSitemapUi>>?,
+    columns: Int = 1,
 ) {
     when (resource) {
         null -> item { EmptyPanel("Sitemaps have not loaded yet.") }
@@ -1145,7 +1170,7 @@ private fun LazyListScope.sitemapItems(
                     )
                 }
             } else {
-                items(sitemaps, key = SearchConsoleSitemapUi::path) { sitemap ->
+                adaptiveGridItems(sitemaps, columns, key = SearchConsoleSitemapUi::path, spacing = 14.dp) { sitemap ->
                     SitemapCard(sitemap)
                 }
             }
@@ -1313,6 +1338,7 @@ private fun LazyListScope.inspectionItems(
     state: SearchConsoleUiState,
     onInspectionUrlChange: (String) -> Unit,
     onInspect: () -> Unit,
+    twoPane: Boolean = false,
 ) {
     item {
         OffsetPanel(
@@ -1365,6 +1391,46 @@ private fun LazyListScope.inspectionItems(
         return
     }
     item { InspectionSummaryCard(inspection, state.inspectionUrl) }
+    if (twoPane) {
+        item(key = "inspection.panes") {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .testTag("searchConsole.inspection.twoPane"),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.Top,
+            ) {
+                Column(Modifier.weight(1.2f), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    if (inspection.hasIndexStatus) {
+                        IndexStatusCard(inspection)
+                    } else {
+                        EmptyPanel(title = "Index status", message = "Google did not return an index-status result.")
+                    }
+                    inspection.amp?.let { amp -> AmpCard(amp) }
+                }
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    if (inspection.hasMobileResult) {
+                        InspectionCard(
+                            icon = Icons.Rounded.PhoneAndroid,
+                            title = "Mobile usability",
+                            verdict = inspection.mobileVerdict,
+                            testTag = "searchConsole.inspection.mobile",
+                        ) {
+                            IssueList("Mobile issues", inspection.issues.filter { it.area == SearchConsoleInspectionAreaUi.MOBILE })
+                        }
+                    }
+                    if (inspection.hasRichResults) RichResultsCard(inspection)
+                    if (inspection.amp == null && !inspection.hasMobileResult && !inspection.hasRichResults) {
+                        EmptyPanel(
+                            title = "Enhancements",
+                            message = "Google did not return AMP, mobile-usability or rich-result findings for this URL.",
+                        )
+                    }
+                }
+            }
+        }
+        return
+    }
     item {
         if (inspection.hasIndexStatus) {
             IndexStatusCard(inspection)

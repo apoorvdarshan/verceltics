@@ -5,10 +5,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -111,13 +114,7 @@ internal fun SiteServiceDetailContent(
         }
     }
 
-    LazyColumn(
-        modifier = modifier
-            .fillMaxWidth()
-            .testTag("siteService.detail"),
-        contentPadding = PaddingValues(start = 18.dp, top = 6.dp, end = 18.dp, bottom = 120.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
+    fun LazyListScope.controlItems() {
         item("header") { DetailHeader(detail, resource, dashboard, providerId) }
         item("controls") { ReportControls(detail, resources, providerId, actions) }
         item("open-provider") {
@@ -141,6 +138,9 @@ internal fun SiteServiceDetailContent(
                 }
             }
         }
+    }
+
+    fun LazyListScope.reportItems(sectionColumns: Int) {
         when {
             detail.isLoading && payload == null -> item("loading") {
                 SiteLoadingState(
@@ -149,13 +149,66 @@ internal fun SiteServiceDetailContent(
                     Modifier.testTag("siteService.detail.loading"),
                 )
             }
-            payload != null -> payloadItems(payload, providerId, tableViews, tableSearch, tableSort, tableLimit, actions)
+            payload != null -> payloadItems(payload, providerId, tableViews, tableSearch, tableSort, tableLimit, actions, sectionColumns)
             detail.error == null -> item("empty") {
                 SiteFeedbackPanel(
                     "No detail data",
                     "The provider did not return a detailed report for this resource.",
                     accent,
                 )
+            }
+        }
+    }
+
+    // Phones keep one list. Regular windows cap the workspace (iOS `catalogMaxWidth`) with an
+    // adaptive section grid; expanded windows put the report controls in a side pane.
+    BoxWithConstraints(modifier.fillMaxWidth()) {
+        val compactPadding = 18.dp
+        val spacing = 12.dp
+        if (SiteWidthClass.of(maxWidth) == SiteWidthClass.EXPANDED) {
+            val horizontal = SiteLayout.horizontalPadding(maxWidth, compactPadding, SiteLayout.DashboardMaxWidth)
+            val reportWidth = SiteLayout.contentWidth(maxWidth, compactPadding, SiteLayout.DashboardMaxWidth) -
+                SiteLayout.SidePaneWidth - spacing
+            val columns = SiteLayout.columns(maxWidth, reportWidth, minimum = 310.dp, spacing = spacing, maximumColumns = 3)
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = horizontal),
+                horizontalArrangement = Arrangement.spacedBy(spacing),
+            ) {
+                LazyColumn(
+                    modifier = Modifier
+                        .width(SiteLayout.SidePaneWidth)
+                        .fillMaxHeight()
+                        .testTag("siteService.detail.controlsPane"),
+                    contentPadding = PaddingValues(top = 6.dp, bottom = 120.dp),
+                    verticalArrangement = Arrangement.spacedBy(spacing),
+                ) {
+                    controlItems()
+                }
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .testTag("siteService.detail"),
+                    contentPadding = PaddingValues(top = 6.dp, bottom = 120.dp),
+                    verticalArrangement = Arrangement.spacedBy(spacing),
+                ) {
+                    reportItems(columns)
+                }
+            }
+        } else {
+            val contentWidth = SiteLayout.contentWidth(maxWidth, compactPadding, SiteLayout.CatalogMaxWidth)
+            val columns = SiteLayout.columns(maxWidth, contentWidth, minimum = 310.dp, spacing = spacing, maximumColumns = 3)
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .testTag("siteService.detail"),
+                contentPadding = SiteLayout.padding(maxWidth, compactPadding, SiteLayout.CatalogMaxWidth, top = 6.dp, bottom = 120.dp),
+                verticalArrangement = Arrangement.spacedBy(spacing),
+            ) {
+                controlItems()
+                reportItems(columns)
             }
         }
     }
@@ -407,13 +460,16 @@ private fun LazyListScope.payloadItems(
     tableSort: MutableMap<String, Pair<String, Boolean>>,
     tableLimit: MutableMap<String, Int>,
     actions: SiteServiceScreenActions,
+    sectionColumns: Int = 1,
 ) {
     payload.warnings.forEachIndexed { index, warning ->
         item("warning-$index") { SiteWarningPanel("Partial provider response", warning) }
     }
     if (payload.sections.isNotEmpty()) {
         item("sections-heading") { SiteSectionHeader("Overview", payload.sections.size, siteAccent(providerId)) }
-        items(payload.sections, key = { "section-${it.id}" }) { section -> SectionCard(section, providerId) }
+        adaptiveGridItems(payload.sections, sectionColumns, key = { "section-${it.id}" }, spacing = 12.dp) { section ->
+            SectionCard(section, providerId)
+        }
     }
     if (payload.series.isNotEmpty()) {
         item("series-heading") { SiteSectionHeader("Timeline", payload.series.size, siteAccent(providerId)) }

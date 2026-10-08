@@ -1,6 +1,7 @@
 package com.apoorvdarshan.verceltics.data.searchconsole
 
 import com.apoorvdarshan.verceltics.data.account.SecretValue
+import com.apoorvdarshan.verceltics.data.sites.SiteAccountRecordCodec
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
@@ -78,7 +79,7 @@ object SearchConsoleConnectionPayloadCodec {
         }
     }
 
-    private fun writeSnapshot(output: DataOutputStream, snapshot: SearchConsoleSnapshot) {
+    internal fun writeSnapshot(output: DataOutputStream, snapshot: SearchConsoleSnapshot) {
         require(snapshot.properties.size <= MAX_CACHED_PROPERTIES) { "Search Console cache is too large." }
         output.writeLong(snapshot.fetchedAtMillis)
         output.writeBoolean(snapshot.propertiesComplete)
@@ -91,7 +92,7 @@ object SearchConsoleConnectionPayloadCodec {
         snapshot.warnings.forEach { writeString(output, it) }
     }
 
-    private fun readSnapshot(input: DataInputStream): SearchConsoleSnapshot {
+    internal fun readSnapshot(input: DataInputStream): SearchConsoleSnapshot {
         val fetchedAtMillis = input.readLong()
         val complete = input.readBoolean()
         val propertyCount = readCount(input, MAX_CACHED_PROPERTIES, "cached property")
@@ -121,15 +122,15 @@ object SearchConsoleConnectionPayloadCodec {
         }
     }
 
-    private fun writeOptionalString(output: DataOutputStream, value: String?) {
+    internal fun writeOptionalString(output: DataOutputStream, value: String?) {
         output.writeBoolean(value != null)
         value?.let { writeString(output, it) }
     }
 
-    private fun readOptionalString(input: DataInputStream): String? =
+    internal fun readOptionalString(input: DataInputStream): String? =
         if (input.readBoolean()) readString(input) else null
 
-    private fun writeString(output: DataOutputStream, value: String) {
+    internal fun writeString(output: DataOutputStream, value: String) {
         val bytes = value.toByteArray(StandardCharsets.UTF_8)
         try {
             writeBytes(output, bytes, MAX_SEARCH_CONSOLE_STORED_STRING_BYTES)
@@ -138,7 +139,7 @@ object SearchConsoleConnectionPayloadCodec {
         }
     }
 
-    private fun readString(input: DataInputStream): String {
+    internal fun readString(input: DataInputStream): String {
         val bytes = readBytes(input, MAX_SEARCH_CONSOLE_STORED_STRING_BYTES)
         return try {
             String(bytes, StandardCharsets.UTF_8)
@@ -165,6 +166,54 @@ object SearchConsoleConnectionPayloadCodec {
         val count = input.readInt()
         require(count in 0..maximum) { "Invalid Search Console $label count." }
         return count
+    }
+}
+
+/**
+ * Per-account record format (version 2). Unlike the legacy single-account payload it holds no
+ * tokens: each account's Google credential lives in its own encrypted OAuth slot.
+ */
+object SearchConsoleAccountRecordCodec : SiteAccountRecordCodec<SearchConsoleAccountRecord> {
+    private const val PAYLOAD_VERSION = 2
+    private const val PROVIDER_ID = "google-search-console"
+
+    override fun encode(record: SearchConsoleAccountRecord): ByteArray {
+        val bytes = WipingSearchConsoleByteArrayOutputStream()
+        val output = DataOutputStream(bytes)
+        return try {
+            output.writeInt(PAYLOAD_VERSION)
+            SearchConsoleConnectionPayloadCodec.writeString(output, PROVIDER_ID)
+            SearchConsoleConnectionPayloadCodec.writeString(output, record.id)
+            SearchConsoleConnectionPayloadCodec.writeOptionalString(output, record.subject)
+            SearchConsoleConnectionPayloadCodec.writeOptionalString(output, record.email)
+            output.writeLong(record.createdAtMillis)
+            output.writeLong(record.updatedAtMillis)
+            output.writeBoolean(record.cachedSnapshot != null)
+            record.cachedSnapshot?.let { SearchConsoleConnectionPayloadCodec.writeSnapshot(output, it) }
+            output.flush()
+            bytes.toByteArray()
+        } finally {
+            output.close()
+        }
+    }
+
+    override fun decode(bytes: ByteArray, accountId: String): SearchConsoleAccountRecord {
+        DataInputStream(ByteArrayInputStream(bytes)).use { input ->
+            require(input.readInt() == PAYLOAD_VERSION) { "Unsupported Search Console account version." }
+            require(SearchConsoleConnectionPayloadCodec.readString(input) == PROVIDER_ID) {
+                "Wrong provider in Search Console account record."
+            }
+            require(SearchConsoleConnectionPayloadCodec.readString(input) == accountId) {
+                "The Search Console record belongs to another account."
+            }
+            val subject = SearchConsoleConnectionPayloadCodec.readOptionalString(input)
+            val email = SearchConsoleConnectionPayloadCodec.readOptionalString(input)
+            val createdAtMillis = input.readLong()
+            val updatedAtMillis = input.readLong()
+            val snapshot = if (input.readBoolean()) SearchConsoleConnectionPayloadCodec.readSnapshot(input) else null
+            require(input.available() == 0) { "Unexpected trailing Search Console data." }
+            return SearchConsoleAccountRecord(accountId, subject, email, createdAtMillis, updatedAtMillis, snapshot)
+        }
     }
 }
 

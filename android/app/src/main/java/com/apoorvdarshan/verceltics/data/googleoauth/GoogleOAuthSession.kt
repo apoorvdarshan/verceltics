@@ -264,6 +264,31 @@ class GoogleOAuthSession(
             refreshed.accessToken
         }
 
+    /**
+     * Like [accessTokenSecret], but returns the whole valid credential (expiry, granted scopes and
+     * identity) for consumers whose API layer validates more than the bearer token. Null when this
+     * slot has no credential covering [scopes] or Google revoked it; network failures are thrown.
+     */
+    suspend fun validCredential(scopes: Set<String>, forceRefresh: Boolean = false): GoogleOAuthCredential? =
+        mutex.withLock {
+            val saved = runOnProviderExecutor(storageExecutor) { store.load() } ?: return@withLock null
+            if (!saved.covers(scopes)) return@withLock null
+            if (!forceRefresh && !saved.needsRefresh(nowMillis())) return@withLock saved
+            val refreshed = try {
+                authorizer.refresh(saved)
+            } catch (error: GoogleOAuthException) {
+                if (error.isRevoked) return@withLock null
+                throw error
+            }
+            runOnProviderExecutor(storageExecutor) { store.save(refreshed) }
+            refreshed
+        }
+
+    /** True when this slot holds any saved credential (no refresh, no scope check). */
+    suspend fun hasSavedCredential(): Boolean = mutex.withLock {
+        runOnProviderExecutor(storageExecutor) { runCatching { store.load() }.getOrNull() != null }
+    }
+
     suspend fun signOut() = mutex.withLock {
         runOnProviderExecutor(storageExecutor) { store.delete() }
     }

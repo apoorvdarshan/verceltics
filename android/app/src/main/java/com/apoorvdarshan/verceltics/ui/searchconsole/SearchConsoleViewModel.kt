@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import com.apoorvdarshan.verceltics.ui.sites.SiteAccountsUi
+import com.apoorvdarshan.verceltics.ui.sites.withoutAccount
 
 enum class SearchConsoleConnectionStatus {
     RESTORING,
@@ -26,6 +28,7 @@ enum class SearchConsoleOperation {
     AUTHORIZING,
     REFRESHING,
     DISCONNECTING,
+    SWITCHING,
 }
 
 enum class SearchConsoleDetailSection {
@@ -63,8 +66,17 @@ data class SearchConsoleUiState(
     val propertySummaries: Map<String, SearchConsolePropertySummaryUi> = emptyMap(),
     val isLoadingPropertySummaries: Boolean = false,
     val propertySummaryError: String? = null,
+    /** Saved Google accounts and the active one. */
+    val accounts: SiteAccountsUi = SiteAccountsUi.EMPTY,
+    /** True while Google sign-in adds another account without disconnecting the active one. */
+    val isAddingAccount: Boolean = false,
+    val showRemoveAllConfirmation: Boolean = false,
 ) {
     val isBusy: Boolean get() = operation != null
+
+    /** The sign-in panel is on screen: no saved account yet, or adding another one. */
+    val showsConnectPanel: Boolean
+        get() = status == SearchConsoleConnectionStatus.DISCONNECTED || isAddingAccount
 
     /** iOS overview totals across the verified properties whose summaries have loaded. */
     val overviewTotals: SearchConsoleOverviewTotalsUi?
@@ -151,8 +163,9 @@ class SearchConsoleViewModel(
             }
             gateway.restore().fold(
                 onSuccess = { restored ->
+                    val accounts = savedAccounts(restored)
                     if (isCurrent(generation)) {
-                        applyRestore(restored)
+                        applyRestore(restored, accounts)
                         restoredCacheNeedsRefresh = restored is SearchConsoleRestoreUi.Available
                     }
                 },
@@ -184,7 +197,7 @@ class SearchConsoleViewModel(
         if (baseline.isBusy || baseline.oauthReadiness !is SearchConsoleOAuthReadinessUi.Ready) return
         launchRootOperation(SearchConsoleOperation.AUTHORIZING, baseline) { generation ->
             gateway.connect().fold(
-                onSuccess = { dashboard -> if (isCurrent(generation)) applyDashboard(dashboard) },
+                onSuccess = { dashboard -> applyConnected(generation, dashboard) },
                 onFailure = { error ->
                     if (isCurrent(generation)) {
                         _uiState.value = baseline.copy(operation = null, error = safeMessage(error))
@@ -196,7 +209,7 @@ class SearchConsoleViewModel(
 
     fun refresh() {
         val baseline = _uiState.value
-        if (!baseline.isConnected || baseline.isBusy) return
+        if (!baseline.isConnected || baseline.isBusy || baseline.isAddingAccount) return
         restoredCacheNeedsRefresh = false
         restoredCacheRefreshStarted = true
         launchRootOperation(SearchConsoleOperation.REFRESHING, baseline) { generation ->
@@ -244,11 +257,20 @@ class SearchConsoleViewModel(
                 cancelled?.join()
                 gateway.restore().fold(
                     onSuccess = { restored ->
+                        val accounts = savedAccounts(restored)
                         if (isCurrent(generation)) {
-                            applyRestore(restored)
+                            // While adding, only a different active account proves the sign-in finished.
+                            val completed = if (baseline.isAddingAccount) {
+                                accounts.activeAccountId != baseline.accounts.activeAccountId ||
+                                    accounts.accounts.size != baseline.accounts.accounts.size
+                            } else {
+                                restored is SearchConsoleRestoreUi.Available
+                            }
+                            applyRestore(restored, accounts)
                             _uiState.update {
                                 it.copy(
-                                    notice = if (restored is SearchConsoleRestoreUi.Available) {
+                                    isAddingAccount = baseline.isAddingAccount && !completed,
+                                    notice = if (completed) {
                                         "Authorization completed before cancellation and remains saved."
                                     } else {
                                         "Google authorization cancelled."
@@ -353,6 +375,7 @@ class SearchConsoleViewModel(
         performanceJob?.cancel()
         inspectionJob?.cancel()
         savedStateHandle[SELECTED_PROPERTY_URL] = property.siteUrl
+        savedStateHandle[SELECTED_ACCOUNT_ID] = current.dashboard.account.id
         _uiState.update {
             it.copy(
                 selectedPropertyUrl = property.siteUrl,
@@ -572,6 +595,7 @@ class SearchConsoleViewModel(
         inspectionJob = null
         savedStateHandle[SELECTED_PROPERTY_URL] = null
         savedStateHandle[SELECTED_SECTION] = null
+        savedStateHandle[SELECTED_ACCOUNT_ID] = null
         _uiState.update {
             it.copy(
                 selectedPropertyUrl = null,
@@ -592,23 +616,31 @@ class SearchConsoleViewModel(
         }
     }
 
+    /** Asks to remove the active Google account ("Remove current account" / "Disconnect"). */
     fun requestDisconnectConfirmation() {
         if (_uiState.value.isConnected && !_uiState.value.isBusy) {
-            _uiState.update { it.copy(showDisconnectConfirmation = true) }
+            _uiState.update { it.copy(showDisconnectConfirmation = true, showRemoveAllConfirmation = false) }
         }
     }
 
-    fun dismissDisconnectConfirmation() {
-        _uiState.update { it.copy(showDisconnectConfirmation = false) }
+    fun requestRemoveAllConfirmation() {
+        if (_uiState.value.isConnected && !_uiState.value.isBusy) {
+            _uiState.update { it.copy(showRemoveAllConfirmation = true, showDisconnectConfirmation = false) }
+        }
     }
 
-    fun confirmDisconnect() {
+    fun dismissRemoveAllConfirmation() {
+        _uiState.update { it.copy(showRemoveAllConfirmation = false) }
+    }
+
+    /** Removes every saved Google account (iOS "Remove All"). */
+    fun confirmRemoveAll() {
         val baseline = _uiState.value
         if (!baseline.isConnected || baseline.isBusy) return
         closeProperty()
         cancelPropertySummaries()
-        launchRootOperation(SearchConsoleOperation.DISCONNECTING, baseline) { generation ->
-            gateway.disconnect().fold(
+        launchRootOperation(SearchConsoleOperation.DISCONNECTING, baseline.copy(isAddingAccount = false)) { generation ->
+            gateway.removeAllAccounts().fold(
                 onSuccess = {
                     if (isCurrent(generation)) {
                         _uiState.value = SearchConsoleUiState(
@@ -623,7 +655,7 @@ class SearchConsoleViewModel(
                     if (isCurrent(generation)) {
                         _uiState.value = baseline.copy(
                             operation = null,
-                            showDisconnectConfirmation = false,
+                            showRemoveAllConfirmation = false,
                             error = safeMessage(error),
                         )
                     }
@@ -632,9 +664,132 @@ class SearchConsoleViewModel(
         }
     }
 
+    /** Makes another saved Google account active; an in-flight refresh of the old one is dropped. */
+    fun switchAccount(accountId: String) {
+        val current = _uiState.value
+        if (!current.isConnected || accountId == current.accounts.activeAccountId) return
+        if (current.accounts.accounts.none { it.id == accountId }) return
+        if (current.operation == SearchConsoleOperation.REFRESHING) {
+            val visible = operationBaseline ?: current
+            cancelRootOperation(resetState = false)
+            _uiState.value = visible.copy(operation = null, routeVisible = current.routeVisible)
+        } else if (current.isBusy) {
+            return
+        }
+        closeProperty()
+        cancelPropertySummaries()
+        val baseline = _uiState.value.copy(isAddingAccount = false, propertySearch = "", error = null, notice = null)
+        launchRootOperation(SearchConsoleOperation.SWITCHING, baseline) { generation ->
+            gateway.switchAccount(accountId).fold(
+                onSuccess = { restored ->
+                    val accounts = gateway.accounts().getOrNull() ?: baseline.accounts.copy(activeAccountId = accountId)
+                    if (isCurrent(generation)) {
+                        applyRestore(restored, accounts)
+                        restoredCacheNeedsRefresh = restored is SearchConsoleRestoreUi.Available ||
+                            restored is SearchConsoleRestoreUi.SavedWithoutInventory
+                        restoredCacheRefreshStarted = false
+                    }
+                },
+                onFailure = { error ->
+                    if (isCurrent(generation)) {
+                        _uiState.value = baseline.copy(operation = null, error = safeMessage(error))
+                    }
+                },
+            )
+        }
+        refreshWhenOperationSettles()
+    }
+
+    /** Shows Google sign-in to add another account while the active one stays connected. */
+    fun startAddingAccount() {
+        val current = _uiState.value
+        if (!current.isConnected || current.isBusy || current.isAddingAccount) return
+        closeProperty()
+        _uiState.update {
+            it.copy(
+                isAddingAccount = true,
+                error = null,
+                notice = null,
+                showPropertySwitcher = false,
+                shouldFocusPropertySearch = false,
+            )
+        }
+    }
+
+    fun cancelAddingAccount() {
+        val current = _uiState.value
+        if (!current.isAddingAccount) return
+        if (current.operation == SearchConsoleOperation.AUTHORIZING) {
+            cancelOperation()
+            return
+        }
+        _uiState.update { it.copy(isAddingAccount = false, error = null, notice = null) }
+    }
+
+    fun dismissDisconnectConfirmation() {
+        _uiState.update { it.copy(showDisconnectConfirmation = false) }
+    }
+
+    /** Removes the active account; the next saved account (if any) becomes active offline. */
+    fun confirmDisconnect() {
+        val baseline = _uiState.value
+        if (!baseline.isConnected || baseline.isBusy) return
+        closeProperty()
+        cancelPropertySummaries()
+        val activeId = baseline.accounts.activeAccountId
+        launchRootOperation(SearchConsoleOperation.DISCONNECTING, baseline.copy(isAddingAccount = false)) { generation ->
+            val result = if (activeId == null) {
+                gateway.disconnect().map { SearchConsoleRestoreUi.NotConnected }
+            } else {
+                gateway.removeAccount(activeId)
+            }
+            result.fold(
+                onSuccess = { next ->
+                    val accounts = if (next is SearchConsoleRestoreUi.NotConnected) {
+                        SiteAccountsUi.EMPTY
+                    } else {
+                        gateway.accounts().getOrNull() ?: baseline.accounts.withoutAccount(activeId)
+                    }
+                    if (isCurrent(generation)) {
+                        if (next is SearchConsoleRestoreUi.NotConnected) {
+                            _uiState.value = SearchConsoleUiState(
+                                oauthReadiness = gateway.oauthReadiness,
+                                status = SearchConsoleConnectionStatus.DISCONNECTED,
+                                operation = null,
+                                routeVisible = baseline.routeVisible,
+                            )
+                        } else {
+                            applyRestore(next, accounts)
+                            restoredCacheNeedsRefresh = next is SearchConsoleRestoreUi.Available
+                            restoredCacheRefreshStarted = false
+                        }
+                    }
+                },
+                onFailure = { error ->
+                    if (isCurrent(generation)) {
+                        _uiState.value = baseline.copy(
+                            operation = null,
+                            showDisconnectConfirmation = false,
+                            error = safeMessage(error),
+                        )
+                    }
+                },
+            )
+        }
+        refreshWhenOperationSettles()
+    }
+
     fun handleBack(): Boolean = when {
         _uiState.value.showDisconnectConfirmation -> {
             dismissDisconnectConfirmation()
+            true
+        }
+        _uiState.value.showRemoveAllConfirmation -> {
+            dismissRemoveAllConfirmation()
+            true
+        }
+        _uiState.value.isAddingAccount -> {
+            cancelAddingAccount()
             true
         }
         _uiState.value.showPropertySwitcher -> {
@@ -660,7 +815,7 @@ class SearchConsoleViewModel(
         }
     }
 
-    private fun applyRestore(restored: SearchConsoleRestoreUi) {
+    private fun applyRestore(restored: SearchConsoleRestoreUi, accounts: SiteAccountsUi = SiteAccountsUi.EMPTY) {
         val current = _uiState.value
         _uiState.value = when (restored) {
             SearchConsoleRestoreUi.NotConnected -> SearchConsoleUiState(
@@ -678,6 +833,7 @@ class SearchConsoleViewModel(
                 selectedPropertyUrl = restoredSelectedProperty(restored.dashboard),
                 selectedSection = restoredSection(),
                 routeVisible = current.routeVisible,
+                accounts = accounts,
             )
             is SearchConsoleRestoreUi.SavedWithoutInventory -> SearchConsoleUiState(
                 oauthReadiness = gateway.oauthReadiness,
@@ -686,6 +842,7 @@ class SearchConsoleViewModel(
                 operation = null,
                 notice = "This connection has no saved property list. Refresh when you are online.",
                 routeVisible = current.routeVisible,
+                accounts = accounts,
             )
             is SearchConsoleRestoreUi.SavedUnavailable -> SearchConsoleUiState(
                 oauthReadiness = gateway.oauthReadiness,
@@ -693,9 +850,47 @@ class SearchConsoleViewModel(
                 operation = null,
                 error = restored.message,
                 routeVisible = current.routeVisible,
+                accounts = accounts,
             )
         }
         selectedProperty()?.let(::loadSelectedProperty)
+    }
+
+    /** Saved accounts after a restore; a restore with no account never needs another read. */
+    private suspend fun savedAccounts(restored: SearchConsoleRestoreUi): SiteAccountsUi =
+        if (restored is SearchConsoleRestoreUi.NotConnected) {
+            SiteAccountsUi.EMPTY
+        } else {
+            gateway.accounts().getOrNull() ?: SiteAccountsUi.EMPTY
+        }
+
+    /** Google sign-in finished: the new (or rotated) account is now the active one. */
+    private suspend fun applyConnected(generation: Long, dashboard: SearchConsoleDashboardUi) {
+        if (!isCurrent(generation)) return
+        val accounts = gateway.accounts().getOrNull()
+        if (!isCurrent(generation)) return
+        val accountChanged = _uiState.value.dashboard?.account?.id != dashboard.account.id
+        if (accountChanged) {
+            closeProperty()
+            cancelPropertySummaries()
+            _uiState.update { it.copy(propertySearch = "", propertySummaries = emptyMap()) }
+        }
+        applyDashboard(dashboard)
+        _uiState.update { state ->
+            state.copy(
+                isAddingAccount = false,
+                accounts = accounts?.takeIf { it.accounts.isNotEmpty() } ?: state.accounts.including(dashboard.account),
+            )
+        }
+    }
+
+    /** Runs the deferred cache refresh once the current root operation has fully finished. */
+    private fun refreshWhenOperationSettles() {
+        val job = operationJob ?: return
+        viewModelScope.launch {
+            job.join()
+            startRestoredCacheRefreshIfReady()
+        }
     }
 
     private fun applyDashboard(dashboard: SearchConsoleDashboardUi) {
@@ -747,6 +942,8 @@ class SearchConsoleViewModel(
             isInspecting = current.isInspecting && selected != null,
             inspectionError = current.inspectionError?.takeIf { selected != null },
             showDisconnectConfirmation = false,
+            showRemoveAllConfirmation = false,
+            accounts = current.accounts.including(dashboard.account),
         )
         // Saved property lists are refreshed on foreground, so overview metrics follow live data.
         if (dashboard.cacheState == SearchConsoleCacheState.LIVE) loadPropertySummaries(dashboard)
@@ -831,8 +1028,16 @@ class SearchConsoleViewModel(
 
     private fun restoredSelectedProperty(dashboard: SearchConsoleDashboardUi): String? {
         val restored: String = savedStateHandle[SELECTED_PROPERTY_URL] ?: return null
-        return restored.takeIf { siteUrl -> dashboard.properties.any { it.siteUrl == siteUrl } }
-            .also { if (it == null) savedStateHandle[SELECTED_PROPERTY_URL] = null }
+        // A property saved for another Google account never reopens against the active one.
+        val savedAccount = savedStateHandle.get<String>(SELECTED_ACCOUNT_ID)
+        val sameAccount = savedAccount == null || savedAccount == dashboard.account.id
+        return restored.takeIf { siteUrl -> sameAccount && dashboard.properties.any { it.siteUrl == siteUrl } }
+            .also {
+                if (it == null) {
+                    savedStateHandle[SELECTED_PROPERTY_URL] = null
+                    savedStateHandle[SELECTED_ACCOUNT_ID] = null
+                }
+            }
     }
 
     private fun restoredSection(): SearchConsoleDetailSection =
@@ -856,6 +1061,7 @@ class SearchConsoleViewModel(
             error = null,
             notice = null,
             showDisconnectConfirmation = false,
+            showRemoveAllConfirmation = false,
         )
         operationJob = viewModelScope.launch {
             try {
@@ -924,7 +1130,17 @@ class SearchConsoleViewModel(
 
     companion object {
         internal const val SELECTED_PROPERTY_URL = "searchConsole.selectedPropertyUrl"
+        internal const val SELECTED_ACCOUNT_ID = "searchConsole.selectedAccountId"
         internal const val SELECTED_SECTION = "searchConsole.selectedSection"
         internal const val HANDLED_SEARCH_REQUEST_ID = "searchConsole.handledSearchRequestId"
     }
+}
+
+/** The list with [account] present and active (used when a fresh list is unavailable). */
+internal fun SiteAccountsUi.including(account: SearchConsoleAccountUi): SiteAccountsUi {
+    if (accounts.isEmpty() && activeAccountId == null) return this
+    val option = com.apoorvdarshan.verceltics.ui.sites.SiteAccountOptionUi(account.id, account.displayName)
+    val position = accounts.indexOfFirst { it.id == account.id }
+    val updated = if (position < 0) accounts + option else accounts.toMutableList().also { it[position] = option }
+    return SiteAccountsUi(updated, account.id)
 }
