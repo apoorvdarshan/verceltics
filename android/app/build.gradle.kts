@@ -3,10 +3,13 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+// Same public Google OAuth client as iOS (ios/verceltics-Info.plist). Its custom-scheme redirect
+// works for the browser PKCE flow on Android too. Forks can override it with the Gradle property.
 val googleOAuthClientId = providers.gradleProperty("VERCELTICS_GOOGLE_OAUTH_CLIENT_ID")
     .orNull
     ?.trim()
-    .orEmpty()
+    ?.takeIf(String::isNotEmpty)
+    ?: "804271028953-rc53qhcvdki0rpe2pe98gsahs8dimem7.apps.googleusercontent.com"
 val configuredGoogleOAuthRedirectScheme = providers.gradleProperty("VERCELTICS_GOOGLE_OAUTH_REDIRECT_SCHEME")
     .orNull
     ?.trim()

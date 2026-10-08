@@ -202,14 +202,11 @@ cd android
 
 Open the `android` directory in Android Studio to run the app on an Android emulator. Android provider parity is intentionally incremental; consult [the migration matrix](docs/native-mobile-architecture.md#screen-by-screen-status) before testing a provider workflow.
 
-To enable Google Search Console OAuth in a personal Android build, add the client values to your user-level `~/.gradle/gradle.properties` (never commit them):
+Android Google sign-in (Search Console, Google Analytics and Firebase Hosting) uses the same public OAuth client as iOS, with the browser PKCE flow and the client's reverse-ID redirect scheme. A fork can use its own client by adding it to `~/.gradle/gradle.properties`:
 
 ```properties
 VERCELTICS_GOOGLE_OAUTH_CLIENT_ID=123456-example.apps.googleusercontent.com
-VERCELTICS_GOOGLE_OAUTH_REDIRECT_SCHEME=com.googleusercontent.apps.123456-example
 ```
-
-The redirect scheme must match the Android OAuth client registered with Google. Builds without these properties remain usable and show a configuration-needed state instead of requesting or storing a token.
 
 Android purchases use the same RevenueCat project, `Verceltics Pro` entitlement, and product IDs as iOS. Add the RevenueCat Google Play public SDK key to `~/.gradle/gradle.properties`:
 
