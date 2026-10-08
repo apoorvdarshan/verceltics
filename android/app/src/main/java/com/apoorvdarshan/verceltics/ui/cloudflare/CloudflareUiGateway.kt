@@ -38,6 +38,13 @@ interface CloudflareUiGateway {
     suspend fun removeLogin(savedAccountId: String): Result<CloudflareRestoreUi> =
         disconnect().map { CloudflareRestoreUi.NotConnected }
 
+    /**
+     * "Remove Current Account" when the logins could not be listed: the data layer resolves the
+     * active login, so this never removes the others. Single-login gateways disconnect.
+     */
+    suspend fun removeActiveLogin(): Result<CloudflareRestoreUi> =
+        disconnect().map { CloudflareRestoreUi.NotConnected }
+
     /** iOS `refreshAccountProfiles`: refreshes saved login names and token status online. */
     suspend fun refreshLoginProfiles(): Result<List<ProviderAccountUi>> = savedLogins()
 

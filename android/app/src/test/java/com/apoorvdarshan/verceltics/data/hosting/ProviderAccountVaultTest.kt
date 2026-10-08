@@ -38,6 +38,10 @@ class ProviderAccountVaultTest {
             encode = ::encodeValue,
             decode = { accountId, bytes -> "$accountId=" + decodeValue(bytes) },
             newAccountId = { "account-${++nextId}" },
+            storedAccountIds = {
+                files.extra.filter { (path, store) -> path.endsWith(".account") && store.bytes != null }
+                    .keys.map { it.substringAfterLast('/').removeSuffix(".account") }
+            },
         )
 
         /** Writes a record exactly like the pre-multi-account repositories did (legacy path + AAD). */
@@ -298,5 +302,32 @@ class ProviderAccountVaultTest {
         }
         assertThrows(IllegalStateException::class.java) { fixture.vault.saveWithRevision(null, "one too many") }
         assertEquals(ProviderAccountVault.MAX_ACCOUNTS, fixture.vault.index().accountIds.size)
+    }
+
+    @Test
+    fun removeAllAlsoErasesRecordsTheIndexCanNoLongerName() {
+        val fixture = Fixture()
+        fixture.vault.save("first")
+        fixture.vault.accept(fixture.vault.saveWithRevision(null, "second"))
+        fixture.vault.accept(fixture.vault.saveWithRevision(null, "third"))
+        // An unreadable index must not leave the other accounts' encrypted records behind.
+        fixture.files(layout.indexPath).write(byteArrayOf(9, 9, 9))
+
+        val removed = fixture.vault.deleteAll()
+
+        assertEquals(setOf("primary", "account-1", "account-2"), removed.toSet())
+        assertTrue(fixture.files.occupiedPaths().isEmpty())
+    }
+
+    @Test
+    fun removingTheActiveAccountResolvesItInTheDataLayer() {
+        val fixture = Fixture()
+        fixture.vault.save("first")
+        fixture.vault.accept(fixture.vault.saveWithRevision(null, "second"))
+
+        assertEquals("primary", fixture.vault.deleteActive())
+        assertEquals(listOf("primary"), fixture.vault.index().accountIds)
+        assertNull(fixture.vault.deleteActive())
+        assertNull(Fixture().vault.deleteActive())
     }
 }

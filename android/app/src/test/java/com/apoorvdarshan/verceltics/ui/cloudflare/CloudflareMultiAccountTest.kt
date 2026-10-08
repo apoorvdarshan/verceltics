@@ -170,6 +170,18 @@ class CloudflareMultiAccountTest {
         assertFalse(refreshed.toString().contains("global-1"))
     }
 
+    @Test
+    fun removingTheActiveLoginWithoutItsIdKeepsTheOthersAndMovesTheTools() = runTest {
+        gateway.connect(CloudflareCredential.apiToken("token-a")).getOrThrow()
+        gateway.connect(CloudflareCredential.globalApiKey("owner@example.com", "global-1")).getOrThrow()
+
+        val next = gateway.removeActiveLogin().getOrThrow() as CloudflareRestoreUi.Available
+
+        assertEquals(CloudflareAuthMode.API_TOKEN, next.dashboard.authMode)
+        assertEquals(1, gateway.savedLogins().getOrThrow().size)
+        assertEquals(CloudflareCredential.apiToken("token-a"), gateway.loadSavedCredentialForTools())
+    }
+
     private fun writeLegacyEnvelope(plaintext: ByteArray) {
         val sealed = TestAccountCipher().encrypt(
             plaintext,

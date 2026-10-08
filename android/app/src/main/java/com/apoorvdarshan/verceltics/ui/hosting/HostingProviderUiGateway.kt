@@ -51,6 +51,14 @@ interface HostingProviderUiGateway {
         disconnect(providerId).map { HostingRestoreUi.NotConnected }
 
     /**
+     * "Remove Current Account" when the UI could not list the accounts (for example an unreadable
+     * record): the data layer resolves the active account, so this never removes the others.
+     * Single-account gateways (samples, fakes) simply disconnect.
+     */
+    suspend fun removeActiveAccount(providerId: String): Result<HostingRestoreUi> =
+        disconnect(providerId).map { HostingRestoreUi.NotConnected }
+
+    /**
      * iOS `refreshAccountProfiles`: re-validates every saved account online and stores updated
      * names, emails and avatars. Failures leave saved accounts untouched.
      */

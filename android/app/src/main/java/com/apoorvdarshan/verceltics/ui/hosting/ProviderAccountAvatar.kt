@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,8 +39,12 @@ fun ProviderAccountAvatar(
 ) {
     val inPreview = LocalInspectionMode.current
     val url = avatarUrl?.takeIf { !inPreview && ProviderAvatarLoader.isLoadable(it) }
-    val bitmap by produceState(initialValue = url?.let(ProviderAvatarLoader::cached), url) {
-        if (url != null && value == null) value = ProviderAvatarLoader.load(url)
+    // produceState keeps its value across key changes, so the state is keyed by the URL itself:
+    // switching accounts never shows the previous account's avatar.
+    val bitmap by key(url) {
+        produceState(initialValue = url?.let(ProviderAvatarLoader::cached), url) {
+            value = url?.let { ProviderAvatarLoader.cached(it) ?: ProviderAvatarLoader.load(it) }
+        }
     }
     val image = bitmap
     if (image != null) {

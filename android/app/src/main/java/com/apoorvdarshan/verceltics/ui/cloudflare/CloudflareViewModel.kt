@@ -246,10 +246,17 @@ class CloudflareViewModel(
                 gateway.restore().fold(
                     onSuccess = { restored ->
                         if (isCurrent(generation)) {
-                            applyRestore(restored)
+                            // While adding a login the previous login restores as before; the
+                            // connect only completed when a different (or a first) login is active.
+                            val restoredId = restored.savedLoginId()
+                            val completed = restored is CloudflareRestoreUi.Available &&
+                                (!baseline.isConnected || (restoredId != null && restoredId != baseline.activeLoginId))
+                            if (completed) savedStateHandle[ADDING_ACCOUNT] = null
+                            applyRestore(restored, keepLogins = false)
+                            loadSavedLogins()
                             _uiState.update {
                                 it.copy(
-                                    notice = if (restored is CloudflareRestoreUi.Available) {
+                                    notice = if (completed) {
                                         "The connection completed before cancellation and remains saved."
                                     } else {
                                         "Request cancelled."
@@ -302,11 +309,9 @@ class CloudflareViewModel(
         setAddingAccount(false)
         val baseline = _uiState.value
         launchRootOperation(CloudflareOperation.DISCONNECTING, baseline) { generation ->
-            val result = if (loginId == null) {
-                gateway.disconnect().map { CloudflareRestoreUi.NotConnected }
-            } else {
-                gateway.removeLogin(loginId)
-            }
+            // Without a listed login id the data layer resolves the active one; this never turns
+            // "Remove current account" into removing every login.
+            val result = if (loginId == null) gateway.removeActiveLogin() else gateway.removeLogin(loginId)
             result.fold(
                 onSuccess = { restored ->
                     if (isCurrent(generation)) {
@@ -384,6 +389,7 @@ class CloudflareViewModel(
         if (_uiState.value.operation == CloudflareOperation.CONNECTING) return
         setAddingAccount(false)
         _uiState.update { it.copy(error = null) }
+        startRestoredCacheRefreshIfReady()
     }
 
     /**
@@ -473,7 +479,7 @@ class CloudflareViewModel(
         restoredCacheRefreshStarted = true
         launchRootOperation(operation, baseline) { generation ->
             gateway.refresh(preferredAccountId).fold(
-                onSuccess = { dashboard -> if (isCurrent(generation)) applyDashboard(dashboard) },
+                onSuccess = { dashboard -> if (isCurrent(generation)) applyDashboard(dashboard, fromConnect = false) },
                 onFailure = { error ->
                     if (isCurrent(generation)) {
                         _uiState.value = baseline.copy(
@@ -566,12 +572,17 @@ class CloudflareViewModel(
         if (!isForeground || profileRefreshStarted || !_uiState.value.isConnected) return
         profileRefreshStarted = true
         viewModelScope.launch {
-            // Let the restored-cache refresh finish first so the two never race on one record.
+            // Let the restored-cache refresh and the offline login list finish first, so the two
+            // never race on one record and the menu never waits for the network.
             operationJob?.join()
-            val generation = ++loginGeneration
-            gateway.refreshLoginProfiles().onSuccess { logins ->
-                if (loginGeneration == generation && _uiState.value.isConnected) applySavedLogins(logins)
-            }
+            loginJob?.join()
+            val generation = loginGeneration
+            gateway.refreshLoginProfiles().fold(
+                onSuccess = { logins ->
+                    if (loginGeneration == generation && _uiState.value.isConnected) applySavedLogins(logins)
+                },
+                onFailure = { if (loginGeneration == generation) loadSavedLogins() },
+            )
         }
     }
 
@@ -580,12 +591,19 @@ class CloudflareViewModel(
         _uiState.update { it.copy(isAddingAccount = adding) }
     }
 
-    private fun applyDashboard(dashboard: CloudflareDashboardUi) {
+    private fun CloudflareRestoreUi.savedLoginId(): String? = when (this) {
+        is CloudflareRestoreUi.Available -> dashboard.profile.savedAccountId
+        is CloudflareRestoreUi.SavedWithoutInventory -> profile.savedAccountId
+        else -> null
+    }
+
+    private fun applyDashboard(dashboard: CloudflareDashboardUi, fromConnect: Boolean = true) {
         val current = _uiState.value
         val activeId = dashboard.profile.savedAccountId
         val switchedLogin = current.dashboard?.profile?.savedAccountId != activeId
         if (switchedLogin && current.dashboard != null) operationsNavigator.clear()
-        savedStateHandle[ADDING_ACCOUNT] = null
+        val keepsAddForm = !fromConnect && current.isAddingAccount
+        if (!keepsAddForm) savedStateHandle[ADDING_ACCOUNT] = null
         _uiState.value = CloudflareUiState(
             status = CloudflareConnectionStatus.CONNECTED,
             dashboard = dashboard,
@@ -594,6 +612,7 @@ class CloudflareViewModel(
             selectedResource = validatedSelection(dashboard),
             routeVisible = current.routeVisible,
             savedLogins = current.savedLogins.map { it.copy(isActive = it.id == activeId) },
+            isAddingAccount = keepsAddForm,
         )
         if (switchedLogin || current.savedLogins.none { it.id == activeId }) loadSavedLogins()
     }
@@ -672,6 +691,8 @@ class CloudflareViewModel(
             return
         }
         if (operationJob?.isActive == true || !_uiState.value.isConnected) return
+        // Never refresh the form away while the user is adding a login; it runs on cancel.
+        if (_uiState.value.isAddingAccount) return
         restoredCacheRefreshStarted = true
         restoredCacheNeedsRefresh = false
         refresh()

@@ -254,6 +254,62 @@ class HostingMultiAccountStoreTest {
         assertEquals("user-a", (store.restore(HostingProvider.HEROKU) as HostingRestoreResult.Restored).profile.id)
     }
 
+    @Test
+    fun twoFlyUsersSharingTheirPersonalOrganizationNeverOverwriteEachOther() {
+        val fixture = HostingStoreFixture()
+        val store = HostingConnectionStore(fixture.repository) { 100L }
+        // Fly.io only reports the organization slug, so both users' profiles are "personal".
+        store.acceptValidatedConnection(
+            store.saveValidatedConnection(HostingCredentials.Fly(SecretValue.of("first-user"), "personal"), snapshot(HostingProvider.FLY, "personal")),
+        )
+        val second = store.saveValidatedConnection(HostingCredentials.Fly(SecretValue.of("second-user"), "personal"), snapshot(HostingProvider.FLY, "personal"))
+        store.acceptValidatedConnection(second)
+
+        assertTrue(second.isNewAccount)
+        assertEquals(2, store.accounts(HostingProvider.FLY).size)
+        assertEquals(SecretValue.of("first-user"), (fixture.repository.load(HostingProvider.FLY, "primary")!!.account.credentials as HostingCredentials.Fly).token)
+
+        // The same token again is the same account.
+        val again = store.saveValidatedConnection(HostingCredentials.Fly(SecretValue.of("second-user"), "personal"), snapshot(HostingProvider.FLY, "personal"))
+        store.acceptValidatedConnection(again)
+        assertFalse(again.isNewAccount)
+        assertEquals(2, store.accounts(HostingProvider.FLY).size)
+    }
+
+    @Test
+    fun amplifyIsIdentifiedByTheFullAccessKeyAndRegion() {
+        val fixture = HostingStoreFixture()
+        val store = HostingConnectionStore(fixture.repository) { 100L }
+        fun amplify(keyId: String, secret: String) = HostingCredentials.AwsAmplify(keyId, SecretValue.of(secret), "us-east-1", null)
+        // Both keys end in "MPLE", so their profile ids ("MPLE-us-east-1") collide.
+        val first = store.saveValidatedConnection(amplify("AKIAIOSFODNN7EXAMPLE", "a"), snapshot(HostingProvider.AWS_AMPLIFY, "MPLE-us-east-1"))
+        store.acceptValidatedConnection(first)
+        val other = store.saveValidatedConnection(amplify("AKIAI44QH8DHBEXAMPLE", "b"), snapshot(HostingProvider.AWS_AMPLIFY, "MPLE-us-east-1"))
+        store.acceptValidatedConnection(other)
+        assertTrue(other.isNewAccount)
+
+        val rotated = store.saveValidatedConnection(amplify("AKIAIOSFODNN7EXAMPLE", "a-rotated"), snapshot(HostingProvider.AWS_AMPLIFY, "MPLE-us-east-1"))
+        store.acceptValidatedConnection(rotated)
+        assertFalse(rotated.isNewAccount)
+        assertEquals("primary", rotated.accountId)
+        assertEquals(2, store.accounts(HostingProvider.AWS_AMPLIFY).size)
+    }
+
+    @Test
+    fun removeActiveAccountRemovesOnlyTheActiveOne() {
+        val fixture = HostingStoreFixture()
+        val store = HostingConnectionStore(fixture.repository) { 100L }
+        store.acceptValidatedConnection(
+            store.saveValidatedConnection(HostingCredentials.Render(SecretValue.of("a")), snapshot(HostingProvider.RENDER, "tea_a")),
+        )
+        store.acceptValidatedConnection(
+            store.saveValidatedConnection(HostingCredentials.Render(SecretValue.of("b")), snapshot(HostingProvider.RENDER, "tea_b")),
+        )
+
+        assertEquals("primary", store.removeActiveAccount(HostingProvider.RENDER))
+        assertEquals(listOf("tea_a"), store.accounts(HostingProvider.RENDER).map { it.profile?.id })
+    }
+
     private fun snapshot(
         provider: HostingProvider,
         profileId: String,

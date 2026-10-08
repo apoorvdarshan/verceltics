@@ -126,6 +126,19 @@ class NetlifyMultiAccountTest {
         }
     }
 
+    @Test
+    fun removingTheActiveAccountWithoutItsIdKeepsTheOthers() = runBlocking {
+        Fixture().use { fixture ->
+            fixture.gateway.connect(SecretValue.of("token-one")).getOrThrow()
+            fixture.gateway.connect(SecretValue.of("token-two")).getOrThrow()
+
+            val next = fixture.gateway.removeActiveAccount().getOrThrow() as NetlifyRestoreUi.Available
+
+            assertEquals("User one", next.dashboard.account.displayName)
+            assertEquals(listOf("User one"), fixture.gateway.accounts().getOrThrow().map { it.displayName })
+        }
+    }
+
     private fun profile(name: String) = NetlifyProfile("user-$name", "User $name", "$name@example.com", null)
 
     private fun complete(profile: NetlifyProfile, siteIds: List<String> = listOf("site-1")) = NetlifyFetchResult.Complete(

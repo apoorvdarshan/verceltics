@@ -38,6 +38,7 @@ class HostingConnectionRepository(
     storeFactory: (relativePath: String) -> AtomicBytesStore,
     cipher: AccountCipher,
     newAccountId: () -> String = { java.util.UUID.randomUUID().toString() },
+    storedAccountIds: (AccountVaultLayout) -> List<String> = { emptyList() },
 ) {
     private val vaults: Map<HostingProvider, ProviderAccountVault<HostingStoredConnection>> =
         HostingProvider.entries.associateWith { provider ->
@@ -50,6 +51,7 @@ class HostingConnectionRepository(
                     HostingConnectionPayloadCodec.decode(plaintext, provider).scopedTo(accountId)
                 },
                 newAccountId = newAccountId,
+                storedAccountIds = { storedAccountIds(layout(provider)) },
             )
         }
 
@@ -99,8 +101,11 @@ class HostingConnectionRepository(
     /** Removes one account; returns the provider's new active account id, if any remain. */
     fun deleteAccount(provider: HostingProvider, accountId: String): String? = vault(provider).delete(accountId)
 
-    /** Only an explicit user "Remove All" should erase every account of a provider. */
-    fun delete(provider: HostingProvider) = vault(provider).deleteAll()
+    /** Only an explicit user "Remove All" should erase every account of a provider. Returns the removed ids. */
+    fun delete(provider: HostingProvider): List<String> = vault(provider).deleteAll()
+
+    /** Removes the provider's active account; returns the new active account id. */
+    fun deleteActiveAccount(provider: HostingProvider): String? = vault(provider).deleteActive()
 
     private fun vault(provider: HostingProvider): ProviderAccountVault<HostingStoredConnection> =
         checkNotNull(vaults[provider])
@@ -127,6 +132,7 @@ class HostingConnectionRepository(
             return HostingConnectionRepository(
                 storeFactory = { path -> NoBackupAtomicFileStore(applicationContext, path) },
                 cipher = AndroidKeystoreAccountCipher(keyAlias = KEY_ALIAS),
+                storedAccountIds = { layout -> noBackupStoredAccountIds(applicationContext.noBackupFilesDir, layout) },
             )
         }
     }

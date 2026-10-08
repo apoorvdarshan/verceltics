@@ -313,7 +313,7 @@ fun CloudflareScreen(
                 else -> resourceTitle(state.selectedResource.kind)
             },
             operation = state.operation,
-            canRefresh = state.isConnected,
+            canRefresh = state.isConnected && !state.showsConnectionForm,
             onBack = {
                 haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                 onBack()

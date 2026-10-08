@@ -93,7 +93,7 @@ class HostingConnectionStore(
         val sameAccount = repository.records(provider)
             .filterIsInstance<AccountVaultRecord.Readable<HostingStoredConnection>>()
             .map { it.entry }
-            .firstOrNull { it.value.account.profile.id == snapshot.profile.id }
+            .firstOrNull { it.value.account.isSameIdentity(credentials, snapshot.profile) }
         val account = HostingAccount(
             profile = snapshot.profile,
             credentials = credentials,
@@ -163,8 +163,33 @@ class HostingConnectionStore(
     fun removeAccount(provider: HostingProvider, accountId: String): String? =
         repository.deleteAccount(provider, accountId)
 
-    /** Removes every saved account of [provider] (iOS "Remove All Accounts"). */
-    fun disconnect(provider: HostingProvider) = repository.delete(provider)
+    /** Removes every saved account of [provider] (iOS "Remove All Accounts"); returns the removed ids. */
+    fun disconnect(provider: HostingProvider): List<String> = repository.delete(provider)
+
+    /**
+     * Removes the active account even when it could not be listed (an unreadable record): the
+     * data layer resolves it, so a "remove current" never falls back to removing every account.
+     */
+    fun removeActiveAccount(provider: HostingProvider): String? = repository.deleteActiveAccount(provider)
+
+    fun activeAccountId(provider: HostingProvider): String? = repository.activeAccountId(provider)
+
+    /**
+     * iOS matches the provider user id (or the same credential). Fly.io and AWS Amplify report no
+     * user id: Fly's profile is just the organization slug that any user can share ("personal"), so
+     * only the same token is the same account; Amplify is identified by its full access key id and
+     * region, so a new secret for the same key rotates in place.
+     */
+    private fun HostingAccount.isSameIdentity(candidate: HostingCredentials, candidateProfile: HostingProfile): Boolean =
+        when (val saved = credentials) {
+            is HostingCredentials.Fly -> candidate is HostingCredentials.Fly &&
+                saved.organization == candidate.organization && saved.token == candidate.token
+            is HostingCredentials.AwsAmplify -> candidate is HostingCredentials.AwsAmplify &&
+                saved.accessKeyId == candidate.accessKeyId && saved.region == candidate.region
+            is HostingCredentials.Railway -> candidate is HostingCredentials.Railway &&
+                saved.tokenType == candidate.tokenType && profile.id == candidateProfile.id
+            else -> saved.provider == candidate.provider && profile.id == candidateProfile.id
+        }
 
     private fun HostingSnapshot.forOfflineCache(): HostingSnapshot {
         var truncated = resources.size > MAX_CACHED_RESOURCES

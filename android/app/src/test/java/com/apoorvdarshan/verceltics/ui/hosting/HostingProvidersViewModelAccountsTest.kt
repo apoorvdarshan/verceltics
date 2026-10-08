@@ -209,11 +209,96 @@ class HostingProvidersViewModelAccountsTest {
         assertEquals("project-alpha", credentials.projectId)
     }
 
+    @Test
+    fun removeCurrentWithoutAListedAccountRemovesOnlyTheActiveOneInTheDataLayer() = runTest(dispatcher) {
+        val gateway = AccountsGateway(mutableListOf("alpha", "beta"), active = "beta")
+        // The active record cannot be opened and the account list cannot be read either.
+        gateway.listingFails = true
+        gateway.activeUnreadable = true
+        val viewModel = HostingProvidersViewModel(gateway, SavedStateHandle())
+        advanceUntilIdle()
+        assertEquals(HostingConnectionStatus.SAVED_UNAVAILABLE, viewModel.uiState.value.provider("render").status)
+        assertTrue(viewModel.uiState.value.provider("render").accounts.isEmpty())
+        assertNull(viewModel.uiState.value.provider("render").activeAccountId)
+
+        viewModel.requestDisconnectConfirmation("render")
+        viewModel.confirmDisconnect("render")
+        advanceUntilIdle()
+
+        assertEquals(1, gateway.removedActive)
+        assertTrue(gateway.removedAll.isEmpty())
+        assertEquals("Alpha", viewModel.uiState.value.provider("render").dashboard?.account?.displayName)
+    }
+
+    @Test
+    fun aStaleAccountIsRefreshedRightAfterSwitchingToIt() = runTest(dispatcher) {
+        val gateway = AccountsGateway(mutableListOf("alpha", "beta"), active = "alpha", stale = true)
+        val viewModel = HostingProvidersViewModel(gateway, SavedStateHandle())
+        advanceUntilIdle()
+        gateway.refreshes = 0
+
+        viewModel.switchAccount("render", "beta")
+        advanceUntilIdle()
+
+        assertEquals(1, gateway.refreshes)
+        assertEquals(HostingCacheState.LIVE, viewModel.uiState.value.provider("render").dashboard?.cacheState)
+    }
+
+    @Test
+    fun backgroundRefreshesNeverCloseTheAddAccountForm() = runTest(dispatcher) {
+        val gateway = AccountsGateway(mutableListOf("alpha"), active = "alpha", stale = true)
+        val viewModel = HostingProvidersViewModel(gateway, SavedStateHandle())
+        advanceUntilIdle()
+        viewModel.startAddingAccount("render")
+        gateway.refreshes = 0
+
+        viewModel.onForeground()
+        viewModel.setRouteVisible("render", true)
+        advanceUntilIdle()
+
+        assertEquals(0, gateway.refreshes)
+        assertTrue(viewModel.uiState.value.provider("render").isAddingAccount)
+    }
+
+    @Test
+    fun cancellingAnAddedConnectThatNeverSavedSaysSoAndKeepsTheForm() = runTest(dispatcher) {
+        val gateway = AccountsGateway(mutableListOf("alpha"), active = "alpha")
+        gateway.connectGate = kotlinx.coroutines.CompletableDeferred()
+        val viewModel = HostingProvidersViewModel(gateway, SavedStateHandle())
+        advanceUntilIdle()
+        viewModel.startAddingAccount("render")
+        viewModel.connect(HostingCredentials.Render(SecretValue.of("gamma-token")))
+        advanceUntilIdle()
+        assertEquals(HostingOperation.CONNECTING, viewModel.uiState.value.provider("render").operation)
+
+        viewModel.cancelOperation("render")
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value.provider("render")
+        assertEquals("Request cancelled.", state.notice)
+        assertTrue(state.isAddingAccount)
+        assertEquals("Alpha", state.dashboard?.account?.displayName)
+        assertEquals(listOf("Alpha"), state.accounts.map { it.displayName })
+    }
+
+    @Test
+    fun launchProfileRefreshFailureStillShowsTheOfflineAccountList() = runTest(dispatcher) {
+        val gateway = AccountsGateway(mutableListOf("alpha", "beta"), active = "alpha")
+        gateway.profileRefreshFails = true
+        val viewModel = HostingProvidersViewModel(gateway, SavedStateHandle())
+        viewModel.onForeground()
+        advanceUntilIdle()
+
+        assertEquals(1, gateway.profileRefreshes)
+        assertEquals(listOf("Alpha", "Beta"), viewModel.uiState.value.provider("render").accounts.map { it.displayName })
+    }
+
     /** One provider with several saved accounts; account ids are their lowercase names. */
     private class AccountsGateway(
         private val ids: MutableList<String>,
         private var active: String?,
         private val providerId: String = "render",
+        private val stale: Boolean = false,
     ) : HostingProviderUiGateway {
         val switches = mutableListOf<String>()
         val removed = mutableListOf<String>()
@@ -223,6 +308,12 @@ class HostingProvidersViewModelAccountsTest {
         var renamed = false
         var profileRefreshes = 0
         var refreshFailure: HostingUiException? = null
+        var listingFails = false
+        var profileRefreshFails = false
+        var removedActive = 0
+        var refreshes = 0
+        var connectGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+        var activeUnreadable = false
 
         private fun name(id: String) = id.replaceFirstChar(Char::uppercaseChar) + if (renamed) " (renamed)" else ""
 
@@ -239,21 +330,31 @@ class HostingProvidersViewModelAccountsTest {
             )
         }
 
-        private fun restoredActive(): HostingRestoreUi = active?.let { HostingRestoreUi.Available(dashboardFor(it)) }
-            ?: HostingRestoreUi.NotConnected
+        private fun restoredActive(): HostingRestoreUi = if (activeUnreadable) {
+            HostingRestoreUi.SavedUnavailable("The saved Render connection could not be opened.")
+        } else active?.let { id ->
+            HostingRestoreUi.Available(
+                dashboardFor(id).let {
+                    if (stale) it.copy(cacheState = HostingCacheState.CACHED_STALE, fetchedAtMillis = 0L) else it
+                },
+            )
+        } ?: HostingRestoreUi.NotConnected
 
         override suspend fun restore(): Result<Map<String, HostingRestoreUi>> = Result.success(mapOf(providerId to restoredActive()))
 
         override suspend fun connect(credentials: HostingCredentials): Result<HostingDashboardUi> {
             connects += credentials
+            connectGate?.await()
             val id = (credentials as? HostingCredentials.Firebase)?.projectId?.removePrefix("project-") ?: nextConnectName
             if (id !in ids) ids += id
             active = id
             return Result.success(dashboardFor(id))
         }
 
-        override suspend fun refresh(providerId: String): Result<HostingDashboardUi> =
-            refreshFailure?.let { Result.failure(it) } ?: Result.success(dashboardFor(checkNotNull(active)))
+        override suspend fun refresh(providerId: String): Result<HostingDashboardUi> {
+            refreshes += 1
+            return refreshFailure?.let { Result.failure(it) } ?: Result.success(dashboardFor(checkNotNull(active)))
+        }
 
         override suspend fun loadResource(providerId: String, resource: HostingResourceUi): Result<HostingResourceWorkspaceUi> =
             Result.success(HostingResourceWorkspaceUi(providerId, resource.id, emptyList(), 0))
@@ -271,7 +372,9 @@ class HostingProvidersViewModelAccountsTest {
             return Result.success(Unit)
         }
 
-        override suspend fun accounts(providerId: String): Result<List<ProviderAccountUi>> = Result.success(
+        override suspend fun accounts(providerId: String): Result<List<ProviderAccountUi>> = if (listingFails) {
+            Result.failure(HostingUiException("The saved accounts could not be listed."))
+        } else Result.success(
             if (providerId != this.providerId) emptyList() else ids.map { id ->
                 ProviderAccountUi(id, name(id), "$id@example.com", isActive = id == active)
             },
@@ -292,7 +395,16 @@ class HostingProvidersViewModelAccountsTest {
 
         override suspend fun refreshAccountProfiles(providerId: String): Result<List<ProviderAccountUi>> {
             profileRefreshes += 1
+            if (profileRefreshFails) return Result.failure(HostingUiException("offline"))
             return accounts(providerId)
+        }
+
+        override suspend fun removeActiveAccount(providerId: String): Result<HostingRestoreUi> {
+            removedActive += 1
+            activeUnreadable = false
+            active?.let(ids::remove)
+            active = ids.firstOrNull()
+            return Result.success(restoredActive())
         }
     }
 }

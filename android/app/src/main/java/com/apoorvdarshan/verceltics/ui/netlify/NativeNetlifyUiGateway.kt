@@ -157,6 +157,11 @@ class NativeNetlifyUiGateway internal constructor(
         restore().getOrThrow()
     }
 
+    override suspend fun removeActiveAccount(): Result<NetlifyRestoreUi> = capture {
+        executeAwait(storageExecutor, connectionStore::removeActiveAccount)
+        restore().getOrThrow()
+    }
+
     /**
      * iOS `refreshAccountProfiles`: every saved token is validated again and a changed name, email
      * or avatar is stored with compare-and-swap. Failures never touch saved accounts.

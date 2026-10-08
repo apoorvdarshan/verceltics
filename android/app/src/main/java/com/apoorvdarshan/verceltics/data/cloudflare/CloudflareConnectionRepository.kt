@@ -11,6 +11,7 @@ import com.apoorvdarshan.verceltics.data.hosting.AccountVaultEntry
 import com.apoorvdarshan.verceltics.data.hosting.AccountVaultLayout
 import com.apoorvdarshan.verceltics.data.hosting.AccountVaultRecord
 import com.apoorvdarshan.verceltics.data.hosting.ProviderAccountVault
+import com.apoorvdarshan.verceltics.data.hosting.noBackupStoredAccountIds
 
 /** In-memory identity of one encrypted Cloudflare record revision (its saved account and digest). */
 internal typealias CloudflareRecordRevision = AccountRecordRevision
@@ -38,6 +39,7 @@ class CloudflareConnectionRepository(
     storeFactory: (relativePath: String) -> AtomicBytesStore,
     cipher: AccountCipher,
     newAccountId: () -> String = { java.util.UUID.randomUUID().toString() },
+    storedAccountIds: () -> List<String> = { emptyList() },
 ) {
     private val vault = ProviderAccountVault(
         layout = LAYOUT,
@@ -49,6 +51,7 @@ class CloudflareConnectionRepository(
         },
         decode = { _, plaintext -> CloudflareConnectionPayloadCodec.decode(plaintext) },
         newAccountId = newAccountId,
+        storedAccountIds = storedAccountIds,
     )
 
     /** The active login's connection. */
@@ -89,8 +92,11 @@ class CloudflareConnectionRepository(
     /** Removes one login; returns the new active login id, if any remain. */
     fun deleteAccount(savedAccountId: String): String? = vault.delete(savedAccountId)
 
-    /** Removes every saved Cloudflare login. */
-    fun delete() = vault.deleteAll()
+    /** Removes every saved Cloudflare login. Returns the removed ids. */
+    fun delete(): List<String> = vault.deleteAll()
+
+    /** Removes the active login; returns the new active login id. */
+    fun deleteActiveAccount(): String? = vault.deleteActive()
 
     private fun AccountVaultEntry<CloudflareStoredConnection>.toVersioned() =
         CloudflareVersionedConnection(value, revision)
@@ -110,6 +116,7 @@ class CloudflareConnectionRepository(
             return CloudflareConnectionRepository(
                 storeFactory = { path -> NoBackupAtomicFileStore(applicationContext, path) },
                 cipher = AndroidKeystoreAccountCipher(keyAlias = KEY_ALIAS),
+                storedAccountIds = { noBackupStoredAccountIds(applicationContext.noBackupFilesDir, LAYOUT) },
             )
         }
     }

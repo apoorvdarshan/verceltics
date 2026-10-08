@@ -167,6 +167,14 @@ class NativeHostingProviderUiGateway internal constructor(
             executeAwait(storageExecutor) { connectionStore.restore(provider) }.toUi(provider)
         }
 
+    override suspend fun removeActiveAccount(providerId: String): Result<HostingRestoreUi> =
+        capture(HostingProvider.fromId(providerId)) {
+            val provider = provider(providerId)
+            val activeId = executeAwait(storageExecutor) { connectionStore.activeAccountId(provider) }
+                ?: return@capture HostingRestoreUi.NotConnected
+            removeAccount(providerId, activeId).getOrThrow()
+        }
+
     /**
      * iOS `refreshAccountProfiles`: every saved account is validated again and a changed name,
      * email or avatar is stored with compare-and-swap. Failures never touch saved accounts.
@@ -225,16 +233,9 @@ class NativeHostingProviderUiGateway internal constructor(
 
     override suspend fun disconnect(providerId: String): Result<Unit> = capture(HostingProvider.fromId(providerId)) {
         val provider = provider(providerId)
-        val firebaseAccountIds = if (provider == HostingProvider.FIREBASE) {
-            runCatching { executeAwait(storageExecutor) { connectionStore.accounts(provider) } }
-                .getOrDefault(emptyList())
-                .map(HostingSavedAccount::accountId)
-        } else {
-            emptyList()
-        }
-        executeAwait(storageExecutor) { connectionStore.disconnect(provider) }
+        val removedIds = executeAwait(storageExecutor) { connectionStore.disconnect(provider) }
         if (provider == HostingProvider.FIREBASE) {
-            (firebaseAccountIds.map(FirebaseGoogleSlots::forAccount) + FirebaseGoogleSlots.SIGN_IN)
+            (removedIds.map(FirebaseGoogleSlots::forAccount) + FirebaseGoogleSlots.SIGN_IN)
                 .distinct()
                 .forEach { slot -> runCatching { firebaseSlots.clear(slot) } }
         }

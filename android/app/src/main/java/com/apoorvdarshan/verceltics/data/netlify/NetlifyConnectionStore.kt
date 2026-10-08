@@ -184,7 +184,12 @@ class NetlifyConnectionStore(
     fun removeAccount(savedAccountId: String): String? = repository.deleteAccount(savedAccountId)
 
     /** Removes every saved Netlify account (iOS "Remove All Accounts"). */
-    fun disconnect() = repository.delete()
+    fun disconnect() {
+        repository.delete()
+    }
+
+    /** Removes the active account (resolved here, so it is never "all accounts"). */
+    fun removeActiveAccount(): String? = repository.deleteActiveAccount()
 
     private fun NetlifyFetchResult.snapshotOrThrow(): NetlifySnapshot = when (this) {
         is NetlifyFetchResult.Complete -> snapshot

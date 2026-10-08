@@ -11,6 +11,7 @@ import com.apoorvdarshan.verceltics.data.hosting.AccountVaultEntry
 import com.apoorvdarshan.verceltics.data.hosting.AccountVaultLayout
 import com.apoorvdarshan.verceltics.data.hosting.AccountVaultRecord
 import com.apoorvdarshan.verceltics.data.hosting.ProviderAccountVault
+import com.apoorvdarshan.verceltics.data.hosting.noBackupStoredAccountIds
 
 /** In-memory identity for one encrypted Netlify record revision (its account and digest). */
 internal typealias NetlifyRecordRevision = AccountRecordRevision
@@ -38,6 +39,7 @@ class NetlifyConnectionRepository(
     storeFactory: (relativePath: String) -> AtomicBytesStore,
     cipher: AccountCipher,
     newAccountId: () -> String = { java.util.UUID.randomUUID().toString() },
+    storedAccountIds: () -> List<String> = { emptyList() },
 ) {
     private val vault = ProviderAccountVault(
         layout = LAYOUT,
@@ -51,6 +53,7 @@ class NetlifyConnectionRepository(
         },
         decode = { _, plaintext -> NetlifyConnectionPayloadCodec.decode(plaintext) },
         newAccountId = newAccountId,
+        storedAccountIds = storedAccountIds,
     )
 
     /** The active account's connection. */
@@ -97,7 +100,10 @@ class NetlifyConnectionRepository(
     fun deleteAccount(accountId: String): String? = vault.delete(accountId)
 
     /** Only an explicit user "Remove All" flow should erase every Netlify account. */
-    fun delete() = vault.deleteAll()
+    fun delete(): List<String> = vault.deleteAll()
+
+    /** Removes the active account; returns the new active account id. */
+    fun deleteActiveAccount(): String? = vault.deleteActive()
 
     private fun AccountVaultEntry<NetlifyStoredConnection>.toVersioned() = NetlifyVersionedConnection(value, revision)
 
@@ -116,6 +122,7 @@ class NetlifyConnectionRepository(
             return NetlifyConnectionRepository(
                 storeFactory = { path -> NoBackupAtomicFileStore(applicationContext, path) },
                 cipher = AndroidKeystoreAccountCipher(keyAlias = KEY_ALIAS),
+                storedAccountIds = { noBackupStoredAccountIds(applicationContext.noBackupFilesDir, LAYOUT) },
             )
         }
     }

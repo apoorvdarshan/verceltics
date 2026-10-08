@@ -290,7 +290,7 @@ fun NetlifyScreen(
             title = if (!inSite) "Netlify" else selectedSite?.name ?: "Site details",
             operation = state.operation,
             isLoadingSite = state.isLoadingSite,
-            canRefresh = state.isConnected,
+            canRefresh = state.isConnected && !state.showsConnectionForm,
             onBack = {
                 haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                 onBack()

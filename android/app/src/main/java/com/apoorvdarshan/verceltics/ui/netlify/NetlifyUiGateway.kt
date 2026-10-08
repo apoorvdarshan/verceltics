@@ -29,6 +29,13 @@ interface NetlifyUiGateway {
     suspend fun removeAccount(accountId: String): Result<NetlifyRestoreUi> =
         disconnect().map { NetlifyRestoreUi.NotConnected }
 
+    /**
+     * "Remove Current Account" when the accounts could not be listed: the data layer resolves the
+     * active account, so this never removes the others. Single-account gateways disconnect.
+     */
+    suspend fun removeActiveAccount(): Result<NetlifyRestoreUi> =
+        disconnect().map { NetlifyRestoreUi.NotConnected }
+
     /** iOS `refreshAccountProfiles`: refreshes saved names, emails and avatars online. */
     suspend fun refreshAccountProfiles(): Result<List<ProviderAccountUi>> = accounts()
 

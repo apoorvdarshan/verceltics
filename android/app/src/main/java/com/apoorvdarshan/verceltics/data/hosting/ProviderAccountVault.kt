@@ -197,6 +197,11 @@ class ProviderAccountVault<T : Any>(
     private val encode: (T) -> ByteArray,
     private val decode: (accountId: String, plaintext: ByteArray) -> T,
     private val newAccountId: () -> String = { UUID.randomUUID().toString() },
+    /**
+     * Account ids whose record files exist on disk (production lists `accounts/<domain>/`). Remove
+     * All uses it so records survive neither an unreadable index nor an interrupted earlier write.
+     */
+    private val storedAccountIds: () -> List<String> = { emptyList() },
 ) {
     private val stores = mutableMapOf<String, AtomicBytesStore>()
     private var pendingCommit: AccountVaultCommit? = null
@@ -390,16 +395,28 @@ class ProviderAccountVault<T : Any>(
         return remaining.activeAccountId
     }
 
-    /** Removes every saved account of this provider (iOS "Remove All Accounts"). */
+    /**
+     * Removes every saved account of this provider (iOS "Remove All Accounts"), including records
+     * the index no longer (or cannot) name. Returns the ids that were removed.
+     */
     @Synchronized
-    fun deleteAll() {
+    fun deleteAll(): List<String> {
         pendingCommit?.accept()
         pendingCommit = null
-        val ids = runCatching { readIndex().accountIds }.getOrDefault(emptyList())
-        (ids + AccountVaultLayout.PRIMARY_ACCOUNT_ID).distinct().forEach { id ->
-            store(layout.recordPath(id)).delete()
-        }
+        val indexed = runCatching { readIndex().accountIds }.getOrDefault(emptyList())
+        val onDisk = runCatching { storedAccountIds() }.getOrDefault(emptyList())
+            .filter(AccountVaultLayout::isValidAccountId)
+        val ids = (listOf(AccountVaultLayout.PRIMARY_ACCOUNT_ID) + indexed + onDisk).distinct()
+        ids.forEach { id -> store(layout.recordPath(id)).delete() }
         store(layout.indexPath).delete()
+        return ids
+    }
+
+    /** Resolves and removes the active account; returns the new active id. */
+    @Synchronized
+    fun deleteActive(): String? {
+        val active = activeAccountId() ?: return null
+        return delete(active)
     }
 
     private fun activeEntryId(index: AccountVaultIndex): String? = index.activeAccountId ?: index.accountIds.firstOrNull()
@@ -565,3 +582,11 @@ internal object AccountVaultIndexCodec {
         }
     }
 }
+
+/** Lists the account ids stored under `noBackupFilesDir/accounts/<domain>/` (production vaults). */
+internal fun noBackupStoredAccountIds(noBackupRoot: java.io.File, layout: AccountVaultLayout): List<String> =
+    java.io.File(noBackupRoot, "accounts/${layout.domain}").listFiles().orEmpty()
+        .map { it.name }
+        .filter { it.endsWith(".account") }
+        .map { it.removeSuffix(".account") }
+        .filter(AccountVaultLayout::isValidAccountId)

@@ -174,6 +174,11 @@ class NativeCloudflareUiGateway internal constructor(
         restore().getOrThrow()
     }
 
+    override suspend fun removeActiveLogin(): Result<CloudflareRestoreUi> = capture {
+        executeAwait(storageExecutor, connectionStore::removeActiveAccount)
+        restore().getOrThrow()
+    }
+
     /**
      * iOS `refreshAccountProfiles`: a Global API Key login re-reads `/user` (its name), a scoped
      * token re-verifies (its status). Changes are stored with compare-and-swap; failures and

@@ -169,7 +169,12 @@ class CloudflareConnectionStore(
     fun removeAccount(savedAccountId: String): String? = repository.deleteAccount(savedAccountId)
 
     /** Removes every saved Cloudflare login (iOS "Remove All Accounts"). */
-    fun disconnect() = repository.delete()
+    fun disconnect() {
+        repository.delete()
+    }
+
+    /** Removes the active login (resolved here, so it is never "all logins"). */
+    fun removeActiveAccount(): String? = repository.deleteActiveAccount()
 
     /**
      * iOS `loginCloudflare`: a Global API Key login is the same identity when the Cloudflare user id

@@ -288,7 +288,7 @@ fun HostingProviderScreen(
             title = if (inDetail) selected.name else provider.displayName,
             operation = state.operation,
             isLoading = state.isLoadingResource && inDetail,
-            canRefresh = state.isConnected,
+            canRefresh = state.isConnected && !state.showsConnectionForm,
             isDetail = inDetail,
             onBack = {
                 haptic.performHapticFeedback(HapticFeedbackType.Confirm)
