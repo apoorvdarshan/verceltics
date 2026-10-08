@@ -71,17 +71,34 @@ class VercelAccountRepositoryTest {
     }
 
     @Test
-    fun savingTheSameIdentityAgainRotatesItsTokenInPlace() {
-        val repository = VercelAccountRepository(MemoryAtomicBytesStore(), TestAccountCipher())
-        repository.save(testAccount("first", id = "user_a"))
-        repository.save(testAccount("other", id = "user_b"))
+    fun savingTheSameTokenAgainUpdatesItsAccountInPlace() {
+        val store = MemoryAtomicBytesStore()
+        val repository = VercelAccountRepository(store, TestAccountCipher())
+        repository.save(testAccount("first", id = "local_a"))
+        repository.save(testAccount("other", id = "local_b"))
 
-        repository.save(testAccount("rotated", id = "user_a", updatedAt = 99L))
+        repository.save(testAccount("first", id = "local_candidate", updatedAt = 99L))
 
-        val saved = repository.loadAll()
-        assertEquals(listOf("user_a", "user_b"), saved.accounts.map(VercelAccount::id))
-        assertEquals("user_a", saved.activeAccountId)
-        assertEquals(SecretValue.of("rotated"), saved.find("user_a")?.token)
+        val saved = VercelAccountRepository(store, TestAccountCipher()).loadAll()
+        assertEquals(listOf("local_a", "local_b"), saved.accounts.map(VercelAccount::id))
+        assertEquals("local_a", saved.activeAccountId)
+        assertEquals(99L, saved.find("local_a")?.updatedAtMillis)
+    }
+
+    @Test
+    fun aSecondTokenForTheSameVercelUserIsSavedAsASeparateAccount() {
+        val store = MemoryAtomicBytesStore()
+        val repository = VercelAccountRepository(store, TestAccountCipher())
+        repository.save(testAccount("personal-token", id = "local_personal", userId = "user_apoorv"))
+
+        repository.save(testAccount("team-scoped-token", id = "local_team", userId = "user_apoorv"))
+
+        val saved = VercelAccountRepository(store, TestAccountCipher()).loadAll()
+        assertEquals(listOf("local_personal", "local_team"), saved.accounts.map(VercelAccount::id))
+        assertEquals(listOf("user_apoorv", "user_apoorv"), saved.accounts.map(VercelAccount::vercelUserId))
+        assertEquals(SecretValue.of("personal-token"), saved.find("local_personal")?.token)
+        assertEquals(SecretValue.of("team-scoped-token"), saved.find("local_team")?.token)
+        assertEquals("local_team", saved.activeAccountId)
     }
 
     @Test
@@ -119,8 +136,9 @@ class VercelAccountRepositoryTest {
 
         val migrated = repository.loadAll()
 
-        assertEquals("user_legacy", migrated.activeAccountId)
+        assertEquals("The migrated account keeps its id and stays active.", "user_legacy", migrated.activeAccountId)
         val account = checkNotNull(migrated.active)
+        assertEquals("user_legacy", account.vercelUserId)
         assertEquals("Legacy Apoorv", account.displayName)
         assertEquals("legacy@example.com", account.email)
         assertEquals(SecretValue.of("legacy-v2-token"), account.token)
@@ -148,6 +166,8 @@ class VercelAccountRepositoryTest {
 
         val account = checkNotNull(migrated.active)
         assertEquals("user_v1", account.id)
+        assertEquals("user_v1", account.vercelUserId)
+        assertEquals("user_v1", migrated.activeAccountId)
         assertEquals("Legacy One", account.displayName)
         assertNull(account.email)
         assertEquals(SecretValue.of("legacy-v1-token"), account.token)
@@ -156,6 +176,26 @@ class VercelAccountRepositoryTest {
         assertNull(account.username)
         assertFalse(account.hasLongAnalyticsHistory)
         assertNull(legacy.bytes)
+    }
+
+    @Test
+    fun aMigratedAccountKeepsWorkingWhenItsTokenIsReconnectedOrAnotherTokenIsAdded() {
+        val store = MemoryAtomicBytesStore()
+        val legacy = MemoryAtomicBytesStore().apply {
+            bytes = legacyEnvelope(versionOnePayload(id = "user_v1", token = "legacy-v1-token", email = null))
+        }
+        val repository = VercelAccountRepository(store, TestAccountCipher(), legacy)
+        repository.loadAll()
+
+        repository.save(testAccount("legacy-v1-token", id = "fresh-candidate", updatedAt = 50L, userId = "user_v1"))
+        val reconnected = repository.loadAll()
+        assertEquals("The same token reuses the migrated account.", listOf("user_v1"), reconnected.accounts.map(VercelAccount::id))
+        assertEquals("user_v1", reconnected.activeAccountId)
+
+        repository.save(testAccount("team-token", id = "local_team", updatedAt = 60L, userId = "user_v1"))
+        val both = repository.loadAll()
+        assertEquals(listOf("user_v1", "local_team"), both.accounts.map(VercelAccount::id))
+        assertEquals(SecretValue.of("legacy-v1-token"), both.find("user_v1")?.token)
     }
 
     @Test
@@ -278,8 +318,14 @@ class VercelAccountRepositoryTest {
         write(bytes)
     }
 
-    private fun testAccount(token: String, id: String = "user_123", updatedAt: Long = 11L) = VercelAccount(
+    private fun testAccount(
+        token: String,
+        id: String = "user_123",
+        updatedAt: Long = 11L,
+        userId: String = id,
+    ) = VercelAccount(
         id = id,
+        vercelUserId = userId,
         displayName = "Apoorv",
         email = "apoorv@example.com",
         token = SecretValue.of(token),

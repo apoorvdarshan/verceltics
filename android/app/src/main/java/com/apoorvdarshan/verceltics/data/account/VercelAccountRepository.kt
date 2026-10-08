@@ -52,7 +52,7 @@ class VercelAccountRepository(
     @Synchronized
     fun load(): VercelAccount? = loadAll().active
 
-    /** Adds [account] (or rotates the saved copy of the same identity) and makes it active. */
+    /** Adds [account] (or updates the account already holding its token) and makes it active. */
     @Synchronized
     fun save(account: VercelAccount) {
         require(account.providerId == VercelAccount.PROVIDER_ID) { "Wrong account provider." }

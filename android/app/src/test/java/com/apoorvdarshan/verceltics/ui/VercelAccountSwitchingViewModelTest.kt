@@ -167,7 +167,30 @@ class VercelAccountSwitchingViewModelTest {
     }
 
     @Test
-    fun reconnectingTheSameIdentityRotatesInPlaceAndDropsItsCachedReports() = runTest(dispatcher) {
+    fun reconnectingTheSameTokenUpdatesItsAccountInPlaceAndReloadsItsReports() = runTest(dispatcher) {
+        val gateway = MultiAccountGateway()
+        val viewModel = VercelConnectionViewModel(gateway) { now }
+        advanceUntilIdle()
+        viewModel.switchAccount(TEAM.id)
+        advanceUntilIdle()
+        viewModel.openProjectAnalytics(SHARED_PROJECT)
+        advanceUntilIdle()
+        viewModel.closeProjectAnalytics()
+
+        viewModel.startAddingAccount()
+        viewModel.connect("token-team")
+        advanceUntilIdle()
+        viewModel.openProjectAnalytics(SHARED_PROJECT)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals("No duplicate account appears.", listOf(PERSONAL.id, TEAM.id), state.accounts.map(VercelAccountUi::id))
+        assertEquals(TEAM.id, state.activeAccountId)
+        assertEquals("Reconnecting reloads the account's reports.", 2, gateway.analyticsCalls)
+    }
+
+    @Test
+    fun aSecondTokenForTheSameVercelUserIsASeparateAccountWithItsOwnCaches() = runTest(dispatcher) {
         val gateway = MultiAccountGateway()
         val viewModel = VercelConnectionViewModel(gateway) { now }
         advanceUntilIdle()
@@ -176,16 +199,21 @@ class VercelAccountSwitchingViewModelTest {
         viewModel.closeProjectAnalytics()
 
         viewModel.startAddingAccount()
-        viewModel.connect("token-personal-rotated")
+        viewModel.connect("token-personal-team-scoped")
         advanceUntilIdle()
         viewModel.openProjectAnalytics(SHARED_PROJECT)
         advanceUntilIdle()
 
         val state = viewModel.uiState.value
-        assertEquals("No duplicate account appears.", listOf(PERSONAL.id, TEAM.id), state.accounts.map(VercelAccountUi::id))
-        assertEquals(PERSONAL.id, state.activeAccountId)
-        assertEquals("token-personal-rotated", gateway.tokens[PERSONAL.id])
-        assertEquals("A rotated token reloads its reports.", 2, gateway.analyticsCalls)
+        assertEquals(listOf(PERSONAL.id, TEAM.id, NEW.id), state.accounts.map(VercelAccountUi::id))
+        assertEquals(NEW.id, state.activeAccountId)
+        assertEquals(
+            "Both accounts belong to the same Vercel user.",
+            PERSONAL.vercelUserId,
+            state.accounts.single { it.id == NEW.id }.vercelUserId,
+        )
+        assertEquals("Caches are keyed by the saved account, not the Vercel user.", 2, gateway.analyticsCalls)
+        assertEquals("token-personal", gateway.tokens[PERSONAL.id])
     }
 
     @Test
@@ -314,7 +342,10 @@ class VercelAccountSwitchingViewModelTest {
         assertEquals(VercelConnectionStatus.DISCONNECTED, viewModel.uiState.value.status)
     }
 
-    /** An in-memory multi-account backend; the token decides which identity a connect resolves to. */
+    /**
+     * An in-memory multi-account backend matching accounts by token like iOS: a saved token
+     * reconnects its account, any other token is the new account.
+     */
     private inner class MultiAccountGateway(
         savedIds: List<String> = listOf(PERSONAL.id, TEAM.id),
     ) : VercelUiGateway {
@@ -348,11 +379,11 @@ class VercelAccountSwitchingViewModelTest {
 
         override suspend fun connect(personalToken: String): Result<VercelDashboardUi> {
             connectFailure?.let { return Result.failure(it) }
-            val identity = if (personalToken.startsWith("token-personal")) PERSONAL.id else NEW.id
-            tokens[identity] = personalToken
-            if (identity !in saved) saved += identity
-            activeId = identity
-            return Result.success(dashboardFor(identity))
+            val accountId = tokens.entries.firstOrNull { it.value == personalToken && it.key in saved }?.key ?: NEW.id
+            tokens[accountId] = personalToken
+            if (accountId !in saved) saved += accountId
+            activeId = accountId
+            return Result.success(dashboardFor(accountId))
         }
 
         override suspend fun refresh(): Result<VercelDashboardUi> {
@@ -435,9 +466,29 @@ class VercelAccountSwitchingViewModelTest {
 
     private companion object {
         const val MINUTE = 60_000L
-        val PERSONAL = VercelAccountUi("Apoorv", "apoorv@example.com", username = "apoorv", id = "user_personal")
-        val TEAM = VercelAccountUi("Studio token", "studio@example.com", username = "studio", id = "user_team")
-        val NEW = VercelAccountUi("New Person", "new@example.com", username = "new", id = "user_new")
+        val PERSONAL = VercelAccountUi(
+            "Apoorv",
+            "apoorv@example.com",
+            username = "apoorv",
+            id = "local_personal",
+            vercelUserId = "vercel_apoorv",
+        )
+        val TEAM = VercelAccountUi(
+            "Studio token",
+            "studio@example.com",
+            username = "studio",
+            id = "local_team",
+            vercelUserId = "vercel_studio",
+        )
+
+        /** A second token for the same Vercel user as [PERSONAL] (for example team-scoped). */
+        val NEW = VercelAccountUi(
+            "Apoorv (team-scoped token)",
+            "apoorv@example.com",
+            username = "apoorv",
+            id = "local_new",
+            vercelUserId = "vercel_apoorv",
+        )
         val ALL = listOf(PERSONAL, TEAM, NEW)
         val PERSONAL_PROJECT = VercelProjectUi("prj_personal", "portfolio", null, 1L)
         val TEAM_PROJECT = VercelProjectUi("prj_team", "admin", null, 1L, teamId = "team_studio")

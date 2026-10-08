@@ -128,10 +128,16 @@ data class VercelAccountUi(
     /** Personal scope slug used for `vercel.com/{scope}/{project}` links. */
     val username: String? = null,
     val hasLongAnalyticsHistory: Boolean = false,
-    /** The stable Vercel user id. Single-account fixtures may rely on the display-name default. */
+    /**
+     * The saved account's local id, unique per saved token (two tokens for one Vercel user are two
+     * accounts); per-account caches are keyed by it. Single-account fixtures may rely on the
+     * display-name default.
+     */
     val id: String = displayName,
     /** HTTPS profile image, fetched without credentials; null shows the account initial. */
     val avatarUrl: String? = null,
+    /** The Vercel user (`/v2/user` `id`) the token belongs to, when known. */
+    val vercelUserId: String? = null,
 )
 
 /** Where a project was listed from; team scopes show their name on the project card. */

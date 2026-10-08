@@ -22,28 +22,57 @@ class VercelAccountsTest {
     }
 
     @Test
-    fun reconnectingTheSameIdentityRotatesItsTokenInPlace() {
-        val original = account("user_a", "old-token", createdAt = 10L)
+    fun reconnectingTheSameTokenUpdatesItsAccountInPlace() {
+        val original = account("local_a", "token-a", createdAt = 10L)
             .withUsername("apoorv")
             .withLongAnalyticsHistory()
         val saved = VercelAccounts.EMPTY
             .connect(original, nowMillis = 10L)
-            .connect(account("user_b", "token-b"), nowMillis = 20L)
+            .connect(account("local_b", "token-b"), nowMillis = 20L)
 
-        val reconnected = account("user_a", "new-token", name = "Apoorv Darshan", avatar = "abc123", createdAt = 500L)
-        val rotated = saved.connect(reconnected, nowMillis = 500L)
+        // A fresh validation of the same token arrives under a new candidate local id.
+        val reconnected = account("local_new", "token-a", name = "Apoorv Darshan", avatar = "abc123", createdAt = 500L)
+        val updated = saved.connect(reconnected, nowMillis = 500L)
 
-        assertEquals("No duplicate is added.", listOf("user_a", "user_b"), rotated.accounts.map(VercelAccount::id))
-        assertEquals("The rotated account becomes active.", "user_a", rotated.activeAccountId)
-        val account = checkNotNull(rotated.find("user_a"))
-        assertEquals(SecretValue.of("new-token"), account.token)
+        assertEquals("No duplicate is added.", listOf("local_a", "local_b"), updated.accounts.map(VercelAccount::id))
+        assertEquals("The reconnected account becomes active.", "local_a", updated.activeAccountId)
+        val account = checkNotNull(updated.find("local_a"))
+        assertEquals(SecretValue.of("token-a"), account.token)
         assertEquals("Apoorv Darshan", account.displayName)
         assertEquals("abc123", account.avatar)
         assertEquals("First connection time is kept.", 10L, account.createdAtMillis)
         assertEquals(500L, account.updatedAtMillis)
         assertEquals("apoorv", account.username)
-        assertTrue("Long analytics history survives rotation.", account.hasLongAnalyticsHistory)
-        assertEquals(SecretValue.of("token-b"), rotated.find("user_b")?.token)
+        assertTrue("Long analytics history survives a reconnect.", account.hasLongAnalyticsHistory)
+        assertEquals(SecretValue.of("token-b"), updated.find("local_b")?.token)
+    }
+
+    @Test
+    fun aSecondTokenForTheSameVercelUserIsASeparateAccount() {
+        val personal = account("local_personal", "personal-token", userId = "user_apoorv")
+        val teamScoped = account("local_team", "team-scoped-token", userId = "user_apoorv", name = "Apoorv (Studio)")
+
+        val accounts = VercelAccounts.EMPTY
+            .connect(personal, nowMillis = 1L)
+            .connect(teamScoped, nowMillis = 2L)
+
+        assertEquals(listOf("local_personal", "local_team"), accounts.accounts.map(VercelAccount::id))
+        assertEquals(listOf("user_apoorv", "user_apoorv"), accounts.accounts.map(VercelAccount::vercelUserId))
+        assertEquals("local_team", accounts.activeAccountId)
+        assertEquals(SecretValue.of("personal-token"), accounts.find("local_personal")?.token)
+        assertEquals("Switching between them keeps both.", 2, accounts.switchTo("local_personal").accounts.size)
+    }
+
+    @Test
+    fun aNewTokenNeedsAnUnusedLocalIdAndATokenIsNeverSavedTwice() {
+        val accounts = twoAccounts()
+
+        assertThrows(IllegalArgumentException::class.java) {
+            accounts.connect(account("user_a", "brand-new-token"), nowMillis = 3L)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            VercelAccounts.of(listOf(account("one", "same"), account("two", "same")), "one")
+        }
     }
 
     @Test
@@ -109,7 +138,11 @@ class VercelAccountsTest {
         assertThrows(IllegalArgumentException::class.java) {
             accounts.connect(account("user_extra", "extra"), 1L)
         }
-        assertEquals("Rotating a saved identity still works at the cap.", VercelAccounts.MAX_ACCOUNTS, accounts.connect(account("user_0", "new"), 2L).accounts.size)
+        assertEquals(
+            "Reconnecting a saved token still works at the cap.",
+            VercelAccounts.MAX_ACCOUNTS,
+            accounts.connect(account("candidate", "t0"), 2L).accounts.size,
+        )
     }
 
     @Test
@@ -143,15 +176,27 @@ class VercelAccountsTest {
     }
 
     @Test
-    fun aNewerLegacyCopyOfTheSameIdentityWinsButKeepsItsAnalyticsFlag() {
-        val saved = VercelAccounts.EMPTY.connect(account("user_a", "old", updatedAt = 50L).withLongAnalyticsHistory(), 50L)
+    fun aMigratedLegacyTokenMergesItsAnalyticsFlagAndUsername() {
+        val saved = VercelAccounts.EMPTY.connect(account("local_a", "token"), 50L)
 
-        val merged = saved.adoptingLegacy(account("user_a", "newer", updatedAt = 90L))
+        val merged = saved.adoptingLegacy(account("user_a", "token").withUsername("apoorv").withLongAnalyticsHistory())
 
-        val account = checkNotNull(merged.find("user_a"))
-        assertEquals(SecretValue.of("newer"), account.token)
-        assertTrue(account.hasLongAnalyticsHistory)
+        val account = checkNotNull(merged.find("local_a"))
         assertEquals(1, merged.accounts.size)
+        assertTrue(account.hasLongAnalyticsHistory)
+        assertEquals("apoorv", account.username)
+    }
+
+    @Test
+    fun aLegacyTokenWhoseIdIsTakenJoinsUnderAFreshLocalId() {
+        val saved = VercelAccounts.EMPTY.connect(account("user_a", "current-token", userId = "user_a"), 50L)
+
+        val merged = saved.adoptingLegacy(account("user_a", "older-token", userId = "user_a")) { "fresh-local-id" }
+
+        assertEquals(listOf("user_a", "fresh-local-id"), merged.accounts.map(VercelAccount::id))
+        assertEquals("Nothing is lost.", SecretValue.of("older-token"), merged.find("fresh-local-id")?.token)
+        assertEquals("user_a", merged.find("fresh-local-id")?.vercelUserId)
+        assertEquals("The active account is unchanged.", "user_a", merged.activeAccountId)
     }
 
     @Test
@@ -185,8 +230,10 @@ class VercelAccountsTest {
         avatar: String? = null,
         createdAt: Long = 1L,
         updatedAt: Long = createdAt,
+        userId: String = id,
     ) = VercelAccount(
         id = id,
+        vercelUserId = userId,
         displayName = name,
         email = "$id@example.com",
         token = SecretValue.of(token),

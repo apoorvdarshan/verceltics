@@ -191,12 +191,18 @@ class VercelApi(
         response.useBody(jsonParser::parseAnalyticsTimeseries)
     }
 
+    /**
+     * A saved-account record for a token that validated as [user]. [accountId] is the local id it
+     * is saved under; a token that is already saved keeps its existing local id instead.
+     */
     fun accountForValidatedUser(
         user: VercelUser,
         token: SecretValue,
         nowMillis: Long = System.currentTimeMillis(),
+        accountId: String = VercelAccount.newLocalId(),
     ): VercelAccount = VercelAccount(
-        id = user.id,
+        id = accountId,
+        vercelUserId = user.id,
         displayName = user.displayName.take(MAX_PROFILE_TEXT_CHARACTERS),
         email = user.email?.take(MAX_EMAIL_CHARACTERS),
         username = user.username.take(MAX_PROFILE_TEXT_CHARACTERS),
