@@ -305,9 +305,10 @@ class RegistrarViewModelTest {
         viewModel.openDomain("namecheap", "commerce.example")
 
         viewModel.requestDisconnectConfirmation("namecheap")
-        assertEquals("namecheap", viewModel.uiState.value.disconnectConfirmationProviderId)
+        assertEquals("namecheap", viewModel.uiState.value.removalConfirmation?.providerId)
+        assertTrue(viewModel.uiState.value.removalConfirmation?.removesEveryAccount == true)
         assertTrue(viewModel.handleBack())
-        assertNull(viewModel.uiState.value.disconnectConfirmationProviderId)
+        assertNull(viewModel.uiState.value.removalConfirmation)
         viewModel.requestDisconnectConfirmation("namecheap")
         viewModel.confirmDisconnect()
         advanceUntilIdle()
@@ -452,6 +453,286 @@ class RegistrarViewModelTest {
         assertEquals("Exit sample data to connect Porkbun.", viewModel.uiState.value.provider("porkbun").error)
     }
 
+    // region Multiple accounts per registrar
+
+    @Test
+    fun restoreExposesEverySavedAccountAndTheActiveOne() = runTest(dispatcher) {
+        val gateway = FakeGateway(restoreUi("namecheap" to RegistrarProviderRestoreUi.Available(TWO_NAMECHEAP)))
+        val viewModel = viewModel(gateway)
+        advanceUntilIdle()
+
+        val namecheap = viewModel.uiState.value.provider("namecheap")
+        assertEquals(listOf("bob-id", "carol-id"), namecheap.savedAccounts.map { it.id })
+        assertEquals("bob-id", namecheap.activeAccount?.id)
+        assertFalse(namecheap.showsConnectionForm)
+    }
+
+    @Test
+    fun switchingShowsTheOtherAccountsCacheThenRefreshesItWhenStale() = runTest(dispatcher) {
+        val carolCached = CAROL.copy(cacheState = RegistrarCacheState.CACHED_FRESH)
+        val gateway = FakeGateway(restoreUi("namecheap" to RegistrarProviderRestoreUi.Available(TWO_NAMECHEAP))).apply {
+            switchResult = { _, accountId ->
+                assertEquals("carol-id", accountId)
+                Result.success(RegistrarProviderRestoreUi.Available(carolCached))
+            }
+            refreshResult = { Result.success(CAROL) }
+        }
+        val viewModel = viewModel(gateway)
+        advanceUntilIdle()
+        viewModel.openDomain("namecheap", "commerce.example")
+
+        viewModel.switchAccount("namecheap", "carol-id")
+        assertEquals(RegistrarOperation.SWITCHING, viewModel.uiState.value.provider("namecheap").operation)
+        assertNull(viewModel.uiState.value.selectedDomainId)
+        runCurrent()
+
+        assertEquals(listOf("namecheap" to "carol-id"), gateway.switchCalls)
+        assertEquals("carol-id", viewModel.uiState.value.provider("namecheap").activeAccount?.id)
+        advanceUntilIdle()
+        assertEquals(listOf("namecheap"), gateway.refreshCalls)
+        val namecheap = viewModel.uiState.value.provider("namecheap")
+        assertEquals(RegistrarCacheState.LIVE, namecheap.dashboard?.cacheState)
+        assertEquals(listOf("carol.example"), namecheap.dashboard?.domains?.map { it.name })
+        assertEquals(2, namecheap.savedAccounts.size)
+
+        viewModel.switchAccount("namecheap", "carol-id")
+        viewModel.switchAccount("namecheap", "unknown-id")
+        advanceUntilIdle()
+        assertEquals(1, gateway.switchCalls.size)
+    }
+
+    @Test
+    fun switchingCancelsAnInFlightRefreshOfThePreviousAccount() = runTest(dispatcher) {
+        val refreshRelease = CompletableDeferred<Unit>()
+        val gateway = FakeGateway(restoreUi("namecheap" to RegistrarProviderRestoreUi.Available(TWO_NAMECHEAP))).apply {
+            refreshGate = refreshRelease
+            switchResult = { _, _ -> Result.success(RegistrarProviderRestoreUi.Available(CAROL)) }
+        }
+        val viewModel = viewModel(gateway)
+        advanceUntilIdle()
+
+        viewModel.refresh("namecheap")
+        runCurrent()
+        viewModel.switchAccount("namecheap", "carol-id")
+        advanceUntilIdle()
+
+        assertTrue(gateway.refreshCancelled)
+        val namecheap = viewModel.uiState.value.provider("namecheap")
+        assertEquals("carol-id", namecheap.activeAccount?.id)
+        assertNull(namecheap.operation)
+        assertSame(CAROL, namecheap.dashboard)
+    }
+
+    @Test
+    fun failedSwitchKeepsTheCurrentAccountWithASavedChangeError() = runTest(dispatcher) {
+        val gateway = FakeGateway(restoreUi("namecheap" to RegistrarProviderRestoreUi.Available(TWO_NAMECHEAP))).apply {
+            switchResult = { _, _ -> Result.failure(RegistrarUiException("The saved Namecheap accounts changed. Try again.")) }
+        }
+        val viewModel = viewModel(gateway)
+        advanceUntilIdle()
+
+        viewModel.switchAccount("namecheap", "carol-id")
+        advanceUntilIdle()
+
+        val namecheap = viewModel.uiState.value.provider("namecheap")
+        assertEquals("bob-id", namecheap.activeAccount?.id)
+        assertEquals("The saved Namecheap accounts changed. Try again.", namecheap.error)
+        assertEquals(RegistrarOperation.SWITCHING, namecheap.failedOperation)
+    }
+
+    @Test
+    fun addingAnAccountShowsTheSecureFormWithoutDisconnecting() = runTest(dispatcher) {
+        val threeAccounts = CAROL.copy(
+            account = RegistrarAccountUi("namecheap", "dave", "dave-id"),
+            accounts = TWO_NAMECHEAP.accounts + RegistrarAccountUi("namecheap", "dave", "dave-id"),
+        )
+        val gateway = FakeGateway(restoreUi("namecheap" to RegistrarProviderRestoreUi.Available(TWO_NAMECHEAP))).apply {
+            connectResult = Result.success(threeAccounts)
+        }
+        val viewModel = viewModel(gateway)
+        advanceUntilIdle()
+        viewModel.setVisibleProvider("namecheap")
+        viewModel.openDomain("namecheap", "commerce.example")
+        assertFalse(viewModel.uiState.value.requiresSecureWindow)
+
+        viewModel.startAddingAccount("namecheap")
+        val adding = viewModel.uiState.value.provider("namecheap")
+        assertTrue(adding.isAddingAccount)
+        assertTrue(adding.showsConnectionForm)
+        assertEquals(RegistrarConnectionStatus.CONNECTED, adding.status)
+        assertNull(viewModel.uiState.value.selectedDomainId)
+        assertTrue(viewModel.uiState.value.requiresSecureWindow)
+        assertEquals(setOf("namecheap"), viewModel.uiState.value.connectedProviderIds)
+
+        viewModel.connect(request("namecheap"))
+        assertEquals(RegistrarOperation.CONNECTING, viewModel.uiState.value.provider("namecheap").operation)
+        assertTrue(viewModel.uiState.value.requiresSecureWindow)
+        advanceUntilIdle()
+
+        val connected = viewModel.uiState.value.provider("namecheap")
+        assertFalse(connected.isAddingAccount)
+        assertEquals("dave-id", connected.activeAccount?.id)
+        assertEquals(3, connected.savedAccounts.size)
+        assertFalse(viewModel.uiState.value.requiresSecureWindow)
+        assertEquals(1, gateway.connectCalls)
+        assertTrue(gateway.disconnectCalls.isEmpty())
+    }
+
+    @Test
+    fun aFailedAddKeepsTheFormAndBackReturnsToThePortfolio() = runTest(dispatcher) {
+        val gateway = FakeGateway(restoreUi("namecheap" to RegistrarProviderRestoreUi.Available(TWO_NAMECHEAP))).apply {
+            connectResult = Result.failure(RegistrarUiException("Request failed (HTTP 401): Unauthorized"))
+        }
+        val viewModel = viewModel(gateway)
+        advanceUntilIdle()
+        viewModel.setVisibleProvider("namecheap")
+
+        viewModel.startAddingAccount("namecheap")
+        viewModel.connect(request("namecheap"))
+        advanceUntilIdle()
+
+        val failed = viewModel.uiState.value.provider("namecheap")
+        assertTrue(failed.isAddingAccount)
+        assertEquals("Request failed (HTTP 401): Unauthorized", failed.error)
+        assertSame(TWO_NAMECHEAP, failed.dashboard)
+        viewModel.refreshIfStale("namecheap")
+        advanceUntilIdle()
+        assertTrue(gateway.refreshCalls.isEmpty())
+
+        assertTrue(viewModel.handleBack("namecheap"))
+        val back = viewModel.uiState.value.provider("namecheap")
+        assertFalse(back.isAddingAccount)
+        assertNull(back.error)
+        assertFalse(viewModel.uiState.value.requiresSecureWindow)
+        assertFalse(viewModel.handleBack("namecheap"))
+    }
+
+    @Test
+    fun cancellingAnAddReconcilesAndKeepsTheFormWhenNothingWasSaved() = runTest(dispatcher) {
+        val gateway = FakeGateway(restoreUi("namecheap" to RegistrarProviderRestoreUi.Available(TWO_NAMECHEAP))).apply {
+            connectRelease = CompletableDeferred()
+        }
+        val viewModel = viewModel(gateway)
+        advanceUntilIdle()
+
+        viewModel.startAddingAccount("namecheap")
+        viewModel.connect(request("namecheap"))
+        runCurrent()
+        gateway.connectStarted.await()
+        viewModel.cancelOperation("namecheap")
+        advanceUntilIdle()
+
+        val namecheap = viewModel.uiState.value.provider("namecheap")
+        assertTrue(namecheap.isAddingAccount)
+        assertEquals("Request cancelled.", namecheap.notice)
+        assertEquals("bob-id", namecheap.activeAccount?.id)
+        assertNull(namecheap.operation)
+    }
+
+    @Test
+    fun removingTheCurrentAccountKeepsTheRegistrarConnected() = runTest(dispatcher) {
+        val gateway = FakeGateway(restoreUi("namecheap" to RegistrarProviderRestoreUi.Available(TWO_NAMECHEAP))).apply {
+            removeResult = { _, _ -> Result.success(RegistrarProviderRestoreUi.Available(CAROL.copy(accounts = listOf(CAROL.account)))) }
+        }
+        val viewModel = viewModel(gateway)
+        advanceUntilIdle()
+
+        viewModel.requestDisconnectConfirmation("namecheap")
+        val confirmation = checkNotNull(viewModel.uiState.value.removalConfirmation)
+        assertEquals(RegistrarRemovalScope.CURRENT_ACCOUNT, confirmation.scope)
+        assertEquals("bob-id", confirmation.accountId)
+        assertEquals("bob", confirmation.accountName)
+        assertEquals(2, confirmation.accountCount)
+        assertFalse(confirmation.removesEveryAccount)
+        viewModel.confirmDisconnect()
+        advanceUntilIdle()
+
+        assertEquals(listOf("namecheap" to "bob-id"), gateway.removeCalls)
+        assertTrue(gateway.disconnectCalls.isEmpty())
+        val namecheap = viewModel.uiState.value.provider("namecheap")
+        assertEquals(RegistrarConnectionStatus.CONNECTED, namecheap.status)
+        assertEquals("carol-id", namecheap.activeAccount?.id)
+        assertEquals(listOf("carol-id"), namecheap.savedAccounts.map { it.id })
+        assertNull(viewModel.uiState.value.removalConfirmation)
+    }
+
+    @Test
+    fun removeAllNeedsConfirmationAndDisconnectsTheRegistrar() = runTest(dispatcher) {
+        val gateway = FakeGateway(restoreUi(
+            "namecheap" to RegistrarProviderRestoreUi.Available(TWO_NAMECHEAP),
+            "nameDotCom" to RegistrarProviderRestoreUi.Available(NAME_DOT_COM),
+        ))
+        val viewModel = viewModel(gateway)
+        advanceUntilIdle()
+
+        viewModel.requestRemoveAllAccounts("namecheap")
+        val confirmation = checkNotNull(viewModel.uiState.value.removalConfirmation)
+        assertEquals(RegistrarRemovalScope.ALL_ACCOUNTS, confirmation.scope)
+        assertTrue(confirmation.removesEveryAccount)
+        assertTrue(gateway.disconnectCalls.isEmpty())
+        viewModel.dismissDisconnectConfirmation()
+        assertNull(viewModel.uiState.value.removalConfirmation)
+
+        viewModel.requestRemoveAllAccounts("namecheap")
+        viewModel.confirmDisconnect()
+        advanceUntilIdle()
+
+        assertEquals(listOf("namecheap"), gateway.disconnectCalls)
+        assertTrue(gateway.removeCalls.isEmpty())
+        assertEquals(RegistrarConnectionStatus.DISCONNECTED, viewModel.uiState.value.provider("namecheap").status)
+        assertEquals(RegistrarConnectionStatus.CONNECTED, viewModel.uiState.value.provider("nameDotCom").status)
+    }
+
+    @Test
+    fun removalCopyDistinguishesCurrentOnlyAndAllAccounts() {
+        val namecheap = com.apoorvdarshan.verceltics.data.registrar.RegistrarProvider.NAMECHEAP
+        val current = registrarRemovalCopy(
+            namecheap,
+            RegistrarRemovalConfirmation("namecheap", RegistrarRemovalScope.CURRENT_ACCOUNT, "bob-id", "bob", 2),
+        )
+        assertEquals("Remove bob?", current.title)
+        assertEquals("REMOVE ACCOUNT", current.confirmText)
+        assertTrue(current.message.contains("Your other Namecheap accounts stay connected."))
+
+        val only = registrarRemovalCopy(
+            namecheap,
+            RegistrarRemovalConfirmation("namecheap", RegistrarRemovalScope.CURRENT_ACCOUNT, "bob-id", "bob", 1),
+        )
+        assertEquals("Disconnect Namecheap?", only.title)
+        assertEquals("DISCONNECT", only.confirmText)
+
+        val all = registrarRemovalCopy(
+            namecheap,
+            RegistrarRemovalConfirmation("namecheap", RegistrarRemovalScope.ALL_ACCOUNTS, "bob-id", "bob", 3),
+        )
+        assertEquals("Remove all Namecheap accounts?", all.title)
+        assertEquals("REMOVE ALL", all.confirmText)
+        assertTrue(all.message.contains("all 3 Namecheap accounts"))
+        assertEquals("REMOVE CURRENT ACCOUNT", registrarRemoveCurrentLabel(namecheap, 2))
+        assertEquals("DISCONNECT NAMECHEAP", registrarRemoveCurrentLabel(namecheap, 1))
+    }
+
+    @Test
+    fun sampleGatewaySwitchesBetweenTheTwoSampleNameDotComAccounts() = runTest(dispatcher) {
+        val viewModel = viewModel(SampleRegistrarUiGateway)
+        advanceUntilIdle()
+        viewModel.restore()
+        advanceUntilIdle()
+        val nameDotCom = viewModel.uiState.value.provider("nameDotCom")
+        assertEquals(listOf("studio", "personal"), nameDotCom.savedAccounts.map { it.id })
+
+        viewModel.switchAccount("nameDotCom", "personal")
+        advanceUntilIdle()
+        assertEquals("Personal · Name.com", viewModel.uiState.value.provider("nameDotCom").activeAccount?.displayName)
+        assertEquals(2, viewModel.uiState.value.provider("nameDotCom").dashboard?.domains?.size)
+
+        viewModel.restore()
+        advanceUntilIdle()
+        assertEquals("studio", viewModel.uiState.value.provider("nameDotCom").activeAccount?.id)
+    }
+
+    // endregion
+
     private fun viewModel(gateway: RegistrarUiGateway, handle: SavedStateHandle = SavedStateHandle()) =
         RegistrarViewModel(gateway, handle) { now }
 
@@ -473,6 +754,14 @@ class RegistrarViewModelTest {
         }
         var ipResult: Result<String> = Result.success("8.8.8.8")
         var disconnectResult: Result<Unit> = Result.success(Unit)
+        var switchResult: (String, String) -> Result<RegistrarProviderRestoreUi> = { _, _ ->
+            Result.failure(RegistrarUiException("Unexpected switch."))
+        }
+        var removeResult: (String, String) -> Result<RegistrarProviderRestoreUi> = { _, _ ->
+            Result.failure(RegistrarUiException("Unexpected removal."))
+        }
+        var refreshGate: CompletableDeferred<Unit>? = null
+        var refreshCancelled = false
         val connectStarted = CompletableDeferred<Unit>()
         val connectCancelled = CompletableDeferred<Boolean>()
         var connectCalls = 0
@@ -480,6 +769,8 @@ class RegistrarViewModelTest {
         var lastRequest: RegistrarConnectRequest? = null
         val refreshCalls = mutableListOf<String>()
         val disconnectCalls = mutableListOf<String>()
+        val switchCalls = mutableListOf<Pair<String, String>>()
+        val removeCalls = mutableListOf<Pair<String, String>>()
 
         override suspend fun restore(): Result<RegistrarRestoreUi> {
             restoreRelease?.await()
@@ -501,12 +792,28 @@ class RegistrarViewModelTest {
 
         override suspend fun refresh(providerId: String): Result<RegistrarDashboardUi> {
             refreshCalls += providerId
+            try {
+                refreshGate?.await()
+            } catch (error: CancellationException) {
+                refreshCancelled = true
+                throw error
+            }
             return refreshResult(providerId)
         }
 
         override suspend fun disconnect(providerId: String): Result<Unit> {
             disconnectCalls += providerId
             return disconnectResult
+        }
+
+        override suspend fun switchAccount(providerId: String, accountId: String): Result<RegistrarProviderRestoreUi> {
+            switchCalls += providerId to accountId
+            return switchResult(providerId, accountId)
+        }
+
+        override suspend fun removeAccount(providerId: String, accountId: String): Result<RegistrarProviderRestoreUi> {
+            removeCalls += providerId to accountId
+            return removeResult(providerId, accountId)
         }
 
         override suspend fun detectPublicIpv4(): Result<String> {
@@ -545,6 +852,14 @@ class RegistrarViewModelTest {
         val PORKBUN = dashboard("porkbun", "Porkbun · ab12", "pork.example" to 90)
         val SPACESHIP = dashboard("spaceship", "Spaceship · cd34", "ship.example" to null)
         val DASHBOARDS = listOf(NAME_DOT_COM, NAMECHEAP, PORKBUN, SPACESHIP).associateBy { it.account.providerId }
+
+        val BOB = RegistrarAccountUi("namecheap", "bob", "bob-id")
+        val CAROL_ACCOUNT = RegistrarAccountUi("namecheap", "carol", "carol-id")
+
+        /** Namecheap with two saved accounts; bob is active. */
+        val TWO_NAMECHEAP = NAMECHEAP.copy(account = BOB, accounts = listOf(BOB, CAROL_ACCOUNT))
+        val CAROL = dashboard("namecheap", "carol", "carol.example" to 100)
+            .copy(account = CAROL_ACCOUNT, accounts = listOf(BOB, CAROL_ACCOUNT))
 
         fun restoreUi(vararg providers: Pair<String, RegistrarProviderRestoreUi>) = RegistrarRestoreUi(providers.toMap())
     }

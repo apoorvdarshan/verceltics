@@ -5,6 +5,7 @@ import com.apoorvdarshan.verceltics.data.apicatalog.ProviderRawRequest
 import com.apoorvdarshan.verceltics.data.apicatalog.ProviderRawResponse
 import com.apoorvdarshan.verceltics.data.network.CancelableCall
 import com.apoorvdarshan.verceltics.data.registrar.PublicIpv4Lookup
+import com.apoorvdarshan.verceltics.data.registrar.RegistrarAccountSummary
 import com.apoorvdarshan.verceltics.data.registrar.RegistrarApi
 import com.apoorvdarshan.verceltics.data.registrar.RegistrarApiException
 import com.apoorvdarshan.verceltics.data.registrar.RegistrarConnectionCommit
@@ -18,6 +19,7 @@ import com.apoorvdarshan.verceltics.data.registrar.RegistrarRefreshOutcome
 import com.apoorvdarshan.verceltics.data.registrar.RegistrarRestoreProblem
 import com.apoorvdarshan.verceltics.data.registrar.RegistrarRestoreResult
 import com.apoorvdarshan.verceltics.data.registrar.RegistrarSnapshot
+import com.apoorvdarshan.verceltics.data.registrar.RegistrarStoreException
 import com.apoorvdarshan.verceltics.data.registrar.RegistrarValidation
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -69,7 +71,7 @@ class NativeRegistrarUiGateway internal constructor(
             withContext(NonCancellable) {
                 executeAwait(storageExecutor) { connectionStore.acceptValidatedConnection(commit) }
                 pendingCommit = null
-                commit.snapshot.toDashboardUi(RegistrarCacheState.LIVE)
+                commit.snapshot.toDashboardUi(RegistrarCacheState.LIVE, commit.accountId, commit.accounts)
             }
         } catch (error: CancellationException) {
             withContext(NonCancellable) {
@@ -94,14 +96,18 @@ class NativeRegistrarUiGateway internal constructor(
         val provider = providerOrThrow(providerId)
         val saved = executeAwait(storageExecutor) { connectionStore.loadForRefresh(provider) }
             ?: throw RegistrarUiException("Connect ${provider.displayName} first.")
-        val credentials = saved.account.credentials
+        val credentials = saved.connection.account.credentials
         val domains = api.newFetchDomainsCall(credentials).executeAwait(networkExecutor).sortedForDisplay()
-        when (val outcome = executeAwait(storageExecutor) { connectionStore.persistRefreshResult(credentials, domains) }) {
+        val outcome = executeAwait(storageExecutor) {
+            connectionStore.persistRefreshResult(saved.id, credentials, domains)
+        }
+        when (outcome) {
             RegistrarRefreshOutcome.Disconnected ->
                 throw RegistrarUiException("${provider.displayName} was disconnected during the refresh.")
             RegistrarRefreshOutcome.Replaced ->
                 throw RegistrarUiException("${provider.displayName} was reconnected during the refresh.")
-            is RegistrarRefreshOutcome.Refreshed -> outcome.snapshot.toDashboardUi(RegistrarCacheState.LIVE)
+            is RegistrarRefreshOutcome.Refreshed ->
+                outcome.snapshot.toDashboardUi(RegistrarCacheState.LIVE, outcome.accountId, outcome.accounts)
         }
     }
 
@@ -109,6 +115,18 @@ class NativeRegistrarUiGateway internal constructor(
         val provider = providerOrThrow(providerId)
         executeAwait(storageExecutor) { connectionStore.disconnect(provider) }
     }
+
+    override suspend fun switchAccount(providerId: String, accountId: String): Result<RegistrarProviderRestoreUi> =
+        capture {
+            val provider = providerOrThrow(providerId)
+            executeAwait(storageExecutor) { connectionStore.switchAccount(provider, accountId) }.toUi(provider)
+        }
+
+    override suspend fun removeAccount(providerId: String, accountId: String): Result<RegistrarProviderRestoreUi> =
+        capture {
+            val provider = providerOrThrow(providerId)
+            executeAwait(storageExecutor) { connectionStore.removeAccount(provider, accountId) }.toUi(provider)
+        }
 
     override suspend fun detectPublicIpv4(): Result<String> = capture {
         publicIpv4Lookup.newResolveCall().executeAwait(networkExecutor)
@@ -118,7 +136,7 @@ class NativeRegistrarUiGateway internal constructor(
         val provider = providerOrThrow(providerId)
         val saved = executeAwait(storageExecutor) { connectionStore.loadForRefresh(provider) }
             ?: throw RegistrarUiException("Connect ${provider.displayName} first.")
-        rawApi.newRawCall(saved.account.credentials, request).executeAwait(networkExecutor)
+        rawApi.newRawCall(saved.connection.account.credentials, request).executeAwait(networkExecutor)
     }
 
     private fun providerOrThrow(providerId: String): RegistrarProvider =
@@ -130,9 +148,14 @@ class NativeRegistrarUiGateway internal constructor(
             RegistrarProviderRestoreUi.Available(
                 snapshot.toDashboardUi(
                     if (cacheIsStale) RegistrarCacheState.CACHED_STALE else RegistrarCacheState.CACHED_FRESH,
+                    accountId,
+                    accounts,
                 ),
             )
-        } ?: RegistrarProviderRestoreUi.SavedWithoutInventory(RegistrarAccountUi(provider.id, accountName))
+        } ?: RegistrarProviderRestoreUi.SavedWithoutInventory(
+            account = RegistrarAccountUi(provider.id, accountName, accountId),
+            accounts = accounts.toUi(provider),
+        )
         is RegistrarRestoreResult.Unavailable -> RegistrarProviderRestoreUi.SavedUnavailable(
             when (problem) {
                 RegistrarRestoreProblem.SAVED_RECORD_UNREADABLE ->
@@ -163,15 +186,25 @@ class NativeRegistrarUiGateway internal constructor(
 internal fun List<RegistrarDomain>.sortedForDisplay(): List<RegistrarDomain> =
     sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER, RegistrarDomain::name))
 
-internal fun RegistrarSnapshot.toDashboardUi(cacheState: RegistrarCacheState): RegistrarDashboardUi =
-    RegistrarDashboardUi(
-        account = RegistrarAccountUi(provider.id, accountName),
+internal fun RegistrarSnapshot.toDashboardUi(
+    cacheState: RegistrarCacheState,
+    accountId: String,
+    accounts: List<RegistrarAccountSummary>,
+): RegistrarDashboardUi {
+    val account = RegistrarAccountUi(provider.id, accountName, accountId)
+    return RegistrarDashboardUi(
+        account = account,
         domains = domains.map(RegistrarDomain::toUi),
         inventoryComplete = domainsComplete,
         warnings = warnings,
         fetchedAtMillis = fetchedAtMillis,
         cacheState = cacheState,
+        accounts = accounts.toUi(provider).ifEmpty { listOf(account) },
     )
+}
+
+internal fun List<RegistrarAccountSummary>.toUi(provider: RegistrarProvider): List<RegistrarAccountUi> =
+    map { RegistrarAccountUi(provider.id, it.displayName, it.id) }
 
 internal fun RegistrarDomain.toUi(): RegistrarDomainUi = RegistrarDomainUi(
     id = id,
@@ -252,6 +285,8 @@ private suspend inline fun <T> capture(crossinline block: suspend () -> T): Resu
     Result.failure(error)
 } catch (error: RegistrarApiException) {
     Result.failure(RegistrarUiException(error.message))
+} catch (error: RegistrarStoreException) {
+    Result.failure(RegistrarUiException(error.message ?: "The saved registrar accounts could not be changed."))
 } catch (_: SecurityException) {
     Result.failure(RegistrarUiException("Secure storage is unavailable."))
 } catch (_: Exception) {

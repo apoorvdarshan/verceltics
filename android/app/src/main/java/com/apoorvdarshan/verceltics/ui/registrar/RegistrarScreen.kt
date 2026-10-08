@@ -84,6 +84,7 @@ import com.apoorvdarshan.verceltics.ui.apiexplorer.CompleteApiEntryCard
 import com.apoorvdarshan.verceltics.ui.apiexplorer.DashboardAndCompleteApiActions
 import com.apoorvdarshan.verceltics.ui.apiexplorer.ProviderApiWorkspace
 import com.apoorvdarshan.verceltics.ui.billing.LocalProAccess
+import com.apoorvdarshan.verceltics.ui.components.AppPullToRefresh
 import com.apoorvdarshan.verceltics.ui.components.AppToolbarAction
 import com.apoorvdarshan.verceltics.ui.components.ControlSearchField
 import com.apoorvdarshan.verceltics.ui.components.OffsetPanel
@@ -95,8 +96,10 @@ import com.apoorvdarshan.verceltics.ui.components.ThemedAlertDialog
 
 /**
  * Registrar route for one provider id. Shows the connection form until that registrar is
- * connected, then its domain portfolio and Pro-gated domain details. Back closes the detail or a
- * dialog before asking the app shell to leave the route.
+ * connected, then the active account's domain portfolio and Pro-gated domain details. The account
+ * menu switches between saved accounts, adds another one through the same protected form, and
+ * removes the current or every account after confirmation. Back closes the detail, a dialog or
+ * the add-account form before asking the app shell to leave the route.
  */
 @Composable
 fun RegistrarRoute(
@@ -127,8 +130,8 @@ fun RegistrarRoute(
         if (proAccess.isConfirmedLocked && state.selectedDomainId != null) viewModel.closeDomain()
     }
     // Complete API is Pro too, and needs a live connection.
-    LaunchedEffect(proAccess.isConfirmedLocked, isApiOpen, providerState.status) {
-        if (isApiOpen && (proAccess.isConfirmedLocked || providerState.status == RegistrarConnectionStatus.DISCONNECTED)) {
+    LaunchedEffect(proAccess.isConfirmedLocked, isApiOpen, providerState.status, providerState.isAddingAccount) {
+        if (isApiOpen && (proAccess.isConfirmedLocked || providerState.showsConnectionForm)) {
             viewModel.closeApiWorkspace(providerId)
         }
     }
@@ -137,18 +140,18 @@ fun RegistrarRoute(
         onDispose { viewModel.clearVisibleProvider(providerId) }
     }
     BackHandler(onBack = routeBack)
-    LaunchedEffect(providerId, providerState.status) {
-        when (providerState.status) {
-            RegistrarConnectionStatus.CONNECTED -> viewModel.refreshIfStale(providerId)
-            RegistrarConnectionStatus.DISCONNECTED ->
+    LaunchedEffect(providerId, providerState.status, providerState.showsConnectionForm, providerState.activeAccount?.id) {
+        when {
+            providerState.showsConnectionForm ->
                 if (provider?.showsPublicIpv4Helper == true) viewModel.detectPublicIpv4(providerId, force = false)
-            else -> Unit
+            providerState.status == RegistrarConnectionStatus.CONNECTED -> viewModel.refreshIfStale(providerId)
         }
     }
     LaunchedEffect(searchRequestId) {
         if (searchRequestId > 0 && searchRequestId != lastHandledSearchRequestId) {
             lastHandledSearchRequestId = searchRequestId
             viewModel.closeApiWorkspace(providerId)
+            viewModel.cancelAddingAccount(providerId)
             if (state.selectedDomainId != null) {
                 viewModel.closeDomain()
                 withFrameNanos { }
@@ -156,7 +159,9 @@ fun RegistrarRoute(
             searchFocusRequestId += 1
         }
     }
-    if (apiWorkspace != null && isApiOpen && providerState.status == RegistrarConnectionStatus.CONNECTED) {
+    if (apiWorkspace != null && isApiOpen && providerState.status == RegistrarConnectionStatus.CONNECTED &&
+        !providerState.isAddingAccount
+    ) {
         ProviderApiWorkspace(controller = apiWorkspace, onOpenLink = openUrl, modifier = modifier)
         return
     }
@@ -178,6 +183,10 @@ fun RegistrarRoute(
         searchFocusRequestId = searchFocusRequestId,
         modifier = modifier,
         onOpenCompleteApi = { domainId -> proAccess.requestPro { viewModel.openApiWorkspace(providerId, domainId) } },
+        onSwitchAccount = { accountId -> viewModel.switchAccount(providerId, accountId) },
+        onAddAccount = { viewModel.startAddingAccount(providerId) },
+        onCancelAddAccount = { viewModel.cancelAddingAccount(providerId) },
+        onRequestRemoveAll = { viewModel.requestRemoveAllAccounts(providerId) },
     )
 }
 
@@ -201,20 +210,30 @@ fun RegistrarScreen(
     nowMillis: Long = System.currentTimeMillis(),
     /** Pro-gated iOS "Complete API": the dashboard passes null, a domain detail its id. */
     onOpenCompleteApi: (domainId: String?) -> Unit = {},
+    /** Account menu: make another saved account of this registrar active. */
+    onSwitchAccount: (accountId: String) -> Unit = {},
+    /** Account menu: open the connection form for another account without disconnecting. */
+    onAddAccount: () -> Unit = {},
+    /** Leaves the add-account form for the active account's portfolio. */
+    onCancelAddAccount: () -> Unit = {},
+    /** Account menu: ask to remove every saved account of this registrar. */
+    onRequestRemoveAll: () -> Unit = {},
 ) {
     val haptic = LocalHapticFeedback.current
     val provider = RegistrarProvider.fromId(providerId)
     val catalog = remember(providerId) { catalogProvider(providerId) }
     val providerState = state.provider(providerId)
     val selectedDomain = state.selectedDomain(providerId)
+    val removal = state.removalConfirmation?.takeIf { it.providerId == providerId }
 
-    if (provider != null && state.disconnectConfirmationProviderId == providerId) {
+    if (provider != null && removal != null) {
+        val copy = registrarRemovalCopy(provider, removal)
         ThemedAlertDialog(
-            title = "Disconnect ${provider.displayName}?",
-            message = "The encrypted ${provider.displayName} credentials and saved domain portfolio will be removed from this device.",
-            confirmText = "DISCONNECT",
+            title = copy.title,
+            message = copy.message,
+            confirmText = copy.confirmText,
             confirmTone = ThemedActionTone.DESTRUCTIVE,
-            dismissText = "KEEP ACCOUNT",
+            dismissText = copy.dismissText,
             enabled = providerState.operation != RegistrarOperation.DISCONNECTING,
             onConfirm = {
                 haptic.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -224,6 +243,9 @@ fun RegistrarScreen(
             testTag = "registrar.disconnectDialog",
         )
     }
+
+    val showsAccountMenu = provider != null && catalog != null && selectedDomain == null &&
+        providerState.isConnected && !providerState.isAddingAccount && providerState.savedAccounts.isNotEmpty()
 
     Column(
         modifier = modifier
@@ -238,7 +260,7 @@ fun RegistrarScreen(
                 else -> "Registrars"
             },
             operation = providerState.operation,
-            canRefresh = providerState.isConnected,
+            canRefresh = providerState.isConnected && !providerState.isAddingAccount,
             onBack = {
                 haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                 onBack()
@@ -251,23 +273,40 @@ fun RegistrarScreen(
                 haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                 onCancel()
             },
+            accountMenu = if (showsAccountMenu) {
+                {
+                    RegistrarAccountMenu(
+                        provider = provider,
+                        catalogProvider = catalog,
+                        providerState = providerState,
+                        onSwitchAccount = onSwitchAccount,
+                        onAddAccount = onAddAccount,
+                        onRemoveCurrent = onRequestDisconnect,
+                        onRemoveAll = onRequestRemoveAll,
+                    )
+                }
+            } else {
+                null
+            },
         )
 
         when {
             provider == null || catalog == null -> UnsupportedRegistrar(Modifier.weight(1f))
             providerState.status == RegistrarConnectionStatus.RESTORING ->
                 RegistrarLoadingState("Opening saved ${provider.displayName} portfolio…", Modifier.weight(1f))
-            providerState.status == RegistrarConnectionStatus.DISCONNECTED -> RegistrarConnectionForm(
+            providerState.showsConnectionForm -> RegistrarConnectionForm(
                 provider = provider,
                 catalogProvider = catalog,
                 providerState = providerState,
-                restoreError = state.restoreError,
+                restoreError = state.restoreError.takeUnless { providerState.isAddingAccount },
                 publicIpv4 = state.publicIpv4,
                 onConnect = onConnect,
                 onCancel = onCancel,
                 onOpenUrl = onOpenUrl,
                 onDetectPublicIpv4 = onDetectPublicIpv4,
                 modifier = Modifier.weight(1f),
+                isAddingAccount = providerState.isAddingAccount,
+                onCancelAddAccount = onCancelAddAccount,
             )
             providerState.status == RegistrarConnectionStatus.SAVED_UNAVAILABLE -> RegistrarSavedRecovery(
                 provider = provider,
@@ -282,6 +321,8 @@ fun RegistrarScreen(
                 catalogProvider = catalog,
                 domain = selectedDomain,
                 nowMillis = nowMillis,
+                isRefreshing = providerState.operation == RegistrarOperation.REFRESHING,
+                onRefresh = onRefresh,
                 onOpenUrl = onOpenUrl,
                 onOpenDashboard = onOpenDashboard,
                 onOpenCompleteApi = { onOpenCompleteApi(selectedDomain.id) },
@@ -340,9 +381,11 @@ private fun RegistrarConnectionCard(
     val accent = Color(catalogProvider.accentColor)
     val dashboard = providerState.dashboard
     val summary = dashboard?.let { RegistrarPortfolioSummary.of(it.domains, nowMillis) }
+    val accountCount = providerState.savedAccounts.size
     val subtitle = when {
-        dashboard != null && summary != null -> listOf(
+        dashboard != null && summary != null -> listOfNotNull(
             dashboard.account.displayName,
+            "${formatCount(accountCount.toLong())} accounts".takeIf { accountCount > 1 },
             "${formatCount(summary.domainCount.toLong())} domain${if (summary.domainCount == 1) "" else "s"}",
             "${registrarCacheLabel(dashboard.cacheState)} data",
         ).joinToString(" · ")
@@ -418,6 +461,7 @@ private fun RegistrarTopBar(
     onBack: () -> Unit,
     onRefresh: () -> Unit,
     onCancel: () -> Unit,
+    accountMenu: (@Composable () -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier
@@ -440,6 +484,7 @@ private fun RegistrarTopBar(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+        accountMenu?.invoke()
         val isCancelable = operation == RegistrarOperation.CONNECTING || operation == RegistrarOperation.REFRESHING
         AppToolbarAction(
             modifier = Modifier.size(48.dp),
@@ -537,7 +582,7 @@ private fun RegistrarSavedRecovery(
                         testTag = "registrar.recovery.refresh",
                     )
                     ThemedActionButton(
-                        "DISCONNECT",
+                        if (providerState.savedAccounts.size > 1) "REMOVE CURRENT ACCOUNT" else "DISCONNECT",
                         onClick = onDisconnect,
                         enabled = !providerState.isBusy,
                         tone = ThemedActionTone.DESTRUCTIVE,
@@ -569,12 +614,14 @@ private fun RegistrarDashboard(
     val haptic = LocalHapticFeedback.current
     val keyboard = LocalSoftwareKeyboardController.current
     val searchFocusRequester = remember { FocusRequester() }
-    var query by rememberSaveable(provider.id) { mutableStateOf("") }
+    // Like iOS (the dashboard is re-created per account), each account starts with an empty search.
+    var query by rememberSaveable(provider.id, dashboard.account.id) { mutableStateOf("") }
     var lastHandledSearchFocusRequestId by rememberSaveable(provider.id) { mutableIntStateOf(0) }
     val summary = remember(dashboard.domains, nowMillis / MINUTE_MILLIS) {
         RegistrarPortfolioSummary.of(dashboard.domains, nowMillis)
     }
     val visibleDomains = remember(dashboard.domains, query) { filterRegistrarDomains(dashboard.domains, query) }
+    val accountCount = providerState.savedAccounts.size
 
     LaunchedEffect(searchFocusRequestId) {
         if (searchFocusRequestId > 0 && searchFocusRequestId != lastHandledSearchFocusRequestId) {
@@ -584,115 +631,157 @@ private fun RegistrarDashboard(
         }
     }
 
-    LazyColumn(
-        modifier = modifier
-            .fillMaxWidth()
-            .testTag("registrar.dashboard"),
-        contentPadding = PaddingValues(start = 18.dp, top = 6.dp, end = 18.dp, bottom = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        item("portfolio") {
-            PortfolioHeader(provider, catalogProvider, providerState, dashboard, summary, accent)
-        }
-        providerState.error?.let { message ->
-            item("error") {
-                val disconnectFailed = providerState.failedOperation == RegistrarOperation.DISCONNECTING
-                RegistrarFeedbackPanel(
-                    title = if (disconnectFailed) "Saved registrar change failed" else "Couldn’t refresh domains",
-                    message = message,
-                    isError = true,
-                    accent = accent,
-                    actionText = if (disconnectFailed) null else "TRY AGAIN",
-                    onAction = {
-                        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                        onRetry()
-                    },
-                    testTag = if (disconnectFailed) "registrar.changeError" else "registrar.refreshError",
-                )
-            }
-        }
-        providerState.notice?.let { message ->
-            item("notice") {
-                RegistrarFeedbackPanel(title = null, message = message, isError = false, accent = accent)
-            }
-        }
-        if (dashboard.isPartial) {
-            item("partial") {
-                RegistrarWarningPanel(
-                    dashboard.warnings.joinToString(" ").ifBlank { "The registrar returned a partial domain portfolio." },
-                )
-            }
-        }
-        item("stats") { PortfolioStats(summary, accent) }
-        item("actions") {
-            DashboardAndCompleteApiActions(
-                onOpenDashboard = onOpenDashboard,
-                onOpenCompleteApi = onOpenCompleteApi,
-                dashboardTestTag = "registrar.openDashboard",
-                completeApiTestTag = "registrar.completeApi",
-            )
-        }
-        item("search") {
-            ControlSearchField(
-                value = query,
-                onValueChange = { query = it },
-                placeholder = "Search domains",
-                modifier = Modifier.fillMaxWidth(),
-                testTag = "registrar.search",
-                focusRequester = searchFocusRequester,
-                onSearch = { keyboard?.hide() },
-            )
-        }
-        item("heading") {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .semantics(mergeDescendants = true) { heading() },
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+    BoxWithConstraints(modifier.fillMaxWidth()) {
+        val layout = RegistrarLayout.dashboard(maxWidth.value)
+        AppPullToRefresh(
+            isRefreshing = providerState.operation == RegistrarOperation.REFRESHING,
+            onRefresh = onRetry,
+            modifier = Modifier.fillMaxSize(),
+            testTag = "registrar.pullToRefresh",
+        ) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .testTag("registrar.dashboard"),
+                contentPadding = PaddingValues(
+                    start = layout.sidePaddingDp.dp,
+                    top = 6.dp,
+                    end = layout.sidePaddingDp.dp,
+                    bottom = 32.dp,
+                ),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                Text("Domain portfolio", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    formatCount(visibleDomains.size.toLong()),
-                    color = accent,
-                    style = MaterialTheme.typography.labelLarge,
-                    modifier = Modifier.testTag("registrar.portfolioCount"),
-                )
-            }
-        }
-        if (visibleDomains.isEmpty()) {
-            item("empty") {
-                RegistrarEmptyState(
-                    icon = if (query.isBlank()) Icons.Rounded.Language else Icons.Rounded.Search,
-                    title = if (query.isBlank()) "No domains returned" else "No matching domains",
-                    message = if (query.isBlank()) {
-                        "This registrar did not return any domains for the connected account."
-                    } else {
-                        "Nothing matches “${query.trim()}”."
-                    },
-                )
-            }
-        } else {
-            items(visibleDomains, key = RegistrarDomainUi::id) { domain ->
-                RegistrarDomainRow(domain, accent, nowMillis) {
-                    haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                    keyboard?.hide()
-                    onOpenDomain(domain.id)
+                item("portfolio") {
+                    PortfolioHeader(provider, catalogProvider, providerState, dashboard, summary, accent)
+                }
+                providerState.error?.let { message ->
+                    item("error") {
+                        val savedChangeFailed = providerState.failedOperation == RegistrarOperation.DISCONNECTING ||
+                            providerState.failedOperation == RegistrarOperation.SWITCHING
+                        RegistrarFeedbackPanel(
+                            title = if (savedChangeFailed) "Saved registrar change failed" else "Couldn’t refresh domains",
+                            message = message,
+                            isError = true,
+                            accent = accent,
+                            actionText = if (savedChangeFailed) null else "TRY AGAIN",
+                            onAction = {
+                                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                                onRetry()
+                            },
+                            testTag = if (savedChangeFailed) "registrar.changeError" else "registrar.refreshError",
+                        )
+                    }
+                }
+                providerState.notice?.let { message ->
+                    item("notice") {
+                        RegistrarFeedbackPanel(title = null, message = message, isError = false, accent = accent)
+                    }
+                }
+                if (dashboard.isPartial) {
+                    item("partial") {
+                        RegistrarWarningPanel(
+                            dashboard.warnings.joinToString(" ").ifBlank { "The registrar returned a partial domain portfolio." },
+                        )
+                    }
+                }
+                item("stats") { PortfolioStats(summary, accent, threeColumns = layout.isRegular) }
+                item("actions") {
+                    DashboardAndCompleteApiActions(
+                        onOpenDashboard = onOpenDashboard,
+                        onOpenCompleteApi = onOpenCompleteApi,
+                        dashboardTestTag = "registrar.openDashboard",
+                        completeApiTestTag = "registrar.completeApi",
+                        // iOS caps the action pair at 470 pt on regular width.
+                        modifier = if (layout.isRegular) Modifier.widthIn(max = 470.dp) else Modifier,
+                    )
+                }
+                item("search") {
+                    ControlSearchField(
+                        value = query,
+                        onValueChange = { query = it },
+                        placeholder = "Search domains",
+                        modifier = Modifier.fillMaxWidth(),
+                        testTag = "registrar.search",
+                        focusRequester = searchFocusRequester,
+                        onSearch = { keyboard?.hide() },
+                    )
+                }
+                item("heading") {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .semantics(mergeDescendants = true) { heading() },
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("Domain portfolio", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            formatCount(visibleDomains.size.toLong()),
+                            color = accent,
+                            style = MaterialTheme.typography.labelLarge,
+                            modifier = Modifier.testTag("registrar.portfolioCount"),
+                        )
+                    }
+                }
+                if (visibleDomains.isEmpty()) {
+                    item("empty") {
+                        RegistrarEmptyState(
+                            icon = if (query.isBlank()) Icons.Rounded.Language else Icons.Rounded.Search,
+                            title = if (query.isBlank()) "No domains returned" else "No matching domains",
+                            message = if (query.isBlank()) {
+                                "This registrar did not return any domains for the connected account."
+                            } else {
+                                "Nothing matches “${query.trim()}”."
+                            },
+                        )
+                    }
+                } else if (layout.columns <= 1) {
+                    items(visibleDomains, key = RegistrarDomainUi::id) { domain ->
+                        RegistrarDomainRow(domain, accent, nowMillis) {
+                            haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                            keyboard?.hide()
+                            onOpenDomain(domain.id)
+                        }
+                    }
+                } else {
+                    // iOS LazyVGrid with adaptive 340 dp columns on regular width.
+                    items(visibleDomains.chunked(layout.columns), key = { row -> "domains:${row.first().id}" }) { row ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("registrar.domainGridRow"),
+                            horizontalArrangement = Arrangement.spacedBy(RegistrarLayout.DOMAIN_SPACING_DP.dp),
+                            verticalAlignment = Alignment.Top,
+                        ) {
+                            row.forEach { domain ->
+                                Box(Modifier.weight(1f)) {
+                                    RegistrarDomainRow(domain, accent, nowMillis) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                                        keyboard?.hide()
+                                        onOpenDomain(domain.id)
+                                    }
+                                }
+                            }
+                            repeat(layout.columns - row.size) { Spacer(Modifier.weight(1f)) }
+                        }
+                    }
+                }
+                item("disconnect") {
+                    ThemedActionButton(
+                        registrarRemoveCurrentLabel(provider, accountCount),
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                            onDisconnect()
+                        },
+                        enabled = !providerState.isBusy,
+                        tone = ThemedActionTone.DESTRUCTIVE,
+                        modifier = Modifier
+                            .then(if (layout.isRegular) Modifier.widthIn(max = 470.dp) else Modifier)
+                            .fillMaxWidth(),
+                        testTag = "registrar.disconnect",
+                    )
                 }
             }
-        }
-        item("disconnect") {
-            ThemedActionButton(
-                "Disconnect ${provider.displayName}".uppercase(),
-                onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                    onDisconnect()
-                },
-                enabled = !providerState.isBusy,
-                tone = ThemedActionTone.DESTRUCTIVE,
-                modifier = Modifier.fillMaxWidth(),
-                testTag = "registrar.disconnect",
-            )
         }
     }
 }
@@ -797,9 +886,10 @@ private fun PortfolioHeader(
 }
 
 @Composable
-private fun PortfolioStats(summary: RegistrarPortfolioSummary, accent: Color) {
+private fun PortfolioStats(summary: RegistrarPortfolioSummary, accent: Color, threeColumns: Boolean) {
     BoxWithConstraints(Modifier.fillMaxWidth().testTag("registrar.stats")) {
-        val stacked = shouldStackRegistrarStats(maxWidth.value, LocalDensity.current.fontScale)
+        // iOS: three flexible columns on regular width; phones keep the adaptive fallback.
+        val stacked = !threeColumns && shouldStackRegistrarStats(maxWidth.value, LocalDensity.current.fontScale)
         if (stacked) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 StatTile("Domains", summary.domainCount, Icons.Rounded.Public, accent, Modifier.fillMaxWidth(), "registrar.stat.domains")
@@ -944,10 +1034,77 @@ private fun RegistrarDomainDetail(
     catalogProvider: IntegrationProvider,
     domain: RegistrarDomainUi,
     nowMillis: Long,
+    isRefreshing: Boolean,
+    onRefresh: () -> Unit,
     onOpenUrl: (String) -> Unit,
     onOpenDashboard: () -> Unit,
     onOpenCompleteApi: () -> Unit,
     modifier: Modifier = Modifier,
+) {
+    val accent = Color(catalogProvider.accentColor)
+    BoxWithConstraints(modifier.fillMaxWidth()) {
+        val layout = RegistrarLayout.detail(maxWidth.value)
+        AppPullToRefresh(
+            isRefreshing = isRefreshing,
+            onRefresh = onRefresh,
+            modifier = Modifier.fillMaxSize(),
+            testTag = "registrar.detail.pullToRefresh",
+        ) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .testTag("registrar.domainDetail"),
+                contentPadding = PaddingValues(
+                    start = layout.sidePaddingDp.dp,
+                    top = 6.dp,
+                    end = layout.sidePaddingDp.dp,
+                    bottom = 32.dp,
+                ),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                item("hero") {
+                    DomainHero(provider, catalogProvider, domain, nowMillis, onOpenUrl, onOpenDashboard)
+                }
+                if (layout.columns >= 2) {
+                    // iOS: properties and nameservers side by side on regular width.
+                    item("panels") {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("registrar.detail.panels"),
+                            horizontalArrangement = Arrangement.spacedBy(RegistrarLayout.DETAIL_SPACING_DP.dp),
+                            verticalAlignment = Alignment.Top,
+                        ) {
+                            Box(Modifier.weight(1f)) { DomainProperties(domain, accent) }
+                            Box(Modifier.weight(1f)) { DomainNameservers(domain, accent) }
+                        }
+                    }
+                } else {
+                    item("properties") { DomainProperties(domain, accent) }
+                    item("nameservers") { DomainNameservers(domain, accent) }
+                }
+                item("complete-api") {
+                    CompleteApiEntryCard(
+                        accent = accent,
+                        onClick = onOpenCompleteApi,
+                        testTag = "registrar.detail.completeApi",
+                        title = "Complete registrar API",
+                        subtitle = "Search every indexed read and write operation, then inspect the full raw response",
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DomainHero(
+    provider: RegistrarProvider,
+    catalogProvider: IntegrationProvider,
+    domain: RegistrarDomainUi,
+    nowMillis: Long,
+    onOpenUrl: (String) -> Unit,
+    onOpenDashboard: () -> Unit,
 ) {
     val accent = Color(catalogProvider.accentColor)
     val haptic = LocalHapticFeedback.current
@@ -956,150 +1113,136 @@ private fun RegistrarDomainDetail(
     val statusText = domain.status?.uppercase() ?: provider.displayName.uppercase()
     val statusColor = registrarToneColor(registrarStatusTone(domain.status.orEmpty()), accent)
     val domainUrl = remember(domain.name) { registrarDomainUrl(domain.name) }
-    LazyColumn(
-        modifier = modifier
-            .fillMaxWidth()
-            .testTag("registrar.domainDetail"),
-        contentPadding = PaddingValues(start = 18.dp, top = 6.dp, end = 18.dp, bottom = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+    OffsetPanel(
+        modifier = Modifier.fillMaxWidth(),
+        color = accent.copy(alpha = 0.06f).compositeOver(MaterialTheme.colorScheme.surface),
+        borderColor = accent.copy(alpha = 0.24f),
+        shadowColor = accent,
     ) {
-        item("hero") {
-            OffsetPanel(
-                modifier = Modifier.fillMaxWidth(),
-                color = accent.copy(alpha = 0.06f).compositeOver(MaterialTheme.colorScheme.surface),
-                borderColor = accent.copy(alpha = 0.24f),
-                shadowColor = accent,
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(17.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                ProviderMark(provider = catalogProvider, size = 54.dp)
+                Spacer(Modifier.width(13.dp))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        domain.name,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    StatusPill(statusText, statusColor)
+                }
+            }
+            Row(
+                verticalAlignment = Alignment.Bottom,
+                modifier = Modifier
+                    .testTag("registrar.detail.expiry")
+                    .semantics(mergeDescendants = true) { },
             ) {
-                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(17.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        ProviderMark(provider = catalogProvider, size = 54.dp)
-                        Spacer(Modifier.width(13.dp))
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(
-                                domain.name,
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            StatusPill(statusText, statusColor)
-                        }
-                    }
-                    Row(
-                        verticalAlignment = Alignment.Bottom,
-                        modifier = Modifier
-                            .testTag("registrar.detail.expiry")
-                            .semantics(mergeDescendants = true) { },
-                    ) {
-                        Text(
-                            days?.let { formatCount(kotlin.math.abs(it.toLong())) } ?: "—",
-                            color = expiryColor,
-                            style = MaterialTheme.typography.displaySmall,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            when {
-                                days == null -> "expiry unavailable"
-                                days < 0 -> "days expired"
-                                else -> "days left"
-                            },
-                            modifier = Modifier.padding(bottom = 6.dp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.labelMedium,
-                        )
-                        Spacer(Modifier.weight(1f))
-                        domain.expiresAtMillis?.let {
-                            Text(
-                                formatRegistrarDate(it),
-                                modifier = Modifier.padding(bottom = 6.dp),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.labelMedium,
-                            )
-                        }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        if (domainUrl != null) {
-                            RegistrarTintedAction(
-                                text = "Open domain",
-                                icon = Icons.AutoMirrored.Rounded.OpenInNew,
-                                accent = MaterialTheme.colorScheme.onSurface,
-                                onClick = {
-                                    haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                                    onOpenUrl(domainUrl)
-                                },
-                                modifier = Modifier.weight(1f),
-                                testTag = "registrar.detail.openDomain",
-                            )
-                        }
-                        RegistrarTintedAction(
-                            text = "Registrar",
-                            icon = Icons.Rounded.Language,
-                            accent = MaterialTheme.colorScheme.onSurface,
-                            onClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                                onOpenDashboard()
-                            },
-                            modifier = Modifier.weight(1f),
-                            testTag = "registrar.detail.openRegistrar",
-                        )
-                    }
+                Text(
+                    days?.let { formatCount(kotlin.math.abs(it.toLong())) } ?: "—",
+                    color = expiryColor,
+                    style = MaterialTheme.typography.displaySmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    when {
+                        days == null -> "expiry unavailable"
+                        days < 0 -> "days expired"
+                        else -> "days left"
+                    },
+                    modifier = Modifier.padding(bottom = 6.dp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelMedium,
+                )
+                Spacer(Modifier.weight(1f))
+                domain.expiresAtMillis?.let {
+                    Text(
+                        formatRegistrarDate(it),
+                        modifier = Modifier.padding(bottom = 6.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.labelMedium,
+                    )
                 }
             }
-        }
-        item("properties") {
-            DetailPanel(testTag = "registrar.detail.properties") {
-                PropertyRow("Auto renewal", registrarBooleanText(domain.autoRenew), Icons.Rounded.Autorenew, accent)
-                PropertyDivider()
-                PropertyRow("Transfer lock", registrarBooleanText(domain.locked), Icons.Rounded.Lock, accent)
-                PropertyDivider()
-                PropertyRow("WHOIS privacy", registrarBooleanText(domain.privacyEnabled), Icons.Rounded.VisibilityOff, accent)
-                domain.createdAtMillis?.let {
-                    PropertyDivider()
-                    PropertyRow("Registered", formatRegistrarDate(it), Icons.Rounded.EventAvailable, accent)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (domainUrl != null) {
+                    RegistrarTintedAction(
+                        text = "Open domain",
+                        icon = Icons.AutoMirrored.Rounded.OpenInNew,
+                        accent = MaterialTheme.colorScheme.onSurface,
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                            onOpenUrl(domainUrl)
+                        },
+                        modifier = Modifier.weight(1f),
+                        testTag = "registrar.detail.openDomain",
+                    )
                 }
+                RegistrarTintedAction(
+                    text = "Registrar",
+                    icon = Icons.Rounded.Language,
+                    accent = MaterialTheme.colorScheme.onSurface,
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                        onOpenDashboard()
+                    },
+                    modifier = Modifier.weight(1f),
+                    testTag = "registrar.detail.openRegistrar",
+                )
             }
         }
-        item("nameservers") {
-            DetailPanel(testTag = "registrar.detail.nameservers") {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.Dns, contentDescription = null, tint = accent, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            "Nameservers",
-                            color = accent,
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.semantics { heading() },
-                        )
-                    }
-                    if (domain.nameservers.isEmpty()) {
-                        Text(
-                            "The list endpoint did not include nameservers for this domain.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    } else {
-                        domain.nameservers.forEach { nameserver ->
-                            Text(
-                                nameserver,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                            )
-                        }
-                    }
+    }
+}
+
+@Composable
+private fun DomainProperties(domain: RegistrarDomainUi, accent: Color) {
+    DetailPanel(testTag = "registrar.detail.properties") {
+        PropertyRow("Auto renewal", registrarBooleanText(domain.autoRenew), Icons.Rounded.Autorenew, accent)
+        PropertyDivider()
+        PropertyRow("Transfer lock", registrarBooleanText(domain.locked), Icons.Rounded.Lock, accent)
+        PropertyDivider()
+        PropertyRow("WHOIS privacy", registrarBooleanText(domain.privacyEnabled), Icons.Rounded.VisibilityOff, accent)
+        domain.createdAtMillis?.let {
+            PropertyDivider()
+            PropertyRow("Registered", formatRegistrarDate(it), Icons.Rounded.EventAvailable, accent)
+        }
+    }
+}
+
+@Composable
+private fun DomainNameservers(domain: RegistrarDomainUi, accent: Color) {
+    DetailPanel(testTag = "registrar.detail.nameservers") {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.Dns, contentDescription = null, tint = accent, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Nameservers",
+                    color = accent,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.semantics { heading() },
+                )
+            }
+            if (domain.nameservers.isEmpty()) {
+                Text(
+                    REGISTRAR_EMPTY_NAMESERVERS_HINT,
+                    modifier = Modifier.testTag("registrar.detail.nameservers.empty"),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            } else {
+                domain.nameservers.forEach { nameserver ->
+                    Text(
+                        nameserver,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                    )
                 }
             }
-        }
-        item("complete-api") {
-            CompleteApiEntryCard(
-                accent = accent,
-                onClick = onOpenCompleteApi,
-                testTag = "registrar.detail.completeApi",
-                title = "Complete registrar API",
-                subtitle = "Search every indexed read and write operation, then inspect the full raw response",
-            )
         }
     }
 }

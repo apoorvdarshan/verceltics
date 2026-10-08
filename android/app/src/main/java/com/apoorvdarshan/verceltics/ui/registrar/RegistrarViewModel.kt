@@ -34,14 +34,22 @@ enum class RegistrarOperation {
     RESTORING,
     CONNECTING,
     REFRESHING,
+    /** Making another saved account active. */
+    SWITCHING,
+    /** Removing the current account or every account. */
     DISCONNECTING,
 }
 
 data class RegistrarProviderUiState(
     val providerId: String,
     val status: RegistrarConnectionStatus = RegistrarConnectionStatus.RESTORING,
+    /** The active account's portfolio. */
     val dashboard: RegistrarDashboardUi? = null,
     val savedAccount: RegistrarAccountUi? = null,
+    /** Every saved account of this registrar, in saved order (iOS `RegistrarAccountMenu`). */
+    val accounts: List<RegistrarAccountUi> = emptyList(),
+    /** The connection form is open to add another account while this registrar stays connected. */
+    val isAddingAccount: Boolean = false,
     val operation: RegistrarOperation? = null,
     val error: String? = null,
     val notice: String? = null,
@@ -54,6 +62,38 @@ data class RegistrarProviderUiState(
     val isConnected: Boolean
         get() = status == RegistrarConnectionStatus.CONNECTED ||
             status == RegistrarConnectionStatus.SAVED_UNAVAILABLE
+
+    /** The account whose portfolio is shown, when the saved record could be read. */
+    val activeAccount: RegistrarAccountUi?
+        get() = dashboard?.account ?: savedAccount
+
+    /** Saved accounts for the account menu (just the active one for single-account fixtures). */
+    val savedAccounts: List<RegistrarAccountUi>
+        get() = accounts.ifEmpty { listOfNotNull(activeAccount) }
+
+    /** The credential form is on screen: a first connection or an additional account. */
+    val showsConnectionForm: Boolean
+        get() = status == RegistrarConnectionStatus.DISCONNECTED || (isAddingAccount && isConnected)
+}
+
+/** What a destructive registrar confirmation removes (iOS `RegistrarAccountMenu.RemovalIntent`). */
+enum class RegistrarRemovalScope {
+    CURRENT_ACCOUNT,
+    ALL_ACCOUNTS,
+}
+
+data class RegistrarRemovalConfirmation(
+    val providerId: String,
+    val scope: RegistrarRemovalScope,
+    /** The account captured when removal was requested; null when the saved record is unreadable. */
+    val accountId: String? = null,
+    val accountName: String? = null,
+    /** Saved accounts of the registrar when removal was requested. */
+    val accountCount: Int = 1,
+) {
+    /** Removing the only (or an unreadable) account empties the registrar, like Remove All. */
+    val removesEveryAccount: Boolean
+        get() = scope == RegistrarRemovalScope.ALL_ACCOUNTS || accountCount <= 1 || accountId.isNullOrEmpty()
 }
 
 /** Public network address helper state (Namecheap ClientIp / Name.com allowlist). */
@@ -71,7 +111,8 @@ data class RegistrarUiState(
     val restoreError: String? = null,
     val selectedProviderId: String? = null,
     val selectedDomainId: String? = null,
-    val disconnectConfirmationProviderId: String? = null,
+    /** A pending destructive confirmation (Remove Current / Remove All). */
+    val removalConfirmation: RegistrarRemovalConfirmation? = null,
     /** The registrar route currently on screen, used for credential window protection. */
     val visibleProviderId: String? = null,
     val publicIpv4: RegistrarPublicIpv4Ui = RegistrarPublicIpv4Ui(),
@@ -95,13 +136,15 @@ data class RegistrarUiState(
 val RegistrarUiState.connectedProviderIds: Set<String>
     get() = RegistrarProvider.ids.filterTo(LinkedHashSet()) { provider(it).isConnected }
 
-/** The activity owns FLAG_SECURE only while registrar credentials can be visible or in flight. */
+/**
+ * The activity owns FLAG_SECURE only while registrar credentials can be visible or in flight: the
+ * first-connection form, the add-account form, and any connection request.
+ */
 val RegistrarUiState.requiresSecureWindow: Boolean
     get() {
         val providerId = visibleProviderId ?: return false
         val provider = provider(providerId)
-        return provider.status == RegistrarConnectionStatus.DISCONNECTED ||
-            provider.operation == RegistrarOperation.CONNECTING
+        return provider.showsConnectionForm || provider.operation == RegistrarOperation.CONNECTING
     }
 
 /**
@@ -181,12 +224,17 @@ class RegistrarViewModel internal constructor(
         }
     }
 
+    /**
+     * Validates and saves credentials from the connection form: the first account of a
+     * disconnected registrar, or (in add-account mode) another account while the current ones stay
+     * connected. A reconnect of a saved identity rotates that account in place.
+     */
     fun connect(request: RegistrarConnectRequest) {
         val providerId = request.providerId
         if (RegistrarProvider.fromId(providerId) == null) return
         val current = _uiState.value.provider(providerId)
-        if (current.status != RegistrarConnectionStatus.DISCONNECTED || current.isBusy) return
-        val baseline = current.copy(error = null, notice = null)
+        if (!current.showsConnectionForm || current.isBusy) return
+        val baseline = current.copy(error = null, notice = null, failedOperation = null)
         launchProviderOperation(providerId, RegistrarOperation.CONNECTING, baseline) { generation ->
             gateway.connect(request).fold(
                 onSuccess = { dashboard ->
@@ -207,13 +255,16 @@ class RegistrarViewModel internal constructor(
         }
     }
 
+    /** Refreshes the active account; an open add-account form stays open. */
     fun refresh(providerId: String) {
         val baseline = _uiState.value.provider(providerId)
         if (!baseline.isConnected || baseline.isBusy) return
         launchProviderOperation(providerId, RegistrarOperation.REFRESHING, baseline) { generation ->
             gateway.refresh(providerId).fold(
                 onSuccess = { dashboard ->
-                    if (isCurrent(providerId, generation)) applyDashboard(providerId, dashboard)
+                    if (isCurrent(providerId, generation)) {
+                        applyDashboard(providerId, dashboard, keepsAddingAccount = baseline.isAddingAccount)
+                    }
                 },
                 onFailure = { error ->
                     if (isCurrent(providerId, generation)) {
@@ -238,7 +289,7 @@ class RegistrarViewModel internal constructor(
     /** iOS `load()` freshness rule: reload when the shown portfolio is cached or 15+ minutes old. */
     fun refreshIfStale(providerId: String) {
         val state = _uiState.value.provider(providerId)
-        if (state.status != RegistrarConnectionStatus.CONNECTED || state.isBusy) return
+        if (state.status != RegistrarConnectionStatus.CONNECTED || state.isBusy || state.isAddingAccount) return
         val dashboard = state.dashboard ?: return
         val stale = dashboard.cacheState != RegistrarCacheState.LIVE ||
             nowMillis() - dashboard.fetchedAtMillis >= RegistrarConnectionStore.CACHE_LIFETIME_MILLIS
@@ -271,14 +322,17 @@ class RegistrarViewModel internal constructor(
                         if (isCurrent(providerId, generation)) {
                             val entry = restored.providers[providerId] ?: RegistrarProviderRestoreUi.NotConnected
                             val reconciled = providerStateFrom(providerId, entry)
+                            val completed = reconciled.savedIdentity() != baseline.savedIdentity()
                             setProvider(
-                                reconciled.copy(
-                                    notice = if (entry is RegistrarProviderRestoreUi.Available) {
-                                        "The connection completed before cancellation and remains saved."
-                                    } else {
-                                        "Request cancelled."
-                                    },
-                                ),
+                                if (completed) {
+                                    reconciled.copy(notice = "The connection completed before cancellation and remains saved.")
+                                } else {
+                                    // Nothing changed: an add-account form stays open for another try.
+                                    reconciled.copy(
+                                        isAddingAccount = baseline.isAddingAccount && reconciled.isConnected,
+                                        notice = "Request cancelled.",
+                                    )
+                                },
                             )
                         }
                     },
@@ -301,30 +355,60 @@ class RegistrarViewModel internal constructor(
         setProvider((baseline ?: current).copy(operation = null, notice = "Request cancelled."))
     }
 
-    fun requestDisconnectConfirmation(providerId: String) {
+    /** Asks to remove the active account ("Remove Current"); the only account disconnects the registrar. */
+    fun requestDisconnectConfirmation(providerId: String) =
+        requestRemoval(providerId, RegistrarRemovalScope.CURRENT_ACCOUNT)
+
+    /** Asks to remove every saved account of the registrar ("Remove All"). */
+    fun requestRemoveAllAccounts(providerId: String) =
+        requestRemoval(providerId, RegistrarRemovalScope.ALL_ACCOUNTS)
+
+    private fun requestRemoval(providerId: String, scope: RegistrarRemovalScope) {
         val provider = _uiState.value.provider(providerId)
-        if (provider.isConnected && !provider.isBusy) {
-            _uiState.update { it.copy(disconnectConfirmationProviderId = providerId) }
+        if (!provider.isConnected || provider.isBusy) return
+        val account = provider.activeAccount
+        _uiState.update {
+            it.copy(
+                removalConfirmation = RegistrarRemovalConfirmation(
+                    providerId = providerId,
+                    scope = scope,
+                    accountId = account?.id,
+                    accountName = account?.displayName,
+                    accountCount = provider.savedAccounts.size,
+                ),
+            )
         }
     }
 
     fun dismissDisconnectConfirmation() {
-        _uiState.update { it.copy(disconnectConfirmationProviderId = null) }
+        _uiState.update { it.copy(removalConfirmation = null) }
     }
 
+    /** Confirms the pending removal: one account, or every account of the registrar. */
     fun confirmDisconnect() {
-        val providerId = _uiState.value.disconnectConfirmationProviderId ?: return
-        val baseline = _uiState.value.provider(providerId)
-        _uiState.update { it.copy(disconnectConfirmationProviderId = null) }
+        val confirmation = _uiState.value.removalConfirmation ?: return
+        val providerId = confirmation.providerId
+        val baseline = _uiState.value.provider(providerId).copy(isAddingAccount = false)
+        _uiState.update { it.copy(removalConfirmation = null) }
         if (!baseline.isConnected || baseline.isBusy) return
         closeApiWorkspace(providerId)
         if (_uiState.value.selectedProviderId == providerId) closeDomain()
-        launchProviderOperation(providerId, RegistrarOperation.DISCONNECTING, baseline) { generation ->
-            gateway.disconnect(providerId).fold(
-                onSuccess = {
-                    if (isCurrent(providerId, generation)) {
-                        setProvider(RegistrarProviderUiState(providerId, RegistrarConnectionStatus.DISCONNECTED))
-                    }
+        val accountId = confirmation.accountId
+        val removesOne = !confirmation.removesEveryAccount && accountId != null && baseline.savedAccounts.size > 1
+        launchProviderOperation(
+            providerId = providerId,
+            operation = RegistrarOperation.DISCONNECTING,
+            baseline = baseline,
+            onComplete = { refreshIfStale(providerId) },
+        ) { generation ->
+            val result = if (removesOne && accountId != null) {
+                gateway.removeAccount(providerId, accountId)
+            } else {
+                gateway.disconnect(providerId).map { RegistrarProviderRestoreUi.NotConnected }
+            }
+            result.fold(
+                onSuccess = { entry ->
+                    if (isCurrent(providerId, generation)) setProvider(providerStateFrom(providerId, entry))
                 },
                 onFailure = { error ->
                     if (isCurrent(providerId, generation)) {
@@ -338,6 +422,70 @@ class RegistrarViewModel internal constructor(
                     }
                 },
             )
+        }
+    }
+
+    /**
+     * iOS `RegistrarStore.switchAccount(to:)`: shows another saved account's cached portfolio
+     * immediately, then refreshes it when stale. A refresh of the previous account is cancelled.
+     */
+    fun switchAccount(providerId: String, accountId: String) {
+        var current = _uiState.value.provider(providerId)
+        if (!current.isConnected || current.activeAccount?.id == accountId) return
+        if (current.savedAccounts.none { it.id == accountId }) return
+        if (current.operation == RegistrarOperation.REFRESHING) {
+            val refreshBaseline = providerBaselines.remove(providerId)
+            nextGeneration(providerId)
+            providerJobs.remove(providerId)?.cancel()
+            current = (refreshBaseline ?: current).copy(operation = null)
+            setProvider(current)
+        }
+        if (current.isBusy) return
+        closeApiWorkspace(providerId)
+        if (_uiState.value.selectedProviderId == providerId) closeDomain()
+        val baseline = current.copy(isAddingAccount = false, error = null, notice = null, failedOperation = null)
+        launchProviderOperation(
+            providerId = providerId,
+            operation = RegistrarOperation.SWITCHING,
+            baseline = baseline,
+            onComplete = { refreshIfStale(providerId) },
+        ) { generation ->
+            gateway.switchAccount(providerId, accountId).fold(
+                onSuccess = { entry ->
+                    if (isCurrent(providerId, generation)) setProvider(providerStateFrom(providerId, entry))
+                },
+                onFailure = { error ->
+                    if (isCurrent(providerId, generation)) {
+                        setProvider(
+                            baseline.copy(
+                                operation = null,
+                                error = safeMessage(error),
+                                failedOperation = RegistrarOperation.SWITCHING,
+                            ),
+                        )
+                    }
+                },
+            )
+        }
+    }
+
+    /** Opens the connection form for another account without disconnecting the current ones. */
+    fun startAddingAccount(providerId: String) {
+        val current = _uiState.value.provider(providerId)
+        if (!current.isConnected || current.isBusy || current.savedAccounts.isEmpty() || current.isAddingAccount) return
+        closeApiWorkspace(providerId)
+        if (_uiState.value.selectedProviderId == providerId) closeDomain()
+        updateProvider(providerId) {
+            it.copy(isAddingAccount = true, error = null, notice = null, failedOperation = null)
+        }
+    }
+
+    /** Closes the add-account form and returns to the active account's portfolio. */
+    fun cancelAddingAccount(providerId: String) {
+        val current = _uiState.value.provider(providerId)
+        if (!current.isAddingAccount || current.isBusy) return
+        updateProvider(providerId) {
+            it.copy(isAddingAccount = false, error = null, notice = null, failedOperation = null)
         }
     }
 
@@ -385,7 +533,7 @@ class RegistrarViewModel internal constructor(
     fun openApiWorkspace(providerId: String, domainId: String? = null) {
         val provider = RegistrarProvider.fromId(providerId) ?: return
         val state = _uiState.value.provider(providerId)
-        if (state.status != RegistrarConnectionStatus.CONNECTED) return
+        if (state.status != RegistrarConnectionStatus.CONNECTED || state.isAddingAccount) return
         val domain = domainId?.let { id -> state.dashboard?.domains?.firstOrNull { it.id == id } }
         apiWorkspace(providerId)?.open(RegistrarRawApi.suggestedPath(provider, domain?.name))
     }
@@ -394,21 +542,36 @@ class RegistrarViewModel internal constructor(
         apiWorkspaces[providerId]?.close()
     }
 
-    /** Returns true when the route consumed back instead of asking the app shell to close it. */
-    fun handleBack(providerId: String? = null): Boolean = when {
-        providerId != null && apiWorkspaces[providerId]?.state?.value?.isOpen == true -> {
-            apiWorkspaces[providerId]?.back()
-            true
+    /**
+     * Returns true when the route consumed back instead of asking the app shell to close it. Back
+     * leaves an add-account form (cancelling a request in flight first) before leaving the route.
+     */
+    fun handleBack(providerId: String? = null): Boolean {
+        val addingProviderId = (providerId ?: _uiState.value.visibleProviderId)
+            ?.takeIf { _uiState.value.provider(it).isAddingAccount }
+        return when {
+            providerId != null && apiWorkspaces[providerId]?.state?.value?.isOpen == true -> {
+                apiWorkspaces[providerId]?.back()
+                true
+            }
+            _uiState.value.removalConfirmation != null -> {
+                dismissDisconnectConfirmation()
+                true
+            }
+            addingProviderId != null -> {
+                if (_uiState.value.provider(addingProviderId).operation == RegistrarOperation.CONNECTING) {
+                    cancelOperation(addingProviderId)
+                } else {
+                    cancelAddingAccount(addingProviderId)
+                }
+                true
+            }
+            _uiState.value.selectedDomainId != null -> {
+                closeDomain()
+                true
+            }
+            else -> false
         }
-        _uiState.value.disconnectConfirmationProviderId != null -> {
-            dismissDisconnectConfirmation()
-            true
-        }
-        _uiState.value.selectedDomainId != null -> {
-            closeDomain()
-            true
-        }
-        else -> false
     }
 
     fun setVisibleProvider(providerId: String) {
@@ -500,11 +663,13 @@ class RegistrarViewModel internal constructor(
                 status = RegistrarConnectionStatus.CONNECTED,
                 dashboard = restored.dashboard,
                 savedAccount = restored.dashboard.account,
+                accounts = restored.dashboard.accounts,
             )
             is RegistrarProviderRestoreUi.SavedWithoutInventory -> RegistrarProviderUiState(
                 providerId = providerId,
                 status = RegistrarConnectionStatus.SAVED_UNAVAILABLE,
                 savedAccount = restored.account,
+                accounts = restored.accounts,
                 notice = "This connection has no saved domain portfolio. Refresh when you are online.",
             )
             is RegistrarProviderRestoreUi.SavedUnavailable -> RegistrarProviderUiState(
@@ -514,13 +679,19 @@ class RegistrarViewModel internal constructor(
             )
         }
 
-    private fun applyDashboard(providerId: String, dashboard: RegistrarDashboardUi) {
+    /** Identity of what is saved: a completed connection always changes it (new account or fresh portfolio). */
+    private fun RegistrarProviderUiState.savedIdentity(): Triple<String?, List<String>, Long?> =
+        Triple(activeAccount?.id, savedAccounts.map(RegistrarAccountUi::id), dashboard?.fetchedAtMillis)
+
+    private fun applyDashboard(providerId: String, dashboard: RegistrarDashboardUi, keepsAddingAccount: Boolean = false) {
         setProvider(
             RegistrarProviderUiState(
                 providerId = providerId,
                 status = RegistrarConnectionStatus.CONNECTED,
                 dashboard = dashboard,
                 savedAccount = dashboard.account,
+                accounts = dashboard.accounts,
+                isAddingAccount = keepsAddingAccount,
             ),
         )
         val state = _uiState.value
@@ -531,10 +702,15 @@ class RegistrarViewModel internal constructor(
         }
     }
 
+    /**
+     * Runs one operation for [providerId]. [onComplete] runs once the operation finished (and its
+     * job was released) while it is still current, so it may start the next operation.
+     */
     private fun launchProviderOperation(
         providerId: String,
         operation: RegistrarOperation,
         baseline: RegistrarProviderUiState,
+        onComplete: (() -> Unit)? = null,
         block: suspend (generation: Long) -> Unit,
     ) {
         if (providerJobs[providerId]?.isActive == true) return
@@ -542,8 +718,10 @@ class RegistrarViewModel internal constructor(
         providerBaselines[providerId] = baseline
         setProvider(baseline.copy(operation = operation, error = null, notice = null, failedOperation = null))
         val job = viewModelScope.launch {
+            var completed = false
             try {
                 block(generation)
+                completed = true
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -556,6 +734,7 @@ class RegistrarViewModel internal constructor(
                     providerBaselines.remove(providerId)
                 }
             }
+            if (completed && isCurrent(providerId, generation)) onComplete?.invoke()
         }
         if (job.isActive && isCurrent(providerId, generation)) providerJobs[providerId] = job
     }

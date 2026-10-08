@@ -24,6 +24,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CheckCircle
@@ -155,6 +156,9 @@ internal fun RegistrarConnectionForm(
     onOpenUrl: (String) -> Unit,
     onDetectPublicIpv4: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Adds another account while the registrar's saved accounts stay connected. */
+    isAddingAccount: Boolean = false,
+    onCancelAddAccount: () -> Unit = {},
 ) {
     val accent = Color(catalogProvider.accentColor)
     val haptic = LocalHapticFeedback.current
@@ -225,13 +229,14 @@ internal fun RegistrarConnectionForm(
         ) {
             ProviderMark(provider = catalogProvider, size = 72.dp)
             Text(
-                "Connect ${provider.displayName}",
+                if (isAddingAccount) "Add ${provider.displayName} account" else "Connect ${provider.displayName}",
                 modifier = Modifier.semantics { heading() },
                 style = MaterialTheme.typography.headlineSmall,
                 textAlign = TextAlign.Center,
             )
             Text(
-                provider.apiDescription,
+                if (isAddingAccount) registrarAddAccountExplanation(provider) else provider.apiDescription,
+                modifier = if (isAddingAccount) Modifier.testTag("registrar.addAccount.explanation") else Modifier,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall,
                 textAlign = TextAlign.Center,
@@ -368,18 +373,37 @@ internal fun RegistrarConnectionForm(
                     )
                 } else {
                     ThemedActionButton(
-                        "Connect ${provider.displayName}".uppercase(),
+                        if (isAddingAccount) "ADD ACCOUNT" else "Connect ${provider.displayName}".uppercase(),
                         enabled = canConnect,
                         isBusy = providerState.operation == RegistrarOperation.RESTORING,
                         onClick = ::submit,
                         modifier = Modifier.fillMaxWidth(),
                         testTag = "registrar.connect",
                     )
+                    if (isAddingAccount) {
+                        ThemedActionButton(
+                            "BACK TO PORTFOLIO",
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                                keyboard?.hide()
+                                onCancelAddAccount()
+                            },
+                            enabled = !providerState.isBusy,
+                            tone = ThemedActionTone.NEUTRAL,
+                            modifier = Modifier.fillMaxWidth(),
+                            testTag = "registrar.addAccount.cancel",
+                        )
+                    }
                 }
             }
         }
     }
 }
+
+/** Add-account mode subtitle: connecting never disconnects, and a saved identity is updated. */
+internal fun registrarAddAccountExplanation(provider: RegistrarProvider): String =
+    "Your saved ${provider.displayName} accounts stay connected. Reconnecting an account that is already " +
+        "saved updates its credentials instead of adding a duplicate."
 
 @Composable
 private fun RegistrarSecurityCard(provider: RegistrarProvider, accent: Color) {
@@ -488,12 +512,15 @@ private fun RegistrarPublicIpv4Helper(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 style = MaterialTheme.typography.labelMedium,
                             )
-                            Text(
-                                address,
-                                modifier = Modifier.testTag("registrar.publicIpv4.address"),
-                                style = MaterialTheme.typography.titleLarge.copy(fontFamily = FontFamily.Monospace),
-                                fontWeight = FontWeight.SemiBold,
-                            )
+                            // iOS `.textSelection(.enabled)`: the address can be selected and copied.
+                            SelectionContainer {
+                                Text(
+                                    address,
+                                    modifier = Modifier.testTag("registrar.publicIpv4.address"),
+                                    style = MaterialTheme.typography.titleLarge.copy(fontFamily = FontFamily.Monospace),
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                            }
                         }
                         RegistrarIconAction(
                             icon = Icons.Rounded.Refresh,
