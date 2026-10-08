@@ -214,7 +214,8 @@ fun ProviderAccountMenu(
                     actions.onAddAccount()
                 },
             )
-            if (active != null || accounts.isNotEmpty()) {
+            // The menu only appears for a saved account, so there is always a current one to remove.
+            run {
                 DropdownMenuItem(
                     modifier = Modifier
                         .fillMaxWidth()
