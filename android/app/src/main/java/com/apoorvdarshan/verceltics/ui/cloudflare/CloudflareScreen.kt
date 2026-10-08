@@ -102,6 +102,17 @@ import com.apoorvdarshan.verceltics.ui.components.ThemedModalBottomSheet
 import com.apoorvdarshan.verceltics.ui.theme.LocalVercelticsDarkTheme
 import java.lang.ref.WeakReference
 import com.apoorvdarshan.verceltics.ui.billing.LocalProAccess
+import androidx.compose.foundation.clickable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.ui.draw.clip
+import com.apoorvdarshan.verceltics.ui.cloudflare.tools.CloudflareAdvancedSection
+import com.apoorvdarshan.verceltics.ui.cloudflare.tools.CloudflareAdvancedToolsUi
+import com.apoorvdarshan.verceltics.ui.cloudflare.tools.CloudflareToolsHost
+import com.apoorvdarshan.verceltics.ui.cloudflare.tools.CloudflareToolsRouteEffects
+import com.apoorvdarshan.verceltics.ui.cloudflare.tools.CloudflareToolsViewModel
+import com.apoorvdarshan.verceltics.ui.cloudflare.tools.cloudflareAdvancedTools
+import com.apoorvdarshan.verceltics.ui.cloudflare.tools.cloudflareToolsContext
+import com.apoorvdarshan.verceltics.ui.cloudflare.tools.rememberCloudflareToolsViewModel
 
 private val CloudflareAccent = Color(0xFFF26B14)
 private val CloudflareSuccess = Color(0xFF35C86F)
@@ -113,9 +124,14 @@ fun CloudflareRoute(
     onBack: () -> Unit,
     searchRequestId: Int = 0,
     modifier: Modifier = Modifier,
+    toolsViewModel: CloudflareToolsViewModel? = null,
+    // Hook for the Cloudflare storage port ("Storage & databases"); the Advanced row is hidden while null.
+    onOpenStorage: ((accountId: String) -> Unit)? = null,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val proAccess = LocalProAccess.current
+    val tools = toolsViewModel ?: rememberCloudflareToolsViewModel(viewModel)
+    val toolsState by tools.uiState.collectAsStateWithLifecycle()
     var lastHandledSearchRequestId by rememberSaveable { mutableIntStateOf(0) }
     val routeBack = {
         if (!viewModel.handleBack()) onBack()
@@ -124,6 +140,7 @@ fun CloudflareRoute(
     LaunchedEffect(proAccess.isConfirmedLocked, state.selectedResource) {
         if (proAccess.isConfirmedLocked && state.selectedResource != null) viewModel.closeResource()
     }
+    CloudflareToolsRouteEffects(tools, toolsState.isOpen, state, proAccess)
     DisposableEffect(viewModel) {
         viewModel.setRouteVisible(true)
         onDispose { viewModel.setRouteVisible(false) }
@@ -133,9 +150,16 @@ fun CloudflareRoute(
         if (searchRequestId > 0 && searchRequestId != lastHandledSearchRequestId) {
             lastHandledSearchRequestId = searchRequestId
             if (state.selectedResource != null) viewModel.closeResource()
+            tools.closeAll()
         }
     }
-    CloudflareScreen(
+    // Keeps the dashboard's scroll position and search while a Cloudflare tool is on top.
+    val dashboardStateHolder = rememberSaveableStateHolder()
+    if (toolsState.isOpen && state.status == CloudflareConnectionStatus.CONNECTED && state.dashboard != null) {
+        CloudflareToolsHost(viewModel = tools, context = cloudflareToolsContext(state), modifier = modifier)
+        return
+    }
+    dashboardStateHolder.SaveableStateProvider("cloudflare.dashboard") { CloudflareScreen(
         state = state,
         onBack = routeBack,
         onConnect = viewModel::connect,
@@ -148,7 +172,8 @@ fun CloudflareRoute(
         onConfirmDisconnect = viewModel::confirmDisconnect,
         searchRequestId = searchRequestId,
         modifier = modifier,
-    )
+        advancedTools = cloudflareAdvancedTools(tools, state, proAccess, onOpenStorage),
+    ) }
 }
 
 @Composable
@@ -165,6 +190,7 @@ fun CloudflareScreen(
     onConfirmDisconnect: () -> Unit,
     searchRequestId: Int = 0,
     modifier: Modifier = Modifier,
+    advancedTools: CloudflareAdvancedToolsUi? = null,
 ) {
     val haptic = LocalHapticFeedback.current
     if (state.showDisconnectConfirmation) {
@@ -236,6 +262,7 @@ fun CloudflareScreen(
                 onDisconnect = onRequestDisconnect,
                 searchRequestId = searchRequestId,
                 modifier = Modifier.weight(1f),
+                advancedTools = advancedTools,
             )
         }
     }
@@ -576,6 +603,7 @@ private fun CloudflareDashboard(
     onDisconnect: () -> Unit,
     searchRequestId: Int,
     modifier: Modifier = Modifier,
+    advancedTools: CloudflareAdvancedToolsUi? = null,
 ) {
     val dashboard = requireNotNull(state.dashboard)
     val inventory = dashboard.inventory
@@ -617,7 +645,23 @@ private fun CloudflareDashboard(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item("summary") {
-            CloudflareCommandCard(dashboard, hasOperationError = state.error != null)
+            val openAccount = advancedTools?.onOpenAccount
+            if (openAccount == null) {
+                CloudflareCommandCard(dashboard, hasOperationError = state.error != null)
+            } else {
+                // iOS account header tap: opens account details (Pro-gated by the route).
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(18.dp))
+                        .clickable(onClickLabel = "Open account details", role = Role.Button) {
+                            haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                            openAccount()
+                        }
+                        .testTag("cloudflare.summary.openAccount"),
+                ) {
+                    CloudflareCommandCard(dashboard, hasOperationError = state.error != null)
+                }
+            }
         }
         if (dashboard.accounts.size > 1) {
             item("account-picker") {
@@ -700,6 +744,7 @@ private fun CloudflareDashboard(
         } ?: item("no-account") {
             CloudflareWarningPanel("This token returned no accessible Cloudflare account inventory.")
         }
+        advancedTools?.let { tools -> item("advanced") { CloudflareAdvancedSection(tools) } }
         item("disconnect") {
             ThemedActionButton(
                 "DISCONNECT CLOUDFLARE",
