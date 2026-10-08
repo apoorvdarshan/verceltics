@@ -1,5 +1,5 @@
 {
-  "package": {"ios": "com.apoorvdarshan.verceltics"},
+  "package": {"ios": "com.apoorvdarshan.verceltics", "android": "com.apoorvdarshan.verceltics"},
   "uses_non_exempt_encryption": false,
   "subscriptions": [
     {"id": "com.apoorvdarshan.verceltics.monthly"},

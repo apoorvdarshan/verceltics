@@ -45,6 +45,7 @@ import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Language
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.WarningAmber
@@ -111,6 +112,7 @@ import java.text.NumberFormat
 import java.util.Date
 import java.util.Locale
 import java.lang.ref.WeakReference
+import com.apoorvdarshan.verceltics.ui.billing.LocalProAccess
 
 private val PageSpeedAccent = Color(0xFF4FBD7A)
 private val PageSpeedWarning = Color(0xFFFFD83D)
@@ -578,6 +580,7 @@ private fun Dashboard(
     modifier: Modifier = Modifier,
 ) {
     val dashboard = requireNotNull(state.dashboard)
+    val proAccess = LocalProAccess.current
     val metricGroups = listOf(
         MetricGroupUi("MOBILE LAB", "Lighthouse · mobile", "pagespeed.mobile.", PageSpeedAccent),
         MetricGroupUi(
@@ -626,10 +629,17 @@ private fun Dashboard(
             item(key = "notice") { FeedbackPanel(message, isError = false) }
         }
 
-        metricGroups.forEach { group ->
-            val metrics = dashboard.metrics.filter { it.key.startsWith(group.prefix) }
-            if (metrics.isNotEmpty()) {
-                item(key = group.prefix) { MetricGroupPanel(group, metrics) }
+        if (proAccess.isUnlocked) {
+            metricGroups.forEach { group ->
+                val metrics = dashboard.metrics.filter { it.key.startsWith(group.prefix) }
+                if (metrics.isNotEmpty()) {
+                    item(key = group.prefix) { MetricGroupPanel(group, metrics) }
+                }
+            }
+        } else {
+            // The hero summary stays free; the full lab and field breakdown is Pro.
+            item(key = "full-audit-locked") {
+                FullAuditLockedPanel(onUnlock = { proAccess.requestPro {} })
             }
         }
 
@@ -1211,6 +1221,42 @@ private fun BrandedInput(
                         }
                     }
                 },
+            )
+        }
+    }
+}
+
+@Composable
+private fun FullAuditLockedPanel(onUnlock: () -> Unit) {
+    OffsetPanel(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surface,
+        testTag = "pagespeed.fullAudit.locked",
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Rounded.Lock,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(Modifier.width(10.dp))
+                Text("Full audit breakdown", style = MaterialTheme.typography.titleMedium)
+            }
+            Text(
+                "Lighthouse mobile and desktop labs and Chrome UX field data are part of Verceltics Pro.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            BrandedActionButton(
+                text = "Unlock full audit",
+                icon = Icons.Rounded.Lock,
+                onClick = onUnlock,
+                testTag = "pagespeed.fullAudit.unlock",
             )
         }
     }

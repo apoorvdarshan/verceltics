@@ -102,6 +102,7 @@ import com.apoorvdarshan.verceltics.ui.theme.LocalVercelticsDarkTheme
 import java.lang.ref.WeakReference
 import java.text.DateFormat
 import java.util.Date
+import com.apoorvdarshan.verceltics.ui.billing.LocalProAccess
 
 private val NetlifyAccent = Color(0xFF2ED1C7)
 private val NetlifyWarning = Color(0xFFFFD83D)
@@ -114,10 +115,15 @@ fun NetlifyRoute(
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val proAccess = LocalProAccess.current
     var lastHandledSearchRequestId by rememberSaveable { mutableIntStateOf(searchRequestId) }
     var siteSearchFocusRequestId by rememberSaveable { mutableIntStateOf(0) }
     val routeBack = {
         if (!viewModel.handleBack()) onBack()
+    }
+    // Site details are Pro: close a site restored from saved state once access is locked.
+    LaunchedEffect(proAccess.isConfirmedLocked, state.selectedSiteId) {
+        if (proAccess.isConfirmedLocked && state.selectedSiteId != null) viewModel.closeSite()
     }
     DisposableEffect(viewModel) {
         viewModel.setRouteVisible(true)
@@ -140,7 +146,7 @@ fun NetlifyRoute(
         onConnect = viewModel::connect,
         onRefresh = viewModel::refresh,
         onCancel = viewModel::cancelOperation,
-        onOpenSite = viewModel::openSite,
+        onOpenSite = { siteId -> proAccess.requestPro { viewModel.openSite(siteId) } },
         onRefreshSite = viewModel::refreshSelectedSite,
         onRequestDisconnect = viewModel::requestDisconnectConfirmation,
         onDismissDisconnect = viewModel::dismissDisconnectConfirmation,

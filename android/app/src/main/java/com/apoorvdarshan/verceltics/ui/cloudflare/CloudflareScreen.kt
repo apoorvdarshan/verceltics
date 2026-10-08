@@ -101,6 +101,7 @@ import com.apoorvdarshan.verceltics.ui.components.ThemedGlassControl
 import com.apoorvdarshan.verceltics.ui.components.ThemedModalBottomSheet
 import com.apoorvdarshan.verceltics.ui.theme.LocalVercelticsDarkTheme
 import java.lang.ref.WeakReference
+import com.apoorvdarshan.verceltics.ui.billing.LocalProAccess
 
 private val CloudflareAccent = Color(0xFFF26B14)
 private val CloudflareSuccess = Color(0xFF35C86F)
@@ -114,9 +115,14 @@ fun CloudflareRoute(
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val proAccess = LocalProAccess.current
     var lastHandledSearchRequestId by rememberSaveable { mutableIntStateOf(0) }
     val routeBack = {
         if (!viewModel.handleBack()) onBack()
+    }
+    // Zone, Pages and Worker details are Pro: close one restored from saved state once access is locked.
+    LaunchedEffect(proAccess.isConfirmedLocked, state.selectedResource) {
+        if (proAccess.isConfirmedLocked && state.selectedResource != null) viewModel.closeResource()
     }
     DisposableEffect(viewModel) {
         viewModel.setRouteVisible(true)
@@ -136,7 +142,7 @@ fun CloudflareRoute(
         onRefresh = viewModel::refresh,
         onCancel = viewModel::cancelOperation,
         onSelectAccount = viewModel::selectAccount,
-        onOpenResource = viewModel::openResource,
+        onOpenResource = { kind, id -> proAccess.requestPro { viewModel.openResource(kind, id) } },
         onRequestDisconnect = viewModel::requestDisconnectConfirmation,
         onDismissDisconnect = viewModel::dismissDisconnectConfirmation,
         onConfirmDisconnect = viewModel::confirmDisconnect,

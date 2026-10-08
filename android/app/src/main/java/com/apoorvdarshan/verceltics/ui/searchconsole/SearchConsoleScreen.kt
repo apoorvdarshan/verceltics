@@ -101,6 +101,7 @@ import java.time.LocalDate
 import java.util.Date
 import java.util.Locale
 import kotlin.math.roundToLong
+import com.apoorvdarshan.verceltics.ui.billing.LocalProAccess
 
 private val SearchConsoleAccent = Color(0xFFFF6B1A)
 private val SearchConsoleSuccess = Color(0xFF42C96B)
@@ -260,6 +261,7 @@ fun SearchConsoleRoute(
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val proAccess = LocalProAccess.current
     val routeBack = {
         if (!viewModel.handleBack()) onBack()
     }
@@ -270,6 +272,10 @@ fun SearchConsoleRoute(
     LaunchedEffect(searchRequestId) {
         viewModel.handleSearchRequest(searchRequestId)
     }
+    // Property reports are Pro: close a property restored from saved state once access is locked.
+    LaunchedEffect(proAccess.isConfirmedLocked, state.selectedPropertyUrl) {
+        if (proAccess.isConfirmedLocked && state.selectedPropertyUrl != null) viewModel.closeProperty()
+    }
     BackHandler(onBack = routeBack)
     SearchConsoleScreen(
         state = state,
@@ -278,7 +284,7 @@ fun SearchConsoleRoute(
         onRefresh = viewModel::refresh,
         onCancel = viewModel::cancelOperation,
         onSearchChange = viewModel::updatePropertySearch,
-        onOpenProperty = viewModel::openProperty,
+        onOpenProperty = { siteUrl -> proAccess.requestPro { viewModel.openProperty(siteUrl) } },
         onRequestPropertySwitcher = viewModel::requestPropertySwitcher,
         onDismissPropertySwitcher = viewModel::dismissPropertySwitcher,
         onPropertySearchFocused = viewModel::acknowledgePropertySearchFocus,

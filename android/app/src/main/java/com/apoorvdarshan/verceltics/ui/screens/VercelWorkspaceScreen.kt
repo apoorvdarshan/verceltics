@@ -92,6 +92,7 @@ import com.apoorvdarshan.verceltics.ui.components.ThemedAlertDialog
 import com.apoorvdarshan.verceltics.ui.components.ThemedGlassControl
 import java.text.DateFormat
 import java.util.Date
+import com.apoorvdarshan.verceltics.ui.billing.LocalProAccess
 
 /**
  * Native Hosting root for the first connected Android provider slice.
@@ -111,6 +112,7 @@ fun VercelWorkspaceScreen(
 ) {
     val state by vercelConnectionViewModel.uiState.collectAsStateWithLifecycle()
     val analyticsState by vercelConnectionViewModel.analyticsState.collectAsStateWithLifecycle()
+    val proAccess = LocalProAccess.current
     var selectedProjectId by rememberSaveable { mutableStateOf<String?>(null) }
     var lastHandledRefreshRequestId by rememberSaveable { mutableIntStateOf(0) }
     var lastHandledSearchRequestId by rememberSaveable { mutableIntStateOf(0) }
@@ -151,6 +153,14 @@ fun VercelWorkspaceScreen(
         val projectId = selectedProjectId ?: return@LaunchedEffect
         val projectStillExists = state.dashboard?.projects?.any { it.id == projectId }
         if (shouldClearSavedProjectSelection(state.status, projectStillExists)) {
+            selectedProjectId = null
+            vercelConnectionViewModel.closeProjectAnalytics()
+        }
+    }
+
+    // Project analytics is Pro: close a project restored from saved state once access is locked.
+    LaunchedEffect(proAccess.isConfirmedLocked, selectedProjectId) {
+        if (proAccess.isConfirmedLocked && selectedProjectId != null) {
             selectedProjectId = null
             vercelConnectionViewModel.closeProjectAnalytics()
         }
@@ -226,8 +236,10 @@ fun VercelWorkspaceScreen(
                 vercelConnectionViewModel.disconnect()
             },
             onProjectSelected = { project ->
-                selectedProjectId = project.id
-                vercelConnectionViewModel.openProjectAnalytics(project)
+                proAccess.requestPro {
+                    selectedProjectId = project.id
+                    vercelConnectionViewModel.openProjectAnalytics(project)
+                }
             },
             connectedProviderIds = connectedProviderIds,
             onConnectNetlify = {

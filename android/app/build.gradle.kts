@@ -24,6 +24,19 @@ if (configuredGoogleOAuthRedirectScheme != null &&
 val googleOAuthRedirectScheme = derivedGoogleOAuthRedirectScheme
     ?: "verceltics-oauth-unconfigured"
 
+// RevenueCat public SDK key for the Google Play app (goog_...). Debug builds may use a Test Store
+// key (test_...); the SDK deliberately crashes release builds that ship one.
+val revenueCatApiKey = providers.gradleProperty("VERCELTICS_REVENUECAT_API_KEY")
+    .orNull
+    ?.trim()
+    .orEmpty()
+if (revenueCatApiKey.isNotEmpty() &&
+    !revenueCatApiKey.startsWith("goog_") &&
+    !revenueCatApiKey.startsWith("test_")
+) {
+    throw GradleException("VERCELTICS_REVENUECAT_API_KEY must be a RevenueCat Google Play (goog_) or Test Store (test_) key.")
+}
+
 fun String.asBuildConfigString(): String =
     "\"${replace("\\", "\\\\").replace("\"", "\\\"")}\""
 
@@ -51,6 +64,11 @@ android {
             googleOAuthRedirectScheme.asBuildConfigString(),
         )
         manifestPlaceholders["googleOAuthRedirectScheme"] = googleOAuthRedirectScheme
+        buildConfigField(
+            "String",
+            "REVENUECAT_API_KEY",
+            revenueCatApiKey.asBuildConfigString(),
+        )
     }
 
     buildTypes {
@@ -94,6 +112,7 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
+    implementation("com.revenuecat.purchases:purchases:10.26.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
@@ -103,4 +122,29 @@ dependencies {
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+}
+
+// Release artifacts must never carry a Test Store key, and the Play upload bundle needs the real
+// Google Play key so purchases work for testers and customers.
+val validateRevenueCatReleaseKey by tasks.registering {
+    val key = revenueCatApiKey
+    doLast {
+        if (key.startsWith("test_")) {
+            throw GradleException("RevenueCat Test Store keys crash release builds. Use the goog_ key.")
+        }
+    }
+}
+val validateRevenueCatPlayKey by tasks.registering {
+    val key = revenueCatApiKey
+    doLast {
+        if (!key.startsWith("goog_")) {
+            throw GradleException("Set VERCELTICS_REVENUECAT_API_KEY to the RevenueCat goog_ key before bundling for Google Play.")
+        }
+    }
+}
+tasks.matching { it.name == "assembleRelease" || it.name == "bundleRelease" }.configureEach {
+    dependsOn(validateRevenueCatReleaseKey)
+}
+tasks.matching { it.name == "bundleRelease" }.configureEach {
+    dependsOn(validateRevenueCatPlayKey)
 }

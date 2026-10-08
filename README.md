@@ -211,6 +211,14 @@ VERCELTICS_GOOGLE_OAUTH_REDIRECT_SCHEME=com.googleusercontent.apps.123456-exampl
 
 The redirect scheme must match the Android OAuth client registered with Google. Builds without these properties remain usable and show a configuration-needed state instead of requesting or storing a token.
 
+Android purchases use the same RevenueCat project, `Verceltics Pro` entitlement, and product IDs as iOS. Add the RevenueCat Google Play public SDK key to `~/.gradle/gradle.properties`:
+
+```properties
+VERCELTICS_REVENUECAT_API_KEY=goog_example
+```
+
+Builds without a key keep Pro locked and show "Plans unavailable" on the paywall. Debug builds may use a RevenueCat Test Store key (`test_...`), but release builds refuse one because the SDK crashes on it, and `bundleRelease` requires a `goog_` key. In RevenueCat, mark the Google Play lifetime product as non-consumable and the four tips as consumable.
+
 ## Run the website
 
 The website uses `https://verceltics.com/` as its canonical origin. Its Cloudflare

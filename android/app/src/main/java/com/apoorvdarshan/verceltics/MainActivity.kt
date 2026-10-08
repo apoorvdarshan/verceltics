@@ -19,6 +19,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.apoorvdarshan.verceltics.billing.ProAccessViewModel
+import com.apoorvdarshan.verceltics.billing.TipJarViewModel
 import com.apoorvdarshan.verceltics.ui.VercelConnectionViewModel
 import com.apoorvdarshan.verceltics.ui.VercelticsApp
 import com.apoorvdarshan.verceltics.ui.cloudflare.CloudflareViewModel
@@ -62,6 +64,14 @@ class MainActivity : ComponentActivity() {
         get() = (application as VercelticsApplication).searchConsoleGateway
     private val searchConsoleViewModel by viewModels<SearchConsoleViewModel> {
         SearchConsoleViewModel.Factory(searchConsoleGateway)
+    }
+    private val billingGateway
+        get() = (application as VercelticsApplication).billingGateway
+    private val proAccessViewModel by viewModels<ProAccessViewModel> {
+        ProAccessViewModel.Factory(billingGateway)
+    }
+    private val tipJarViewModel by viewModels<TipJarViewModel> {
+        TipJarViewModel.Factory(billingGateway)
     }
     private val sampleVercelViewModel by lazy {
         ViewModelProvider(this, VercelConnectionViewModel.Factory(SampleVercelGateway))["sample.vercel", VercelConnectionViewModel::class.java]
@@ -108,6 +118,9 @@ class MainActivity : ComponentActivity() {
                         searchConsoleViewModel = if (showSampleData) sampleSearchConsoleViewModel else searchConsoleViewModel,
                         aboutState = aboutState,
                         onAboutAction = { dispatchAboutAction(it, aboutScope) },
+                        proAccessViewModel = proAccessViewModel,
+                        tipJarViewModel = tipJarViewModel,
+                        onOpenExternalUri = ::openAboutUri,
                         isSampleData = showSampleData,
                         onToggleSampleData = {
                             if (!showSampleData) {
