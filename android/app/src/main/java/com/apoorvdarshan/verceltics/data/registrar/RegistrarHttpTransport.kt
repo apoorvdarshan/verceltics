@@ -39,8 +39,40 @@ internal class RegistrarHttpRequest(
             "secretHeaderNames=${secretHeaders.map { it.first }}, values=<redacted>)"
 }
 
+/**
+ * One Complete API explorer request (iOS `RegistrarAPI.rawRequest`). [encodedPath] already holds
+ * the registrar's documented path prefix; [encodedQuery] is the query exactly as typed and the
+ * authentication parameters are appended after it. Deliberately non-printable.
+ */
+internal class RegistrarRawHttpRequest(
+    val origin: String,
+    val method: String,
+    val encodedPath: String,
+    val encodedQuery: String?,
+    val queryParameters: List<Pair<String, String>> = emptyList(),
+    val secretQueryParameters: List<Pair<String, SecretValue>> = emptyList(),
+    val secretHeaders: List<Pair<String, SecretValue>> = emptyList(),
+    val headers: Map<String, String> = emptyMap(),
+    val accept: String = "application/json",
+    body: ByteArray? = null,
+    val contentType: String? = null,
+) {
+    private val storedBody = body?.copyOf()
+
+    fun bodyCopy(): ByteArray? = storedBody?.copyOf()
+
+    override fun toString(): String =
+        "RegistrarRawHttpRequest(origin=$origin, method=$method, path=<redacted>, " +
+            "queryNames=${queryParameters.map { it.first }}, secretQueryNames=${secretQueryParameters.map { it.first }}, " +
+            "secretHeaderNames=${secretHeaders.map { it.first }}, body=${if (storedBody == null) "none" else "<redacted>"})"
+}
+
 internal interface RegistrarHttpTransport {
     fun newGetCall(request: RegistrarHttpRequest): CancelableCall<HttpResponse>
+
+    /** Complete API requests; transports without explorer support refuse them. */
+    fun newRawCall(request: RegistrarRawHttpRequest): CancelableCall<HttpResponse> =
+        throw UnsupportedOperationException("This registrar transport cannot send Complete API requests.")
 }
 
 /**
@@ -84,6 +116,72 @@ internal class SecureRegistrarHttpTransport(
             maximumResponseBytes = limit,
             maximumRedirects = maximumRedirects,
         )
+    }
+
+    override fun newRawCall(request: RegistrarRawHttpRequest): CancelableCall<HttpResponse> {
+        val policy = requireNotNull(policies[request.origin]) { "The registrar origin is not allow-listed." }
+        require(request.origin != IPIFY_ORIGIN) { "The registrar origin is not allow-listed." }
+        require(request.method in RAW_METHODS) { "Unsupported registrar HTTP method." }
+        val uri = prepareRawUri(request)
+        require(request.accept.none { it == '\r' || it == '\n' || it == '\u0000' }) { "Invalid Accept header." }
+        request.headers.forEach { (name, value) ->
+            require(HEADER_NAME.matches(name)) { "Invalid HTTP header name." }
+            require(name.lowercase(Locale.ROOT) !in RAW_PROTECTED_HEADERS) {
+                "The $name header is controlled by the registrar transport."
+            }
+            require(value.none { it == '\r' || it == '\n' || it == '\u0000' }) { "Invalid HTTP header value." }
+        }
+        request.secretHeaders.forEach { (name, _) ->
+            require(name.lowercase(Locale.ROOT) in SECRET_HEADER_NAMES) { "Unsupported registrar credential header." }
+        }
+        require(request.contentType == null || request.contentType.none { it == '\r' || it == '\n' }) { "Invalid content type." }
+        val body = request.bodyCopy()
+        require(body == null || request.method != "GET" && request.method != "HEAD") {
+            "${request.method} requests cannot carry a body."
+        }
+        return BoundedRegistrarHttpCall(
+            initialUri = uri,
+            endpointPolicy = policy,
+            accept = request.accept,
+            headers = request.headers.toMap(),
+            secretHeaders = request.secretHeaders.toList(),
+            connectTimeoutMillis = connectTimeoutMillis,
+            readTimeoutMillis = readTimeoutMillis,
+            maximumResponseBytes = maximumResponseBytes,
+            maximumRedirects = if (request.method == "GET") maximumRedirects else 0,
+            method = request.method,
+            body = body,
+            contentType = request.contentType,
+            returnUnfollowedRedirects = true,
+        )
+    }
+
+    /**
+     * The explorer URI: fixed registrar origin + encoded path + typed query + authentication
+     * parameters. Secret query values are materialized only into this URI.
+     */
+    internal fun prepareRawUri(request: RegistrarRawHttpRequest): URI {
+        val policy = requireNotNull(policies[request.origin]) { "The registrar origin is not allow-listed." }
+        val path = request.encodedPath
+        require(path.startsWith("/") && !path.startsWith("//") && path.length <= MAX_RAW_TARGET_CHARACTERS) {
+            "Enter a registrar-relative path beginning with /."
+        }
+        require(path.all { it in RAW_URL_CHARACTERS && it != '?' }) { "The API path is invalid." }
+        require(path.split('/').none { segment -> segment.replace("%2E", ".", ignoreCase = true).let { it == "." || it == ".." } }) {
+            "Provider path traversal is not allowed."
+        }
+        val typedQuery = request.encodedQuery?.takeIf(String::isNotEmpty)
+        require(typedQuery == null || (typedQuery.length <= MAX_RAW_TARGET_CHARACTERS && typedQuery.all { it in RAW_URL_CHARACTERS })) {
+            "The API path is invalid."
+        }
+        val appended = (request.queryParameters + request.secretQueryParameters.map { (name, secret) -> name to secret.use { it } })
+            .joinToString("&") { (name, value) -> "${strictEncode(name)}=${strictEncode(value)}" }
+            .takeIf(String::isNotEmpty)
+        val query = listOfNotNull(typedQuery, appended).joinToString("&").takeIf(String::isNotEmpty)
+        val origin = policy.baseUri
+        val uri = URI(origin.scheme + "://" + origin.rawAuthority + path + (query?.let { "?$it" } ?: ""))
+        check(policy.isSameOrigin(uri) && uri.rawPath == path) { "Registrar request escaped its provider origin." }
+        return uri
     }
 
     /** Resolves the request URI; secret query values are materialized only into this URI. */
@@ -147,6 +245,42 @@ internal class SecureRegistrarHttpTransport(
             "x-secret-api-key",
             "x-api-secret",
         )
+        private val RAW_METHODS = setOf("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS")
+
+        /** Explorer requests may set Accept (as on iOS) but never credentials or framing headers. */
+        internal val RAW_PROTECTED_HEADERS = setOf(
+            "authorization",
+            "host",
+            "content-length",
+            "content-type",
+            "accept",
+            "accept-encoding",
+            "x-api-key",
+            "x-secret-api-key",
+            "x-api-secret",
+            "cookie",
+            "proxy-authorization",
+            "transfer-encoding",
+            "connection",
+        )
+        private const val MAX_RAW_TARGET_CHARACTERS = 8_192
+        private const val RAW_URL_CHARACTERS =
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~!$&'()*+,;=:@/?%"
+        private const val UNRESERVED = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"
+
+        private fun strictEncode(value: String): String {
+            val output = StringBuilder()
+            value.toByteArray(Charsets.UTF_8).forEach { byte ->
+                val unsigned = byte.toInt() and 0xff
+                val character = unsigned.toChar()
+                if (unsigned < 0x80 && character in UNRESERVED) {
+                    output.append(character)
+                } else {
+                    output.append('%').append("%02X".format(unsigned))
+                }
+            }
+            return output.toString()
+        }
     }
 }
 
@@ -160,6 +294,11 @@ private class BoundedRegistrarHttpCall(
     private val readTimeoutMillis: Int,
     private val maximumResponseBytes: Int,
     private val maximumRedirects: Int,
+    private val method: String = "GET",
+    private val body: ByteArray? = null,
+    private val contentType: String? = null,
+    /** Complete API calls hand redirects they cannot follow back as the response. */
+    private val returnUnfollowedRedirects: Boolean = false,
 ) : CancelableCall<HttpResponse> {
     private val started = AtomicBoolean(false)
     private val cancelled = AtomicBoolean(false)
@@ -169,55 +308,77 @@ private class BoundedRegistrarHttpCall(
         check(started.compareAndSet(false, true)) { "An HTTP call can only be executed once." }
         var uri = initialUri
         var redirectCount = 0
-        while (true) {
-            throwIfCancelled()
-            val connection = openConnection(uri)
-            activeConnection.set(connection)
-            try {
+        var pendingBody = body
+        try {
+            while (true) {
                 throwIfCancelled()
-                val statusCode = connection.responseCode
-                throwIfCancelled()
-                if (statusCode in REDIRECT_STATUS_CODES) {
-                    if (redirectCount >= maximumRedirects) {
-                        throw UnsafeRedirectException("The registrar returned too many redirects.")
+                val connection = openConnection(uri)
+                activeConnection.set(connection)
+                try {
+                    throwIfCancelled()
+                    pendingBody?.let { payload ->
+                        connection.doOutput = true
+                        connection.setRequestProperty("Content-Type", contentType ?: "application/json")
+                        connection.setFixedLengthStreamingMode(payload.size)
+                        connection.outputStream.use { it.write(payload) }
                     }
-                    val location = connection.getHeaderField("Location")
-                        ?: throw UnsafeRedirectException("The registrar redirect omitted its location.")
-                    uri = try {
-                        endpointPolicy.resolveRedirect(uri, location)
-                    } catch (error: Exception) {
-                        throw UnsafeRedirectException("The registrar returned an unsafe redirect.", error)
+                    val statusCode = connection.responseCode
+                    throwIfCancelled()
+                    val redirect = if (statusCode in REDIRECT_STATUS_CODES) redirectTarget(connection, uri, redirectCount) else null
+                    if (redirect != null) {
+                        uri = redirect
+                        redirectCount += 1
+                        pendingBody = null
+                        continue
                     }
-                    redirectCount += 1
-                    continue
-                }
-
-                val declaredLength = connection.contentLengthLong
-                if (declaredLength > maximumResponseBytes) {
-                    throw ResponseTooLargeException(maximumResponseBytes)
-                }
-                val stream = if (statusCode >= HttpURLConnection.HTTP_BAD_REQUEST) {
-                    connection.errorStream
-                } else {
-                    connection.inputStream
-                }
-                val responseBody = stream?.use(::readBounded) ?: ByteArray(0)
-                return try {
-                    HttpResponse(
-                        statusCode = statusCode,
-                        body = responseBody,
-                        headers = safeResponseHeaders(connection),
-                    )
+                    return readResponse(connection, statusCode)
+                } catch (error: IOException) {
+                    if (cancelled.get()) throw CancellationException("The registrar request was cancelled.")
+                    throw error
                 } finally {
-                    responseBody.fill(0)
+                    activeConnection.compareAndSet(connection, null)
+                    connection.disconnect()
                 }
-            } catch (error: IOException) {
-                if (cancelled.get()) throw CancellationException("The registrar request was cancelled.")
-                throw error
-            } finally {
-                activeConnection.compareAndSet(connection, null)
-                connection.disconnect()
             }
+        } finally {
+            body?.fill(0)
+        }
+    }
+
+    private fun redirectTarget(connection: HttpsURLConnection, uri: URI, redirectCount: Int): URI? {
+        if (redirectCount >= maximumRedirects) {
+            if (returnUnfollowedRedirects) return null
+            throw UnsafeRedirectException("The registrar returned too many redirects.")
+        }
+        val location = connection.getHeaderField("Location")
+            ?: if (returnUnfollowedRedirects) return null else throw UnsafeRedirectException("The registrar redirect omitted its location.")
+        return try {
+            endpointPolicy.resolveRedirect(uri, location)
+        } catch (error: Exception) {
+            if (returnUnfollowedRedirects) return null
+            throw UnsafeRedirectException("The registrar returned an unsafe redirect.", error)
+        }
+    }
+
+    private fun readResponse(connection: HttpsURLConnection, statusCode: Int): HttpResponse {
+        val declaredLength = connection.contentLengthLong
+        if (declaredLength > maximumResponseBytes) {
+            throw ResponseTooLargeException(maximumResponseBytes)
+        }
+        val stream = if (statusCode >= HttpURLConnection.HTTP_BAD_REQUEST) {
+            connection.errorStream
+        } else {
+            connection.inputStream
+        }
+        val responseBody = stream?.use(::readBounded) ?: ByteArray(0)
+        return try {
+            HttpResponse(
+                statusCode = statusCode,
+                body = responseBody,
+                headers = safeResponseHeaders(connection),
+            )
+        } finally {
+            responseBody.fill(0)
         }
     }
 
@@ -230,7 +391,8 @@ private class BoundedRegistrarHttpCall(
         check(endpointPolicy.isSameOrigin(uri)) { "Refusing to open a URL outside the registrar origin." }
         val connection = uri.toURL().openConnection() as? HttpsURLConnection
             ?: throw IOException("Registrar URL did not create a secure HTTPS connection.")
-        connection.requestMethod = "GET"
+        // A followed redirect is always re-requested with GET and no body.
+        connection.requestMethod = if (uri === initialUri) method else "GET"
         connection.instanceFollowRedirects = false
         connection.connectTimeout = connectTimeoutMillis
         connection.readTimeout = readTimeoutMillis

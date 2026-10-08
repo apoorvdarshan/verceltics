@@ -1,6 +1,10 @@
 package com.apoorvdarshan.verceltics.ui.hosting
 
+import com.apoorvdarshan.verceltics.data.apicatalog.ProviderApiCatalog
+import com.apoorvdarshan.verceltics.data.apicatalog.ProviderRawRequest
+import com.apoorvdarshan.verceltics.data.apicatalog.ProviderRawResponse
 import com.apoorvdarshan.verceltics.data.hosting.HostingCredentials
+import kotlinx.coroutines.CancellationException
 
 /**
  * UI-only boundary for the seven generic hosting providers (Railway, Render, DigitalOcean,
@@ -30,6 +34,34 @@ interface HostingProviderUiGateway {
     ): Result<String>
 
     suspend fun disconnect(providerId: String): Result<Unit>
+
+    /**
+     * Complete API catalog for [providerId]. [bundled] loads this build's catalog; Railway's live
+     * gateway replaces it with operations discovered from the authenticated GraphQL schema.
+     */
+    suspend fun loadApiCatalog(
+        providerId: String,
+        bundled: suspend () -> ProviderApiCatalog,
+        forceRefresh: Boolean,
+    ): Result<ProviderApiCatalog> = try {
+        Result.success(bundled())
+    } catch (error: CancellationException) {
+        throw error
+    } catch (error: Exception) {
+        Result.failure(HostingUiException(error.message ?: "The complete provider API catalog could not be loaded."))
+    }
+
+    /**
+     * Sends one Complete API raw request with the saved credentials. HTTP errors are returned as
+     * responses; only validation, transport and credential problems fail.
+     */
+    suspend fun sendApiRequest(providerId: String, request: ProviderRawRequest): Result<ProviderRawResponse> =
+        Result.failure(HostingUiException(SAMPLE_API_UNAVAILABLE))
+
+    companion object {
+        const val SAMPLE_API_UNAVAILABLE: String =
+            "Sample data can’t send live API requests. Connect an account to use the Complete API."
+    }
 }
 
 sealed interface HostingRestoreUi {
@@ -67,6 +99,8 @@ data class HostingResourceUi(
     val dashboardUrl: String,
     /** Non-secret provider hints the adapters need (Fly app name, Amplify branch, …). */
     val metadata: Map<String, String> = emptyMap(),
+    /** Where the Complete API manual request starts for this resource (iOS `defaultPath`). */
+    val apiExplorerPath: String? = null,
 )
 
 data class HostingDashboardUi(
@@ -81,6 +115,8 @@ data class HostingDashboardUi(
     val cacheState: HostingCacheState,
     /** Provider console home (iOS "Dashboard" action, Pro). */
     val dashboardUrl: String,
+    /** Where the Complete API manual request starts (iOS `defaultPath`). */
+    val apiExplorerPath: String? = null,
 )
 
 data class HostingDeploymentUi(

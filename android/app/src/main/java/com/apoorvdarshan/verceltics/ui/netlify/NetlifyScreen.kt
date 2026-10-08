@@ -67,6 +67,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -90,6 +91,9 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.apoorvdarshan.verceltics.data.account.SecretValue
 import com.apoorvdarshan.verceltics.domain.IntegrationCatalog
+import com.apoorvdarshan.verceltics.ui.apiexplorer.CompleteApiEntryCard
+import com.apoorvdarshan.verceltics.ui.apiexplorer.DashboardAndCompleteApiActions
+import com.apoorvdarshan.verceltics.ui.apiexplorer.ProviderApiWorkspace
 import com.apoorvdarshan.verceltics.ui.components.OffsetPanel
 import com.apoorvdarshan.verceltics.ui.components.ControlSearchField
 import com.apoorvdarshan.verceltics.ui.components.ProviderMark
@@ -115,7 +119,9 @@ fun NetlifyRoute(
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val apiState by viewModel.apiWorkspace.state.collectAsStateWithLifecycle()
     val proAccess = LocalProAccess.current
+    val uriHandler = LocalUriHandler.current
     var lastHandledSearchRequestId by rememberSaveable { mutableIntStateOf(searchRequestId) }
     var siteSearchFocusRequestId by rememberSaveable { mutableIntStateOf(0) }
     val routeBack = {
@@ -125,6 +131,12 @@ fun NetlifyRoute(
     LaunchedEffect(proAccess.isConfirmedLocked, state.selectedSiteId) {
         if (proAccess.isConfirmedLocked && state.selectedSiteId != null) viewModel.closeSite()
     }
+    // Complete API is Pro too, and needs a live connection.
+    LaunchedEffect(proAccess.isConfirmedLocked, apiState.isOpen, state.status) {
+        if (apiState.isOpen && (proAccess.isConfirmedLocked || state.status == NetlifyConnectionStatus.DISCONNECTED)) {
+            viewModel.closeApiWorkspace()
+        }
+    }
     DisposableEffect(viewModel) {
         viewModel.setRouteVisible(true)
         onDispose { viewModel.setRouteVisible(false) }
@@ -133,6 +145,7 @@ fun NetlifyRoute(
     LaunchedEffect(searchRequestId) {
         if (searchRequestId > 0 && searchRequestId != lastHandledSearchRequestId) {
             lastHandledSearchRequestId = searchRequestId
+            viewModel.closeApiWorkspace()
             if (state.selectedSiteId != null) {
                 viewModel.closeSite()
                 withFrameNanos { }
@@ -140,6 +153,15 @@ fun NetlifyRoute(
             siteSearchFocusRequestId += 1
         }
     }
+    if (apiState.isOpen && state.status == NetlifyConnectionStatus.CONNECTED) {
+        ProviderApiWorkspace(
+            controller = viewModel.apiWorkspace,
+            onOpenLink = { url -> if (url.startsWith("https://")) runCatching { uriHandler.openUri(url) } },
+            modifier = modifier,
+        )
+        return
+    }
+
     NetlifyScreen(
         state = state,
         onBack = routeBack,
@@ -153,6 +175,7 @@ fun NetlifyRoute(
         onConfirmDisconnect = viewModel::confirmDisconnect,
         searchFocusRequestId = siteSearchFocusRequestId,
         modifier = modifier,
+        onOpenCompleteApi = { siteId -> proAccess.requestPro { viewModel.openApiWorkspace(siteId) } },
     )
 }
 
@@ -170,6 +193,8 @@ fun NetlifyScreen(
     onConfirmDisconnect: () -> Unit,
     searchFocusRequestId: Int = 0,
     modifier: Modifier = Modifier,
+    /** Pro-gated iOS "Complete API": the dashboard passes null, a site detail its id. */
+    onOpenCompleteApi: (siteId: String?) -> Unit = {},
 ) {
     val haptic = LocalHapticFeedback.current
     if (state.showDisconnectConfirmation) {
@@ -233,11 +258,13 @@ fun NetlifyScreen(
             )
             state.selectedSiteId != null -> NetlifySiteDetail(
                 state = state,
+                onOpenCompleteApi = { onOpenCompleteApi(state.selectedSiteId) },
                 modifier = Modifier.weight(1f),
             )
             else -> NetlifyDashboard(
                 state = state,
                 onOpenSite = onOpenSite,
+                onOpenCompleteApi = { onOpenCompleteApi(null) },
                 onDisconnect = onRequestDisconnect,
                 searchFocusRequestId = searchFocusRequestId,
                 modifier = Modifier.weight(1f),
@@ -466,7 +493,8 @@ private fun NetlifyConnectionForm(
                         }
                     }
                     Text(
-                        "Your token is encrypted and stored only on this device. You can view deployments and builds; changes are unavailable.",
+                        "Your token is encrypted and stored only on this device. Sites, deployments, and builds are read-only; " +
+                            "write requests are only sent from the Complete API after you confirm them.",
                         color = MaterialTheme.colorScheme.onSurface,
                         style = MaterialTheme.typography.bodyMedium,
                     )
@@ -580,6 +608,7 @@ private fun SavedConnectionRecovery(
 private fun NetlifyDashboard(
     state: NetlifyUiState,
     onOpenSite: (String) -> Unit,
+    onOpenCompleteApi: () -> Unit,
     onDisconnect: () -> Unit,
     searchFocusRequestId: Int,
     modifier: Modifier = Modifier,
@@ -632,6 +661,14 @@ private fun NetlifyDashboard(
             item("inventory-warning") {
                 WarningPanel(inventoryDisclosure(dashboard))
             }
+        }
+        item("actions") {
+            DashboardAndCompleteApiActions(
+                onOpenDashboard = null,
+                onOpenCompleteApi = onOpenCompleteApi,
+                dashboardTestTag = "netlify.openDashboard",
+                completeApiTestTag = "netlify.completeApi",
+            )
         }
         item("search") {
             ControlSearchField(
@@ -756,7 +793,7 @@ private fun NetlifySiteRow(site: NetlifySiteUi, onClick: () -> Unit) {
 }
 
 @Composable
-private fun NetlifySiteDetail(state: NetlifyUiState, modifier: Modifier = Modifier) {
+private fun NetlifySiteDetail(state: NetlifyUiState, onOpenCompleteApi: () -> Unit, modifier: Modifier = Modifier) {
     val selected = state.dashboard?.sites?.firstOrNull { it.id == state.selectedSiteId }
     val workspace = state.selectedSiteWorkspace
     LazyColumn(
@@ -783,6 +820,9 @@ private fun NetlifySiteDetail(state: NetlifyUiState, modifier: Modifier = Modifi
                     selected?.url?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 }
             }
+        }
+        item("complete-api") {
+            CompleteApiEntryCard(accent = NetlifyAccent, onClick = onOpenCompleteApi, testTag = "netlify.siteCompleteApi")
         }
         state.siteError?.let { item("site-error") { FeedbackPanel(it, true) } }
         if (state.isLoadingSite && workspace == null) {

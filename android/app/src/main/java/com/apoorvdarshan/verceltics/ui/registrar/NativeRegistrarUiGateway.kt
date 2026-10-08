@@ -1,6 +1,8 @@
 package com.apoorvdarshan.verceltics.ui.registrar
 
 import android.content.Context
+import com.apoorvdarshan.verceltics.data.apicatalog.ProviderRawRequest
+import com.apoorvdarshan.verceltics.data.apicatalog.ProviderRawResponse
 import com.apoorvdarshan.verceltics.data.network.CancelableCall
 import com.apoorvdarshan.verceltics.data.registrar.PublicIpv4Lookup
 import com.apoorvdarshan.verceltics.data.registrar.RegistrarApi
@@ -11,6 +13,7 @@ import com.apoorvdarshan.verceltics.data.registrar.RegistrarConnectionStore
 import com.apoorvdarshan.verceltics.data.registrar.RegistrarCredentials
 import com.apoorvdarshan.verceltics.data.registrar.RegistrarDomain
 import com.apoorvdarshan.verceltics.data.registrar.RegistrarProvider
+import com.apoorvdarshan.verceltics.data.registrar.RegistrarRawApi
 import com.apoorvdarshan.verceltics.data.registrar.RegistrarRefreshOutcome
 import com.apoorvdarshan.verceltics.data.registrar.RegistrarRestoreProblem
 import com.apoorvdarshan.verceltics.data.registrar.RegistrarRestoreResult
@@ -35,6 +38,7 @@ class NativeRegistrarUiGateway internal constructor(
     private val networkExecutor: ExecutorService,
     private val storageExecutor: ExecutorService,
     private val beforeAcceptValidatedConnection: suspend () -> Unit = {},
+    private val rawApi: RegistrarRawApi = RegistrarRawApi(),
 ) : RegistrarUiGateway {
     override suspend fun restore(): Result<RegistrarRestoreUi> = capture {
         val restored = executeAwait(storageExecutor, connectionStore::restoreAll)
@@ -108,6 +112,13 @@ class NativeRegistrarUiGateway internal constructor(
 
     override suspend fun detectPublicIpv4(): Result<String> = capture {
         publicIpv4Lookup.newResolveCall().executeAwait(networkExecutor)
+    }
+
+    override suspend fun sendApiRequest(providerId: String, request: ProviderRawRequest): Result<ProviderRawResponse> = capture {
+        val provider = providerOrThrow(providerId)
+        val saved = executeAwait(storageExecutor) { connectionStore.loadForRefresh(provider) }
+            ?: throw RegistrarUiException("Connect ${provider.displayName} first.")
+        rawApi.newRawCall(saved.account.credentials, request).executeAwait(networkExecutor)
     }
 
     private fun providerOrThrow(providerId: String): RegistrarProvider =

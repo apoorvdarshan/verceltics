@@ -317,12 +317,15 @@ data class HostingLinkContext(
     val provider: HostingProvider,
     val firebaseProjectId: String? = null,
     val awsRegion: String? = null,
+    /** The Fly.io organization slug; the Complete API explorer starts from its app list. */
+    val flyOrganization: String? = null,
 ) {
     companion object {
         fun of(credentials: HostingCredentials): HostingLinkContext = HostingLinkContext(
             provider = credentials.provider,
             firebaseProjectId = (credentials as? HostingCredentials.Firebase)?.projectId,
             awsRegion = (credentials as? HostingCredentials.AwsAmplify)?.region,
+            flyOrganization = (credentials as? HostingCredentials.Fly)?.organization,
         )
     }
 }
