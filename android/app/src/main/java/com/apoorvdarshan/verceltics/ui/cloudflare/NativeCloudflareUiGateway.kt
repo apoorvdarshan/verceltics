@@ -1,12 +1,12 @@
 package com.apoorvdarshan.verceltics.ui.cloudflare
 
 import android.content.Context
-import com.apoorvdarshan.verceltics.data.account.SecretValue
 import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareAccountInventory
 import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareAccountSummary
 import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareConnectionCommit
 import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareConnectionRepository
 import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareConnectionStore
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareCredential
 import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareDataSource
 import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareFetchResult
 import com.apoorvdarshan.verceltics.data.cloudflare.CloudflarePagesProject
@@ -16,8 +16,12 @@ import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareRestoreResult
 import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareSnapshot
 import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareWorkerScript
 import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareZone
+import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareMutationEvent
 import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareOperationException
 import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareRestClient
+import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareRestTransport
+import com.apoorvdarshan.verceltics.data.cloudflare.operations.HttpsCloudflareRestTransport
+import com.apoorvdarshan.verceltics.data.cloudflare.operations.cloudflareMutationEventFlow
 import com.apoorvdarshan.verceltics.data.network.CancelableCall
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -27,10 +31,17 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 
-/** Production bridge from the encrypted Cloudflare backend to bounded display-only models. */
+/**
+ * Production bridge from the encrypted Cloudflare backend to display-only models.
+ *
+ * The dashboard lists every loaded account, zone, Pages project and Worker (iOS has no display
+ * cap); only the offline cache inside [CloudflareConnectionStore] is bounded.
+ */
 class NativeCloudflareUiGateway internal constructor(
     private val connectionStore: CloudflareConnectionStore,
     private val dataSource: CloudflareDataSource,
@@ -38,6 +49,7 @@ class NativeCloudflareUiGateway internal constructor(
     private val storageExecutor: ExecutorService,
     private val beforeAcceptValidatedConnection: suspend () -> Unit = {},
     private val afterAcceptValidatedConnection: suspend () -> Unit = {},
+    private val restTransport: CloudflareRestTransport = HttpsCloudflareRestTransport(),
 ) : CloudflareUiGateway {
     override suspend fun restore(): Result<CloudflareRestoreUi> = capture {
         when (val restored = executeAwait(storageExecutor, connectionStore::restore)) {
@@ -64,15 +76,25 @@ class NativeCloudflareUiGateway internal constructor(
         }
     }
 
-    override suspend fun connect(apiToken: SecretValue): Result<CloudflareDashboardUi> = capture {
-        val result = dataSource.newDashboardCall(apiToken).executeAwait(networkExecutor)
+    /** Successful writes from operations, storage and every Cloudflare tool (iOS `cloudflareDataDidChange`). */
+    private val mutationFlow = cloudflareMutationEventFlow()
+
+    override fun mutationEvents(): Flow<CloudflareMutationEvent> = mutationFlow.asSharedFlow()
+
+    /** Called by the Cloudflare tools after an explorer, Complete API or Product Center write succeeds. */
+    internal fun publishToolsMutation(event: CloudflareMutationEvent) {
+        mutationFlow.tryEmit(event)
+    }
+
+    override suspend fun connect(credential: CloudflareCredential): Result<CloudflareDashboardUi> = capture {
+        val result = dataSource.newDashboardCall(credential).executeAwait(networkExecutor)
         val snapshot = result.snapshotOrThrow()
         var pendingCommit: CloudflareConnectionCommit? = null
         try {
             val commit = persistValidatedConnectionAwait(
                 executor = storageExecutor,
                 connectionStore = connectionStore,
-                token = apiToken,
+                credential = credential,
                 result = result,
             )
             pendingCommit = commit
@@ -109,7 +131,7 @@ class NativeCloudflareUiGateway internal constructor(
         val saved = executeAwait(storageExecutor, connectionStore::loadForRefresh)
             ?: throw CloudflareUiException("Connect a Cloudflare account first.")
         val result = dataSource.newDashboardCall(
-            token = saved.connection.account.apiToken,
+            credential = saved.connection.account.credential,
             preferredAccountId = preferredAccountId,
         ).executeAwait(networkExecutor)
         val snapshot = result.snapshotOrThrow()
@@ -128,17 +150,19 @@ class NativeCloudflareUiGateway internal constructor(
         executeAwait(storageExecutor, connectionStore::disconnect)
     }
 
-    /** Cloudflare tools borrow the saved token through this gateway's serialized encrypted store. */
-    internal suspend fun loadSavedApiTokenForTools(): SecretValue? =
-        executeAwait(storageExecutor) { connectionStore.loadForRefresh()?.connection?.account?.apiToken }
+    /** Cloudflare tools borrow the saved credential through this gateway's serialized encrypted store. */
+    internal suspend fun loadSavedCredentialForTools(): CloudflareCredential? =
+        executeAwait(storageExecutor) { connectionStore.loadForRefresh()?.connection?.account?.credential }
 
     private val restClient: CloudflareRestClient by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
         CloudflareRestClient(
             credentialProvider = {
-                executeAwait(storageExecutor) { connectionStore.loadForRefresh()?.connection?.account?.apiToken }
+                executeAwait(storageExecutor) { connectionStore.loadForRefresh()?.connection?.account?.credential }
                     ?: throw CloudflareOperationException.notConnected()
             },
             executor = networkExecutor,
+            transport = restTransport,
+            mutationEvents = mutationFlow,
         )
     }
 
@@ -150,53 +174,39 @@ class NativeCloudflareUiGateway internal constructor(
         is CloudflareFetchResult.Failure -> throw CloudflareUiException(failure.message)
     }
 
-    internal fun CloudflareSnapshot.toDashboardUi(cacheState: CloudflareCacheState): CloudflareDashboardUi {
-        val visibleAccounts = selectedAwareSlice(
-            values = accounts,
-            selectedId = selectedAccountId,
-            maximum = MAXIMUM_VISIBLE_ACCOUNTS,
-            identity = CloudflareAccountSummary::id,
-        )
-        return CloudflareDashboardUi(
+    /** Every loaded account and resource is listed, searchable and pickable (no display cap). */
+    internal fun CloudflareSnapshot.toDashboardUi(cacheState: CloudflareCacheState): CloudflareDashboardUi =
+        CloudflareDashboardUi(
             profile = profile.toUi(),
-            accounts = visibleAccounts.map(CloudflareAccountSummary::toUi),
+            accounts = accounts.map(CloudflareAccountSummary::toUi),
             loadedAccountCount = accounts.size,
             accountsComplete = accountsComplete,
-            accountsTruncatedForDisplay = accounts.size > visibleAccounts.size,
+            accountsTruncatedForDisplay = false,
             selectedAccountId = selectedAccountId,
             inventory = selectedAccountInventory?.toUi(),
             warnings = warnings,
             fetchedAtMillis = fetchedAtMillis,
             cacheState = cacheState,
         )
-    }
 
-    private fun CloudflareAccountInventory.toUi(): CloudflareInventoryUi {
-        val visibleZones = zones.take(MAXIMUM_VISIBLE_RESOURCES)
-        val visiblePages = pagesProjects.take(MAXIMUM_VISIBLE_RESOURCES)
-        val visibleWorkers = workers.take(MAXIMUM_VISIBLE_RESOURCES)
-        return CloudflareInventoryUi(
-            accountId = accountId,
-            zones = visibleZones.map(CloudflareZone::toUi),
-            pagesProjects = visiblePages.map(CloudflarePagesProject::toUi),
-            workers = visibleWorkers.map(CloudflareWorkerScript::toUi),
-            loadedZoneCount = zones.size,
-            loadedPagesProjectCount = pagesProjects.size,
-            loadedWorkerCount = workers.size,
-            zonesComplete = zonesComplete,
-            pagesComplete = pagesComplete,
-            workersComplete = workersComplete,
-            zonesTruncatedForDisplay = zones.size > visibleZones.size,
-            pagesTruncatedForDisplay = pagesProjects.size > visiblePages.size,
-            workersTruncatedForDisplay = workers.size > visibleWorkers.size,
-            warnings = warnings,
-        )
-    }
+    private fun CloudflareAccountInventory.toUi(): CloudflareInventoryUi = CloudflareInventoryUi(
+        accountId = accountId,
+        zones = zones.map(CloudflareZone::toUi),
+        pagesProjects = pagesProjects.map(CloudflarePagesProject::toUi),
+        workers = workers.map(CloudflareWorkerScript::toUi),
+        loadedZoneCount = zones.size,
+        loadedPagesProjectCount = pagesProjects.size,
+        loadedWorkerCount = workers.size,
+        zonesComplete = zonesComplete,
+        pagesComplete = pagesComplete,
+        workersComplete = workersComplete,
+        zonesTruncatedForDisplay = false,
+        pagesTruncatedForDisplay = false,
+        workersTruncatedForDisplay = false,
+        warnings = warnings,
+    )
 
     companion object {
-        const val MAXIMUM_VISIBLE_ACCOUNTS: Int = 50
-        const val MAXIMUM_VISIBLE_RESOURCES: Int = 250
-
         fun create(context: Context): NativeCloudflareUiGateway = NativeCloudflareUiGateway(
             connectionStore = CloudflareConnectionStore(
                 CloudflareConnectionRepository.create(context.applicationContext),
@@ -212,7 +222,7 @@ class NativeCloudflareUiGateway internal constructor(
     }
 }
 
-private fun CloudflareProfile.toUi() = CloudflareProfileUi(id, displayName, tokenStatus)
+private fun CloudflareProfile.toUi() = CloudflareProfileUi(id, displayName, tokenStatus, authMode, email)
 
 private fun CloudflareAccountSummary.toUi() = CloudflareAccountUi(id, name, type)
 
@@ -242,21 +252,9 @@ private fun CloudflareWorkerScript.toUi() = CloudflareWorkerUi(
     handlers = handlers,
     hasAssets = hasAssets,
     hasModules = hasModules,
+    routes = routes,
+    tags = tags,
 )
-
-private fun <T> selectedAwareSlice(
-    values: List<T>,
-    selectedId: String?,
-    maximum: Int,
-    identity: (T) -> String,
-): List<T> {
-    val visible = values.take(maximum).toMutableList()
-    val selected = selectedId?.let { id -> values.firstOrNull { identity(it) == id } }
-    if (selected != null && visible.none { identity(it) == selectedId }) {
-        if (visible.isEmpty()) visible += selected else visible[visible.lastIndex] = selected
-    }
-    return visible.distinctBy(identity)
-}
 
 private suspend fun <T> CancelableCall<T>.executeAwait(executor: ExecutorService): T =
     suspendCancellableCoroutine { continuation ->
@@ -289,7 +287,7 @@ private suspend fun <T> executeAwait(executor: ExecutorService, block: () -> T):
 private suspend fun persistValidatedConnectionAwait(
     executor: ExecutorService,
     connectionStore: CloudflareConnectionStore,
-    token: SecretValue,
+    credential: CloudflareCredential,
     result: CloudflareFetchResult,
 ): CloudflareConnectionCommit = suspendCancellableCoroutine { continuation ->
     val committed = AtomicReference<CloudflareConnectionCommit?>()
@@ -308,7 +306,7 @@ private suspend fun persistValidatedConnectionAwait(
     executor.execute {
         if (!continuation.isActive) return@execute
         try {
-            val commit = connectionStore.saveValidatedConnection(token, result)
+            val commit = connectionStore.saveValidatedConnection(credential, result)
             committed.set(commit)
             continuation.resume(commit) { _, _, _ -> scheduleRollback() }
         } catch (error: Exception) {

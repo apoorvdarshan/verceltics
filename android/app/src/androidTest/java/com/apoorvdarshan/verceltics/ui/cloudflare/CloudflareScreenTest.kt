@@ -13,7 +13,11 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performScrollToNode
-import com.apoorvdarshan.verceltics.data.account.SecretValue
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.onAllNodesWithText
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareAuthMode
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareCredential
 import com.apoorvdarshan.verceltics.ui.theme.VercelticsTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -131,7 +135,7 @@ class CloudflareScreenTest {
 
     @Test
     fun connectionFormKeepsTokenOutOfStateAndPassesSecretOnlyOnSubmit() {
-        var connectedToken: SecretValue? = null
+        var connected: CloudflareCredential? = null
         compose.setContent {
             VercelticsTheme {
                 CloudflareScreen(
@@ -140,7 +144,7 @@ class CloudflareScreenTest {
                         operation = null,
                     ),
                     onBack = {},
-                    onConnect = { connectedToken = it },
+                    onConnect = { connected = it },
                     onRefresh = {},
                     onCancel = {},
                     onSelectAccount = {},
@@ -153,10 +157,111 @@ class CloudflareScreenTest {
         }
 
         compose.onNodeWithTag("cloudflare.connectionForm").assertIsDisplayed()
-        compose.runOnIdle { assertNull(connectedToken) }
+        compose.runOnIdle { assertNull(connected) }
+        compose.onNodeWithTag("cloudflare.authMode.apiToken").performClick()
+        compose.onNodeWithText("Connect with scoped API token").assertIsDisplayed()
         compose.onNodeWithTag("cloudflare.token").performTextInput("scoped-token")
+        compose.onNodeWithTag("cloudflare.connectionForm").performScrollToNode(hasTestTag("cloudflare.connect"))
         compose.onNodeWithTag("cloudflare.connect").performClick()
-        compose.runOnIdle { assertEquals("scoped-token", connectedToken?.use { it }) }
+        compose.runOnIdle {
+            val token = connected as CloudflareCredential.ApiToken
+            assertEquals("scoped-token", token.token.use { it })
+        }
+    }
+
+    @Test
+    fun globalApiKeyIsTheDefaultModeAndSubmitsEmailAndKeyLikeIos() {
+        var connected: CloudflareCredential? = null
+        var opened: String? = null
+        compose.setContent {
+            VercelticsTheme {
+                androidx.compose.runtime.CompositionLocalProvider(
+                    androidx.compose.ui.platform.LocalUriHandler provides object : androidx.compose.ui.platform.UriHandler {
+                        override fun openUri(uri: String) {
+                            opened = uri
+                        }
+                    },
+                ) {
+                    CloudflareScreen(
+                        state = CloudflareUiState(status = CloudflareConnectionStatus.DISCONNECTED, operation = null),
+                        onBack = {},
+                        onConnect = { connected = it },
+                        onRefresh = {},
+                        onCancel = {},
+                        onSelectAccount = {},
+                        onOpenResource = { _, _ -> },
+                        onRequestDisconnect = {},
+                        onDismissDisconnect = {},
+                        onConfirmDisconnect = {},
+                    )
+                }
+            }
+        }
+
+        compose.onNodeWithTag("cloudflare.authMode.globalKey").assertIsSelected()
+        compose.onNodeWithText("Connect with Global API Key").assertIsDisplayed()
+        compose.onNodeWithText("In API Keys, tap View beside Global API Key").assertIsDisplayed()
+        compose.onNodeWithTag("cloudflare.connectionForm").performScrollToNode(hasTestTag("cloudflare.openApiTokens"))
+        compose.onNodeWithTag("cloudflare.openApiTokens").performClick()
+        compose.runOnIdle { assertEquals("https://dash.cloudflare.com/profile/api-tokens", opened) }
+
+        compose.onNodeWithTag("cloudflare.connectionForm").performScrollToNode(hasTestTag("cloudflare.globalKey"))
+        compose.onNodeWithTag("cloudflare.globalKey").performTextInput("global-key-123")
+        compose.onNodeWithTag("cloudflare.connectionForm").performScrollToNode(hasTestTag("cloudflare.connect"))
+        // The key alone is not enough: iOS requires the login email too.
+        compose.onNodeWithTag("cloudflare.connect").assertIsNotEnabled()
+        compose.onNodeWithTag("cloudflare.connectionForm").performScrollToNode(hasTestTag("cloudflare.email"))
+        compose.onNodeWithTag("cloudflare.email").performTextInput("Owner@Example.com")
+        compose.onNodeWithTag("cloudflare.connectionForm").performScrollToNode(hasTestTag("cloudflare.connect"))
+        compose.onNodeWithTag("cloudflare.connect").assertIsEnabled().performClick()
+
+        compose.runOnIdle {
+            val credential = connected as CloudflareCredential.GlobalApiKey
+            assertEquals("owner@example.com", credential.email)
+            assertEquals("global-key-123", credential.key.use { it })
+        }
+    }
+
+    @Test
+    fun summaryIsWritableAndLabelsTheGlobalKeyEmailAndWorkerSearchMatchesRoutes() {
+        val base = connectedState()
+        val dashboard = checkNotNull(base.dashboard)
+        val inventory = checkNotNull(dashboard.inventory)
+        val state = base.copy(
+            dashboard = dashboard.copy(
+                profile = CloudflareProfileUi("user", "Ada", "active", CloudflareAuthMode.GLOBAL_API_KEY, "owner@example.com"),
+                inventory = inventory.copy(
+                    workers = inventory.workers.map { it.copy(routes = listOf("shop.verceltics.app/api/*"), tags = listOf("billing")) },
+                ),
+            ),
+        )
+        compose.setContent {
+            VercelticsTheme {
+                CloudflareScreen(
+                    state = state,
+                    onBack = {},
+                    onConnect = {},
+                    onRefresh = {},
+                    onCancel = {},
+                    onSelectAccount = {},
+                    onOpenResource = { _, _ -> },
+                    onRequestDisconnect = {},
+                    onDismissDisconnect = {},
+                    onConfirmDisconnect = {},
+                )
+            }
+        }
+
+        compose.onNodeWithText("owner@example.com · Global API Key · writes confirmed").assertIsDisplayed()
+        compose.onAllNodesWithText("read-only", substring = true, ignoreCase = true).assertCountEquals(0)
+        compose.onNodeWithTag("cloudflare.dashboard").performScrollToNode(hasTestTag("cloudflare.writeNotice"))
+        compose.onNodeWithText("Write access is guarded").assertIsDisplayed()
+
+        compose.onNodeWithTag("cloudflare.dashboard").performScrollToNode(hasTestTag("cloudflare.search"))
+        compose.onNodeWithTag("cloudflare.search").performTextInput("shop.verceltics.app")
+        compose.onNodeWithTag("cloudflare.dashboard").performScrollToNode(hasTestTag("cloudflare.worker.worker-one"))
+        compose.onNodeWithTag("cloudflare.worker.worker-one").assertIsDisplayed()
+        compose.onAllNodesWithTag("cloudflare.zone.zone-one").assertCountEquals(0)
     }
 }
 

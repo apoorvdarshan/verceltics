@@ -18,22 +18,51 @@ data class CloudflareTokenVerification(
     }
 }
 
+/** `/user` for email + Global API Key connections (iOS `CloudflareUser`). */
+data class CloudflareUserIdentity(
+    val id: String,
+    val email: String,
+    val firstName: String?,
+    val lastName: String?,
+    val suspended: Boolean?,
+) {
+    /** iOS `CloudflareUser.displayName`: the full name, falling back to the email. */
+    val displayName: String
+        get() = listOfNotNull(firstName?.trim(), lastName?.trim())
+            .filter(String::isNotEmpty)
+            .joinToString(" ")
+            .ifEmpty { email }
+
+    init {
+        require(id.isSafeCloudflareText(CF_MAX_ID_CHARACTERS))
+        require(email.isSafeCloudflareText(CF_MAX_NAME_CHARACTERS))
+        require(firstName == null || firstName.length <= CF_MAX_NAME_CHARACTERS)
+        require(lastName == null || lastName.length <= CF_MAX_NAME_CHARACTERS)
+    }
+}
+
 /**
- * Token-scoped connection identity, matching iOS's API-token login behavior.
+ * Connection identity, matching iOS's two login modes.
  *
- * It is synthesized from `/user/tokens/verify` plus the first accessible account. It is not the
- * `/user` profile used by iOS's separate email/global-key mode, which this foundation does not yet
- * support.
+ * API-token connections synthesize it from `/user/tokens/verify` plus the first accessible
+ * account. Global API Key connections use the `/user` profile and keep the login [email] so the
+ * dashboard can label the credential like iOS (`email ?? "Scoped API token"`).
  */
 data class CloudflareProfile(
     val id: String,
     val displayName: String,
     val tokenStatus: String,
+    val authMode: CloudflareAuthMode = CloudflareAuthMode.API_TOKEN,
+    val email: String? = null,
 ) {
     init {
         require(id.isSafeCloudflareText(CF_MAX_ID_CHARACTERS))
         require(displayName.isSafeCloudflareText(CF_MAX_NAME_CHARACTERS))
         require(tokenStatus.isSafeCloudflareText(CF_MAX_STATUS_CHARACTERS))
+        require(email == null || email.isSafeCloudflareText(CF_MAX_NAME_CHARACTERS))
+        require((authMode == CloudflareAuthMode.GLOBAL_API_KEY) == (email != null)) {
+            "Only Global API Key profiles carry a login email."
+        }
     }
 }
 
@@ -103,6 +132,9 @@ data class CloudflareWorkerScript(
     val handlers: List<String>,
     val hasAssets: Boolean?,
     val hasModules: Boolean?,
+    /** Route patterns (`routes[].pattern`), searchable like iOS. */
+    val routes: List<String> = emptyList(),
+    val tags: List<String> = emptyList(),
 ) {
     init {
         require(id.isSafeCloudflareText(CF_MAX_ID_CHARACTERS))
@@ -111,6 +143,10 @@ data class CloudflareWorkerScript(
         require(compatibilityDate == null || compatibilityDate.isSafeCloudflareText(CF_MAX_DATE_CHARACTERS))
         require(handlers.size <= CF_MAX_NESTED_ITEMS)
         require(handlers.all { it.isSafeCloudflareText(CF_MAX_NAME_CHARACTERS) })
+        require(routes.size <= CF_MAX_NESTED_ITEMS)
+        require(routes.all { it.isSafeCloudflareText(CF_MAX_DOMAIN_CHARACTERS) })
+        require(tags.size <= CF_MAX_NESTED_ITEMS)
+        require(tags.all { it.isSafeCloudflareText(CF_MAX_NAME_CHARACTERS) })
     }
 }
 
@@ -224,22 +260,41 @@ sealed interface CloudflareFetchResult {
     data class Failure(val failure: CloudflareFailure) : CloudflareFetchResult
 }
 
-/** A connected personal API token. The secret is never printable or exposed by restore models. */
+/**
+ * A connected Cloudflare credential (scoped API token or email + Global API Key). The secret is
+ * never printable or exposed by restore models.
+ */
 class CloudflareAccount(
     val profile: CloudflareProfile,
-    val apiToken: SecretValue,
+    val credential: CloudflareCredential,
     val createdAtMillis: Long,
     val updatedAtMillis: Long,
 ) {
+    constructor(
+        profile: CloudflareProfile,
+        apiToken: SecretValue,
+        createdAtMillis: Long,
+        updatedAtMillis: Long,
+    ) : this(profile, CloudflareCredential.ApiToken(apiToken), createdAtMillis, updatedAtMillis)
+
     val providerId: String = PROVIDER_ID
+
+    /** The scoped API token, or null for Global API Key connections. */
+    val apiToken: SecretValue? get() = (credential as? CloudflareCredential.ApiToken)?.token
 
     init {
         require(createdAtMillis >= 0L && updatedAtMillis >= createdAtMillis)
+        require(profile.authMode == credential.authMode) {
+            "The Cloudflare profile and credential use different authentication modes."
+        }
+        require(
+            credential !is CloudflareCredential.GlobalApiKey || profile.email == credential.email,
+        ) { "The Cloudflare profile email does not match its Global API Key credential." }
     }
 
     override fun toString(): String =
-        "CloudflareAccount(profileId=${profile.id}, providerId=$providerId, " +
-            "apiToken=<redacted>, createdAtMillis=$createdAtMillis, updatedAtMillis=$updatedAtMillis)"
+        "CloudflareAccount(profileId=${profile.id}, providerId=$providerId, authMode=${credential.authMode}, " +
+            "credential=<redacted>, createdAtMillis=$createdAtMillis, updatedAtMillis=$updatedAtMillis)"
 
     companion object {
         const val PROVIDER_ID = "cloudflare"
@@ -256,7 +311,7 @@ data class CloudflareStoredConnection(
 
     override fun toString(): String =
         "CloudflareStoredConnection(profileId=${account.profile.id}, " +
-            "cachedSnapshot=${cachedSnapshot != null}, apiToken=<redacted>)"
+            "cachedSnapshot=${cachedSnapshot != null}, credential=<redacted>)"
 }
 
 enum class CloudflareRestoreProblem {

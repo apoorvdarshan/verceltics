@@ -27,6 +27,8 @@ data class CloudflareAdvancedToolsUi(
      * Cloudflare storage port. The row stays hidden while this is null.
      */
     val onOpenStorage: (() -> Unit)? = null,
+    /** iOS: Global API Key connections get "D1 SQL and Workers KV · R2 requires a scoped token". */
+    val storageSubtitle: String = "D1 SQL, Workers KV and R2 object storage",
 )
 
 /** Port of the iOS `CloudflareDashboardView.advancedTools` panel. */
@@ -68,7 +70,7 @@ fun CloudflareAdvancedSection(tools: CloudflareAdvancedToolsUi, modifier: Modifi
         tools.onOpenStorage?.let { open ->
             ToolNavigationRow(
                 title = "Storage & databases",
-                subtitle = "D1 SQL, Workers KV and R2 object storage",
+                subtitle = tools.storageSubtitle,
                 icon = Icons.Rounded.Storage,
                 tint = CloudflareToolsColors.warning(),
                 onClick = open,

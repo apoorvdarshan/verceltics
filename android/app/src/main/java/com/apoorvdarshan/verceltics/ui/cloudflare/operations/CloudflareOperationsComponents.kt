@@ -818,7 +818,7 @@ fun CloudflareOperationsUnavailable(modifier: Modifier = Modifier) {
         CloudflareOpsEmptySection(
             icon = Icons.Rounded.Info,
             title = "Live operations unavailable",
-            message = "Connect a Cloudflare API token to load live details and make changes. Sample data is read-only.",
+            message = "Connect Cloudflare with a Global API Key or scoped API token to load live details and make changes. Sample data is read-only.",
         )
     }
 }

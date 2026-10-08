@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareAuthMode
 import com.apoorvdarshan.verceltics.data.cloudflare.tools.CloudflareAccountDetail
 import com.apoorvdarshan.verceltics.data.cloudflare.tools.CloudflareAccountOperationsSnapshot
 import com.apoorvdarshan.verceltics.data.cloudflare.tools.CloudflareApiPreset
@@ -98,6 +99,7 @@ data class CloudflareToolsContext(
     val pagesCount: Int,
     val workerCount: Int,
     val credentialLabel: String = "Scoped API token",
+    val authMode: CloudflareAuthMode = CloudflareAuthMode.API_TOKEN,
 ) {
     val firstZoneId: String? get() = zones.firstOrNull()?.id
 }
@@ -528,12 +530,12 @@ class CloudflareToolsViewModel(
     }
 
     /** iOS "Review and execute request": opens the explorer with the generated request. */
-    fun reviewOperation(accountId: String) {
+    fun reviewOperation(accountId: String, authMode: CloudflareAuthMode = CloudflareAuthMode.API_TOKEN) {
         val state = _uiState.value
         val catalog = (state.catalog as? CloudflareToolLoad.Loaded)?.value ?: return
         val editor = state.operationEditor ?: return
         val operation = catalog.operation(editor.operationId) ?: return
-        if (!operation.supportsApiToken) return
+        if (!operation.supports(authMode)) return
         openExplorer(
             accountId,
             CloudflareOperationRequestBuilder.preset(operation, editor.values, editor.body, editor.contentType),

@@ -45,6 +45,8 @@ class CloudflareOperationsContext(
     private val closeAction: () -> Unit,
     private val closeResourceAction: () -> Unit,
     private val inventoryChangedAction: () -> Unit,
+    /** iOS `allowsR2`: R2 needs a scoped API token, so Global API Key connections hide it. */
+    val allowsR2: Boolean = true,
 ) {
     /** Pushes [route]. Pro-gated: shows the paywall first when Pro is not active. */
     fun navigate(route: CloudflareOperationsRoute) = navigateAction(route)
@@ -91,7 +93,8 @@ fun CloudflareOperationsHost(
         knownKeys.addAll(live)
     }
 
-    val context = remember(client, dashboard?.selectedAccountId, dashboard?.selectedAccount?.name, refreshSignal, proAccess) {
+    val allowsR2 = dashboard?.allowsR2 ?: true
+    val context = remember(client, dashboard?.selectedAccountId, dashboard?.selectedAccount?.name, refreshSignal, proAccess, allowsR2) {
         CloudflareOperationsContext(
             client = client,
             accountId = dashboard?.inventory?.accountId ?: dashboard?.selectedAccountId,
@@ -101,6 +104,7 @@ fun CloudflareOperationsHost(
             closeAction = { navigator.pop() },
             closeResourceAction = onCloseResource,
             inventoryChangedAction = onInventoryChanged,
+            allowsR2 = allowsR2,
         )
     }
 

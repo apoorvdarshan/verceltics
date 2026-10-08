@@ -29,6 +29,7 @@ import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Hub
 import androidx.compose.material.icons.rounded.Inbox
 import androidx.compose.material.icons.rounded.Layers
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.PlayCircle
@@ -52,6 +53,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -59,6 +61,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareAuthMode
 import com.apoorvdarshan.verceltics.data.cloudflare.tools.CloudflareApiPreset
 import com.apoorvdarshan.verceltics.data.cloudflare.tools.CloudflareProductCatalog
 import com.apoorvdarshan.verceltics.data.cloudflare.tools.CloudflareProductDefinition
@@ -66,7 +69,10 @@ import com.apoorvdarshan.verceltics.data.cloudflare.tools.CloudflareToolsFormat
 import com.apoorvdarshan.verceltics.ui.components.ControlSearchField
 import com.apoorvdarshan.verceltics.ui.components.StatusPill
 
-/** Port of iOS `CloudflareProductCenterView`. Android connects with scoped API tokens only. */
+/**
+ * Port of iOS `CloudflareProductCenterView`. Presets marked as API-token only are locked for Global
+ * API Key connections, exactly like iOS (`operation.requiresAPIToken && authenticationMode != .apiToken`).
+ */
 @Composable
 internal fun CloudflareProductCenterScreen(
     context: CloudflareToolsContext,
@@ -101,7 +107,11 @@ internal fun CloudflareProductCenterScreen(
                                 overflow = TextOverflow.Ellipsis,
                             )
                         }
-                        StatusPill("Scoped", CloudflareToolsColors.success())
+                        if (context.authMode == CloudflareAuthMode.API_TOKEN) {
+                            StatusPill("Scoped", CloudflareToolsColors.success())
+                        } else {
+                            StatusPill("Global", CloudflareToolsColors.warning())
+                        }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                         ToolMetric("PRODUCTS", CloudflareToolsFormat.count(CloudflareProductCatalog.products.size), Modifier.weight(1f))
@@ -172,15 +182,23 @@ internal fun CloudflareProductCenterScreen(
             }
         }
         items(products, key = { "product-${it.id}" }) { product ->
-            ProductPanel(product) { preset ->
+            ProductPanel(product, context.authMode) { preset ->
                 onOpenOperation(preset.resolved(context.accountId, selectedZoneId))
             }
         }
     }
 }
 
+/** iOS `operationRow` lock: API-token-only presets cannot run with a Global API Key. */
+internal fun isProductOperationLocked(operation: CloudflareApiPreset, authMode: CloudflareAuthMode): Boolean =
+    operation.requiresApiToken && authMode != CloudflareAuthMode.API_TOKEN
+
 @Composable
-private fun ProductPanel(product: CloudflareProductDefinition, onOpen: (CloudflareApiPreset) -> Unit) {
+private fun ProductPanel(
+    product: CloudflareProductDefinition,
+    authMode: CloudflareAuthMode,
+    onOpen: (CloudflareApiPreset) -> Unit,
+) {
     ToolPanel(accentAlpha = 0.04f, testTag = "cloudflare.productCenter.product.${product.id}") {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             ToolIconTile(productIcon(product.id), size = 36.dp)
@@ -206,23 +224,25 @@ private fun ProductPanel(product: CloudflareProductDefinition, onOpen: (Cloudfla
         }
         ToolDivider()
         product.operations.forEachIndexed { index, operation ->
-            ProductOperationRow(operation) { onOpen(operation) }
+            ProductOperationRow(operation, locked = isProductOperationLocked(operation, authMode)) { onOpen(operation) }
             if (index < product.operations.lastIndex) ToolDivider(start = 61.dp)
         }
     }
 }
 
 @Composable
-private fun ProductOperationRow(operation: CloudflareApiPreset, onClick: () -> Unit) {
+private fun ProductOperationRow(operation: CloudflareApiPreset, locked: Boolean, onClick: () -> Unit) {
     val haptic = LocalHapticFeedback.current
     Surface(
         onClick = {
             haptic.performHapticFeedback(HapticFeedbackType.Confirm)
             onClick()
         },
+        enabled = !locked,
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 56.dp)
+            .alpha(if (locked) 0.48f else 1f)
             .testTag("cloudflare.productCenter.operation.${operation.id}"),
         color = Color.Transparent,
     ) {
@@ -232,14 +252,18 @@ private fun ProductOperationRow(operation: CloudflareApiPreset, onClick: () -> U
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(operation.title, style = MaterialTheme.typography.titleSmall)
                 Text(
-                    operation.summary,
+                    if (locked) "Scoped API token required" else operation.summary,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (locked) CloudflareToolsColors.warning() else MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (locked) {
+                Icon(Icons.Rounded.Lock, contentDescription = "Scoped API token required", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
     }
 }

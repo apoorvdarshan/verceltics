@@ -8,7 +8,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
-import com.apoorvdarshan.verceltics.data.account.SecretValue
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareCredential
 import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareHttpMethod
 import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareRestClient
 import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareRestRequest
@@ -36,7 +36,7 @@ class CloudflareZoneDetailScreenTest {
 
     private fun setContent() {
         val client = CloudflareRestClient(
-            credentialProvider = { SecretValue.of("test-token") },
+            credentialProvider = { CloudflareCredential.apiToken("test-token") },
             executor = Executor { it.run() },
             transport = transport,
         )
@@ -127,7 +127,7 @@ private class ZoneScriptedTransport : CloudflareRestTransport {
     val requests: MutableList<String> = Collections.synchronizedList(mutableListOf())
     val bodies: MutableMap<String, String> = Collections.synchronizedMap(mutableMapOf())
 
-    override fun newCall(request: CloudflareRestRequest, credential: SecretValue): CancelableCall<CloudflareRestResponse> =
+    override fun newCall(request: CloudflareRestRequest, credential: CloudflareCredential): CancelableCall<CloudflareRestResponse> =
         object : CancelableCall<CloudflareRestResponse> {
             override fun execute(): CloudflareRestResponse {
                 val key = "${request.method} ${request.apiPath}"

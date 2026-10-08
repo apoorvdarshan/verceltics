@@ -9,6 +9,8 @@ import java.nio.charset.StandardCharsets
 interface CloudflareJsonParser {
     fun parseTokenVerification(bytes: ByteArray): CloudflareTokenVerification
 
+    fun parseUser(bytes: ByteArray): CloudflareUserIdentity
+
     fun parseAccountsPage(bytes: ByteArray): CloudflarePage<CloudflareAccountSummary>
 
     fun parseZonesPage(bytes: ByteArray): CloudflarePage<CloudflareZone>
@@ -33,6 +35,8 @@ class CloudflareEnvelopeRejectedException internal constructor(
 class AndroidCloudflareJsonParser : CloudflareJsonParser {
     override fun parseTokenVerification(bytes: ByteArray): CloudflareTokenVerification =
         parseEnvelope(bytes, ::readTokenVerification)
+
+    override fun parseUser(bytes: ByteArray): CloudflareUserIdentity = parseEnvelope(bytes, ::readUser)
 
     override fun parseAccountsPage(bytes: ByteArray): CloudflarePage<CloudflareAccountSummary> =
         parseCollectionEnvelope(bytes, ::readAccount)
@@ -177,6 +181,34 @@ class AndroidCloudflareJsonParser : CloudflareJsonParser {
         )
     }
 
+    private fun readUser(reader: JsonReader): CloudflareUserIdentity {
+        expect(reader, JsonToken.BEGIN_OBJECT, "Cloudflare returned an invalid user profile.")
+        var id: String? = null
+        var email: String? = null
+        var firstName: String? = null
+        var lastName: String? = null
+        var suspended: Boolean? = null
+        reader.beginObject()
+        while (reader.hasNext()) {
+            when (reader.nextName()) {
+                "id" -> id = reader.optionalString(CF_MAX_ID_CHARACTERS)
+                "email" -> email = reader.optionalString(CF_MAX_NAME_CHARACTERS)
+                "first_name" -> firstName = reader.optionalString(CF_MAX_NAME_CHARACTERS)
+                "last_name" -> lastName = reader.optionalString(CF_MAX_NAME_CHARACTERS)
+                "suspended" -> suspended = reader.optionalBoolean()
+                else -> reader.skipValue()
+            }
+        }
+        reader.endObject()
+        return CloudflareUserIdentity(
+            id = id ?: missing("user id"),
+            email = email ?: missing("user email"),
+            firstName = firstName,
+            lastName = lastName,
+            suspended = suspended,
+        )
+    }
+
     private fun readAccount(reader: JsonReader): CloudflareAccountSummary {
         expect(reader, JsonToken.BEGIN_OBJECT, "Cloudflare returned an invalid account record.")
         var id: String? = null
@@ -285,6 +317,8 @@ class AndroidCloudflareJsonParser : CloudflareJsonParser {
         var handlers = emptyList<String>()
         var hasAssets: Boolean? = null
         var hasModules: Boolean? = null
+        var routes = emptyList<String>()
+        var tags = emptyList<String>()
         reader.beginObject()
         while (reader.hasNext()) {
             when (reader.nextName()) {
@@ -295,6 +329,8 @@ class AndroidCloudflareJsonParser : CloudflareJsonParser {
                 "handlers" -> handlers = reader.stringArray(CF_MAX_NESTED_ITEMS, CF_MAX_NAME_CHARACTERS)
                 "has_assets" -> hasAssets = reader.optionalBoolean()
                 "has_modules" -> hasModules = reader.optionalBoolean()
+                "routes" -> routes = readRoutePatterns(reader)
+                "tags" -> tags = reader.stringArray(CF_MAX_NESTED_ITEMS, CF_MAX_NAME_CHARACTERS)
                 else -> reader.skipValue()
             }
         }
@@ -307,7 +343,40 @@ class AndroidCloudflareJsonParser : CloudflareJsonParser {
             handlers = handlers,
             hasAssets = hasAssets,
             hasModules = hasModules,
+            routes = routes,
+            tags = tags,
         )
+    }
+
+    /** `routes: [{ "id", "pattern", "script" }]` (or null) → the route patterns iOS searches. */
+    private fun readRoutePatterns(reader: JsonReader): List<String> {
+        if (reader.peek() != JsonToken.BEGIN_ARRAY) {
+            reader.skipValue()
+            return emptyList()
+        }
+        val patterns = mutableListOf<String>()
+        reader.beginArray()
+        while (reader.hasNext()) {
+            if (patterns.size >= CF_MAX_NESTED_ITEMS) {
+                throw CloudflareResponseFormatException("Cloudflare returned too many Worker routes.")
+            }
+            when (reader.peek()) {
+                JsonToken.BEGIN_OBJECT -> {
+                    reader.beginObject()
+                    while (reader.hasNext()) {
+                        when (reader.nextName()) {
+                            "pattern" -> reader.optionalString(CF_MAX_DOMAIN_CHARACTERS)?.let(patterns::add)
+                            else -> reader.skipValue()
+                        }
+                    }
+                    reader.endObject()
+                }
+                JsonToken.STRING -> reader.optionalString(CF_MAX_DOMAIN_CHARACTERS)?.let(patterns::add)
+                else -> reader.skipValue()
+            }
+        }
+        reader.endArray()
+        return patterns
     }
 
     private fun readResultInfo(reader: JsonReader): Pair<Int?, Int?> {

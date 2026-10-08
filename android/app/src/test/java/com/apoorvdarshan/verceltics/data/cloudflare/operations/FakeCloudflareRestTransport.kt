@@ -1,6 +1,6 @@
 package com.apoorvdarshan.verceltics.data.cloudflare.operations
 
-import com.apoorvdarshan.verceltics.data.account.SecretValue
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareCredential
 import com.apoorvdarshan.verceltics.data.network.CancelableCall
 import com.apoorvdarshan.verceltics.data.network.ProviderJsonParser
 import com.apoorvdarshan.verceltics.data.network.ProviderJsonValue
@@ -11,6 +11,8 @@ import java.util.concurrent.Executor
 class RecordedCloudflareRequest(
     val request: CloudflareRestRequest,
     val credential: String,
+    /** The authentication headers the account credential writes (bearer or X-Auth-Email/Key). */
+    val authHeaders: Map<String, String> = emptyMap(),
 ) {
     val method: CloudflareHttpMethod get() = request.method
     val path: String get() = request.apiPath
@@ -56,12 +58,17 @@ class FakeCloudflareRestTransport : CloudflareRestTransport {
     fun mutations(): List<RecordedCloudflareRequest> =
         requests.filter { it.method.isMutation && !CloudflareRestClient.isReadOnlyGraphQL(it.request) }
 
-    override fun newCall(request: CloudflareRestRequest, credential: SecretValue): CancelableCall<CloudflareRestResponse> {
-        val token = credential.use { it }
+    override fun newCall(request: CloudflareRestRequest, credential: CloudflareCredential): CancelableCall<CloudflareRestResponse> {
+        val token = when (credential) {
+            is CloudflareCredential.ApiToken -> credential.token.use { it }
+            is CloudflareCredential.GlobalApiKey -> credential.key.use { it }
+        }
+        val headers = LinkedHashMap<String, String>()
+        credential.applyHeaders { name, value -> headers[name] = value }
         return object : CancelableCall<CloudflareRestResponse> {
             override fun execute(): CloudflareRestResponse {
                 check(CloudflareRestRequest.isPinnedCloudflareApiUri(request.uri())) { "Unpinned Cloudflare request." }
-                requests += RecordedCloudflareRequest(request, token)
+                requests += RecordedCloudflareRequest(request, token, headers)
                 val key = "${request.method} ${request.apiPath}"
                 return scripted[key]?.removeFirstOrNull() ?: fallbacks[key]
                     ?: throw AssertionError("No scripted Cloudflare response for $key")
@@ -89,8 +96,11 @@ class FakeCloudflareRestTransport : CloudflareRestTransport {
             "{\"success\":false,\"errors\":[{\"code\":$code,\"message\":\"$message\"}],\"messages\":[],\"result\":null}"
 
         /** A client that runs calls inline on the calling thread with a fixed test token. */
-        fun client(transport: FakeCloudflareRestTransport): CloudflareRestClient = CloudflareRestClient(
-            credentialProvider = { SecretValue.of(TOKEN) },
+        fun client(
+            transport: FakeCloudflareRestTransport,
+            credential: CloudflareCredential = CloudflareCredential.apiToken(TOKEN),
+        ): CloudflareRestClient = CloudflareRestClient(
+            credentialProvider = { credential },
             executor = Executor { it.run() },
             transport = transport,
         )

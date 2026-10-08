@@ -46,19 +46,14 @@ import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material.icons.rounded.Web
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -106,10 +101,6 @@ import com.apoorvdarshan.verceltics.ui.cloudflare.operations.CloudflareOpsScreen
 import com.apoorvdarshan.verceltics.ui.cloudflare.operations.CloudflareOpsSectionHeader
 import com.apoorvdarshan.verceltics.ui.cloudflare.operations.CloudflareWriteNotice
 import com.apoorvdarshan.verceltics.ui.components.ControlSearchField
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneId
-import java.time.ZoneOffset
 import kotlinx.coroutines.launch
 
 /** Port of iOS `CloudflareZoneDetailView`. */
@@ -579,58 +570,5 @@ private fun DnsRecordRow(
                 }
             }
         }
-    }
-}
-
-/** iOS `CloudflareCustomAnalyticsRangeView` as a Material date-range dialog. */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun CloudflareCustomRangeDialog(
-    initialFrom: Instant,
-    initialTo: Instant,
-    onApply: (Instant, Instant) -> String?,
-    onDismiss: () -> Unit,
-) {
-    val zone = ZoneId.systemDefault()
-    val todayEnd = LocalDate.now(zone).plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli() - 1
-    val state = rememberDateRangePickerState(
-        initialSelectedStartDateMillis = initialFrom.atZone(zone).toLocalDate().atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli(),
-        initialSelectedEndDateMillis = initialTo.atZone(zone).toLocalDate().atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli(),
-        selectableDates = object : SelectableDates {
-            override fun isSelectableDate(utcTimeMillis: Long): Boolean = utcTimeMillis <= todayEnd
-        },
-    )
-    var error by remember { mutableStateOf<String?>(null) }
-    DatePickerDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    val start = state.selectedStartDateMillis
-                    if (start == null) {
-                        error = "The start must be earlier than the end."
-                        return@TextButton
-                    }
-                    val startDay = Instant.ofEpochMilli(start).atZone(ZoneOffset.UTC).toLocalDate()
-                    val endDay = state.selectedEndDateMillis?.let { Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate() } ?: startDay
-                    val from = startDay.atStartOfDay(zone).toInstant()
-                    val to = minOf(endDay.plusDays(1).atStartOfDay(zone).toInstant().minusSeconds(1), Instant.now())
-                    error = onApply(from, to)
-                },
-                modifier = Modifier.testTag("cloudflare.zone.customRange.apply"),
-            ) { Text("Apply range") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-    ) {
-        Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("CUSTOM TRAFFIC WINDOW", style = MaterialTheme.typography.labelSmall, color = CloudflareOpsColors.Orange)
-            Text(
-                "Choose any range. Cloudflare will shorten it only when your zone’s plan or dataset retention requires it.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            error?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
-        }
-        DateRangePicker(state = state, modifier = Modifier.weight(1f), showModeToggle = false)
     }
 }

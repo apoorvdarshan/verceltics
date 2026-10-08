@@ -90,14 +90,21 @@ data class CloudflareApiPreset(
 }
 
 /** An unparsed explorer response. Bodies stay in memory only and are never persisted. */
-class CloudflareRawResponse(
+class CloudflareRawResponse private constructor(
     val statusCode: Int,
     headers: Map<String, String>,
-    body: ByteArray,
-    val elapsedMillis: Long? = null,
+    private val storedBody: ByteArray,
+    val elapsedMillis: Long?,
+    @Suppress("UNUSED_PARAMETER") ownsBody: Boolean,
 ) {
+    constructor(
+        statusCode: Int,
+        headers: Map<String, String>,
+        body: ByteArray,
+        elapsedMillis: Long? = null,
+    ) : this(statusCode, headers, body.copyOf(), elapsedMillis, ownsBody = true)
+
     val headers: Map<String, String> = headers.toSortedMap(String.CASE_INSENSITIVE_ORDER)
-    private val storedBody = body.copyOf()
 
     val isSuccess: Boolean get() = statusCode in 200..299
 
@@ -107,21 +114,77 @@ class CloudflareRawResponse(
 
     val text: String get() = String(storedBody, StandardCharsets.UTF_8)
 
-    /** iOS `prettyPrintedBody`: sorted-key, indented JSON, falling back to the UTF-8 text. */
+    /**
+     * Whether the body is small enough to parse into a JSON tree on a phone. Explorer responses may
+     * be up to 32 MB (iOS parity); larger bodies are previewed as leading text instead, so a huge
+     * response can never multiply into hundreds of megabytes of strings and JSON nodes.
+     */
+    val isParseable: Boolean get() = storedBody.size <= MAXIMUM_PARSE_BYTES
+
+    /**
+     * iOS `prettyPrintedBody`: sorted-key, indented JSON, falling back to the UTF-8 text. Bodies over
+     * [MAXIMUM_PARSE_BYTES] return a bounded leading-text preview instead.
+     */
     val prettyPrintedBody: String by lazy {
+        if (!isParseable) return@lazy preview(PREVIEW_FALLBACK_CHARACTERS).text
         val raw = text
         val parsed = runCatching { ProviderJsonParser.parse(raw) }.getOrNull()
         if (parsed == null) raw else CloudflarePrettyJson.write(parsed)
     }
 
-    fun parsedJson(): ProviderJsonValue? = runCatching { ProviderJsonParser.parse(text) }.getOrNull()
+    /**
+     * At most [maximumCharacters] of the response for display or copy: pretty JSON when the body is
+     * parseable, otherwise only the leading bytes are decoded.
+     */
+    fun preview(maximumCharacters: Int): CloudflareResponsePreview {
+        require(maximumCharacters > 0)
+        if (isParseable) {
+            val pretty = prettyPrintedBody
+            return CloudflareResponsePreview(pretty.take(maximumCharacters), truncated = pretty.length > maximumCharacters)
+        }
+        // UTF-8 needs at most four bytes per character, so this prefix always covers the limit.
+        val byteCount = minOf(storedBody.size.toLong(), maximumCharacters.toLong() * 4L).toInt()
+        val decoded = StandardCharsets.UTF_8.newDecoder()
+            .onMalformedInput(java.nio.charset.CodingErrorAction.REPLACE)
+            .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPLACE)
+            .decode(java.nio.ByteBuffer.wrap(storedBody, 0, byteCount))
+            .toString()
+        return CloudflareResponsePreview(
+            text = decoded.take(maximumCharacters),
+            truncated = byteCount < storedBody.size || decoded.length > maximumCharacters,
+        )
+    }
 
+    fun parsedJson(): ProviderJsonValue? =
+        if (!isParseable) null else runCatching { ProviderJsonParser.parse(text) }.getOrNull()
+
+    // The body is never mutated after construction, so the copy can share it.
     fun withElapsed(elapsedMillis: Long): CloudflareRawResponse =
-        CloudflareRawResponse(statusCode, headers, storedBody, elapsedMillis)
+        CloudflareRawResponse(statusCode, headers, storedBody, elapsedMillis, ownsBody = true)
 
     override fun toString(): String =
         "CloudflareRawResponse(statusCode=$statusCode, bodyBytes=${storedBody.size}, headerNames=${headers.keys})"
+
+    companion object {
+        /**
+         * Takes ownership of [body] without copying it. Only for freshly read transport buffers that
+         * nothing else references, so a 32 MB response is not duplicated once more.
+         */
+        internal fun adopting(
+            statusCode: Int,
+            headers: Map<String, String>,
+            body: ByteArray,
+            elapsedMillis: Long?,
+        ): CloudflareRawResponse = CloudflareRawResponse(statusCode, headers, body, elapsedMillis, ownsBody = true)
+
+        /** The previous 8 MB response ceiling: bodies up to this size are still parsed and pretty-printed. */
+        const val MAXIMUM_PARSE_BYTES: Int = 8 * 1_024 * 1_024
+        private const val PREVIEW_FALLBACK_CHARACTERS = 300_000
+    }
 }
+
+/** A bounded slice of a response body for the explorer viewer and clipboard. */
+data class CloudflareResponsePreview(val text: String, val truncated: Boolean)
 
 /** Deterministic pretty JSON writer (two-space indentation, keys sorted like iOS `.sortedKeys`). */
 object CloudflarePrettyJson {

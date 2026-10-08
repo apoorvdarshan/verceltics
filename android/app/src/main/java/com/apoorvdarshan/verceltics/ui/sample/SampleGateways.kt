@@ -73,7 +73,7 @@ object SampleCloudflareGateway : CloudflareUiGateway {
         )
     }
     override suspend fun restore() = Result.success<CloudflareRestoreUi>(CloudflareRestoreUi.Available(dashboard()))
-    override suspend fun connect(apiToken: SecretValue) = Result.success(dashboard())
+    override suspend fun connect(credential: com.apoorvdarshan.verceltics.data.cloudflare.CloudflareCredential) = Result.success(dashboard())
     override suspend fun refresh(preferredAccountId: String?) = Result.success(dashboard(preferredAccountId))
     override suspend fun disconnect() = Result.success(Unit)
 }

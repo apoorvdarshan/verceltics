@@ -8,7 +8,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
-import com.apoorvdarshan.verceltics.data.account.SecretValue
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareCredential
 import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareHttpMethod
 import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareRestClient
 import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareRestRequest
@@ -40,7 +40,7 @@ class CloudflarePagesScreensTest {
         respond(CloudflareHttpMethod.DELETE, project, envelope("null"))
     }
     private val client = CloudflareRestClient(
-        credentialProvider = { SecretValue.of("token") },
+        credentialProvider = { CloudflareCredential.apiToken("token") },
         executor = Executor { it.run() },
         transport = transport,
     )
@@ -150,7 +150,7 @@ private class ScriptedPagesTransport : CloudflareRestTransport {
 
     fun mutations(): List<String> = requests.filter { it.method.isMutation }.map { "${it.method} ${it.apiPath}" }
 
-    override fun newCall(request: CloudflareRestRequest, credential: SecretValue): CancelableCall<CloudflareRestResponse> =
+    override fun newCall(request: CloudflareRestRequest, credential: CloudflareCredential): CancelableCall<CloudflareRestResponse> =
         object : CancelableCall<CloudflareRestResponse> {
             override fun execute(): CloudflareRestResponse {
                 requests += request

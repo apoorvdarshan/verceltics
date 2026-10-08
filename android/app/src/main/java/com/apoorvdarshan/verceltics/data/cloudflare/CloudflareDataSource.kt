@@ -11,7 +11,13 @@ import java.util.concurrent.CancellationException
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
-/** Cancellable read-only dashboard orchestration with bounded, truthful section states. */
+/**
+ * Cancellable read-only dashboard orchestration with bounded, truthful section states.
+ *
+ * Collections are walked to completion like iOS `fetchAllPages`; the only limits are iOS's
+ * `CloudflarePaginationGuard` safety bounds (500 pages, 100,000 items), which surface as an
+ * explicit partial-inventory warning instead of a silent truncation.
+ */
 class CloudflareDataSource(
     private val api: CloudflareReadApi = CloudflareApi(),
     private val nowMillis: () -> Long = System::currentTimeMillis,
@@ -22,8 +28,26 @@ class CloudflareDataSource(
         pageSize: Int = DEFAULT_PAGE_SIZE,
         maximumPages: Int = DEFAULT_MAXIMUM_PAGES,
         maximumItems: Int = DEFAULT_MAXIMUM_ITEMS,
+        pagesPageSize: Int = minOf(pageSize, PAGES_PAGE_SIZE),
+    ): CancelableCall<CloudflareFetchResult> = newDashboardCall(
+        credential = CloudflareCredential.ApiToken(token),
+        preferredAccountId = preferredAccountId,
+        pageSize = pageSize,
+        maximumPages = maximumPages,
+        maximumItems = maximumItems,
+        pagesPageSize = pagesPageSize,
+    )
+
+    fun newDashboardCall(
+        credential: CloudflareCredential,
+        preferredAccountId: String? = null,
+        pageSize: Int = DEFAULT_PAGE_SIZE,
+        maximumPages: Int = DEFAULT_MAXIMUM_PAGES,
+        maximumItems: Int = DEFAULT_MAXIMUM_ITEMS,
+        pagesPageSize: Int = minOf(pageSize, PAGES_PAGE_SIZE),
     ): CancelableCall<CloudflareFetchResult> {
         require(pageSize in 1..CloudflareApi.MAXIMUM_PAGE_SIZE)
+        require(pagesPageSize in 1..pageSize)
         require(maximumPages in 1..CloudflareApi.MAXIMUM_PAGE_NUMBER)
         require(maximumItems in pageSize..HARD_MAXIMUM_ITEMS)
         require(
@@ -32,9 +56,10 @@ class CloudflareDataSource(
         )
         return CloudflareDashboardCall(
             api = api,
-            token = token,
+            credential = credential,
             preferredAccountId = preferredAccountId,
             pageSize = pageSize,
+            pagesPageSize = pagesPageSize,
             maximumPages = maximumPages,
             maximumItems = maximumItems,
             nowMillis = nowMillis,
@@ -42,44 +67,40 @@ class CloudflareDataSource(
     }
 
     companion object {
+        /** iOS `fetchAccounts` / `fetchZones` use 50 results per page. */
         const val DEFAULT_PAGE_SIZE = 50
-        const val DEFAULT_MAXIMUM_PAGES = 100
-        const val DEFAULT_MAXIMUM_ITEMS = 20_000
+
+        /** iOS `fetchPagesProjects` uses 20 results per page. */
+        const val PAGES_PAGE_SIZE = 20
+
+        /** iOS `CloudflarePaginationGuard.maximumPages`. */
+        const val DEFAULT_MAXIMUM_PAGES = 500
+
+        /** iOS `CloudflarePaginationGuard.maximumItems`. */
+        const val DEFAULT_MAXIMUM_ITEMS = 100_000
         private const val HARD_MAXIMUM_ITEMS = 100_000
     }
 }
 
 private class CloudflareDashboardCall(
     private val api: CloudflareReadApi,
-    private val token: SecretValue,
+    private val credential: CloudflareCredential,
     private val preferredAccountId: String?,
     private val pageSize: Int,
+    private val pagesPageSize: Int,
     private val maximumPages: Int,
     private val maximumItems: Int,
     private val nowMillis: () -> Long,
 ) : TrackedCloudflareCall<CloudflareFetchResult>() {
     override fun executeTracked(): CloudflareFetchResult {
-        val verification = try {
-            executeChild(api.newVerifyTokenCall(token))
-        } catch (error: CancellationException) {
-            throw error
-        } catch (error: Exception) {
-            return CloudflareFetchResult.Failure(safeCloudflareFailure(error))
-        }
-        if (!verification.isActive) {
-            return CloudflareFetchResult.Failure(
-                CloudflareFailure(
-                    CloudflareFailureKind.AUTHENTICATION,
-                    "This Cloudflare API token is not active.",
-                ),
-            )
-        }
+        verifyCredential()?.let { return it }
 
         val failures = mutableListOf<CloudflareFailure>()
         val warnings = mutableListOf<String>()
         val accountsResult = collectPages(
             label = "account",
-            childFactory = { page -> api.newAccountsPageCall(token, page, pageSize) },
+            pageSize = pageSize,
+            childFactory = { page -> api.newAccountsPageCall(credential, page, pageSize) },
             identity = CloudflareAccountSummary::id,
         )
         val accounts = accountsResult.itemsOrEmpty()
@@ -96,11 +117,26 @@ private class CloudflareDashboardCall(
         val inventory = selectedAccountId?.let { accountId ->
             loadAccountInventory(accountId, failures, warnings)
         }
-        val profile = CloudflareProfile(
-            id = verification.id ?: credentialFingerprint(token),
-            displayName = accounts.firstOrNull()?.name ?: "Cloudflare API Token",
-            tokenStatus = verification.status,
-        )
+        val profile = when (credential) {
+            is CloudflareCredential.ApiToken -> {
+                val verification = checkNotNull(verifiedToken)
+                CloudflareProfile(
+                    id = verification.id ?: credentialFingerprint(credential.token),
+                    displayName = accounts.firstOrNull()?.name ?: "Cloudflare API Token",
+                    tokenStatus = verification.status,
+                )
+            }
+            is CloudflareCredential.GlobalApiKey -> {
+                val user = checkNotNull(verifiedUser)
+                CloudflareProfile(
+                    id = user.id,
+                    displayName = user.displayName.take(CF_MAX_NAME_CHARACTERS),
+                    tokenStatus = if (user.suspended == true) "suspended" else "active",
+                    authMode = CloudflareAuthMode.GLOBAL_API_KEY,
+                    email = credential.email,
+                )
+            }
+        }
         val snapshot = CloudflareSnapshot(
             profile = profile,
             accounts = accounts,
@@ -117,6 +153,40 @@ private class CloudflareDashboardCall(
         }
     }
 
+    private var verifiedToken: CloudflareTokenVerification? = null
+    private var verifiedUser: CloudflareUserIdentity? = null
+
+    /**
+     * iOS validates scoped tokens with `/user/tokens/verify` (and requires `active`) and Global API
+     * Keys with `/user`. Returns a failure, or null after storing the verified identity.
+     */
+    private fun verifyCredential(): CloudflareFetchResult.Failure? {
+        try {
+            when (credential) {
+                is CloudflareCredential.ApiToken -> {
+                    val verification = executeChild(api.newVerifyTokenCall(credential.token))
+                    if (!verification.isActive) {
+                        return CloudflareFetchResult.Failure(
+                            CloudflareFailure(
+                                CloudflareFailureKind.AUTHENTICATION,
+                                "This Cloudflare API token is not active.",
+                            ),
+                        )
+                    }
+                    verifiedToken = verification
+                }
+                is CloudflareCredential.GlobalApiKey -> {
+                    verifiedUser = executeChild(api.newUserCall(credential))
+                }
+            }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            return CloudflareFetchResult.Failure(safeCloudflareFailure(error))
+        }
+        return null
+    }
+
     private fun loadAccountInventory(
         accountId: String,
         failures: MutableList<CloudflareFailure>,
@@ -125,12 +195,14 @@ private class CloudflareDashboardCall(
         val sectionWarnings = mutableListOf<String>()
         val zonesResult = collectPages(
             label = "zone",
-            childFactory = { page -> api.newZonesPageCall(token, accountId, page, pageSize) },
+            pageSize = pageSize,
+            childFactory = { page -> api.newZonesPageCall(credential, accountId, page, pageSize) },
             identity = CloudflareZone::id,
         )
         val pagesResult = collectPages(
             label = "Pages project",
-            childFactory = { page -> api.newPagesProjectsPageCall(token, accountId, page, pageSize) },
+            pageSize = pagesPageSize,
+            childFactory = { page -> api.newPagesProjectsPageCall(credential, accountId, page, pagesPageSize) },
             identity = CloudflarePagesProject::id,
         )
         val workersResult = loadWorkerScripts(accountId)
@@ -168,7 +240,7 @@ private class CloudflareDashboardCall(
     /** Workers scripts is a bounded SinglePage Cloudflare endpoint; it has no page controls. */
     private fun loadWorkerScripts(accountId: String): CloudflareCollectionResult<CloudflareWorkerScript> =
         try {
-            CloudflareCollectionResult.Complete(executeChild(api.newWorkerScriptsCall(token, accountId)))
+            CloudflareCollectionResult.Complete(executeChild(api.newWorkerScriptsCall(credential, accountId)))
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {
@@ -177,6 +249,7 @@ private class CloudflareDashboardCall(
 
     private fun <T> collectPages(
         label: String,
+        pageSize: Int,
         childFactory: (Int) -> CancelableCall<CloudflarePage<T>>,
         identity: (T) -> String,
     ): CloudflareCollectionResult<T> {

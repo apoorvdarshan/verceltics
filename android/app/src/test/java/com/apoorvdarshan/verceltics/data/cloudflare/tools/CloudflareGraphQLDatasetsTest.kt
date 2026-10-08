@@ -1,6 +1,6 @@
 package com.apoorvdarshan.verceltics.data.cloudflare.tools
 
-import com.apoorvdarshan.verceltics.data.account.SecretValue
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareCredential
 import com.apoorvdarshan.verceltics.data.network.ProviderJsonParser
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -152,7 +152,7 @@ class CloudflareGraphQLDatasetsTest {
             }
         }
         val datasets = CloudflareGraphQLDatasetLoader(CloudflareToolsApi(transport))
-            .newLoadCall(SecretValue.of("token"), CloudflareGraphQLScope.ACCOUNT, "acc-1", null)
+            .newLoadCall(CloudflareCredential.apiToken("token"), CloudflareGraphQLScope.ACCOUNT, "acc-1", null)
             .execute()
         assertEquals(25, datasets.size)
         assertEquals("dataset3", datasets.last().name)
@@ -171,7 +171,7 @@ class CloudflareGraphQLDatasetsTest {
         }
         val error = assertThrows(CloudflareToolsException::class.java) {
             CloudflareGraphQLDatasetLoader(CloudflareToolsApi(transport))
-                .newLoadCall(SecretValue.of("token"), CloudflareGraphQLScope.ZONE, "acc", "zone")
+                .newLoadCall(CloudflareCredential.apiToken("token"), CloudflareGraphQLScope.ZONE, "acc", "zone")
                 .execute()
         }
         assertEquals("Cloudflare did not expose a settings type for zone analytics.", error.message)

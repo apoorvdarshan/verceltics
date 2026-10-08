@@ -127,6 +127,12 @@ data class CloudflareOpenApiOperation(
 
     val isMutation: Boolean get() = method.isMutation
 
+    /** iOS `credentialIsSupported`: whether Cloudflare's schema accepts the connected credential. */
+    fun supports(authMode: com.apoorvdarshan.verceltics.data.cloudflare.CloudflareAuthMode): Boolean = when (authMode) {
+        com.apoorvdarshan.verceltics.data.cloudflare.CloudflareAuthMode.GLOBAL_API_KEY -> supportsGlobalKey
+        com.apoorvdarshan.verceltics.data.cloudflare.CloudflareAuthMode.API_TOKEN -> supportsApiToken
+    }
+
     val isMultipart: Boolean
         get() = contentTypes.any { it.contains("multipart/form-data", ignoreCase = true) }
 

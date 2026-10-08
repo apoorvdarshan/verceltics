@@ -1,6 +1,7 @@
 package com.apoorvdarshan.verceltics.data.cloudflare.operations
 
 import com.apoorvdarshan.verceltics.data.account.SecretValue
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareCredential
 import com.apoorvdarshan.verceltics.data.network.ProviderJsonParser
 import com.apoorvdarshan.verceltics.data.network.ProviderJsonValue
 import com.apoorvdarshan.verceltics.data.network.ResponseTooLargeException
@@ -36,19 +37,17 @@ data class CloudflareResultInfo(
 /**
  * Authenticated Cloudflare client shared by every operations screen.
  *
- * Credentials are resolved per request from encrypted storage, so a disconnect takes effect
- * immediately and the token never enters UI state. Calls are cancellable and run on [executor].
+ * Credentials (scoped token or email + Global API Key) are resolved per request from encrypted
+ * storage, so a disconnect takes effect immediately and the secret never enters UI state. Calls are
+ * cancellable and run on [executor].
  */
 class CloudflareRestClient(
-    private val credentialProvider: suspend () -> SecretValue,
+    private val credentialProvider: suspend () -> CloudflareCredential,
     private val executor: Executor,
     private val transport: CloudflareRestTransport = HttpsCloudflareRestTransport(),
+    /** Shared with the dashboard and tools so every successful write reaches every listener. */
+    private val mutationEvents: MutableSharedFlow<CloudflareMutationEvent> = cloudflareMutationEventFlow(),
 ) {
-    private val mutationEvents = MutableSharedFlow<CloudflareMutationEvent>(
-        extraBufferCapacity = 32,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST,
-    )
-
     /** Successful mutations, for screens that reconcile after another screen changes data. */
     val mutations: SharedFlow<CloudflareMutationEvent> = mutationEvents.asSharedFlow()
 
@@ -193,8 +192,8 @@ class CloudflareRestClient(
     }
 
     companion object {
-        /** Pages upload JWT requests never read the account token; the transport ignores this value. */
-        private val PLACEHOLDER_CREDENTIAL = SecretValue.of("unused-account-credential")
+        /** Pages upload JWT requests never read the account credential; the transport ignores this value. */
+        private val PLACEHOLDER_CREDENTIAL = CloudflareCredential.ApiToken(SecretValue.of("unused-account-credential"))
 
         private val GRAPHQL_MUTATION = Regex("\\bmutation\\b", RegexOption.IGNORE_CASE)
 
@@ -261,6 +260,31 @@ class CloudflareRestClient(
                 }
             }
     }
+}
+
+/** The bounded, drop-oldest event bus every Cloudflare client publishes successful writes to. */
+fun cloudflareMutationEventFlow(): MutableSharedFlow<CloudflareMutationEvent> = MutableSharedFlow(
+    extraBufferCapacity = 32,
+    onBufferOverflow = BufferOverflow.DROP_OLDEST,
+)
+
+/**
+ * iOS `CloudflareDashboardView.mutationAffectsDashboardSummary`: zone create/update/delete, account
+ * changes, and Pages project or Worker script create/update/delete change the dashboard summary;
+ * nested DNS, analytics, settings, deployment and security writes do not.
+ */
+fun cloudflareMutationAffectsDashboard(apiPath: String): Boolean {
+    val segments = apiPath.substringBefore('?').split('/').filter(String::isNotEmpty)
+    val root = segments.firstOrNull() ?: return false
+    if (root == "zones") return segments.size <= 2
+    if (root != "accounts") return false
+    if (segments.size <= 2) return true
+    if (segments.size < 4) return false
+    val product = segments[2]
+    val collection = segments[3]
+    if (product == "pages" && collection == "projects") return segments.size <= 5
+    if (product == "workers" && collection == "scripts") return segments.size <= 5
+    return false
 }
 
 data class CloudflareCursorPage(

@@ -4,6 +4,8 @@ import androidx.lifecycle.viewModelScope
 import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareFormat
 import com.apoorvdarshan.verceltics.data.cloudflare.storage.CloudflareR2Bucket
 import com.apoorvdarshan.verceltics.data.cloudflare.storage.CloudflareR2Configuration
+import com.apoorvdarshan.verceltics.data.cloudflare.storage.CloudflareR2ConfigurationPreset
+import com.apoorvdarshan.verceltics.data.cloudflare.storage.CloudflareR2ConfigurationPresets
 import com.apoorvdarshan.verceltics.data.cloudflare.storage.CloudflareR2Object
 import com.apoorvdarshan.verceltics.data.cloudflare.storage.CloudflareStorageApi
 import com.apoorvdarshan.verceltics.ui.cloudflare.operations.CloudflareConfirmationPrompt
@@ -22,6 +24,14 @@ data class CloudflareR2UploadDraft(
     val file: CloudflarePickedFile,
     val key: String,
     val contentType: String,
+    val error: String? = null,
+)
+
+/** The CORS or lifecycle rules being edited before a confirmed replace. */
+data class CloudflareR2RulesDraft(
+    val configuration: CloudflareR2Configuration,
+    val text: String,
+    val presetId: String? = null,
     val error: String? = null,
 )
 
@@ -45,6 +55,7 @@ data class CloudflareR2BucketState(
     val objectsError: String? = null,
     val upload: CloudflareR2UploadDraft? = null,
     val configurations: Map<CloudflareR2Configuration, CloudflareR2ConfigurationState> = emptyMap(),
+    val rulesEditor: CloudflareR2RulesDraft? = null,
     val didDelete: Boolean = false,
 )
 
@@ -171,6 +182,85 @@ class CloudflareR2BucketViewModel(
         }
     }
 
+    // MARK: CORS and lifecycle rules
+
+    /**
+     * Opens the rules editor (iOS "switch to PUT to replace"), prefilled with the loaded document
+     * when there is one, otherwise with an empty rules list.
+     */
+    fun openRulesEditor(configuration: CloudflareR2Configuration) {
+        if (!configuration.isEditable) return
+        val loaded = (_state.value.configurations[configuration] as? CloudflareR2ConfigurationState.Loaded)?.json
+        _state.update {
+            it.copy(rulesEditor = CloudflareR2RulesDraft(configuration, loaded ?: EMPTY_RULES_TEXT))
+        }
+    }
+
+    fun applyRulesPreset(preset: CloudflareR2ConfigurationPreset) {
+        _state.update { state ->
+            val editor = state.rulesEditor?.takeIf { it.configuration == preset.configuration } ?: return@update state
+            state.copy(
+                rulesEditor = editor.copy(
+                    text = CloudflareR2ConfigurationPresets.editorText(preset),
+                    presetId = preset.id,
+                    error = null,
+                ),
+            )
+        }
+    }
+
+    fun updateRulesText(text: String) {
+        _state.update { state ->
+            state.rulesEditor?.let { state.copy(rulesEditor = it.copy(text = text, presetId = null, error = null)) } ?: state
+        }
+    }
+
+    fun dismissRulesEditor() {
+        if (RULES_WORKING_ID in working.value) return
+        _state.update { it.copy(rulesEditor = null) }
+    }
+
+    /** Validates the edited rules, then asks for confirmation before the PUT replaces them. */
+    fun requestReplaceRules() {
+        val draft = _state.value.rulesEditor ?: return
+        val configuration = draft.configuration
+        val document = CloudflareR2ConfigurationPresets.parse(configuration, draft.text).getOrElse { error ->
+            _state.update { it.copy(rulesEditor = draft.copy(error = error.message)) }
+            return
+        }
+        val count = CloudflareR2ConfigurationPresets.ruleCount(document)
+        val noun = if (configuration == CloudflareR2Configuration.CORS) "CORS rules" else "lifecycle rules"
+        requestConfirmation(
+            CloudflareConfirmationPrompt(
+                title = if (count == 0) "Remove all $noun?" else "Replace $noun?",
+                message = if (count == 0) {
+                    "Every ${noun.removeSuffix("s")} on $bucketName will be removed."
+                } else {
+                    "Every existing ${noun.removeSuffix("s")} on $bucketName will be replaced with " +
+                        (if (count == 1) "1 rule." else "$count rules.")
+                },
+                confirmLabel = if (count == 0) "Remove Rules" else "Replace Rules",
+                resourceId = configuration.resourceId(bucketName),
+                destructive = true,
+                workingId = RULES_WORKING_ID,
+            ),
+        ) { confirmation ->
+            try {
+                api.replaceR2BucketConfiguration(accountId, bucketName, jurisdiction, configuration, document, confirmation)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                _state.update { state ->
+                    state.rulesEditor?.let { state.copy(rulesEditor = it.copy(error = cloudflareUserMessage(error))) } ?: state
+                }
+                throw error
+            }
+            _state.update { it.copy(rulesEditor = null) }
+            showSuccess("Updated $noun for $bucketName.")
+            loadConfiguration(configuration)
+        }
+    }
+
     // MARK: Upload
 
     /** Reads the SAF document at [uri] and opens the upload sheet with a suggested key. */
@@ -287,6 +377,8 @@ class CloudflareR2BucketViewModel(
 
     companion object {
         const val UPLOAD_WORKING_ID: String = "r2-upload"
+        const val RULES_WORKING_ID: String = "r2-rules"
+        private const val EMPTY_RULES_TEXT = "{\n  \"rules\": []\n}"
         const val DELETE_WORKING_ID: String = "r2-bucket-delete"
 
         fun downloadWorkingId(key: String): String = "download:$key"

@@ -329,7 +329,7 @@ internal fun CloudflareAccountOperationsScreen(
             error = snapshot?.rolesError,
             unavailableTitle = "Roles unavailable",
             emptyTitle = "No roles returned",
-            emptyMessage = "No account roles were available to this API token.",
+            emptyMessage = "No account roles were available to this Cloudflare credential.",
         ) { role -> RoleRow(role) { selectedRole = role.id } }
         sectionPanel(
             key = "audit",

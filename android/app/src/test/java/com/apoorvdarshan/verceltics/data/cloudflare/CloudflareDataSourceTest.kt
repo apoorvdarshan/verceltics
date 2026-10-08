@@ -54,6 +54,82 @@ class CloudflareDataSourceTest {
     }
 
     @Test
+    fun globalApiKeyValidatesWithUserProfileAndUsesTheKeyForEveryInventoryCall() {
+        val credential = CloudflareCredential.globalApiKey("Owner@Example.com", "global-key")
+        val api = FakeApi(
+            accountPage = { pageCall(listOf(account("one")), 1, 1) },
+            zonePage = { _, _ -> pageCall(listOf(zone("z")), 1, 1) },
+            pagesPage = { _, _ -> pageCall(listOf(pages("p")), 1, 1) },
+            workers = { valueCall(listOf(worker("w"))) },
+        )
+
+        val result = CloudflareDataSource(api).newDashboardCall(credential).execute() as CloudflareFetchResult.Complete
+
+        assertEquals(0, api.verificationExecutions)
+        assertEquals(1, api.userExecutions)
+        val profile = result.snapshot.profile
+        assertEquals("user-id", profile.id)
+        assertEquals("Ada Lovelace", profile.displayName)
+        assertEquals(CloudflareAuthMode.GLOBAL_API_KEY, profile.authMode)
+        assertEquals("owner@example.com", profile.email)
+        assertEquals(5, api.credentials.size)
+        assertTrue(api.credentials.all { it == credential })
+    }
+
+    @Test
+    fun rejectedGlobalApiKeyStopsBeforeInventory() {
+        val api = FakeApi(
+            user = throwingCall(
+                CloudflareApiException(
+                    CloudflareFailure(CloudflareFailureKind.AUTHENTICATION, "Cloudflare rejected this email and Global API Key.", 401),
+                    null,
+                ),
+            ),
+        )
+        val result = CloudflareDataSource(api)
+            .newDashboardCall(CloudflareCredential.globalApiKey("owner@example.com", "bad"))
+            .execute() as CloudflareFetchResult.Failure
+        assertEquals(CloudflareFailureKind.AUTHENTICATION, result.failure.kind)
+        assertTrue(api.accountPages.isEmpty())
+    }
+
+    @Test
+    fun defaultDashboardWalksEveryPageBeyondTheOldCapsLikeIos() {
+        // 12,000 zones over 240 pages: past the old 100-page / 250-row limits.
+        val api = FakeApi(
+            accountPage = { pageCall(listOf(account("one")), 1, 1) },
+            zonePage = { _, page -> pageCall(List(50) { zone("zone-$page-$it") }, page, 240) },
+            pagesPage = { _, page -> pageCall(List(20) { pages("site-$page-$it") }, page, 30) },
+        )
+
+        val result = CloudflareDataSource(api).newDashboardCall(TOKEN).execute() as CloudflareFetchResult.Complete
+        val inventory = checkNotNull(result.snapshot.selectedAccountInventory)
+
+        assertEquals(12_000, inventory.zones.size)
+        assertEquals(600, inventory.pagesProjects.size)
+        assertTrue(inventory.isComplete)
+        // iOS fetchPagesProjects asks for 20 projects per page.
+        assertTrue(api.pagesPerPage.all { it == CloudflareDataSource.PAGES_PAGE_SIZE })
+        assertEquals(500, CloudflareDataSource.DEFAULT_MAXIMUM_PAGES)
+        assertEquals(100_000, CloudflareDataSource.DEFAULT_MAXIMUM_ITEMS)
+    }
+
+    @Test
+    fun paginationGuardStillStopsAnEndlessCollectionTruthfully() {
+        val api = FakeApi(
+            accountPage = { pageCall(listOf(account("one")), 1, 1) },
+            zonePage = { _, page -> pageCall(List(50) { zone("zone-$page-$it") }, page, null) },
+        )
+
+        val result = CloudflareDataSource(api).newDashboardCall(TOKEN).execute() as CloudflareFetchResult.Partial
+        val inventory = checkNotNull(result.snapshot.selectedAccountInventory)
+
+        assertEquals(25_000, inventory.zones.size)
+        assertTrue(!inventory.zonesComplete)
+        assertTrue(result.failures.any { it.message.contains("exceeded 500 pages") })
+    }
+
+    @Test
     fun inactiveTokenStopsBeforeInventoryAndReturnsAuthenticationFailure() {
         val api = FakeApi(verification = valueCall(CloudflareTokenVerification("id", "disabled", null, null)))
 
@@ -192,12 +268,29 @@ class CloudflareDataSourceTest {
             { _, page -> pageCall(emptyList(), page, 1) },
         private val workers: (String) -> CancelableCall<List<CloudflareWorkerScript>> =
             { valueCall(emptyList()) },
+        private val user: CancelableCall<CloudflareUserIdentity> = valueCall(
+            CloudflareUserIdentity("user-id", "owner@example.com", "Ada", "Lovelace", false),
+        ),
     ) : CloudflareReadApi {
         var verificationExecutions = 0
+        var userExecutions = 0
         val accountPages = mutableListOf<Int>()
         val zoneAccounts = mutableListOf<String>()
         val pagesAccounts = mutableListOf<String>()
+        val pagesPerPage = mutableListOf<Int>()
         val workerAccounts = mutableListOf<String>()
+        val credentials = mutableListOf<CloudflareCredential>()
+
+        override fun newUserCall(credential: CloudflareCredential.GlobalApiKey): CancelableCall<CloudflareUserIdentity> =
+            object : CancelableCall<CloudflareUserIdentity> {
+                override fun execute(): CloudflareUserIdentity {
+                    userExecutions += 1
+                    credentials += credential
+                    return user.execute()
+                }
+
+                override fun cancel() = user.cancel()
+            }
 
         override fun newVerifyTokenCall(token: SecretValue): CancelableCall<CloudflareTokenVerification> =
             object : CancelableCall<CloudflareTokenVerification> {
@@ -210,38 +303,43 @@ class CloudflareDataSourceTest {
             }
 
         override fun newAccountsPageCall(
-            token: SecretValue,
+            credential: CloudflareCredential,
             page: Int,
             perPage: Int,
         ): CancelableCall<CloudflarePage<CloudflareAccountSummary>> {
+            credentials += credential
             accountPages += page
             return accountPage(page)
         }
 
         override fun newZonesPageCall(
-            token: SecretValue,
+            credential: CloudflareCredential,
             accountId: String,
             page: Int,
             perPage: Int,
         ): CancelableCall<CloudflarePage<CloudflareZone>> {
+            credentials += credential
             zoneAccounts += accountId
             return zonePage(accountId, page)
         }
 
         override fun newPagesProjectsPageCall(
-            token: SecretValue,
+            credential: CloudflareCredential,
             accountId: String,
             page: Int,
             perPage: Int,
         ): CancelableCall<CloudflarePage<CloudflarePagesProject>> {
+            credentials += credential
             pagesAccounts += accountId
+            pagesPerPage += perPage
             return pagesPage(accountId, page)
         }
 
         override fun newWorkerScriptsCall(
-            token: SecretValue,
+            credential: CloudflareCredential,
             accountId: String,
         ): CancelableCall<List<CloudflareWorkerScript>> {
+            credentials += credential
             workerAccounts += accountId
             return workers(accountId)
         }

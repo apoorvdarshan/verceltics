@@ -17,6 +17,7 @@ import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Inventory2
@@ -27,6 +28,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -34,6 +36,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
@@ -46,6 +49,7 @@ import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareDates
 import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareFormat
 import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareRestClient
 import com.apoorvdarshan.verceltics.data.cloudflare.storage.CloudflareR2Configuration
+import com.apoorvdarshan.verceltics.data.cloudflare.storage.CloudflareR2ConfigurationPresets
 import com.apoorvdarshan.verceltics.data.cloudflare.storage.CloudflareR2Jurisdictions
 import com.apoorvdarshan.verceltics.data.cloudflare.storage.CloudflareR2Object
 import com.apoorvdarshan.verceltics.ui.cloudflare.operations.CloudflareActionBanner
@@ -68,6 +72,7 @@ import com.apoorvdarshan.verceltics.ui.cloudflare.operations.CloudflareOpsSectio
 import com.apoorvdarshan.verceltics.ui.cloudflare.operations.CloudflareOpsTextField
 import com.apoorvdarshan.verceltics.ui.cloudflare.operations.CloudflareWriteNotice
 import com.apoorvdarshan.verceltics.ui.components.ThemedActionButton
+import com.apoorvdarshan.verceltics.ui.components.ThemedActionTone
 
 @Composable
 fun CloudflareR2BucketRoute(
@@ -105,6 +110,69 @@ fun CloudflareR2BucketScreen(viewModel: CloudflareR2BucketViewModel, modifier: M
     }
     val bucket = state.bucket
     CloudflareConfirmationHost(viewModel)
+
+    state.rulesEditor?.let { draft ->
+        val configuration = draft.configuration
+        CloudflareOpsEditorSheet(
+            title = "Edit ${configuration.title}",
+            onDismiss = viewModel::dismissRulesEditor,
+            testTag = "cloudflare.storage.r2.rulesSheet",
+        ) {
+            Text(
+                "Pick a preset or edit the JSON. Saving replaces every existing rule after you confirm.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            CloudflareR2ConfigurationPresets.presets(configuration).forEach { preset ->
+                val selected = draft.presetId == preset.id
+                Surface(
+                    onClick = { viewModel.applyRulesPreset(preset) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .testTag("cloudflare.storage.r2.rulesPreset.${preset.id}"),
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (selected) CloudflareOpsColors.Orange.copy(alpha = 0.10f) else MaterialTheme.colorScheme.surfaceVariant,
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        if (selected) CloudflareOpsColors.Orange else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                    ),
+                ) {
+                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            preset.title,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (preset.clearsRules) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+                        )
+                        Text(preset.summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+            CloudflareOpsTextField(
+                value = draft.text,
+                onValueChange = viewModel::updateRulesText,
+                label = "${configuration.title} JSON",
+                singleLine = false,
+                minLines = 6,
+                maxLines = 18,
+                monospace = true,
+                isError = draft.error != null,
+                testTag = "cloudflare.storage.r2.rulesJson",
+            )
+            draft.error?.let { CloudflareActionResultBanner(CloudflareActionBanner(it, isError = true)) }
+            CloudflareWriteNotice()
+            ThemedActionButton(
+                text = "REPLACE ${configuration.title.uppercase()}",
+                onClick = viewModel::requestReplaceRules,
+                enabled = draft.text.isNotBlank(),
+                isBusy = CloudflareR2BucketViewModel.RULES_WORKING_ID in working,
+                tone = ThemedActionTone.DESTRUCTIVE,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                testTag = "cloudflare.storage.r2.rulesSubmit",
+            )
+        }
+    }
 
     state.upload?.let { draft ->
         CloudflareOpsEditorSheet(
@@ -257,8 +325,18 @@ fun CloudflareR2BucketScreen(viewModel: CloudflareR2BucketViewModel, modifier: M
                 CloudflareR2Configuration.entries.forEachIndexed { index, configuration ->
                     val configurationState = state.configurations[configuration]
                     Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(configuration.title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                            if (configuration.isEditable) {
+                                CloudflareOpsActionButton(
+                                    title = "Edit",
+                                    icon = Icons.Rounded.Edit,
+                                    onClick = { viewModel.openRulesEditor(configuration) },
+                                    working = CloudflareR2BucketViewModel.RULES_WORKING_ID in working &&
+                                        state.rulesEditor?.configuration == configuration,
+                                    testTag = "cloudflare.storage.r2.config.${configuration.name}.edit",
+                                )
+                            }
                             CloudflareOpsActionButton(
                                 title = if (configurationState == null) "Load" else "Reload",
                                 icon = Icons.Rounded.Download,

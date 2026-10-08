@@ -21,21 +21,22 @@ class CloudflareApiTest {
         assertEquals("/client/v4/user/tokens/verify", client.lastPath)
         assertEquals(token, client.lastToken)
 
-        api.newAccountsPageCall(token, page = 2, perPage = 50).execute()
+        val credential = CloudflareCredential.ApiToken(token)
+        api.newAccountsPageCall(credential, page = 2, perPage = 50).execute()
         assertEquals("/client/v4/accounts", client.lastPath)
         assertEquals(listOf("page" to "2", "per_page" to "50"), client.lastQuery)
 
-        api.newZonesPageCall(token, "account-123", page = 3, perPage = 25).execute()
+        api.newZonesPageCall(credential, "account-123", page = 3, perPage = 25).execute()
         assertEquals("/client/v4/zones", client.lastPath)
         assertEquals(
             listOf("account.id" to "account-123", "page" to "3", "per_page" to "25"),
             client.lastQuery,
         )
 
-        api.newPagesProjectsPageCall(token, "account-123", 1, 20).execute()
+        api.newPagesProjectsPageCall(credential, "account-123", 1, 20).execute()
         assertEquals("/client/v4/accounts/account-123/pages/projects", client.lastPath)
 
-        api.newWorkerScriptsCall(token, "account-123").execute()
+        api.newWorkerScriptsCall(credential, "account-123").execute()
         assertEquals("/client/v4/accounts/account-123/workers/scripts", client.lastPath)
         assertTrue(client.lastQuery.isEmpty())
         assertEquals(5, client.requestCount)
@@ -43,10 +44,42 @@ class CloudflareApiTest {
     }
 
     @Test
+    fun globalApiKeySendsEmailAndKeyHeadersInsteadOfBearerOnEveryDashboardRequest() {
+        val client = RecordingHttpClient()
+        val api = CloudflareApi(client, FakeParser())
+        val credential = CloudflareCredential.globalApiKey("  Owner@Example.com ", "global-key-123")
+
+        val user = api.newUserCall(credential).execute()
+        assertEquals("/client/v4/user", client.lastPath)
+        assertEquals("user-1", user.id)
+        api.newAccountsPageCall(credential, 1, 50).execute()
+        api.newZonesPageCall(credential, "account-123", 1, 50).execute()
+        api.newPagesProjectsPageCall(credential, "account-123", 1, 20).execute()
+        api.newWorkerScriptsCall(credential, "account-123").execute()
+
+        assertEquals(5, client.requestCount)
+        assertTrue(client.allTokens.all { it == null })
+        client.allHeaders.forEach { headers ->
+            assertEquals(mapOf("X-Auth-Email" to "owner@example.com", "X-Auth-Key" to "global-key-123"), headers)
+        }
+    }
+
+    @Test
+    fun globalApiKeyRejectionUsesCredentialNeutralCopy() {
+        val error = assertThrows(CloudflareApiException::class.java) {
+            CloudflareApi(RecordingHttpClient(401), FakeParser())
+                .newUserCall(CloudflareCredential.globalApiKey("owner@example.com", "bad-key"))
+                .execute()
+        }
+        assertEquals(CloudflareFailureKind.AUTHENTICATION, error.failure.kind)
+        assertEquals("Cloudflare rejected this email and Global API Key.", error.failure.message)
+    }
+
+    @Test
     fun pathAndPaginationInputsAreBoundedBeforeTransport() {
         val client = RecordingHttpClient()
         val api = CloudflareApi(client, FakeParser())
-        val token = SecretValue.of("token")
+        val token = CloudflareCredential.apiToken("token")
 
         assertThrows(IllegalArgumentException::class.java) {
             api.newPagesProjectsPageCall(token, "../../outside", 1, 20)
@@ -126,6 +159,7 @@ class CloudflareApiTest {
         var lastToken: SecretValue? = null
         var requestCount = 0
         val allHeaders = mutableListOf<Map<String, String>>()
+        val allTokens = mutableListOf<SecretValue?>()
 
         override fun newGetCall(
             relativePath: String,
@@ -138,6 +172,7 @@ class CloudflareApiTest {
             lastToken = bearerToken
             requestCount += 1
             allHeaders += headers
+            allTokens += bearerToken
             return valueCall(HttpResponse(statusCode, responseBody, emptyMap()))
         }
     }
@@ -154,6 +189,11 @@ class CloudflareApiTest {
         override fun parseTokenVerification(bytes: ByteArray): CloudflareTokenVerification {
             rejectIfConfigured()
             return CloudflareTokenVerification("token-id", "active", null, null)
+        }
+
+        override fun parseUser(bytes: ByteArray): CloudflareUserIdentity {
+            rejectIfConfigured()
+            return CloudflareUserIdentity("user-1", "owner@example.com", "Ada", null, false)
         }
 
         override fun parseAccountsPage(bytes: ByteArray): CloudflarePage<CloudflareAccountSummary> {

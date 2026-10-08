@@ -23,6 +23,7 @@ import com.apoorvdarshan.verceltics.ui.cloudflare.operations.CloudflareOperation
 import com.apoorvdarshan.verceltics.ui.cloudflare.operations.CloudflareOperationsRoute
 import com.apoorvdarshan.verceltics.ui.cloudflare.operations.CloudflareOperationsUnavailable
 import com.apoorvdarshan.verceltics.ui.cloudflare.operations.CloudflareOpsColors
+import com.apoorvdarshan.verceltics.ui.cloudflare.operations.CloudflareOpsEmptySection
 import com.apoorvdarshan.verceltics.ui.cloudflare.operations.CloudflareOpsPanel
 import com.apoorvdarshan.verceltics.ui.cloudflare.operations.CloudflareOpsResourceRow
 import com.apoorvdarshan.verceltics.ui.cloudflare.operations.CloudflareOpsScreen
@@ -87,15 +88,30 @@ fun CloudflareStorageDestination(route: CloudflareOperationsRoute, context: Clou
         )
         CloudflareStorageRoutes.D1 -> CloudflareD1DatabaseRoute(client, accountId, route.arg(1), route.arg(2), context, route.key, modifier)
         CloudflareStorageRoutes.KV -> CloudflareKVNamespaceRoute(client, accountId, route.arg(1), route.arg(2), context, route.key, modifier)
-        CloudflareStorageRoutes.R2 -> CloudflareR2BucketRoute(
-            client,
-            accountId,
-            route.arg(1),
-            route.arg(2).ifEmpty { null },
-            context,
-            route.key,
-            modifier,
-        )
+        CloudflareStorageRoutes.R2 -> if (context.allowsR2) {
+            CloudflareR2BucketRoute(
+                client,
+                accountId,
+                route.arg(1),
+                route.arg(2).ifEmpty { null },
+                context,
+                route.key,
+                modifier,
+            )
+        } else {
+            // A restored R2 route after reconnecting with a Global API Key: iOS never offers R2 there.
+            CloudflareOpsScreen("cloudflare.storage.r2.requiresToken", modifier) {
+                item {
+                    CloudflareOpsPanel {
+                        CloudflareOpsEmptySection(
+                            icon = Icons.Rounded.Storage,
+                            title = "R2 requires a scoped token",
+                            message = CLOUDFLARE_R2_REQUIRES_TOKEN_MESSAGE,
+                        )
+                    }
+                }
+            }
+        }
         else -> CloudflareUnknownOperationsScreen(modifier)
     }
 }

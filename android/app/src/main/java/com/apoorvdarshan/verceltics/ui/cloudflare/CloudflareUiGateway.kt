@@ -1,13 +1,22 @@
 package com.apoorvdarshan.verceltics.ui.cloudflare
 
 import com.apoorvdarshan.verceltics.data.account.SecretValue
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareAuthMode
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareCredential
+import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareMutationEvent
 import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareRestClient
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 
-/** UI-only Cloudflare boundary. API tokens never enter observable Compose state. */
+/** UI-only Cloudflare boundary. Tokens and Global API Keys never enter observable Compose state. */
 interface CloudflareUiGateway {
     suspend fun restore(): Result<CloudflareRestoreUi>
 
-    suspend fun connect(apiToken: SecretValue): Result<CloudflareDashboardUi>
+    /** Validates [credential] (token verify, or `/user` for a Global API Key) and saves it. */
+    suspend fun connect(credential: CloudflareCredential): Result<CloudflareDashboardUi>
+
+    suspend fun connect(apiToken: SecretValue): Result<CloudflareDashboardUi> =
+        connect(CloudflareCredential.ApiToken(apiToken))
 
     suspend fun refresh(preferredAccountId: String? = null): Result<CloudflareDashboardUi>
 
@@ -19,6 +28,12 @@ interface CloudflareUiGateway {
      * sample data and fakes, which keeps those screens read-only.
      */
     fun operationsClient(): CloudflareRestClient? = null
+
+    /**
+     * Every successful Cloudflare write from operations screens and the API explorer, Complete API
+     * and Product Center (iOS `cloudflareDataDidChange`). Empty for sample data and fakes.
+     */
+    fun mutationEvents(): Flow<CloudflareMutationEvent> = emptyFlow()
 }
 
 sealed interface CloudflareRestoreUi {
@@ -41,7 +56,13 @@ data class CloudflareProfileUi(
     val id: String,
     val displayName: String,
     val tokenStatus: String,
-)
+    val authMode: CloudflareAuthMode = CloudflareAuthMode.API_TOKEN,
+    /** The login email of a Global API Key connection; null for scoped tokens. */
+    val email: String? = null,
+) {
+    /** iOS `credentialLabel`: `email ?? "Scoped API token"`. */
+    val credentialLabel: String get() = email ?: "Scoped API token"
+}
 
 data class CloudflareAccountUi(
     val id: String,
@@ -77,7 +98,19 @@ data class CloudflareWorkerUi(
     val handlers: List<String>,
     val hasAssets: Boolean?,
     val hasModules: Boolean?,
-)
+    val routes: List<String> = emptyList(),
+    val tags: List<String> = emptyList(),
+) {
+    /** iOS `filteredWorkers`: the script name, a route pattern or a tag (plus handlers). */
+    fun matches(query: String): Boolean {
+        val needle = query.trim()
+        return needle.isEmpty() ||
+            id.contains(needle, ignoreCase = true) ||
+            routes.any { it.contains(needle, ignoreCase = true) } ||
+            tags.any { it.contains(needle, ignoreCase = true) } ||
+            handlers.any { it.contains(needle, ignoreCase = true) }
+    }
+}
 
 data class CloudflareInventoryUi(
     val accountId: String,
@@ -114,6 +147,11 @@ data class CloudflareDashboardUi(
 ) {
     val selectedAccount: CloudflareAccountUi?
         get() = selectedAccountId?.let { selected -> accounts.firstOrNull { it.id == selected } }
+
+    val authMode: CloudflareAuthMode get() = profile.authMode
+
+    /** iOS only offers R2 to scoped API tokens (`allowsR2: authenticationMode == .apiToken`). */
+    val allowsR2: Boolean get() = profile.authMode == CloudflareAuthMode.API_TOKEN
 
     val isPartial: Boolean
         get() = !accountsComplete || accountsTruncatedForDisplay || inventory?.isPartial == true

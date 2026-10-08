@@ -1,6 +1,7 @@
 package com.apoorvdarshan.verceltics.ui.cloudflare
 
 import com.apoorvdarshan.verceltics.data.account.SecretValue
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareCredential
 import kotlinx.coroutines.CompletableDeferred
 
 enum class DebugCloudflareScenario {
@@ -209,8 +210,12 @@ class DebugCloudflareUiGateway : CloudflareUiGateway {
     override suspend fun restore(): Result<CloudflareRestoreUi> =
         Result.success(DebugCloudflareGatewayController.restored())
 
-    override suspend fun connect(apiToken: SecretValue): Result<CloudflareDashboardUi> {
-        apiToken.use { require(it.isNotBlank()) }
+    override suspend fun connect(credential: CloudflareCredential): Result<CloudflareDashboardUi> {
+        val secret: SecretValue = when (credential) {
+            is CloudflareCredential.ApiToken -> credential.token
+            is CloudflareCredential.GlobalApiKey -> credential.key
+        }
+        secret.use { require(it.isNotBlank()) }
         return Result.success(DebugCloudflareGatewayController.connected())
     }
 

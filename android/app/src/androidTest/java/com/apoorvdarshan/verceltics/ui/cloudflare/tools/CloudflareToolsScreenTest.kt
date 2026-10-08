@@ -16,7 +16,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.lifecycle.SavedStateHandle
-import com.apoorvdarshan.verceltics.data.account.SecretValue
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareCredential
 import com.apoorvdarshan.verceltics.data.cloudflare.tools.CloudflareAccountDetail
 import com.apoorvdarshan.verceltics.data.cloudflare.tools.CloudflareAccountOperationsSnapshot
 import com.apoorvdarshan.verceltics.data.cloudflare.tools.CloudflareExplorerDraft
@@ -187,6 +187,30 @@ class CloudflareToolsScreenTest {
         }
         compose.onNodeWithTag("cloudflare.tools.back").performClick()
         compose.onNodeWithTag("cloudflare.productCenter").assertIsDisplayed()
+    }
+
+    @Test
+    fun productCenterLocksApiTokenOnlyPresetsForGlobalApiKeys() {
+        val viewModel = CloudflareToolsViewModel(ScriptedToolsGateway(), SavedStateHandle())
+        viewModel.open(CloudflareToolRoute.ProductCenter("acc-1"))
+        val context = toolsContext().copy(
+            credentialLabel = "owner@example.com",
+            authMode = com.apoorvdarshan.verceltics.data.cloudflare.CloudflareAuthMode.GLOBAL_API_KEY,
+        )
+        compose.setContent { VercelticsTheme { CloudflareToolsHost(viewModel, context) } }
+
+        compose.onNodeWithText("Global").assertIsDisplayed()
+        compose.onNodeWithTag("cloudflare.productCenter")
+            .performScrollToNode(hasTestTag("cloudflare.productCenter.operation.account-tokens"))
+        compose.onNodeWithTag("cloudflare.productCenter.operation.account-tokens").assertIsNotEnabled()
+        compose.onNodeWithTag("cloudflare.productCenter.operation.account-tokens").performClick()
+        compose.runOnIdle { assertTrue(viewModel.uiState.value.route is CloudflareToolRoute.ProductCenter) }
+
+        // Presets that accept any credential stay available.
+        compose.onNodeWithTag("cloudflare.productCenter")
+            .performScrollToNode(hasTestTag("cloudflare.productCenter.operation.account-details"))
+        compose.onNodeWithTag("cloudflare.productCenter.operation.account-details").performClick()
+        compose.onNodeWithTag("cloudflare.explorer").assertIsDisplayed()
     }
 
     @Test
@@ -374,7 +398,7 @@ private class ScriptedToolsGateway(private val status: Int = 200) : CloudflareTo
 
 private object ConnectedDashboardGateway : CloudflareUiGateway {
     override suspend fun restore() = Result.success<CloudflareRestoreUi>(CloudflareRestoreUi.Available(connectedState().dashboard!!))
-    override suspend fun connect(apiToken: SecretValue) = Result.success(connectedState().dashboard!!)
+    override suspend fun connect(credential: CloudflareCredential) = Result.success(connectedState().dashboard!!)
     override suspend fun refresh(preferredAccountId: String?) = Result.success(connectedState().dashboard!!)
     override suspend fun disconnect() = Result.success(Unit)
 }

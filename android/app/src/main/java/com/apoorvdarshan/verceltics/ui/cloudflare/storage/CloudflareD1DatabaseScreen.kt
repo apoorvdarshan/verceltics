@@ -22,6 +22,10 @@ import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -208,11 +212,78 @@ private fun D1ResultPanel(title: String, result: CloudflareD1QueryResult) {
     }
 }
 
+/**
+ * Pages through every row of a D1 result. The rows are already in memory (D1 returns the whole
+ * statement result), so only one page is composed at a time and long cell values are trimmed for
+ * display, keeping huge results responsive without hiding any row.
+ */
+object CloudflareD1ResultPaging {
+    const val PAGE_SIZE: Int = 100
+
+    /** Long cells are trimmed for display only; Copy/selection still shows this bounded text. */
+    const val MAXIMUM_CELL_CHARACTERS: Int = 2_000
+
+    fun pageCount(rowCount: Int, pageSize: Int = PAGE_SIZE): Int =
+        if (rowCount <= 0) 1 else (rowCount + pageSize - 1) / pageSize
+
+    fun clampPage(page: Int, rowCount: Int, pageSize: Int = PAGE_SIZE): Int =
+        page.coerceIn(0, pageCount(rowCount, pageSize) - 1)
+
+    fun <T> pageRows(rows: List<T>, page: Int, pageSize: Int = PAGE_SIZE): List<T> {
+        val safePage = clampPage(page, rows.size, pageSize)
+        val start = safePage * pageSize
+        return if (start >= rows.size) emptyList() else rows.subList(start, minOf(rows.size, start + pageSize))
+    }
+
+    /** "Rows 101–200 of 1,234". */
+    fun label(page: Int, rowCount: Int, pageSize: Int = PAGE_SIZE): String {
+        if (rowCount == 0) return "No rows"
+        val safePage = clampPage(page, rowCount, pageSize)
+        val first = safePage * pageSize + 1
+        val last = minOf(rowCount, first + pageSize - 1)
+        return "Rows ${"%,d".format(first)}–${"%,d".format(last)} of ${"%,d".format(rowCount)}"
+    }
+
+    fun displayCell(value: String): String =
+        if (value.length > MAXIMUM_CELL_CHARACTERS) value.take(MAXIMUM_CELL_CHARACTERS) + "…" else value
+}
+
 /** iOS `CloudflareD1ResultTable`: sorted columns, NULL for missing cells, horizontally scrollable. */
 @Composable
 private fun D1ResultTable(result: CloudflareD1QueryResult) {
     val columns = result.columns
-    val rows = result.rows.take(MAXIMUM_RENDERED_ROWS)
+    var page by rememberSaveable(result) { mutableIntStateOf(0) }
+    val pageCount = CloudflareD1ResultPaging.pageCount(result.rows.size)
+    val rows = CloudflareD1ResultPaging.pageRows(result.rows, page)
+    if (pageCount > 1) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(
+                onClick = { page = CloudflareD1ResultPaging.clampPage(page - 1, result.rows.size) },
+                enabled = page > 0,
+                modifier = Modifier.testTag("cloudflare.storage.d1.previousPage"),
+            ) { Text("Previous") }
+            Text(
+                CloudflareD1ResultPaging.label(page, result.rows.size),
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag("cloudflare.storage.d1.pageLabel"),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+            TextButton(
+                onClick = { page = CloudflareD1ResultPaging.clampPage(page + 1, result.rows.size) },
+                enabled = page < pageCount - 1,
+                modifier = Modifier.testTag("cloudflare.storage.d1.nextPage"),
+            ) { Text("Next") }
+        }
+        CloudflareOpsDivider()
+    }
     SelectionContainer {
         Column(
             Modifier
@@ -236,7 +307,7 @@ private fun D1ResultTable(result: CloudflareD1QueryResult) {
                 Row(Modifier.padding(vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     columns.forEach { column ->
                         Text(
-                            cloudflareStorageDisplayValue(row[column]),
+                            CloudflareD1ResultPaging.displayCell(cloudflareStorageDisplayValue(row[column])),
                             modifier = Modifier.widthIn(min = 100.dp, max = 260.dp),
                             style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 12.sp),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -246,16 +317,6 @@ private fun D1ResultTable(result: CloudflareD1QueryResult) {
                     }
                 }
             }
-            if (result.rows.size > rows.size) {
-                Text(
-                    "Showing ${rows.size} of ${result.rows.size} rows.",
-                    modifier = Modifier.padding(vertical = 10.dp),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
         }
     }
 }
-
-private const val MAXIMUM_RENDERED_ROWS = 500

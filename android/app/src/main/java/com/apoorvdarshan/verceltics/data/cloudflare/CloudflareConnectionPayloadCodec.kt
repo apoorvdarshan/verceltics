@@ -7,9 +7,15 @@ import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.nio.charset.StandardCharsets
 
-/** Plaintext exists only between this bounded codec and authenticated encryption. */
+/**
+ * Plaintext exists only between this bounded codec and authenticated encryption.
+ *
+ * Version 2 adds the authentication mode and Global API Key login email to the profile plus
+ * Worker routes and tags. Version 1 records (API tokens only) still decode.
+ */
 internal object CloudflareConnectionPayloadCodec {
-    private const val VERSION = 1
+    private const val VERSION = 2
+    private const val LEGACY_TOKEN_VERSION = 1
     private const val MAX_ID_BYTES = 2_048
     private const val MAX_NAME_BYTES = 4_096
     private const val MAX_TEXT_BYTES = 32_768
@@ -31,7 +37,7 @@ internal object CloudflareConnectionPayloadCodec {
             output.writeInt(VERSION)
             writeString(output, connection.account.providerId, MAX_ID_BYTES)
             writeProfile(output, connection.account.profile)
-            val tokenBytes = connection.account.apiToken.utf8Bytes()
+            val tokenBytes = connection.account.credential.secret().utf8Bytes()
             try {
                 writeBytes(output, tokenBytes, MAX_TOKEN_BYTES)
             } finally {
@@ -58,24 +64,32 @@ internal object CloudflareConnectionPayloadCodec {
     fun decode(bytes: ByteArray): CloudflareStoredConnection {
         require(bytes.size <= MAX_PLAINTEXT_BYTES) { "The Cloudflare payload is too large." }
         DataInputStream(ByteArrayInputStream(bytes)).use { input ->
-            require(input.readInt() == VERSION) { "Unsupported Cloudflare payload version." }
+            val version = input.readInt()
+            require(version == VERSION || version == LEGACY_TOKEN_VERSION) { "Unsupported Cloudflare payload version." }
             require(readString(input, MAX_ID_BYTES) == CloudflareAccount.PROVIDER_ID) {
                 "The Cloudflare provider does not match its storage slot."
             }
-            val profile = readProfile(input)
+            val profile = readProfile(input, version)
             val tokenBytes = readBytes(input, MAX_TOKEN_BYTES)
-            val token = try {
+            val secret = try {
                 SecretValue.of(String(tokenBytes, StandardCharsets.UTF_8))
             } finally {
                 tokenBytes.fill(0)
             }
+            val credential = when (profile.authMode) {
+                CloudflareAuthMode.API_TOKEN -> CloudflareCredential.ApiToken(secret)
+                CloudflareAuthMode.GLOBAL_API_KEY -> CloudflareCredential.GlobalApiKey(
+                    requireNotNull(profile.email) { "The Global API Key record has no login email." },
+                    secret,
+                )
+            }
             val account = CloudflareAccount(
                 profile = profile,
-                apiToken = token,
+                credential = credential,
                 createdAtMillis = input.readLong(),
                 updatedAtMillis = input.readLong(),
             )
-            val snapshot = if (input.readBoolean()) readSnapshot(input, profile) else null
+            val snapshot = if (input.readBoolean()) readSnapshot(input, profile, version) else null
             require(input.available() == 0) { "Unexpected trailing Cloudflare account data." }
             return CloudflareStoredConnection(account, snapshot)
         }
@@ -85,13 +99,23 @@ internal object CloudflareConnectionPayloadCodec {
         writeString(output, profile.id, MAX_ID_BYTES)
         writeString(output, profile.displayName, MAX_NAME_BYTES)
         writeString(output, profile.tokenStatus, MAX_NAME_BYTES)
+        writeString(output, profile.authMode.storageId, MAX_ID_BYTES)
+        writeNullableString(output, profile.email, MAX_NAME_BYTES)
     }
 
-    private fun readProfile(input: DataInputStream): CloudflareProfile = CloudflareProfile(
-        id = readString(input, MAX_ID_BYTES),
-        displayName = readString(input, MAX_NAME_BYTES),
-        tokenStatus = readString(input, MAX_NAME_BYTES),
-    )
+    private fun readProfile(input: DataInputStream, version: Int): CloudflareProfile {
+        val id = readString(input, MAX_ID_BYTES)
+        val displayName = readString(input, MAX_NAME_BYTES)
+        val tokenStatus = readString(input, MAX_NAME_BYTES)
+        if (version == LEGACY_TOKEN_VERSION) return CloudflareProfile(id, displayName, tokenStatus)
+        return CloudflareProfile(
+            id = id,
+            displayName = displayName,
+            tokenStatus = tokenStatus,
+            authMode = CloudflareAuthMode.fromStorageId(readString(input, MAX_ID_BYTES)),
+            email = readNullableString(input, MAX_NAME_BYTES),
+        )
+    }
 
     private fun writeSnapshot(output: DataOutputStream, snapshot: CloudflareSnapshot) {
         output.writeLong(snapshot.fetchedAtMillis)
@@ -113,6 +137,7 @@ internal object CloudflareConnectionPayloadCodec {
     private fun readSnapshot(
         input: DataInputStream,
         profile: CloudflareProfile,
+        version: Int,
     ): CloudflareSnapshot {
         val fetchedAtMillis = input.readLong()
         val accountsComplete = input.readBoolean()
@@ -126,7 +151,7 @@ internal object CloudflareConnectionPayloadCodec {
             )
         }
         val selectedAccountId = readNullableString(input, MAX_ID_BYTES)
-        val inventory = if (input.readBoolean()) readInventory(input) else null
+        val inventory = if (input.readBoolean()) readInventory(input, version) else null
         return CloudflareSnapshot(
             profile = profile,
             accounts = accounts,
@@ -177,10 +202,12 @@ internal object CloudflareConnectionPayloadCodec {
             writeStrings(output, worker.handlers, MAX_NESTED_VALUES, MAX_NAME_BYTES)
             writeNullableBoolean(output, worker.hasAssets)
             writeNullableBoolean(output, worker.hasModules)
+            writeStrings(output, worker.routes, MAX_NESTED_VALUES, MAX_TEXT_BYTES)
+            writeStrings(output, worker.tags, MAX_NESTED_VALUES, MAX_NAME_BYTES)
         }
     }
 
-    private fun readInventory(input: DataInputStream): CloudflareAccountInventory {
+    private fun readInventory(input: DataInputStream, version: Int): CloudflareAccountInventory {
         val accountId = readString(input, MAX_ID_BYTES)
         val zonesComplete = input.readBoolean()
         val pagesComplete = input.readBoolean()
@@ -218,6 +245,12 @@ internal object CloudflareConnectionPayloadCodec {
                 handlers = readStrings(input, MAX_NESTED_VALUES, MAX_NAME_BYTES),
                 hasAssets = readNullableBoolean(input),
                 hasModules = readNullableBoolean(input),
+                routes = if (version == LEGACY_TOKEN_VERSION) {
+                    emptyList()
+                } else {
+                    readStrings(input, MAX_NESTED_VALUES, MAX_TEXT_BYTES)
+                },
+                tags = if (version == LEGACY_TOKEN_VERSION) emptyList() else readStrings(input, MAX_NESTED_VALUES, MAX_NAME_BYTES),
             )
         }
         return CloudflareAccountInventory(
@@ -301,6 +334,11 @@ internal object CloudflareConnectionPayloadCodec {
 
     private fun readCount(input: DataInputStream, maximum: Int, label: String): Int =
         input.readInt().also { require(it in 0..maximum) { "Invalid Cloudflare $label count." } }
+}
+
+private fun CloudflareCredential.secret(): SecretValue = when (this) {
+    is CloudflareCredential.ApiToken -> token
+    is CloudflareCredential.GlobalApiKey -> key
 }
 
 private class WipingByteArrayOutputStream : ByteArrayOutputStream() {

@@ -20,7 +20,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareAuthMode
 import com.apoorvdarshan.verceltics.data.cloudflare.tools.CloudflareGraphQLDatasets
+import com.apoorvdarshan.verceltics.data.cloudflare.tools.CloudflareToolsApi
 import com.apoorvdarshan.verceltics.ui.billing.ProAccess
 import com.apoorvdarshan.verceltics.ui.cloudflare.CloudflareConnectionStatus
 import com.apoorvdarshan.verceltics.ui.cloudflare.CloudflareUiState
@@ -119,11 +121,12 @@ private fun ToolRouteContent(
             } else {
                 CloudflareApiOperationScreen(
                     operation = operation,
+                    authMode = context?.authMode ?: CloudflareAuthMode.API_TOKEN,
                     editor = state.operationEditor,
                     onUpdateValue = viewModel::updateOperationValue,
                     onUpdateBody = viewModel::updateOperationBody,
                     onUpdateContentType = viewModel::updateOperationContentType,
-                    onReview = { viewModel.reviewOperation(route.accountId) },
+                    onReview = { viewModel.reviewOperation(route.accountId, context?.authMode ?: CloudflareAuthMode.API_TOKEN) },
                     modifier = body,
                 )
             }
@@ -172,6 +175,7 @@ private fun ToolRouteContent(
             state = state.explorer,
             accountId = route.accountId,
             isOfflineSample = state.isOfflineSample,
+            authMode = context?.authMode ?: CloudflareAuthMode.API_TOKEN,
             onSelectMethod = viewModel::selectMethod,
             onUpdatePath = { value -> viewModel.updateDraft { it.copy(path = value) } },
             onUpdateQuery = { value -> viewModel.updateDraft { it.copy(queryText = value) } },
@@ -246,33 +250,41 @@ fun cloudflareToolsContext(state: CloudflareUiState): CloudflareToolsContext? {
         accountId = account.id,
         accountName = account.name,
         accountType = account.type,
+        // Every loaded zone is pickable in the tools (no display cap).
         zones = inventory?.zones.orEmpty().map { CloudflareToolsZone(it.id, it.name) },
         zoneCount = inventory?.loadedZoneCount ?: 0,
         pagesCount = inventory?.loadedPagesProjectCount ?: 0,
         workerCount = inventory?.loadedWorkerCount ?: 0,
+        credentialLabel = dashboard.profile.credentialLabel,
+        authMode = dashboard.authMode,
     )
 }
 
 /**
- * Creates the tools ViewModel beside the dashboard's. Live dashboards borrow their saved token;
- * offline sample dashboards get offline sample tools that never read credentials.
+ * Creates the tools ViewModel beside the dashboard's. Live dashboards borrow their saved credential
+ * and report successful writes back to the dashboard; offline sample dashboards get offline sample
+ * tools that never read credentials.
  */
 @Composable
 fun rememberCloudflareToolsViewModel(dashboardViewModel: CloudflareViewModel): CloudflareToolsViewModel {
     val appContext = LocalContext.current.applicationContext
-    val tokenSource = remember(dashboardViewModel) { dashboardViewModel.toolsTokenSource }
-    val factory = remember(dashboardViewModel, tokenSource) {
+    val credentialSource = remember(dashboardViewModel) { dashboardViewModel.toolsCredentialSource }
+    val factory = remember(dashboardViewModel, credentialSource) {
         val catalogStore = CloudflareToolsServices.catalogStore(appContext)
         CloudflareToolsViewModel.Factory(
-            if (tokenSource != null) {
-                NativeCloudflareToolsGateway(tokenSource, catalogStore)
+            if (credentialSource != null) {
+                NativeCloudflareToolsGateway(
+                    credentialSource = credentialSource,
+                    catalogStore = catalogStore,
+                    api = CloudflareToolsApi(mutationSink = dashboardViewModel::publishToolsMutation),
+                )
             } else {
                 SampleCloudflareToolsGateway(catalogStore)
             },
         )
     }
     return viewModel(
-        key = if (tokenSource != null) "cloudflare.tools" else "cloudflare.tools.offline",
+        key = if (credentialSource != null) "cloudflare.tools" else "cloudflare.tools.offline",
         factory = factory,
     )
 }
@@ -311,6 +323,7 @@ fun cloudflareAdvancedTools(
 ): CloudflareAdvancedToolsUi? {
     if (dashboardState.status != CloudflareConnectionStatus.CONNECTED || dashboardState.dashboard == null) return null
     val accountId = dashboardState.dashboard.selectedAccount?.id
+    val allowsR2 = dashboardState.dashboard.allowsR2
     fun gated(route: CloudflareToolRoute): () -> Unit = { proAccess.requestPro { tools.open(route) } }
     return CloudflareAdvancedToolsUi(
         onOpenAccount = accountId?.let { gated(CloudflareToolRoute.Account(it)) },
@@ -322,6 +335,11 @@ fun cloudflareAdvancedTools(
             { proAccess.requestPro { onOpenStorage(accountId) } }
         } else {
             null
+        },
+        storageSubtitle = if (allowsR2) {
+            "D1 SQL, Workers KV and R2 object storage"
+        } else {
+            "D1 SQL and Workers KV · R2 requires a scoped token"
         },
     )
 }

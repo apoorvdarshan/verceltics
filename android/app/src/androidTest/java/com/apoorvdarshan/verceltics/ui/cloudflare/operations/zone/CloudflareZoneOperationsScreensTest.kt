@@ -7,7 +7,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
-import com.apoorvdarshan.verceltics.data.account.SecretValue
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareCredential
 import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareHttpMethod
 import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareRestClient
 import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareRestRequest
@@ -32,7 +32,7 @@ class CloudflareZoneOperationsScreensTest {
     private val requests: MutableList<String> = Collections.synchronizedList(mutableListOf())
 
     private val transport = object : CloudflareRestTransport {
-        override fun newCall(request: CloudflareRestRequest, credential: SecretValue): CancelableCall<CloudflareRestResponse> =
+        override fun newCall(request: CloudflareRestRequest, credential: CloudflareCredential): CancelableCall<CloudflareRestResponse> =
             object : CancelableCall<CloudflareRestResponse> {
                 override fun execute(): CloudflareRestResponse {
                     requests += "${request.method} ${request.apiPath}"
@@ -60,7 +60,7 @@ class CloudflareZoneOperationsScreensTest {
 
     private fun show(route: CloudflareOperationsRoute) {
         val context = CloudflareOperationsContext(
-            client = CloudflareRestClient({ SecretValue.of("test-token") }, Executor { it.run() }, transport),
+            client = CloudflareRestClient({ CloudflareCredential.apiToken("test-token") }, Executor { it.run() }, transport),
             accountId = "acc",
             accountName = "Studio",
             refreshSignal = 0,

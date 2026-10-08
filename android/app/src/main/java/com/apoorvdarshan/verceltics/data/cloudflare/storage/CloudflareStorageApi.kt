@@ -312,6 +312,35 @@ class CloudflareStorageApi(private val client: CloudflareRestClient) {
         return storageEnvelope(client.execute(request)).result ?: ProviderJsonValue.Null
     }
 
+    /**
+     * Replaces a bucket's CORS or lifecycle rules: iOS's "CORS rules" / "Lifecycle rules" explorer
+     * presets switched to PUT. [document] must be `{"rules": [...]}`; the confirmation must name
+     * [CloudflareR2Configuration.resourceId] for this bucket, and nothing is sent otherwise.
+     */
+    suspend fun replaceR2BucketConfiguration(
+        accountId: String,
+        bucketName: String,
+        jurisdiction: String?,
+        configuration: CloudflareR2Configuration,
+        document: ProviderJsonValue,
+        confirmation: CloudflareMutationConfirmation,
+    ) {
+        if (!configuration.isEditable) {
+            throw CloudflareOperationException.invalidRequest("${configuration.title} can’t be replaced from this screen.")
+        }
+        requireCloudflareConfirmation(confirmation, configuration.resourceId(bucketName))
+        CloudflareR2ConfigurationPresets.validate(configuration, document)?.let {
+            throw CloudflareOperationException.invalidRequest(it)
+        }
+        val request = CloudflareRestRequest.json(
+            CloudflareHttpMethod.PUT,
+            r2BucketPath(accountId, bucketName) + configuration.pathSegments,
+            document,
+            headers = r2Headers(jurisdiction),
+        )
+        validateStorageMutation(client.execute(request))
+    }
+
     // MARK: R2 objects
 
     /** One page of objects. [delimiter] `/` groups keys into folder prefixes. */
@@ -531,11 +560,132 @@ class CloudflareStorageApi(private val client: CloudflareRestClient) {
     }
 }
 
-/** R2 bucket configuration documents shown read-only on the bucket screen. */
-enum class CloudflareR2Configuration(val title: String, val pathSegments: List<String>) {
-    CORS("CORS rules", listOf("cors")),
-    CUSTOM_DOMAINS("Custom domains", listOf("domains", "custom")),
-    LIFECYCLE("Lifecycle rules", listOf("lifecycle")),
+/**
+ * R2 bucket configuration documents on the bucket screen. CORS and lifecycle rules can be replaced
+ * (iOS "Read or switch to PUT to replace …"); custom domains stay read-only.
+ */
+enum class CloudflareR2Configuration(val title: String, val pathSegments: List<String>, val isEditable: Boolean) {
+    CORS("CORS rules", listOf("cors"), isEditable = true),
+    CUSTOM_DOMAINS("Custom domains", listOf("domains", "custom"), isEditable = false),
+    LIFECYCLE("Lifecycle rules", listOf("lifecycle"), isEditable = true),
+    ;
+
+    /** What a replace confirmation names, e.g. `media/cors`. */
+    fun resourceId(bucketName: String): String = "$bucketName/${pathSegments.joinToString("/")}"
+}
+
+/** A ready-made rules document for a CORS or lifecycle replace. */
+data class CloudflareR2ConfigurationPreset(
+    val id: String,
+    val title: String,
+    val summary: String,
+    val configuration: CloudflareR2Configuration,
+    val json: String,
+    /** True when applying it removes every existing rule. */
+    val clearsRules: Boolean = false,
+)
+
+/**
+ * Edit presets for R2 CORS and lifecycle rules, using the request shapes from Cloudflare's schema
+ * (`rules[].allowed.{methods,origins,headers}`, `rules[].{deleteObjectsTransition,…}`).
+ */
+object CloudflareR2ConfigurationPresets {
+    private const val MAXIMUM_RULES = 1_000
+
+    val cors: List<CloudflareR2ConfigurationPreset> = listOf(
+        CloudflareR2ConfigurationPreset(
+            id = "cors-public-read",
+            title = "Public read from any origin",
+            summary = "Browsers on any site can GET and HEAD objects.",
+            configuration = CloudflareR2Configuration.CORS,
+            json = """{"rules":[{"id":"Public read","allowed":{"methods":["GET","HEAD"],"origins":["*"]},"maxAgeSeconds":3600}]}""",
+        ),
+        CloudflareR2ConfigurationPreset(
+            id = "cors-app-uploads",
+            title = "Uploads from one site",
+            summary = "Replace https://example.com with your app's origin to allow browser uploads.",
+            configuration = CloudflareR2Configuration.CORS,
+            json = """{"rules":[{"id":"App uploads","allowed":{"methods":["GET","HEAD","PUT","POST"],"origins":["https://example.com"],"headers":["*"]},"exposeHeaders":["ETag"],"maxAgeSeconds":3600}]}""",
+        ),
+        CloudflareR2ConfigurationPreset(
+            id = "cors-clear",
+            title = "Remove all CORS rules",
+            summary = "Browsers on other sites can no longer read this bucket.",
+            configuration = CloudflareR2Configuration.CORS,
+            json = """{"rules":[]}""",
+            clearsRules = true,
+        ),
+    )
+
+    val lifecycle: List<CloudflareR2ConfigurationPreset> = listOf(
+        CloudflareR2ConfigurationPreset(
+            id = "lifecycle-abort-multipart",
+            title = "Abort stale multipart uploads",
+            summary = "Cancel incomplete multipart uploads after 7 days.",
+            configuration = CloudflareR2Configuration.LIFECYCLE,
+            json = """{"rules":[{"id":"Abort incomplete multipart uploads","enabled":true,"conditions":{"prefix":""},"abortMultipartUploadsTransition":{"condition":{"type":"Age","maxAge":604800}}}]}""",
+        ),
+        CloudflareR2ConfigurationPreset(
+            id = "lifecycle-expire-30-days",
+            title = "Delete objects after 30 days",
+            summary = "Permanently delete every object 30 days after upload.",
+            configuration = CloudflareR2Configuration.LIFECYCLE,
+            json = """{"rules":[{"id":"Expire objects after 30 days","enabled":true,"conditions":{"prefix":""},"deleteObjectsTransition":{"condition":{"type":"Age","maxAge":2592000}}}]}""",
+        ),
+        CloudflareR2ConfigurationPreset(
+            id = "lifecycle-infrequent-access",
+            title = "Move to Infrequent Access after 30 days",
+            summary = "Transition objects to the Infrequent Access storage class.",
+            configuration = CloudflareR2Configuration.LIFECYCLE,
+            json = """{"rules":[{"id":"Infrequent Access after 30 days","enabled":true,"conditions":{"prefix":""},"storageClassTransitions":[{"condition":{"type":"Age","maxAge":2592000},"storageClass":"InfrequentAccess"}]}]}""",
+        ),
+        CloudflareR2ConfigurationPreset(
+            id = "lifecycle-clear",
+            title = "Remove all lifecycle rules",
+            summary = "Objects are kept until you delete them.",
+            configuration = CloudflareR2Configuration.LIFECYCLE,
+            json = """{"rules":[]}""",
+            clearsRules = true,
+        ),
+    )
+
+    fun presets(configuration: CloudflareR2Configuration): List<CloudflareR2ConfigurationPreset> = when (configuration) {
+        CloudflareR2Configuration.CORS -> cors
+        CloudflareR2Configuration.LIFECYCLE -> lifecycle
+        CloudflareR2Configuration.CUSTOM_DOMAINS -> emptyList()
+    }
+
+    /** Pretty JSON for the editor. */
+    fun editorText(preset: CloudflareR2ConfigurationPreset): String =
+        CloudflarePrettyJson.write(ProviderJsonParser.parse(preset.json))
+
+    /** Parses editor text, returning the document or a message to show. */
+    fun parse(configuration: CloudflareR2Configuration, text: String): Result<ProviderJsonValue> {
+        val document = try {
+            ProviderJsonParser.parse(text.trim())
+        } catch (_: Exception) {
+            return Result.failure(IllegalArgumentException("${configuration.title} are not valid JSON."))
+        }
+        validate(configuration, document)?.let { return Result.failure(IllegalArgumentException(it)) }
+        return Result.success(document)
+    }
+
+    /** Null when [document] is a `{"rules": [...]}` object Cloudflare can accept. */
+    fun validate(configuration: CloudflareR2Configuration, document: ProviderJsonValue): String? {
+        val rules = (document as? ProviderJsonValue.Obj)?.get("rules")?.arrayValue
+            ?: return "${configuration.title} must be a JSON object with a \"rules\" array."
+        if (rules.size > MAXIMUM_RULES) return "Cloudflare accepts at most $MAXIMUM_RULES ${configuration.title}."
+        if (rules.any { it !is ProviderJsonValue.Obj }) return "Every entry in \"rules\" must be a JSON object."
+        if (configuration == CloudflareR2Configuration.CORS &&
+            rules.any { rule -> (rule as ProviderJsonValue.Obj)["allowed"] !is ProviderJsonValue.Obj }
+        ) {
+            return "Every CORS rule needs an \"allowed\" object with methods and origins."
+        }
+        return null
+    }
+
+    /** Number of rules in a validated document. */
+    fun ruleCount(document: ProviderJsonValue): Int = (document as? ProviderJsonValue.Obj)?.get("rules")?.arrayValue?.size ?: 0
 }
 
 /** Indented JSON writer for read-only configuration and value previews. */
