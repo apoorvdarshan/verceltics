@@ -13,8 +13,10 @@ import com.apoorvdarshan.verceltics.data.hosting.HostingApiDefaults
 import com.apoorvdarshan.verceltics.ui.apiexplorer.ProviderApiBackend
 import com.apoorvdarshan.verceltics.ui.apiexplorer.ProviderApiProfile
 import com.apoorvdarshan.verceltics.ui.apiexplorer.ProviderApiWorkspaceController
+import com.apoorvdarshan.verceltics.ui.hosting.ResourceHistoryCache
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -47,8 +49,16 @@ data class NetlifyUiState(
     val selectedSiteWorkspace: NetlifySiteWorkspaceUi? = null,
     val isLoadingSite: Boolean = false,
     val siteError: String? = null,
+    /** iOS "Redeploy" confirmation for the selected site. */
+    val showRedeployConfirmation: Boolean = false,
+    val isRedeploying: Boolean = false,
+    val redeployMessage: String? = null,
+    val redeployError: String? = null,
     val routeVisible: Boolean = false,
 ) {
+    val selectedSite: NetlifySiteUi?
+        get() = selectedSiteId?.let { id -> dashboard?.sites?.firstOrNull { it.id == id } }
+
     val isBusy: Boolean
         get() = operation != null
 
@@ -68,6 +78,10 @@ data class NetlifyUiState(
 class NetlifyViewModel(
     private val gateway: NetlifyUiGateway,
     private val savedStateHandle: SavedStateHandle,
+    nowMillis: () -> Long = System::currentTimeMillis,
+    private val actionRefreshDelayMillis: Long = ACTION_REFRESH_DELAY_MILLIS,
+    /** iOS 180 s site-history cache (`HostingResourceDetailViewModel.cachedDeployments`). */
+    private val siteCache: ResourceHistoryCache<NetlifySiteWorkspaceUi> = ResourceHistoryCache(nowMillis),
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(
         NetlifyUiState(selectedSiteId = savedStateHandle[SELECTED_SITE_ID]),
@@ -82,6 +96,7 @@ class NetlifyViewModel(
     private var restoredCacheRefreshStarted = false
     private var siteJob: Job? = null
     private var siteGeneration = 0L
+    private var redeployJob: Job? = null
 
     /**
      * Netlify's Complete API workspace (iOS `ProviderFullAPICatalogView` for the Netlify hosting
@@ -293,6 +308,7 @@ class NetlifyViewModel(
         launchRootOperation(NetlifyOperation.DISCONNECTING, baseline) { generation ->
             gateway.disconnect().fold(
                 onSuccess = {
+                    siteCache.clear()
                     if (isCurrent(generation)) {
                         _uiState.value = NetlifyUiState(
                             status = NetlifyConnectionStatus.DISCONNECTED,
@@ -322,14 +338,65 @@ class NetlifyViewModel(
                 selectedSiteId = site.id,
                 selectedSiteWorkspace = null,
                 siteError = null,
+                showRedeployConfirmation = false,
+                redeployMessage = null,
+                redeployError = null,
             )
         }
-        loadSelectedSite()
+        loadSelectedSite(forceRefresh = false)
     }
 
+    /** The toolbar refresh always reloads, bypassing the 180 s cache (iOS pull-to-refresh). */
     fun refreshSelectedSite() {
         if (_uiState.value.selectedSiteId != null && !_uiState.value.isLoadingSite) {
-            loadSelectedSite()
+            loadSelectedSite(forceRefresh = true)
+        }
+    }
+
+    /** Opens the iOS "Redeploy <site>?" confirmation. Nothing is sent until it is confirmed. */
+    fun requestRedeployConfirmation() {
+        val state = _uiState.value
+        if (state.status != NetlifyConnectionStatus.CONNECTED || state.selectedSite == null || state.isRedeploying) return
+        _uiState.update { it.copy(showRedeployConfirmation = true, redeployError = null) }
+    }
+
+    fun dismissRedeployConfirmation() {
+        _uiState.update { it.copy(showRedeployConfirmation = false) }
+    }
+
+    /**
+     * Sends the real `POST /sites/{id}/builds` only from a visible confirmation. Like iOS, a
+     * success reloads the site (bypassing the cache) after a short delay so the new deploy shows.
+     */
+    fun confirmRedeploy() {
+        val state = _uiState.value
+        val site = state.selectedSite ?: return
+        if (!state.showRedeployConfirmation || state.isRedeploying || redeployJob?.isActive == true) return
+        _uiState.update {
+            it.copy(showRedeployConfirmation = false, isRedeploying = true, redeployMessage = null, redeployError = null)
+        }
+        redeployJob = viewModelScope.launch {
+            // A write is never cancelled by navigation: Netlify may already have accepted it.
+            val result = gateway.redeploySite(site.id)
+            siteCacheKey(site.id)?.let(siteCache::invalidate)
+            val stillSelected = _uiState.value.selectedSiteId == site.id
+            result.fold(
+                onSuccess = { message ->
+                    _uiState.update {
+                        it.copy(isRedeploying = false, redeployMessage = message.takeIf { stillSelected })
+                    }
+                    if (stillSelected) {
+                        delay(actionRefreshDelayMillis)
+                        if (_uiState.value.selectedSiteId == site.id) loadSelectedSite(forceRefresh = true)
+                    }
+                },
+                onFailure = { error ->
+                    _uiState.update {
+                        it.copy(isRedeploying = false, redeployError = safeMessage(error).takeIf { stillSelected })
+                    }
+                },
+            )
+            redeployJob = null
         }
     }
 
@@ -344,6 +411,9 @@ class NetlifyViewModel(
                 selectedSiteWorkspace = null,
                 isLoadingSite = false,
                 siteError = null,
+                showRedeployConfirmation = false,
+                redeployMessage = null,
+                redeployError = null,
             )
         }
     }
@@ -351,6 +421,10 @@ class NetlifyViewModel(
     /** Returns true when the route consumed back instead of asking the app shell to close it. */
     fun handleBack(): Boolean = when {
         apiWorkspace.state.value.isOpen -> apiWorkspace.back()
+        _uiState.value.showRedeployConfirmation -> {
+            dismissRedeployConfirmation()
+            true
+        }
         _uiState.value.showDisconnectConfirmation -> {
             dismissDisconnectConfirmation()
             true
@@ -363,7 +437,7 @@ class NetlifyViewModel(
     }
 
     fun clearFeedback() {
-        _uiState.update { it.copy(error = null, notice = null, siteError = null) }
+        _uiState.update { it.copy(error = null, notice = null, siteError = null, redeployMessage = null, redeployError = null) }
     }
 
     private fun applyRestore(restored: NetlifyRestoreUi) {
@@ -396,7 +470,7 @@ class NetlifyViewModel(
                 routeVisible = visible,
             )
         }
-        if (_uiState.value.selectedSiteId != null) loadSelectedSite()
+        if (_uiState.value.selectedSiteId != null) loadSelectedSite(forceRefresh = false)
     }
 
     private fun applyDashboard(dashboard: NetlifyDashboardUi) {
@@ -416,6 +490,9 @@ class NetlifyViewModel(
             selectedSiteWorkspace = current.selectedSiteWorkspace?.takeIf { it.siteId == selected },
             isLoadingSite = current.isLoadingSite && selected != null,
             siteError = current.siteError?.takeIf { selected != null },
+            isRedeploying = current.isRedeploying && selected != null,
+            redeployMessage = current.redeployMessage?.takeIf { selected != null },
+            redeployError = current.redeployError?.takeIf { selected != null },
             routeVisible = current.routeVisible,
         )
     }
@@ -426,18 +503,35 @@ class NetlifyViewModel(
             .also { if (it == null) savedStateHandle[SELECTED_SITE_ID] = null }
     }
 
-    private fun loadSelectedSite() {
+    /**
+     * iOS `HostingResourceDetailViewModel.load(resource:forceRefresh:)`: a cached site is shown at
+     * once; a fresh one (under 180 s) skips the network unless [forceRefresh] is set.
+     */
+    private fun loadSelectedSite(forceRefresh: Boolean) {
         val siteId = _uiState.value.selectedSiteId ?: return
+        val cacheKey = siteCacheKey(siteId)
+        val cached = cacheKey?.let(siteCache::get)?.takeIf { it.value.siteId == siteId }
         siteGeneration += 1
         val generation = siteGeneration
         siteJob?.cancel()
+        if (cached != null && !forceRefresh && cached.isFresh) {
+            _uiState.update {
+                it.copy(selectedSiteWorkspace = cached.value, isLoadingSite = false, siteError = null)
+            }
+            return
+        }
         _uiState.update {
-            it.copy(isLoadingSite = true, siteError = null)
+            it.copy(
+                selectedSiteWorkspace = cached?.value ?: it.selectedSiteWorkspace?.takeIf { workspace -> workspace.siteId == siteId },
+                isLoadingSite = true,
+                siteError = null,
+            )
         }
         siteJob = viewModelScope.launch {
             gateway.loadSite(siteId).fold(
                 onSuccess = { workspace ->
                     if (siteGeneration == generation && _uiState.value.selectedSiteId == siteId) {
+                        cacheKey?.let { siteCache.put(it, workspace) }
                         _uiState.update {
                             it.copy(
                                 selectedSiteWorkspace = workspace,
@@ -456,6 +550,12 @@ class NetlifyViewModel(
                 },
             )
         }
+    }
+
+    private fun siteCacheKey(siteId: String): String? {
+        val state = _uiState.value
+        val accountId = state.dashboard?.account?.id ?: state.savedAccount?.id ?: return null
+        return ResourceHistoryCache.key(NETLIFY_CACHE_SCOPE, accountId, siteId)
     }
 
     private fun launchRootOperation(
@@ -535,6 +635,8 @@ class NetlifyViewModel(
     }
 
     companion object {
+        internal const val ACTION_REFRESH_DELAY_MILLIS = 1_000L
+        private const val NETLIFY_CACHE_SCOPE = "netlify"
         internal const val SELECTED_SITE_ID = "netlify.selectedSiteId"
         internal const val API_WORKSPACE_KEY = "netlify.completeApi"
     }

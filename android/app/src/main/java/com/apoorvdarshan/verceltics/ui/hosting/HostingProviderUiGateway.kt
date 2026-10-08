@@ -106,10 +106,9 @@ data class HostingResourceUi(
 data class HostingDashboardUi(
     val providerId: String,
     val account: HostingAccountUi,
-    /** Intentionally bounded inventory suitable for Compose rendering. */
+    /** Every resource the provider returned (iOS pages through the whole account). */
     val resources: List<HostingResourceUi>,
     val loadedResourceCount: Int,
-    val truncatedForDisplay: Boolean,
     val warnings: List<String>,
     val fetchedAtMillis: Long,
     val cacheState: HostingCacheState,
@@ -132,9 +131,9 @@ data class HostingDeploymentUi(
 data class HostingResourceWorkspaceUi(
     val providerId: String,
     val resourceId: String,
+    /** The complete history the provider returned (no display cap). */
     val deployments: List<HostingDeploymentUi>,
     val loadedDeploymentCount: Int,
-    val truncatedForDisplay: Boolean,
 )
 
 /** Only redacted, app-authored messages cross the data/UI boundary. */

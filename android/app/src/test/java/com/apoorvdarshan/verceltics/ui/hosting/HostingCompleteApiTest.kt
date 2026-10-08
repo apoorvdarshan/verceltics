@@ -260,7 +260,6 @@ class HostingCompleteApiTest {
                             HostingResourceUi("srv-1", "web", null, null, "Live", null, "Web Service", null, "https://dashboard.render.com/srv-1"),
                         ),
                         loadedResourceCount = 1,
-                        truncatedForDisplay = false,
                         warnings = emptyList(),
                         fetchedAtMillis = System.currentTimeMillis(),
                         cacheState = HostingCacheState.LIVE,
@@ -275,7 +274,7 @@ class HostingCompleteApiTest {
         override suspend fun refresh(providerId: String): Result<HostingDashboardUi> = Result.failure(HostingUiException("offline"))
 
         override suspend fun loadResource(providerId: String, resource: HostingResourceUi): Result<HostingResourceWorkspaceUi> =
-            Result.success(HostingResourceWorkspaceUi(providerId, resource.id, emptyList(), 0, false))
+            Result.success(HostingResourceWorkspaceUi(providerId, resource.id, emptyList(), 0))
 
         override suspend fun performPrimaryAction(providerId: String, resource: HostingResourceUi, latestDeploymentId: String?) =
             Result.success("ok")

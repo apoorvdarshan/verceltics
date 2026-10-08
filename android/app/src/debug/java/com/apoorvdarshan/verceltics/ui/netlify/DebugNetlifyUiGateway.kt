@@ -117,7 +117,6 @@ object DebugNetlifyGatewayController {
         ),
         loadedSiteCount = 1,
         providerInventoryComplete = true,
-        inventoryTruncatedForDisplay = false,
         warnings = emptyList(),
         fetchedAtMillis = 1_700_000_000_000,
         cacheState = NetlifyCacheState.LIVE,
@@ -169,7 +168,6 @@ object DebugNetlifyGatewayController {
             ),
             loadedItemCount = 1,
             providerCollectionComplete = true,
-            truncatedForDisplay = false,
             warning = null,
         ),
         builds = NetlifyCollectionUi(
@@ -185,7 +183,6 @@ object DebugNetlifyGatewayController {
             ),
             loadedItemCount = 1,
             providerCollectionComplete = true,
-            truncatedForDisplay = false,
             warning = null,
         ),
     )

@@ -151,7 +151,6 @@ class HostingProviderScreenTest {
                     HostingDeploymentUi("dep-0", "web · production", "FAILED", null, null, null, null),
                 ),
                 loadedDeploymentCount = 2,
-                truncatedForDisplay = false,
             ),
         )
         setScreen(
@@ -192,7 +191,7 @@ class HostingProviderScreenTest {
             connected("fly").copy(
                 selectedResourceId = "fly-1",
                 actionMessage = "Restart request accepted.",
-                resourceWorkspace = HostingResourceWorkspaceUi("fly", "fly-1", emptyList(), 0, false),
+                resourceWorkspace = HostingResourceWorkspaceUi("fly", "fly-1", emptyList(), 0),
             ),
         )
         composeRule.onNodeWithText("Request accepted").assertIsDisplayed()
@@ -353,7 +352,7 @@ class HostingProviderScreenTest {
         override suspend fun refresh(providerId: String) = Result.success(dashboardUi(providerId))
 
         override suspend fun loadResource(providerId: String, resource: HostingResourceUi) =
-            Result.success(HostingResourceWorkspaceUi(providerId, resource.id, emptyList(), 0, false))
+            Result.success(HostingResourceWorkspaceUi(providerId, resource.id, emptyList(), 0))
 
         override suspend fun performPrimaryAction(providerId: String, resource: HostingResourceUi, latestDeploymentId: String?) =
             Result.success("Request accepted.")
@@ -379,7 +378,6 @@ private fun dashboardUi(providerId: String) = HostingDashboardUi(
         )
     },
     loadedResourceCount = 2,
-    truncatedForDisplay = false,
     warnings = emptyList(),
     fetchedAtMillis = System.currentTimeMillis(),
     cacheState = HostingCacheState.LIVE,

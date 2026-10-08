@@ -155,7 +155,7 @@ class HostingCompleteApiScreenTest {
         override suspend fun refresh(providerId: String) = Result.success(DASHBOARD)
 
         override suspend fun loadResource(providerId: String, resource: HostingResourceUi) =
-            Result.success(HostingResourceWorkspaceUi(providerId, resource.id, emptyList(), 0, false))
+            Result.success(HostingResourceWorkspaceUi(providerId, resource.id, emptyList(), 0))
 
         override suspend fun performPrimaryAction(providerId: String, resource: HostingResourceUi, latestDeploymentId: String?) =
             Result.success("Redeploy request accepted.")
@@ -185,7 +185,6 @@ class HostingCompleteApiScreenTest {
                 ),
             ),
             loadedResourceCount = 1,
-            truncatedForDisplay = false,
             warnings = emptyList(),
             fetchedAtMillis = System.currentTimeMillis(),
             cacheState = HostingCacheState.LIVE,

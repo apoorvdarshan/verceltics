@@ -426,7 +426,7 @@ internal fun connectionCardSubtitle(provider: HostingProvider, state: HostingPro
 
 internal fun connectionCardStatus(state: HostingProviderUiState): String = when (state.status) {
     HostingConnectionStatus.CONNECTED -> if (
-        state.error != null || state.dashboard?.truncatedForDisplay == true || state.dashboard?.warnings?.isNotEmpty() == true
+        state.error != null || state.dashboard?.warnings?.isNotEmpty() == true
     ) {
         "Attention"
     } else {
@@ -598,7 +598,7 @@ private fun HostingDashboard(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item("summary") {
-            val attention = state.error != null || dashboard.truncatedForDisplay || dashboard.warnings.isNotEmpty()
+            val attention = state.error != null || dashboard.warnings.isNotEmpty()
             ProviderSummaryCard(
                 provider = catalogProvider,
                 title = dashboard.account.displayName,
@@ -635,8 +635,8 @@ private fun HostingDashboard(
             }
         }
         state.notice?.let { item("notice") { HostingFeedbackPanel(null, it, isError = false) } }
-        if (dashboard.truncatedForDisplay || dashboard.warnings.isNotEmpty()) {
-            item("inventory-warning") { HostingWarningPanel(inventoryDisclosure(dashboard)) }
+        if (dashboard.warnings.isNotEmpty()) {
+            item("inventory-warning") { HostingWarningPanel(dashboard.warnings.joinToString(" ")) }
         }
         item("actions") {
             DashboardAndCompleteApiActions(
@@ -860,7 +860,7 @@ private fun HostingResourceDetail(
                 Text(historyTitle, style = MaterialTheme.typography.titleMedium)
                 workspace?.let {
                     Text(
-                        if (it.truncatedForDisplay) "${it.deployments.size} of ${it.loadedDeploymentCount}" else it.deployments.size.toString(),
+                        it.deployments.size.toString(),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.labelMedium,
                     )
@@ -883,18 +883,8 @@ private fun HostingResourceDetail(
                     }
                 }
             }
-            else -> {
-                if (workspace.truncatedForDisplay) {
-                    item("history-truncated") {
-                        HostingWarningPanel(
-                            "Showing the latest ${workspace.deployments.size} of ${workspace.loadedDeploymentCount} " +
-                                "${historyTitle.lowercase()}.",
-                        )
-                    }
-                }
-                items(workspace.deployments, key = { "deployment-${it.id}" }) { deployment ->
-                    HostingDeploymentRow(provider, deployment)
-                }
+            else -> items(workspace.deployments, key = { "deployment-${it.id}" }) { deployment ->
+                HostingDeploymentRow(provider, deployment)
             }
         }
     }
@@ -1085,13 +1075,6 @@ internal fun cacheLabel(cacheState: HostingCacheState): String = when (cacheStat
     HostingCacheState.CACHED_FRESH -> "Saved"
     HostingCacheState.CACHED_STALE -> "Stale"
 }
-
-private fun inventoryDisclosure(dashboard: HostingDashboardUi): String = buildList {
-    addAll(dashboard.warnings)
-    if (dashboard.truncatedForDisplay) {
-        add("Showing ${dashboard.resources.size} of ${dashboard.loadedResourceCount} loaded resources.")
-    }
-}.joinToString(" ")
 
 private fun resourceIcon(provider: HostingProvider): ImageVector = when (provider) {
     HostingProvider.FIREBASE -> Icons.Rounded.Public

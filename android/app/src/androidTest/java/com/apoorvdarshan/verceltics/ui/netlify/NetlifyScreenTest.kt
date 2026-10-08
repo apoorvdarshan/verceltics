@@ -1,12 +1,24 @@
 package com.apoorvdarshan.verceltics.ui.netlify
 
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.performClick
+import androidx.lifecycle.SavedStateHandle
+import com.apoorvdarshan.verceltics.data.netlify.NetlifyLinks
+import com.apoorvdarshan.verceltics.ui.billing.LocalProAccess
+import com.apoorvdarshan.verceltics.ui.billing.ProAccess
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollToNode
@@ -48,8 +60,212 @@ class NetlifyScreenTest {
         composeRule.onNodeWithTag("netlify.connectionForm").assertIsDisplayed()
         composeRule.onNodeWithTag("netlify.token").assertIsDisplayed()
         composeRule.onNodeWithTag("netlify.connect").assertIsDisplayed()
-        composeRule.onNodeWithText("Sites, deploys and builds without risky controls")
+        composeRule.onNodeWithText("Sites, deploys, domains and build controls")
             .assertIsDisplayed()
+    }
+
+    @Test
+    fun connectFormShowsIosStepsAndAnUngatedCredentialsLink() {
+        var credentialLinkOpens = 0
+        composeRule.setContent {
+            VercelticsTheme {
+                NetlifyScreen(
+                    state = NetlifyUiState(status = NetlifyConnectionStatus.DISCONNECTED, operation = null),
+                    onBack = {},
+                    onConnect = {},
+                    onRefresh = {},
+                    onCancel = {},
+                    onOpenSite = {},
+                    onRefreshSite = {},
+                    onRequestDisconnect = {},
+                    onDismissDisconnect = {},
+                    onConfirmDisconnect = {},
+                    onOpenCredentialsLink = { credentialLinkOpens += 1 },
+                )
+            }
+        }
+
+        val form = composeRule.onNodeWithTag("netlify.connectionForm")
+        form.performScrollToNode(hasTestTag("netlify.connectSteps"))
+        composeRule.onNodeWithText("Connect securely").assertIsDisplayed()
+        composeRule.onNodeWithText("Open Netlify’s token or API key page").assertIsDisplayed()
+        composeRule.onNodeWithText("Create a token with the access you want Verceltics to use").assertIsDisplayed()
+        composeRule.onNodeWithText("Paste the credentials below and connect").assertIsDisplayed()
+        form.performScrollToNode(hasTestTag("netlify.credentialLink"))
+        composeRule.onNodeWithTag("netlify.credentialLink")
+            .assertTextContains("OPEN NETLIFY CREDENTIALS")
+            .performClick()
+        composeRule.runOnIdle { assertEquals(1, credentialLinkOpens) }
+    }
+
+    @Test
+    fun siteRowsShowStatusBadgesAndDetailIsTitledWithTheSite() {
+        setConnectedScreen(
+            NetlifyUiState(
+                status = NetlifyConnectionStatus.CONNECTED,
+                dashboard = DASHBOARD,
+                savedAccount = DASHBOARD.account,
+                operation = null,
+            ),
+        )
+        composeRule.onNodeWithTag("netlify.dashboard").performScrollToNode(hasTestTag("netlify.site.${SITE.id}"))
+        composeRule.onNodeWithTag("netlify.site.${SITE.id}.status", useUnmergedTree = true)
+            .assertIsDisplayed()
+            .assertTextContains("CURRENT")
+    }
+
+    @Test
+    fun siteDetailHeaderCarriesNameStatusAndIosActions() {
+        val opened = mutableListOf<String>()
+        var redeployRequests = 0
+        composeRule.setContent {
+            VercelticsTheme {
+                NetlifyScreen(
+                    state = NetlifyUiState(
+                        status = NetlifyConnectionStatus.CONNECTED,
+                        dashboard = DASHBOARD,
+                        savedAccount = DASHBOARD.account,
+                        operation = null,
+                        selectedSiteId = SITE.id,
+                        selectedSiteWorkspace = PARTIAL_SITE_WORKSPACE,
+                    ),
+                    onBack = {},
+                    onConnect = {},
+                    onRefresh = {},
+                    onCancel = {},
+                    onOpenSite = {},
+                    onRefreshSite = {},
+                    onRequestDisconnect = {},
+                    onDismissDisconnect = {},
+                    onConfirmDisconnect = {},
+                    onOpenExternalLink = { opened += it },
+                    onRequestRedeploy = { redeployRequests += 1 },
+                )
+            }
+        }
+
+        // The toolbar and the header both carry the site name (iOS navigationTitle + header).
+        assertTrue(composeRule.onAllNodesWithText("Example").fetchSemanticsNodes().size >= 2)
+        composeRule.onNodeWithTag("netlify.siteTitle").assertTextContains("Example")
+        composeRule.onNodeWithTag("netlify.siteStatus", useUnmergedTree = true).assertTextContains("CURRENT")
+        composeRule.onNodeWithTag("netlify.openSite").performClick()
+        composeRule.onNodeWithTag("netlify.openSiteDashboard").performClick()
+        composeRule.onNodeWithTag("netlify.redeploy").assertTextContains("REDEPLOY").performClick()
+        composeRule.runOnIdle {
+            assertEquals(
+                listOf("https://example.netlify.app", "https://app.netlify.com/sites/Example/overview"),
+                opened,
+            )
+            assertEquals(1, redeployRequests)
+        }
+    }
+
+    @Test
+    fun redeployConfirmationIsAThemedDialogThatOnlyConfirmsOnTap() {
+        var confirmed = 0
+        var dismissed = 0
+        composeRule.setContent {
+            VercelticsTheme {
+                NetlifyScreen(
+                    state = NetlifyUiState(
+                        status = NetlifyConnectionStatus.CONNECTED,
+                        dashboard = DASHBOARD,
+                        savedAccount = DASHBOARD.account,
+                        operation = null,
+                        selectedSiteId = SITE.id,
+                        selectedSiteWorkspace = PARTIAL_SITE_WORKSPACE,
+                        showRedeployConfirmation = true,
+                    ),
+                    onBack = {},
+                    onConnect = {},
+                    onRefresh = {},
+                    onCancel = {},
+                    onOpenSite = {},
+                    onRefreshSite = {},
+                    onRequestDisconnect = {},
+                    onDismissDisconnect = {},
+                    onConfirmDisconnect = {},
+                    onDismissRedeploy = { dismissed += 1 },
+                    onConfirmRedeploy = { confirmed += 1 },
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("netlify.redeployDialog").assertIsDisplayed()
+        composeRule.onNodeWithText("Redeploy Example?").assertIsDisplayed()
+        composeRule.onNodeWithText("This sends a real write request to Netlify.").assertIsDisplayed()
+        composeRule.runOnIdle { assertEquals(0, confirmed) }
+        composeRule.onNodeWithText("CANCEL").performClick()
+        composeRule.runOnIdle {
+            assertEquals(1, dismissed)
+            assertEquals(0, confirmed)
+        }
+    }
+
+    @Test
+    fun redeployOutcomeIsShownOnTheSite() {
+        setConnectedScreen(
+            NetlifyUiState(
+                status = NetlifyConnectionStatus.CONNECTED,
+                dashboard = DASHBOARD,
+                savedAccount = DASHBOARD.account,
+                operation = null,
+                selectedSiteId = SITE.id,
+                selectedSiteWorkspace = PARTIAL_SITE_WORKSPACE,
+                redeployMessage = "Redeploy request accepted.",
+            ),
+        )
+        composeRule.onNodeWithTag("netlify.siteDetail").performScrollToNode(hasTestTag("netlify.redeploySuccess"))
+        composeRule.onNodeWithText("Redeploy request accepted.").assertIsDisplayed()
+    }
+
+    @Test
+    fun routeGatesDashboardLinkBehindProAndOpensItForPro() {
+        val opened = mutableListOf<String>()
+        val uriHandler = object : UriHandler {
+            override fun openUri(uri: String) {
+                opened += uri
+            }
+        }
+        var paywallRequests = 0
+        var unlocked = false
+        val access = ProAccess(isUnlocked = false, isConfirmedLocked = false) { onUnlocked ->
+            paywallRequests += 1
+            if (unlocked) onUnlocked()
+        }
+        val viewModel = NetlifyViewModel(RouteGateway, SavedStateHandle())
+        composeRule.setContent {
+            VercelticsTheme {
+                CompositionLocalProvider(LocalProAccess provides access, LocalUriHandler provides uriHandler) {
+                    NetlifyRoute(viewModel = viewModel, onBack = {})
+                }
+            }
+        }
+        composeRule.waitUntil(5_000) { viewModel.uiState.value.status == NetlifyConnectionStatus.CONNECTED }
+        val dashboard = composeRule.onNodeWithTag("netlify.dashboard")
+        dashboard.performScrollToNode(hasTestTag("netlify.openDashboard"))
+        composeRule.onNodeWithTag("netlify.openDashboard").performClick()
+        composeRule.runOnIdle {
+            assertEquals(1, paywallRequests)
+            assertTrue(opened.isEmpty())
+        }
+
+        // Completing the purchase resumes the tap and opens Netlify's dashboard.
+        unlocked = true
+        composeRule.onNodeWithTag("netlify.openDashboard").performClick()
+        composeRule.runOnIdle {
+            assertEquals(2, paywallRequests)
+            assertEquals(listOf(NetlifyLinks.DASHBOARD_URL), opened)
+        }
+    }
+
+    private object RouteGateway : NetlifyUiGateway {
+        override suspend fun restore(): Result<NetlifyRestoreUi> = Result.success(NetlifyRestoreUi.Available(DASHBOARD))
+        override suspend fun connect(personalToken: com.apoorvdarshan.verceltics.data.account.SecretValue) =
+            Result.success(DASHBOARD)
+        override suspend fun refresh() = Result.success(DASHBOARD)
+        override suspend fun loadSite(siteId: String) = Result.success(PARTIAL_SITE_WORKSPACE)
+        override suspend fun disconnect() = Result.success(Unit)
     }
 
     @Test
@@ -243,7 +459,6 @@ class NetlifyScreenTest {
             sites = listOf(SITE),
             loadedSiteCount = 1,
             providerInventoryComplete = true,
-            inventoryTruncatedForDisplay = false,
             warnings = emptyList(),
             fetchedAtMillis = 42L,
             cacheState = NetlifyCacheState.LIVE,
@@ -291,14 +506,12 @@ class NetlifyScreenTest {
                 ),
                 loadedItemCount = 1,
                 providerCollectionComplete = false,
-                truncatedForDisplay = false,
                 warning = "Deploy history is incomplete.",
             ),
             builds = NetlifyCollectionUi(
                 items = emptyList(),
                 loadedItemCount = 0,
                 providerCollectionComplete = false,
-                truncatedForDisplay = false,
                 warning = "Build history is unavailable.",
             ),
         )

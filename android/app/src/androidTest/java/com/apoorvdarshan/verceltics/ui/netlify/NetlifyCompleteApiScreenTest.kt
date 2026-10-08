@@ -127,7 +127,6 @@ class NetlifyCompleteApiScreenTest {
             sites = listOf(SITE),
             loadedSiteCount = 1,
             providerInventoryComplete = true,
-            inventoryTruncatedForDisplay = false,
             warnings = emptyList(),
             fetchedAtMillis = System.currentTimeMillis(),
             cacheState = NetlifyCacheState.LIVE,

@@ -216,6 +216,105 @@ class NetlifyViewModelTest {
         assertNull(savedState.get<String>(NetlifyViewModel.SELECTED_SITE_ID))
     }
 
+    @Test
+    fun redeployIsOnlySentFromAnExplicitConfirmationAndReloadsTheSite() = runTest(dispatcher) {
+        val gateway = FakeGateway(NetlifyRestoreUi.Available(DASHBOARD))
+        val viewModel = NetlifyViewModel(gateway, SavedStateHandle())
+        advanceUntilIdle()
+        viewModel.openSite(SITE.id)
+        advanceUntilIdle()
+        assertEquals(listOf(SITE.id), gateway.loadedSiteIds)
+
+        // Confirming without a visible dialog is a no-op; dismissing never sends anything.
+        viewModel.confirmRedeploy()
+        viewModel.requestRedeployConfirmation()
+        assertTrue(viewModel.uiState.value.showRedeployConfirmation)
+        viewModel.dismissRedeployConfirmation()
+        viewModel.confirmRedeploy()
+        advanceUntilIdle()
+        assertTrue(gateway.redeployedSiteIds.isEmpty())
+
+        viewModel.requestRedeployConfirmation()
+        viewModel.confirmRedeploy()
+        runCurrent()
+        assertFalse(viewModel.uiState.value.showRedeployConfirmation)
+        assertEquals(listOf(SITE.id), gateway.redeployedSiteIds)
+        assertEquals("Redeploy request accepted.", viewModel.uiState.value.redeployMessage)
+        assertEquals(listOf(SITE.id), gateway.loadedSiteIds)
+
+        // iOS waits a second, then force-reloads (the fresh cache entry must not be served).
+        advanceUntilIdle()
+        assertEquals(listOf(SITE.id, SITE.id), gateway.loadedSiteIds)
+        assertFalse(viewModel.uiState.value.isRedeploying)
+    }
+
+    @Test
+    fun redeployFailureIsReportedSafelyAndBackDismissesTheConfirmation() = runTest(dispatcher) {
+        val gateway = FakeGateway(NetlifyRestoreUi.Available(DASHBOARD)).apply {
+            redeployResult = Result.failure(IOException("raw-provider-secret"))
+        }
+        val viewModel = NetlifyViewModel(gateway, SavedStateHandle())
+        advanceUntilIdle()
+        viewModel.openSite(SITE.id)
+        advanceUntilIdle()
+
+        viewModel.requestRedeployConfirmation()
+        assertTrue(viewModel.handleBack())
+        assertFalse(viewModel.uiState.value.showRedeployConfirmation)
+        assertEquals(SITE.id, viewModel.uiState.value.selectedSiteId)
+
+        viewModel.requestRedeployConfirmation()
+        viewModel.confirmRedeploy()
+        advanceUntilIdle()
+
+        assertEquals("Netlify could not complete this request.", viewModel.uiState.value.redeployError)
+        assertNull(viewModel.uiState.value.redeployMessage)
+        assertFalse(viewModel.uiState.value.toString().contains("raw-provider-secret"))
+        assertEquals(listOf(SITE.id), gateway.loadedSiteIds)
+    }
+
+    @Test
+    fun siteHistoryIsCachedForOneHundredEightySeconds() = runTest(dispatcher) {
+        var now = 1_000_000L
+        val gateway = FakeGateway(NetlifyRestoreUi.Available(DASHBOARD))
+        val viewModel = NetlifyViewModel(gateway, SavedStateHandle(), nowMillis = { now })
+        advanceUntilIdle()
+
+        viewModel.openSite(SITE.id)
+        advanceUntilIdle()
+        assertEquals(1, gateway.loadedSiteIds.size)
+
+        // Reopening within 180 s shows the cached history with no request.
+        viewModel.closeSite()
+        now += 179_999L
+        viewModel.openSite(SITE.id)
+        assertSame(SITE_WORKSPACE, viewModel.uiState.value.selectedSiteWorkspace)
+        assertFalse(viewModel.uiState.value.isLoadingSite)
+        advanceUntilIdle()
+        assertEquals(1, gateway.loadedSiteIds.size)
+
+        // After 180 s the stale copy is shown immediately while a fresh one loads.
+        viewModel.closeSite()
+        now += 1L
+        viewModel.openSite(SITE.id)
+        assertSame(SITE_WORKSPACE, viewModel.uiState.value.selectedSiteWorkspace)
+        assertTrue(viewModel.uiState.value.isLoadingSite)
+        advanceUntilIdle()
+        assertEquals(2, gateway.loadedSiteIds.size)
+
+        // An explicit refresh always bypasses a fresh cache entry.
+        viewModel.refreshSelectedSite()
+        advanceUntilIdle()
+        assertEquals(3, gateway.loadedSiteIds.size)
+
+        // Disconnecting closes the site and drops its cached history.
+        viewModel.requestDisconnectConfirmation()
+        viewModel.confirmDisconnect()
+        advanceUntilIdle()
+        assertNull(viewModel.uiState.value.selectedSiteWorkspace)
+        assertEquals(NetlifyConnectionStatus.DISCONNECTED, viewModel.uiState.value.status)
+    }
+
     private class FakeGateway(
         var restored: NetlifyRestoreUi,
     ) : NetlifyUiGateway {
@@ -230,6 +329,13 @@ class NetlifyViewModelTest {
         var restoreRelease = CompletableDeferred(Unit)
         var refreshResult: Result<NetlifyDashboardUi> = Result.success(DASHBOARD)
         val loadedSiteIds = mutableListOf<String>()
+        val redeployedSiteIds = mutableListOf<String>()
+        var redeployResult: Result<String> = Result.success("Redeploy request accepted.")
+
+        override suspend fun redeploySite(siteId: String): Result<String> {
+            redeployedSiteIds += siteId
+            return redeployResult
+        }
 
         override suspend fun restore(): Result<NetlifyRestoreUi> {
             restoreCalls += 1
@@ -285,7 +391,6 @@ class NetlifyViewModelTest {
             sites = listOf(SITE),
             loadedSiteCount = 1,
             providerInventoryComplete = true,
-            inventoryTruncatedForDisplay = false,
             warnings = emptyList(),
             fetchedAtMillis = 42L,
             cacheState = NetlifyCacheState.LIVE,
@@ -295,8 +400,8 @@ class NetlifyViewModelTest {
             details = NetlifyResourceUi.Available(
                 NetlifySiteDetailsUi(SITE, emptyList(), null, null),
             ),
-            deployments = NetlifyCollectionUi(emptyList(), 0, true, false, null),
-            builds = NetlifyCollectionUi(emptyList(), 0, true, false, null),
+            deployments = NetlifyCollectionUi(emptyList(), 0, true, null),
+            builds = NetlifyCollectionUi(emptyList(), 0, true, null),
         )
     }
 }

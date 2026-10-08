@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -41,6 +42,7 @@ import androidx.compose.material.icons.rounded.CloudQueue
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Key
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.CircularProgressIndicator
@@ -90,7 +92,11 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.apoorvdarshan.verceltics.data.account.SecretValue
+import com.apoorvdarshan.verceltics.data.netlify.NetlifyLinks
 import com.apoorvdarshan.verceltics.domain.IntegrationCatalog
+import com.apoorvdarshan.verceltics.ui.hosting.HostingStatusTone
+import com.apoorvdarshan.verceltics.ui.hosting.hostingStatusTone
+import com.apoorvdarshan.verceltics.ui.hosting.openHttpsLink
 import com.apoorvdarshan.verceltics.ui.apiexplorer.CompleteApiEntryCard
 import com.apoorvdarshan.verceltics.ui.apiexplorer.DashboardAndCompleteApiActions
 import com.apoorvdarshan.verceltics.ui.apiexplorer.ProviderApiWorkspace
@@ -153,10 +159,11 @@ fun NetlifyRoute(
             siteSearchFocusRequestId += 1
         }
     }
+    val openLink: (String) -> Unit = { url -> openHttpsLink(url) { uriHandler.openUri(it) } }
     if (apiState.isOpen && state.status == NetlifyConnectionStatus.CONNECTED) {
         ProviderApiWorkspace(
             controller = viewModel.apiWorkspace,
-            onOpenLink = { url -> if (url.startsWith("https://")) runCatching { uriHandler.openUri(url) } },
+            onOpenLink = openLink,
             modifier = modifier,
         )
         return
@@ -176,6 +183,13 @@ fun NetlifyRoute(
         searchFocusRequestId = siteSearchFocusRequestId,
         modifier = modifier,
         onOpenCompleteApi = { siteId -> proAccess.requestPro { viewModel.openApiWorkspace(siteId) } },
+        // iOS gates provider links (dashboard, site and console) behind Pro like other tools.
+        onOpenExternalLink = { url -> proAccess.requestPro { openLink(url) } },
+        // Token help is needed before connecting, so it is never gated.
+        onOpenCredentialsLink = { openLink(NetlifyLinks.CREDENTIALS_URL) },
+        onRequestRedeploy = viewModel::requestRedeployConfirmation,
+        onDismissRedeploy = viewModel::dismissRedeployConfirmation,
+        onConfirmRedeploy = viewModel::confirmRedeploy,
     )
 }
 
@@ -195,8 +209,32 @@ fun NetlifyScreen(
     modifier: Modifier = Modifier,
     /** Pro-gated iOS "Complete API": the dashboard passes null, a site detail its id. */
     onOpenCompleteApi: (siteId: String?) -> Unit = {},
+    /** Pro-gated provider links: the Netlify dashboard, a site's URL and its overview page. */
+    onOpenExternalLink: (url: String) -> Unit = {},
+    /** Ungated: Netlify's personal access token page, shown while connecting. */
+    onOpenCredentialsLink: () -> Unit = {},
+    onRequestRedeploy: () -> Unit = {},
+    onDismissRedeploy: () -> Unit = {},
+    onConfirmRedeploy: () -> Unit = {},
 ) {
     val haptic = LocalHapticFeedback.current
+    val selectedSite = state.selectedSite
+    if (state.showRedeployConfirmation && selectedSite != null) {
+        // iOS: confirmationDialog("Redeploy <site>?") — "This sends a real write request to Netlify."
+        ThemedAlertDialog(
+            title = "Redeploy ${selectedSite.name}?",
+            message = "This sends a real write request to Netlify.",
+            confirmText = "REDEPLOY",
+            dismissText = "CANCEL",
+            enabled = !state.isRedeploying,
+            onConfirm = {
+                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                onConfirmRedeploy()
+            },
+            onDismissRequest = onDismissRedeploy,
+            testTag = "netlify.redeployDialog",
+        )
+    }
     if (state.showDisconnectConfirmation) {
         ThemedAlertDialog(
             title = "Disconnect Netlify?",
@@ -221,7 +259,7 @@ fun NetlifyScreen(
             .testTag("netlify.screen"),
     ) {
         NetlifyTopBar(
-            title = if (state.selectedSiteId == null) "Netlify" else "Site details",
+            title = if (state.selectedSiteId == null) "Netlify" else selectedSite?.name ?: "Site details",
             operation = state.operation,
             isLoadingSite = state.isLoadingSite,
             canRefresh = state.isConnected,
@@ -248,6 +286,7 @@ fun NetlifyScreen(
                 state = state,
                 onConnect = onConnect,
                 onCancel = onCancel,
+                onOpenCredentialsLink = onOpenCredentialsLink,
                 modifier = Modifier.weight(1f),
             )
             state.status == NetlifyConnectionStatus.SAVED_UNAVAILABLE -> SavedConnectionRecovery(
@@ -259,12 +298,15 @@ fun NetlifyScreen(
             state.selectedSiteId != null -> NetlifySiteDetail(
                 state = state,
                 onOpenCompleteApi = { onOpenCompleteApi(state.selectedSiteId) },
+                onOpenExternalLink = onOpenExternalLink,
+                onRequestRedeploy = onRequestRedeploy,
                 modifier = Modifier.weight(1f),
             )
             else -> NetlifyDashboard(
                 state = state,
                 onOpenSite = onOpenSite,
                 onOpenCompleteApi = { onOpenCompleteApi(null) },
+                onOpenDashboard = { onOpenExternalLink(NetlifyLinks.DASHBOARD_URL) },
                 onDisconnect = onRequestDisconnect,
                 searchFocusRequestId = searchFocusRequestId,
                 modifier = Modifier.weight(1f),
@@ -446,6 +488,7 @@ private fun NetlifyConnectionForm(
     state: NetlifyUiState,
     onConnect: (SecretValue) -> Unit,
     onCancel: () -> Unit,
+    onOpenCredentialsLink: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val controller = remember { EphemeralTokenController() }
@@ -484,22 +527,52 @@ private fun NetlifyConnectionForm(
                         )
                         Spacer(Modifier.width(14.dp))
                         Column(Modifier.weight(1f)) {
-                            Text("NETLIFY", color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.labelSmall)
+                            Text("CONNECT NETLIFY", color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.labelSmall)
                             Text(
-                                "Sites, deployments, and builds",
+                                NETLIFY_CONNECTION_SUBTITLE,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 style = MaterialTheme.typography.titleMedium,
                             )
                         }
                     }
-                    Text(
-                        "Your token is encrypted and stored only on this device. Sites, deployments, and builds are read-only; " +
-                            "write requests are only sent from the Complete API after you confirm them.",
-                        color = MaterialTheme.colorScheme.onSurface,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
                 }
             }
+        }
+        item("instructions") {
+            // iOS HostingProviderCredentialView: three steps plus the storage promise.
+            OffsetPanel(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("netlify.connectSteps"),
+                color = MaterialTheme.colorScheme.surface,
+                borderColor = NetlifyAccent.copy(alpha = 0.22f),
+            ) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Connect securely", style = MaterialTheme.typography.titleMedium)
+                    NETLIFY_CONNECT_STEPS.forEachIndexed { index, step -> NetlifyStepRow(index + 1, step) }
+                    Row(verticalAlignment = Alignment.Top) {
+                        Icon(Icons.Rounded.Lock, contentDescription = null, tint = NetlifyAccent, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(9.dp))
+                        Text(
+                            NETLIFY_CREDENTIAL_STORAGE_MESSAGE,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+            }
+        }
+        item("credential-link") {
+            ThemedActionButton(
+                "OPEN NETLIFY CREDENTIALS",
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                    onOpenCredentialsLink()
+                },
+                tone = ThemedActionTone.NEUTRAL,
+                modifier = Modifier.fillMaxWidth(),
+                testTag = "netlify.credentialLink",
+            )
         }
         item("token") {
             OffsetPanel(modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surface) {
@@ -609,6 +682,7 @@ private fun NetlifyDashboard(
     state: NetlifyUiState,
     onOpenSite: (String) -> Unit,
     onOpenCompleteApi: () -> Unit,
+    onOpenDashboard: () -> Unit,
     onDisconnect: () -> Unit,
     searchFocusRequestId: Int,
     modifier: Modifier = Modifier,
@@ -651,7 +725,7 @@ private fun NetlifyDashboard(
                 subtitle = dashboard.account.email ?: "Netlify account",
                 status = if (attention) "Attention" else "Connected",
                 statusColor = if (attention) NetlifyWarning else MaterialTheme.colorScheme.tertiary,
-                detail = "${cacheLabel(dashboard.cacheState)} data · read-only",
+                detail = "${cacheLabel(dashboard.cacheState)} data · ${siteCountLabel(dashboard.loadedSiteCount)}",
                 testTag = "netlify.summary",
             )
         }
@@ -664,7 +738,7 @@ private fun NetlifyDashboard(
         }
         item("actions") {
             DashboardAndCompleteApiActions(
-                onOpenDashboard = null,
+                onOpenDashboard = onOpenDashboard,
                 onOpenCompleteApi = onOpenCompleteApi,
                 dashboardTestTag = "netlify.openDashboard",
                 completeApiTestTag = "netlify.completeApi",
@@ -691,13 +765,14 @@ private fun NetlifyDashboard(
             ) {
                 Text("Sites", style = MaterialTheme.typography.titleMedium)
                 Text(
-                    if (dashboard.inventoryTruncatedForDisplay) {
-                        "${dashboard.sites.size} of ${dashboard.loadedSiteCount}"
-                    } else {
+                    if (query.isBlank()) {
                         dashboard.sites.size.toString()
+                    } else {
+                        "${visibleSites.size} of ${dashboard.sites.size}"
                     },
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier.testTag("netlify.siteCount"),
                 )
             }
         }
@@ -776,13 +851,18 @@ private fun NetlifySiteRow(site: NetlifySiteUi, onClick: () -> Unit) {
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    listOfNotNull(site.subtitle, site.status).joinToString(" · ").ifBlank { "Netlify site" },
+                    site.subtitle?.takeIf(String::isNotBlank) ?: "Netlify site",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+            site.status?.takeIf(String::isNotBlank)?.let { status ->
+                Spacer(Modifier.width(8.dp))
+                StatusPill(status, netlifyStatusColor(status), Modifier.testTag("netlify.site.${site.id}.status"))
+            }
+            Spacer(Modifier.width(6.dp))
             Icon(
                 Icons.AutoMirrored.Rounded.ArrowForward,
                 contentDescription = "Open ${site.name}",
@@ -793,9 +873,16 @@ private fun NetlifySiteRow(site: NetlifySiteUi, onClick: () -> Unit) {
 }
 
 @Composable
-private fun NetlifySiteDetail(state: NetlifyUiState, onOpenCompleteApi: () -> Unit, modifier: Modifier = Modifier) {
-    val selected = state.dashboard?.sites?.firstOrNull { it.id == state.selectedSiteId }
-    val workspace = state.selectedSiteWorkspace
+private fun NetlifySiteDetail(
+    state: NetlifyUiState,
+    onOpenCompleteApi: () -> Unit,
+    onOpenExternalLink: (String) -> Unit,
+    onRequestRedeploy: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val selected = state.selectedSite
+    val workspace = state.selectedSiteWorkspace?.takeIf { it.siteId == state.selectedSiteId }
+    val haptic = LocalHapticFeedback.current
     LazyColumn(
         modifier = modifier
             .fillMaxWidth()
@@ -810,23 +897,52 @@ private fun NetlifySiteDetail(state: NetlifyUiState, onOpenCompleteApi: () -> Un
                 borderColor = MaterialTheme.colorScheme.outline,
                 shadowColor = MaterialTheme.colorScheme.outline,
             ) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Text("NETLIFY SITE", color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.labelSmall)
-                    Text(
-                        selected?.name ?: state.selectedSiteId.orEmpty(),
-                        color = MaterialTheme.colorScheme.onSurface,
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                    selected?.url?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("NETLIFY SITE", color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.labelSmall)
+                            Text(
+                                selected?.name ?: state.selectedSiteId.orEmpty(),
+                                color = MaterialTheme.colorScheme.onSurface,
+                                style = MaterialTheme.typography.titleLarge,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.testTag("netlify.siteTitle"),
+                            )
+                            selected?.subtitle?.takeIf(String::isNotBlank)?.let {
+                                Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+                            }
+                        }
+                        selected?.status?.takeIf(String::isNotBlank)?.let { status ->
+                            Spacer(Modifier.width(8.dp))
+                            StatusPill(status, netlifyStatusColor(status), Modifier.testTag("netlify.siteStatus"))
+                        }
+                    }
+                    if (selected != null) {
+                        NetlifySiteActions(
+                            site = selected,
+                            isRedeploying = state.isRedeploying,
+                            onOpenExternalLink = { url ->
+                                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                                onOpenExternalLink(url)
+                            },
+                            onRequestRedeploy = {
+                                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                                onRequestRedeploy()
+                            },
+                        )
+                    }
                 }
             }
         }
         item("complete-api") {
             CompleteApiEntryCard(accent = NetlifyAccent, onClick = onOpenCompleteApi, testTag = "netlify.siteCompleteApi")
         }
+        state.redeployMessage?.let { item("redeploy-success") { FeedbackPanel(it, false, "netlify.redeploySuccess") } }
+        state.redeployError?.let { item("redeploy-error") { FeedbackPanel(it, true, "netlify.redeployError") } }
         state.siteError?.let { item("site-error") { FeedbackPanel(it, true) } }
         if (state.isLoadingSite && workspace == null) {
-            item("loading") { LoadingState("Loading read-only site resources…", Modifier.heightIn(min = 180.dp)) }
+            item("loading") { LoadingState("Loading site deployments…", Modifier.heightIn(min = 180.dp)) }
         }
         workspace?.let { loaded ->
             item("details-heading") { SectionHeading("Domains & build controls") }
@@ -919,11 +1035,7 @@ private fun <T> CollectionHeading(title: String, collection: NetlifyCollectionUi
     ) {
         Text(title, style = MaterialTheme.typography.headlineSmall)
         Text(
-            if (collection.truncatedForDisplay) {
-                "${collection.items.size} of ${collection.loadedItemCount}"
-            } else {
-                collection.items.size.toString()
-            },
+            collection.items.size.toString(),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.labelMedium,
         )
@@ -949,7 +1061,7 @@ private fun BuildControlsPanel(controls: NetlifyBuildControlsUi?) {
     }.orEmpty()
     OffsetPanel(Modifier.fillMaxWidth(), MaterialTheme.colorScheme.surface) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("BUILD CONTROLS · READ ONLY", style = MaterialTheme.typography.labelSmall)
+            Text("BUILD CONTROLS", style = MaterialTheme.typography.labelSmall)
             if (pairs.isEmpty()) {
                 Text("No build configuration was returned.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
@@ -995,13 +1107,13 @@ private fun HistoryPanel(
             if (stacked) {
                 Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     HistoryCopy(title, detail, timeMillis, Modifier.fillMaxWidth())
-                    StatusPill(status, statusColor(status))
+                    StatusPill(status, netlifyStatusColor(status))
                 }
             } else {
                 Row(Modifier.padding(13.dp), verticalAlignment = Alignment.Top) {
                     HistoryCopy(title, detail, timeMillis, Modifier.weight(1f))
                     Spacer(Modifier.width(10.dp))
-                    StatusPill(status, statusColor(status))
+                    StatusPill(status, netlifyStatusColor(status))
                 }
             }
         }
@@ -1053,11 +1165,12 @@ private fun MetricTile(value: String, label: String, modifier: Modifier = Modifi
 }
 
 @Composable
-private fun FeedbackPanel(message: String, isError: Boolean) {
+private fun FeedbackPanel(message: String, isError: Boolean, testTag: String? = null) {
     val accent = if (isError) MaterialTheme.colorScheme.error else NetlifyAccent
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .then(if (testTag != null) Modifier.testTag(testTag) else Modifier)
             .background(accent.copy(alpha = 0.13f).compositeOver(MaterialTheme.colorScheme.surface))
             .semantics {
                 liveRegion = if (isError) LiveRegionMode.Assertive else LiveRegionMode.Polite
@@ -1261,16 +1374,113 @@ private fun cacheLabel(cacheState: NetlifyCacheState): String = when (cacheState
 
 private fun inventoryDisclosure(dashboard: NetlifyDashboardUi): String = buildList {
     addAll(dashboard.warnings)
-    if (dashboard.inventoryTruncatedForDisplay) {
-        add("Showing ${dashboard.sites.size} of ${dashboard.loadedSiteCount} loaded sites. The inventory is bounded for this screen.")
-    }
     if (!dashboard.providerInventoryComplete && dashboard.warnings.isEmpty()) {
         add("Netlify returned a partial site inventory.")
     }
 }.joinToString(" ")
 
-private fun statusColor(status: String): Color = when {
-    status.contains("fail", true) || status.contains("error", true) -> Color(0xFFC53D55)
-    status.contains("complete", true) || status.contains("ready", true) || status.contains("publish", true) -> Color(0xFF2F9B55)
-    else -> NetlifyAccent
+internal fun siteCountLabel(count: Int): String = if (count == 1) "1 site" else "$count sites"
+
+/** iOS `AppStatusTone.status(_:)` colors, shared with the hosting providers. */
+internal fun netlifyStatusColor(status: String): Color = when (hostingStatusTone(status)) {
+    HostingStatusTone.SUCCESS -> Color(0xFF2F9B55)
+    HostingStatusTone.WARNING -> Color(0xFFE3A008)
+    HostingStatusTone.DANGER -> Color(0xFFC53D55)
+    HostingStatusTone.PROGRESS -> Color(0xFF3B82F6)
+    HostingStatusTone.NEUTRAL -> NetlifyAccent
 }
+
+/** iOS `HostingResourceDetailView` header actions: Open, Dashboard and Redeploy. */
+internal fun netlifySiteActionTitles(site: NetlifySiteUi): List<String> = buildList {
+    if (site.url?.startsWith("https://", ignoreCase = true) == true) add("OPEN")
+    add("DASHBOARD")
+    add("REDEPLOY")
+}
+
+@Composable
+private fun NetlifySiteActions(
+    site: NetlifySiteUi,
+    isRedeploying: Boolean,
+    onOpenExternalLink: (String) -> Unit,
+    onRequestRedeploy: () -> Unit,
+) {
+    val siteUrl = site.url?.takeIf { it.startsWith("https://", ignoreCase = true) }
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val stacked = maxWidth < 330.dp || LocalDensity.current.fontScale >= 1.3f
+        val buttons: List<@Composable (Modifier) -> Unit> = buildList {
+            if (siteUrl != null) {
+                add { buttonModifier ->
+                    ThemedActionButton(
+                        "OPEN",
+                        onClick = { onOpenExternalLink(siteUrl) },
+                        tone = ThemedActionTone.NEUTRAL,
+                        modifier = buttonModifier,
+                        testTag = "netlify.openSite",
+                    )
+                }
+            }
+            add { buttonModifier ->
+                ThemedActionButton(
+                    "DASHBOARD",
+                    onClick = { onOpenExternalLink(NetlifyLinks.siteDashboardUrl(site.name)) },
+                    tone = ThemedActionTone.NEUTRAL,
+                    modifier = buttonModifier,
+                    testTag = "netlify.openSiteDashboard",
+                )
+            }
+            add { buttonModifier ->
+                ThemedActionButton(
+                    "REDEPLOY",
+                    onClick = onRequestRedeploy,
+                    enabled = !isRedeploying,
+                    isBusy = isRedeploying,
+                    tone = ThemedActionTone.PRIMARY,
+                    modifier = buttonModifier,
+                    testTag = "netlify.redeploy",
+                )
+            }
+        }
+        if (stacked) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                buttons.forEach { button -> button(Modifier.fillMaxWidth()) }
+            }
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                buttons.forEach { button -> button(Modifier.weight(1f)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NetlifyStepRow(number: Int, text: String) {
+    Row(verticalAlignment = Alignment.Top) {
+        Surface(
+            modifier = Modifier.size(24.dp),
+            shape = CircleShape,
+            color = NetlifyAccent.copy(alpha = 0.16f).compositeOver(MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, NetlifyAccent.copy(alpha = 0.24f)),
+        ) {
+            Row(horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                Text(number.toString(), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+            }
+        }
+        Spacer(Modifier.width(10.dp))
+        Text(text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+    }
+}
+
+// region iOS copy (AccountProvider.netlify / HostingProviderCredentialView)
+
+internal const val NETLIFY_CONNECTION_SUBTITLE: String = "Sites, deploys, domains and build controls"
+
+internal val NETLIFY_CONNECT_STEPS: List<String> = listOf(
+    "Open Netlify’s token or API key page",
+    "Create a token with the access you want Verceltics to use",
+    "Paste the credentials below and connect",
+)
+
+internal const val NETLIFY_CREDENTIAL_STORAGE_MESSAGE: String =
+    "Credentials are encrypted and stay on this device. Verceltics sends them only to Netlify’s official API."
+
+// endregion

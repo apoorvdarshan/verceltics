@@ -83,6 +83,26 @@ class NativeHostingProviderUiGatewayTest {
     }
 
     @Test
+    fun inventoryAndHistoryArePagedCompletelyWithoutTheOldDisplayCaps() = runBlocking {
+        // 450 services and 260 deploys: beyond the former 200-resource / 100-history caps.
+        Fixture(FakeHostingTransport { request -> pagedRenderResponse(request, services = 450, deploys = 260) }).use { fixture ->
+            val dashboard = fixture.gateway.connect(HostingCredentials.Render(SecretValue.of("render-secret"))).getOrThrow()
+            assertEquals(450, dashboard.resources.size)
+            assertEquals(450, dashboard.loadedResourceCount)
+            assertEquals((0 until 450).map { "srv-$it" }.toSet(), dashboard.resources.map { it.id }.toSet())
+            assertTrue(dashboard.warnings.isEmpty())
+
+            val refreshed = fixture.gateway.refresh("render").getOrThrow()
+            assertEquals(450, refreshed.resources.size)
+
+            val workspace = fixture.gateway.loadResource("render", refreshed.resources.first()).getOrThrow()
+            assertEquals(260, workspace.deployments.size)
+            assertEquals(260, workspace.loadedDeploymentCount)
+            assertEquals((0 until 260).map { "dep-$it" }.toSet(), workspace.deployments.map { it.id }.toSet())
+        }
+    }
+
+    @Test
     fun firebaseWithoutGoogleTokenAsksForSignIn() = runBlocking {
         Fixture(FakeHostingTransport { error("must not send") }, GoogleAccessTokenSource { null }).use { fixture ->
             val failure = fixture.gateway.connect(HostingCredentials.Firebase("studio-prod")).exceptionOrNull() as HostingUiException
@@ -139,6 +159,27 @@ class NativeHostingProviderUiGatewayTest {
         }
         "POST /v1/services/srv-web/deploys" -> jsonResponse("""{"id":"dep-2"}""", status = 201)
         else -> jsonResponse("{}", status = 404)
+    }
+
+    /** Render cursor pagination: the cursor lives on each item; the next page starts after it. */
+    private fun pagedRenderResponse(request: HostingHttpRequest, services: Int, deploys: Int): HttpResponse {
+        fun page(total: Int, entry: (Int) -> String): HttpResponse {
+            val start = request.query.firstOrNull { it.first == "cursor" }?.second?.removePrefix("c")?.toInt()?.plus(1) ?: 0
+            val limit = request.query.first { it.first == "limit" }.second.toInt()
+            val end = minOf(total, start + limit)
+            return jsonResponse((start until end).joinToString(",", "[", "]", transform = entry))
+        }
+        val path = request.encodedPath
+        return when {
+            path == "/v1/owners" -> jsonResponse("""[{"owner":{"id":"tea_1","name":"Studio","email":"ops@studio.example"}}]""")
+            path == "/v1/services" -> page(services) { index ->
+                """{"cursor":"c$index","service":{"id":"srv-$index","name":"service-$index","type":"web_service"}}"""
+            }
+            path.endsWith("/deploys") -> page(deploys) { index ->
+                """{"cursor":"c$index","deploy":{"id":"dep-$index","status":"live","commit":{"message":"Deploy $index"}}}"""
+            }
+            else -> jsonResponse("{}", status = 404)
+        }
     }
 
     private fun resourceUi(id: String) = HostingResourceUi(id, id, null, null, null, null, null, null, "https://example.com")
