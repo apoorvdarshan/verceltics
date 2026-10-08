@@ -11,6 +11,17 @@ interface VercelJsonParser {
 
     fun parseProjects(bytes: ByteArray): VercelProjectsPage
 
+    fun parseProject(bytes: ByteArray): VercelProject = VercelResourceDecoder.project(bytes)
+
+    fun parseProjectDomains(bytes: ByteArray): List<VercelProjectDomain> =
+        VercelResourceDecoder.projectDomains(bytes)
+
+    fun parseDeployments(bytes: ByteArray): List<VercelDeployment> =
+        VercelResourceDecoder.deployments(bytes)
+
+    fun parseDeploymentEvents(bytes: ByteArray): List<VercelDeploymentEvent> =
+        VercelResourceDecoder.deploymentEvents(bytes)
+
     fun parseTeams(bytes: ByteArray): VercelTeamsPage
 
     fun parseAnalyticsOverview(bytes: ByteArray): VercelAnalyticsOverview
@@ -20,7 +31,10 @@ interface VercelJsonParser {
     fun parseErrorCode(bytes: ByteArray): String?
 }
 
-/** Strict streaming JSON parsing using the Android platform API. Unknown fields are ignored. */
+/**
+ * Strict streaming JSON parsing using the Android platform API for account, team and analytics
+ * payloads. Project resources go through [VercelResourceDecoder]. Unknown fields are ignored.
+ */
 class AndroidVercelJsonParser : VercelJsonParser {
     override fun parseUser(bytes: ByteArray): VercelUser = parse(bytes) { reader ->
         var user: VercelUser? = null
@@ -35,38 +49,9 @@ class AndroidVercelJsonParser : VercelJsonParser {
         user ?: throw VercelResponseFormatException("Vercel returned no user record.")
     }
 
-    override fun parseProjects(bytes: ByteArray): VercelProjectsPage = parse(bytes) { reader ->
-        val projects = mutableListOf<VercelProject>()
-        var nextCursor: String? = null
-        var sawProjects = false
-        reader.beginObject()
-        while (reader.hasNext()) {
-            when (reader.nextName()) {
-                "projects" -> {
-                    sawProjects = true
-                    reader.beginArray()
-                    while (reader.hasNext()) projects += readProject(reader)
-                    reader.endArray()
-                }
-
-                "pagination" -> {
-                    reader.beginObject()
-                    while (reader.hasNext()) {
-                        when (reader.nextName()) {
-                            "next" -> nextCursor = readStringOrNumber(reader)
-                            else -> reader.skipValue()
-                        }
-                    }
-                    reader.endObject()
-                }
-
-                else -> reader.skipValue()
-            }
-        }
-        reader.endObject()
-        if (!sawProjects) throw VercelResponseFormatException("Vercel returned no projects collection.")
-        VercelProjectsPage(projects = projects, nextCursor = nextCursor)
-    }
+    /** Rich project listings (domains, deployments, repository) use the shared resource decoder. */
+    override fun parseProjects(bytes: ByteArray): VercelProjectsPage =
+        VercelResourceDecoder.projectsPage(bytes)
 
     override fun parseTeams(bytes: ByteArray): VercelTeamsPage = parse(bytes) { reader ->
         val teams = mutableListOf<VercelTeam>()
@@ -205,40 +190,6 @@ class AndroidVercelJsonParser : VercelJsonParser {
             email = email,
             name = name,
             avatarUrl = avatarUrl,
-        )
-    }
-
-    private fun readProject(reader: JsonReader): VercelProject {
-        var id: String? = null
-        var name: String? = null
-        var framework: String? = null
-        var createdAtMillis: Long? = null
-        var updatedAtMillis: Long? = null
-        var teamId: String? = null
-        var accountId: String? = null
-        reader.beginObject()
-        while (reader.hasNext()) {
-            when (reader.nextName()) {
-                "id" -> id = readOptionalString(reader)
-                "name" -> name = readOptionalString(reader)
-                "framework" -> framework = readOptionalString(reader)
-                "createdAt" -> createdAtMillis = readOptionalLong(reader)
-                "updatedAt" -> updatedAtMillis = readOptionalLong(reader)
-                "teamId" -> teamId = readOptionalString(reader)
-                "accountId" -> accountId = readOptionalString(reader)
-                else -> reader.skipValue()
-            }
-        }
-        reader.endObject()
-        return VercelProject(
-            id = id?.takeIf(String::isNotBlank)
-                ?: throw VercelResponseFormatException("Vercel project id is missing."),
-            name = name?.takeIf(String::isNotBlank)
-                ?: throw VercelResponseFormatException("Vercel project name is missing."),
-            framework = framework,
-            createdAtMillis = createdAtMillis,
-            updatedAtMillis = updatedAtMillis,
-            teamId = teamId ?: accountId?.takeIf { it.startsWith("team_") },
         )
     }
 

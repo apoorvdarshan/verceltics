@@ -39,4 +39,41 @@ class VercelWorkspaceStateTest {
             ),
         )
     }
+
+    @Test
+    fun projectsFirstLoadedNeedsAConnectedNonEmptyErrorFreeList() {
+        assertTrue(shouldNotifyProjectsFirstLoaded(VercelConnectionStatus.CONNECTED, projectCount = 3, error = null))
+        assertFalse(shouldNotifyProjectsFirstLoaded(VercelConnectionStatus.CONNECTED, projectCount = 0, error = null))
+        assertFalse(shouldNotifyProjectsFirstLoaded(VercelConnectionStatus.CONNECTED, projectCount = 3, error = "offline"))
+        assertFalse(shouldNotifyProjectsFirstLoaded(VercelConnectionStatus.RESTORING, projectCount = 3, error = null))
+        assertFalse(shouldNotifyProjectsFirstLoaded(VercelConnectionStatus.SAVED_UNAVAILABLE, projectCount = 3, error = null))
+    }
+
+    @Test
+    fun analyticsBreakdownsKeepIosOrderAndLockWording() {
+        val data = com.apoorvdarshan.verceltics.ui.VercelAnalyticsDataUi(
+            overview = com.apoorvdarshan.verceltics.ui.VercelAnalyticsOverviewUi(1, 1, null),
+            previousOverview = null,
+            timeseries = emptyList(),
+            pages = emptyList(),
+            referrers = emptyList(),
+            countries = emptyList(),
+        )
+
+        val locked = analyticsBreakdownSections(data, hasLongAnalyticsHistory = false)
+        assertTrue(
+            locked.map { it.title } == listOf(
+                "Pages", "Routes", "Hostnames", "Referrers", "UTM Parameters", "Countries",
+                "Devices", "Browsers", "Operating Systems", "Events", "Flags", "Query Parameters",
+            ),
+        )
+        assertTrue(locked.single { it.title == "UTM Parameters" }.lockedTitle == "Requires Pro + Web Analytics Plus")
+        assertTrue(locked.single { it.title == "Events" }.lockedTitle == "Requires Pro")
+        assertTrue(locked.single { it.title == "Countries" }.isCountry)
+        assertTrue(locked.single { it.title == "Referrers" }.emptyLabel == "Direct")
+        assertTrue(
+            analyticsBreakdownSections(data, hasLongAnalyticsHistory = true)
+                .single { it.title == "UTM Parameters" }.lockedTitle == "Upgrade to Web Analytics Plus",
+        )
+    }
 }

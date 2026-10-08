@@ -1,16 +1,24 @@
 package com.apoorvdarshan.verceltics.ui
 
 import android.content.Context
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import com.apoorvdarshan.verceltics.data.account.SecretValue
 import com.apoorvdarshan.verceltics.data.account.VercelAccount
 import com.apoorvdarshan.verceltics.data.account.VercelAccountRepository
 import com.apoorvdarshan.verceltics.data.network.CancelableCall
-import com.apoorvdarshan.verceltics.data.vercel.VercelApi
-import com.apoorvdarshan.verceltics.data.vercel.VercelApiException
+import com.apoorvdarshan.verceltics.data.vercel.HttpsVercelFaviconTransport
 import com.apoorvdarshan.verceltics.data.vercel.VercelAnalyticsOverview
 import com.apoorvdarshan.verceltics.data.vercel.VercelAnalyticsPoint
 import com.apoorvdarshan.verceltics.data.vercel.VercelAnalyticsTimeseries
+import com.apoorvdarshan.verceltics.data.vercel.VercelApi
+import com.apoorvdarshan.verceltics.data.vercel.VercelApiException
+import com.apoorvdarshan.verceltics.data.vercel.VercelDeployment
+import com.apoorvdarshan.verceltics.data.vercel.VercelDeploymentEvent
+import com.apoorvdarshan.verceltics.data.vercel.VercelFaviconBitmapDecoder
+import com.apoorvdarshan.verceltics.data.vercel.VercelFaviconLoader
 import com.apoorvdarshan.verceltics.data.vercel.VercelProject
+import com.apoorvdarshan.verceltics.data.vercel.VercelProjectScope
 import com.apoorvdarshan.verceltics.data.vercel.VercelTeam
 import java.time.Instant
 import java.util.concurrent.ExecutorService
@@ -18,30 +26,39 @@ import java.util.concurrent.Executors
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 
 /**
  * Production bridge between Compose state and the native Android Vercel implementation.
  *
  * Blocking provider calls run outside the main thread and are explicitly cancelled when the
  * requesting coroutine goes away. Credentials only cross this boundary as [SecretValue] and are
- * persisted by the Android Keystore-backed repository.
+ * persisted by the Android Keystore-backed repository. Every read-modify-write of the saved
+ * account happens under [accountMutex] and is dropped if the account was disconnected meanwhile.
  */
 class NativeVercelUiGateway private constructor(
     private val applicationContext: Context,
     private val api: VercelApi,
     private val executor: ExecutorService,
+    private val favicons: VercelFaviconLoader<ImageBitmap>,
 ) : VercelUiGateway {
     private val accountRepository: VercelAccountRepository by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
         VercelAccountRepository.create(applicationContext)
     }
+    private val accountMutex = Mutex()
 
     override suspend fun restore(): Result<VercelRestoreUi> = capture {
-        val account = executeAwait(executor) { accountRepository.load() }
-            ?: return@capture VercelRestoreUi.NoSavedAccount
+        val account = loadAccount() ?: return@capture VercelRestoreUi.NoSavedAccount
         try {
             VercelRestoreUi.Available(dashboard(account))
         } catch (error: CancellationException) {
@@ -59,13 +76,13 @@ class NativeVercelUiGateway private constructor(
         val user = api.newValidatePersonalTokenCall(secret).executeAwait(executor)
         val account = api.accountForValidatedUser(user = user, token = secret)
         val connectedDashboard = dashboard(account)
-        executeAwait(executor) { accountRepository.save(account) }
+        withAccountLock { accountRepository.save(account) }
+        favicons.clear()
         connectedDashboard
     }
 
     override suspend fun refresh(): Result<VercelDashboardUi> = capture {
-        val account = executeAwait(executor) { accountRepository.load() }
-            ?: throw IllegalStateException("Connect a Vercel account first.")
+        val account = loadAccount() ?: throw IllegalStateException("Connect a Vercel account first.")
         dashboard(account)
     }
 
@@ -74,8 +91,7 @@ class NativeVercelUiGateway private constructor(
         range: VercelAnalyticsRange,
         environment: VercelAnalyticsEnvironment,
     ): Result<VercelAnalyticsLoadUi> = capture {
-        val account = executeAwait(executor) { accountRepository.load() }
-            ?: throw IllegalStateException("Connect a Vercel account first.")
+        val account = loadAccount() ?: throw IllegalStateException("Connect a Vercel account first.")
         try {
             VercelAnalyticsLoadUi.Available(
                 analytics(
@@ -90,47 +106,138 @@ class NativeVercelUiGateway private constructor(
             VercelAnalyticsLoadUi.Unavailable(
                 message = if (error.statusCode == 400 || error.statusCode == 404) {
                     "Vercel Web Analytics is not available through token access right now. " +
-                        "Project details are still available."
+                        "Project details, domains, and deployments are still shown below."
                 } else {
                     "Vercel Web Analytics returned HTTP ${error.statusCode}. " +
-                        "Project details are still available."
+                        "Project details, domains, and deployments are still shown below."
                 },
             )
         }
     }
 
-    override suspend fun disconnect(): Result<Unit> = capture {
-        executeAwait(executor) { accountRepository.delete() }
+    override suspend fun loadProjectContext(project: VercelProjectUi): Result<VercelProjectContextUi> = capture {
+        val account = loadAccount() ?: throw IllegalStateException("Connect a Vercel account first.")
+        coroutineScope {
+            val details = async {
+                optional { api.newProjectCall(account.token, project.id, project.teamId).executeAwait(executor) }
+            }
+            val domains = async {
+                optional { api.newProjectDomainsCall(account.token, project.id, project.teamId).executeAwait(executor) }
+            }
+            val deployments = async {
+                optional { api.newDeploymentsCall(account.token, project.id, project.teamId).executeAwait(executor) }
+            }
+            VercelProjectContextUi(
+                project = details.await()?.let { detail ->
+                    val merged = detail.toUi()
+                    merged.copy(
+                        teamId = project.teamId ?: merged.teamId,
+                        framework = merged.framework ?: project.framework,
+                        repository = merged.repository ?: project.repository,
+                        lastDeployment = merged.lastDeployment ?: project.lastDeployment,
+                        scope = project.scope ?: merged.scope,
+                        // The listed project was already enriched with verified domains.
+                        primaryDomain = project.primaryDomain ?: merged.primaryDomain,
+                    )
+                },
+                domains = domains.await(),
+                deployments = deployments.await()?.map(VercelDeployment::toUi),
+            )
+        }
     }
+
+    override suspend fun loadDeploymentEvents(
+        project: VercelProjectUi,
+        deployment: VercelDeploymentUi,
+    ): Result<List<VercelDeploymentEventUi>> = capture {
+        val identifier = deployment.eventsIdentifier
+            ?: throw IllegalStateException("This deployment does not include an event identifier.")
+        val account = loadAccount() ?: throw IllegalStateException("Connect a Vercel account first.")
+        api.newDeploymentEventsCall(account.token, identifier, project.teamId)
+            .executeAwait(executor)
+            .take(VercelApi.DEFAULT_EVENT_LIMIT)
+            .mapIndexed { index, event -> event.toUi(index) }
+    }
+
+    override suspend fun loadFavicon(domain: String): ImageBitmap? = favicons.load(domain)
+
+    override fun cachedFavicon(domain: String): ImageBitmap? = favicons.cached(domain)
+
+    override suspend fun markLongAnalyticsHistoryAvailable(): Result<Unit> = capture {
+        withAccountLock {
+            val current = accountRepository.load() ?: return@withAccountLock
+            if (!current.hasLongAnalyticsHistory) accountRepository.save(current.withLongAnalyticsHistory())
+        }
+    }
+
+    override suspend fun disconnect(): Result<Unit> = capture {
+        withAccountLock { accountRepository.delete() }
+        favicons.clear()
+    }
+
+    /**
+     * Runs a blocking account read-modify-write under [accountMutex]. The section is
+     * non-cancellable, so the lock is never released while the executor is still writing (which
+     * could let a disconnect's delete interleave with a save and resurrect the token).
+     */
+    private suspend fun withAccountLock(operation: () -> Unit) = withContext(NonCancellable) {
+        accountMutex.withLock { executeAwait(executor, operation) }
+    }
+
+    private suspend fun loadAccount(): VercelAccount? = executeAwait(executor) { accountRepository.load() }
 
     private suspend fun dashboard(account: VercelAccount): VercelDashboardUi {
         val loaded = loadAllProjects(account.token)
+        val current = backfillUsername(account)
         return VercelDashboardUi(
-            account = account.toUi(),
+            account = current.toUi(),
             projects = loaded.projects.map(VercelProject::toUi),
             warning = loaded.warning,
         )
     }
 
+    /** Accounts saved before usernames were stored learn theirs once, for project links. */
+    private suspend fun backfillUsername(account: VercelAccount): VercelAccount {
+        if (account.username != null) return account
+        val user = optional { api.newValidatePersonalTokenCall(account.token).executeAwait(executor) }
+            ?: return account
+        val updated = account.withUsername(user.username)
+        withAccountLock {
+            val saved = accountRepository.load()
+            if (saved != null && saved.id == account.id && saved.token == account.token && saved.username == null) {
+                accountRepository.save(saved.withUsername(user.username))
+            }
+        }
+        return updated
+    }
+
     private suspend fun loadAllProjects(token: SecretValue): ProjectLoadResult = coroutineScope {
         val personalProjects = fetchAllProjects(token = token, teamId = null)
+            .map { it.withSourceScope(VercelProjectScope.PERSONAL) }
         val teams = try {
             fetchAllTeams(token).filter(VercelTeam::isConfirmedMember)
         } catch (error: CancellationException) {
             throw error
         } catch (_: Exception) {
             return@coroutineScope ProjectLoadResult(
-                projects = personalProjects,
+                projects = enrichProjectsNeedingDomains(token, personalProjects),
                 warning = "Personal projects loaded, but the Vercel team list could not be refreshed.",
             )
         }
 
         val teamResults = teams.map { team ->
             async {
+                val scope = VercelProjectScope(
+                    id = team.id,
+                    name = team.displayName,
+                    slug = team.slug,
+                    isTeam = true,
+                )
                 try {
                     TeamProjectLoad.Success(
                         projects = fetchAllProjects(token, team.id).map { project ->
-                            if (project.teamId == team.id) project else project.copy(teamId = team.id)
+                            val scoped = if (project.teamId == team.id) project else project.copy(teamId = team.id)
+                            scoped.withSourceScope(scope)
                         },
                     )
                 } catch (error: CancellationException) {
@@ -153,7 +260,42 @@ class NativeVercelUiGateway private constructor(
             val remainder = if (names.size > 3) " and ${names.size - 3} more" else ""
             "Some Vercel teams could not be refreshed: $visibleNames$remainder."
         }
-        ProjectLoadResult(projects = allProjects, warning = warning)
+        ProjectLoadResult(projects = enrichProjectsNeedingDomains(token, allProjects), warning = warning)
+    }
+
+    /**
+     * Projects whose listing names no custom domain get their full record and verified domains,
+     * so cards and favicons use the real site rather than a `*.vercel.app` alias. Failures keep
+     * the listed project unchanged.
+     */
+    private suspend fun enrichProjectsNeedingDomains(
+        token: SecretValue,
+        projects: List<VercelProject>,
+    ): List<VercelProject> = coroutineScope {
+        val candidates = projects.filter(VercelProject::needsPrimaryDomainRefresh)
+        if (candidates.isEmpty()) return@coroutineScope projects
+        val permits = Semaphore(ENRICHMENT_CONCURRENCY)
+        val refreshed = candidates.map { project ->
+            async {
+                permits.withPermit {
+                    val detail = async { optional { api.newProjectCall(token, project.id, project.teamId).executeAwait(executor) } }
+                    val domains = async {
+                        optional { api.newProjectDomainsCall(token, project.id, project.teamId).executeAwait(executor) }
+                    }
+                    val resolved = (detail.await() ?: project).let { loaded ->
+                        loaded.copy(
+                            teamId = project.teamId ?: loaded.teamId,
+                            framework = loaded.framework ?: project.framework,
+                            link = loaded.link ?: project.link,
+                            latestDeployments = loaded.latestDeployments.ifEmpty { project.latestDeployments },
+                            sourceScope = project.sourceScope,
+                        )
+                    }
+                    project.id to resolved.withAdditionalDomains(domains.await().orEmpty())
+                }
+            }
+        }.awaitAll().toMap()
+        projects.map { refreshed[it.id] ?: it }
     }
 
     private suspend fun fetchAllProjects(token: SecretValue, teamId: String?): List<VercelProject> {
@@ -231,7 +373,7 @@ class NativeVercelUiGateway private constructor(
             ).executeAwait(executor)
         }
         val previousOverview = async {
-            optionalAnalytics {
+            optional {
                 api.newAnalyticsOverviewCall(
                     token = token,
                     projectId = project.id,
@@ -290,7 +432,7 @@ class NativeVercelUiGateway private constructor(
         )
     }
 
-    private fun kotlinx.coroutines.CoroutineScope.optionalBreakdown(
+    private fun CoroutineScope.optionalBreakdown(
         token: SecretValue,
         project: VercelProjectUi,
         from: String,
@@ -298,7 +440,7 @@ class NativeVercelUiGateway private constructor(
         environment: String?,
         groupBy: String,
     ) = async {
-        optionalAnalytics {
+        optional {
             analyticsTimeseries(token, project, from, to, environment, groupBy).toBreakdownUi()
         }.orEmpty()
     }
@@ -320,7 +462,7 @@ class NativeVercelUiGateway private constructor(
         groupBy = groupBy,
     ).executeAwait(executor)
 
-    private suspend fun <T> optionalAnalytics(operation: suspend () -> T): T? = try {
+    private suspend fun <T> optional(operation: suspend () -> T): T? = try {
         operation()
     } catch (error: CancellationException) {
         throw error
@@ -340,15 +482,24 @@ class NativeVercelUiGateway private constructor(
     companion object {
         private const val PAGE_LIMIT = 100
         private const val MAXIMUM_PAGES = 200
+        private const val ENRICHMENT_CONCURRENCY = 6
 
         fun create(context: Context): NativeVercelUiGateway {
-            val executor = Executors.newFixedThreadPool(2) { work ->
+            val executor = Executors.newFixedThreadPool(6) { work ->
                 Thread(work, "verceltics-provider").apply { isDaemon = true }
+            }
+            val faviconExecutor = Executors.newFixedThreadPool(4) { work ->
+                Thread(work, "verceltics-favicon").apply { isDaemon = true }
             }
             return NativeVercelUiGateway(
                 applicationContext = context.applicationContext,
                 api = VercelApi(),
                 executor = executor,
+                favicons = VercelFaviconLoader(
+                    transport = HttpsVercelFaviconTransport(),
+                    executor = faviconExecutor,
+                    decode = { bytes -> VercelFaviconBitmapDecoder.decode(bytes)?.asImageBitmap() },
+                ),
             )
         }
     }
@@ -394,14 +545,46 @@ private suspend fun <T> executeAwait(
 private fun VercelAccount.toUi(): VercelAccountUi = VercelAccountUi(
     displayName = displayName,
     email = email,
+    username = username,
+    hasLongAnalyticsHistory = hasLongAnalyticsHistory,
 )
 
-private fun VercelProject.toUi(): VercelProjectUi = VercelProjectUi(
+internal fun VercelProject.toUi(): VercelProjectUi = VercelProjectUi(
     id = id,
     name = name,
     framework = framework,
     updatedAtMillis = updatedAtMillis,
     teamId = teamId,
+    primaryDomain = primaryDomain,
+    repository = link?.fullName,
+    scope = sourceScope?.let { VercelProjectScopeUi(name = it.name, slug = it.slug, isTeam = it.isTeam) },
+    lastDeployment = lastDeployment?.let {
+        VercelProjectDeploymentUi(commitMessage = it.commitMessage, createdAtMillis = it.createdAtMillis)
+    },
+)
+
+internal fun VercelDeployment.toUi(): VercelDeploymentUi = VercelDeploymentUi(
+    id = stableId,
+    eventsIdentifier = eventsIdentifier,
+    name = name,
+    url = url,
+    inspectorUrl = inspectorUrl,
+    state = displayState,
+    target = displayTarget,
+    createdAtMillis = createdAtMillis,
+    commitMessage = meta.commitMessage,
+    branch = meta.commitRef,
+    commitSha = meta.commitSha,
+    repository = meta.repository,
+    creator = creatorUsername ?: creatorEmail,
+)
+
+internal fun VercelDeploymentEvent.toUi(index: Int): VercelDeploymentEventUi = VercelDeploymentEventUi(
+    id = "$index-$stableId",
+    type = type,
+    createdAtMillis = createdAtMillis,
+    message = message,
+    statusCode = statusCode,
 )
 
 private fun VercelAnalyticsOverview.toUi(): VercelAnalyticsOverviewUi =
@@ -415,6 +598,7 @@ private fun VercelAnalyticsPoint.toUi(): VercelAnalyticsPointUi = VercelAnalytic
     key = key,
     pageViews = pageViews,
     visitors = visitors,
+    bounceRate = bounceRate,
 )
 
 private fun VercelAnalyticsTimeseries.toBreakdownUi(): List<VercelAnalyticsBreakdownUi> = groups

@@ -11,22 +11,61 @@ import java.time.LocalDate
 
 /** Offline fixtures only. These gateways never access provider APIs or saved credentials. */
 object SampleVercelGateway : VercelUiGateway {
-    private fun dashboard() = VercelDashboardUi(
-        VercelAccountUi("Apoorv · Sample workspace", "apoorv@example.com"),
-        listOf("studio-web" to "nextjs", "commerce-store" to "nextjs", "docs-site" to "astro", "portfolio" to "vite", "api-gateway" to null)
-            .mapIndexed { i, (name, framework) -> VercelProjectUi("sample-$i", name, framework, System.currentTimeMillis() - i * 3_600_000L) },
-    )
+    private const val MINUTE = 60_000L
+    private const val HOUR = 60 * MINUTE
+    private val team = VercelProjectScopeUi("Studio", "studio-sample", isTeam = true)
+    private val personal = VercelProjectScopeUi("Personal", null, isTeam = false)
+
+    private fun dashboard(): VercelDashboardUi {
+        val now = System.currentTimeMillis()
+        fun project(index: Int, name: String, framework: String?, domain: String?, repository: String?, scope: VercelProjectScopeUi, commit: String?, deployedAgo: Long?) =
+            VercelProjectUi("sample-$index", name, framework, now - (index + 1) * HOUR, teamId = if (scope.isTeam) "team_sample" else null, primaryDomain = domain,
+                repository = repository, scope = scope, lastDeployment = deployedAgo?.let { VercelProjectDeploymentUi(commit, now - it) })
+        return VercelDashboardUi(
+            VercelAccountUi("Apoorv · Sample workspace", "apoorv@example.com", username = "apoorv-sample"),
+            listOf(
+                project(0, "studio-web", "nextjs", "studio.example", "studio/web", team, "Ship the pricing page refresh", 12 * MINUTE),
+                project(1, "commerce-store", "nextjs", "commerce.example", "studio/commerce", team, "Fix cart totals rounding", 3 * HOUR),
+                project(2, "docs-site", "astro", "docs.studio.example", "studio/docs", team, "Document webhook retries", 26 * HOUR),
+                project(3, "portfolio", "vite", "portfolio-sample.vercel.app", "apoorv/portfolio", personal, "Update case studies", 96 * HOUR),
+                project(4, "api-gateway", null, null, null, personal, null, null),
+            ),
+        )
+    }
     override suspend fun restore() = Result.success<VercelRestoreUi>(VercelRestoreUi.Available(dashboard()))
     override suspend fun connect(personalToken: String) = Result.success(dashboard())
     override suspend fun refresh() = Result.success(dashboard())
     override suspend fun disconnect() = Result.success(Unit)
+    override suspend fun loadProjectContext(project: VercelProjectUi): Result<VercelProjectContextUi> {
+        val now = System.currentTimeMillis()
+        val deployments = listOf(
+            Triple("READY", "Production", project.lastDeployment?.commitMessage ?: "Initial deployment"),
+            Triple("BUILDING", "Preview", "Try the new navigation"),
+            Triple("ERROR", "Preview", "Experiment with edge caching"),
+            Triple("READY", "Production", "Tune image sizes"),
+            Triple("CANCELED", "Preview", "Draft the changelog"),
+        ).mapIndexed { i, (state, target, message) ->
+            VercelDeploymentUi("${project.id}-dpl-$i", "dpl_sample$i", project.name, "${project.name}-git-$i-sample.vercel.app",
+                "https://vercel.com/${project.scope?.slug ?: "apoorv-sample"}/${project.name}", state, target, now - (i * 7 + 1) * HOUR,
+                message, if (target == "Production") "main" else "feature-$i", "9f3c2a1b7e6d5c4b3a29180716f5e4d3c2b1a0f$i", project.repository, "apoorv-sample")
+        }
+        val domains = listOfNotNull(project.primaryDomain, "${project.name}-sample.vercel.app").distinct()
+        return Result.success(VercelProjectContextUi(project, domains, deployments))
+    }
+    override suspend fun loadDeploymentEvents(project: VercelProjectUi, deployment: VercelDeploymentUi): Result<List<VercelDeploymentEventUi>> {
+        val start = (deployment.createdAtMillis ?: System.currentTimeMillis()) - 2 * MINUTE
+        val lines = listOf("command" to "Running \"npm run build\"", "stdout" to "Creating an optimized production build...", "stdout" to "Compiled successfully",
+            "stdout" to "Collecting page data", "stdout" to "Generating static pages (24/24)", "stdout" to "Build Completed in /vercel/output [41s]",
+            if (deployment.state == "ERROR") "stderr" to "Error: Command \"npm run build\" exited with 1" else "ready" to "Deployment ready")
+        return Result.success(lines.mapIndexed { i, (type, text) -> VercelDeploymentEventUi("$i-${deployment.id}", type, start + i * 7_000L, text, null) }.reversed())
+    }
     override suspend fun loadProjectAnalytics(project: VercelProjectUi, range: VercelAnalyticsRange, environment: VercelAnalyticsEnvironment): Result<VercelAnalyticsLoadUi> {
         val rangeDays = (range.durationMillis / 86_400_000L).toInt()
         val days = if (rangeDays == 1) 24 else rangeDays.coerceAtMost(31)
         val scale = if (environment == VercelAnalyticsEnvironment.PREVIEW) 0.12 else 1.0
         val points = (0 until days).map { i ->
             val views = ((2_100 + (i * 173 % 1_700)) * scale * rangeDays / days).toLong()
-            VercelAnalyticsPointUi(java.time.Instant.ofEpochMilli(System.currentTimeMillis() - range.durationMillis + i * range.durationMillis / days).toString(), views, views * 68 / 100)
+            VercelAnalyticsPointUi(java.time.Instant.ofEpochMilli(System.currentTimeMillis() - range.durationMillis + i * range.durationMillis / days).toString(), views, views * 68 / 100, (30 + i * 7 % 15).toDouble())
         }
         fun breakdown(vararg names: String): List<VercelAnalyticsBreakdownUi> {
             val totalWeight = names.indices.sumOf { 1.0 / (it + 1) }
