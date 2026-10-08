@@ -11,6 +11,7 @@ import com.apoorvdarshan.verceltics.data.registrar.FakeRegistrarTransport
 import com.apoorvdarshan.verceltics.data.registrar.MemoryAtomicBytesStore
 import com.apoorvdarshan.verceltics.data.registrar.PublicIpv4Lookup
 import com.apoorvdarshan.verceltics.data.registrar.RegistrarAccount
+import com.apoorvdarshan.verceltics.data.registrar.RegistrarAccountSet
 import com.apoorvdarshan.verceltics.data.registrar.RegistrarApi
 import com.apoorvdarshan.verceltics.data.registrar.RegistrarConnectionRepository
 import com.apoorvdarshan.verceltics.data.registrar.RegistrarConnectionStore
@@ -20,6 +21,7 @@ import com.apoorvdarshan.verceltics.data.registrar.RegistrarHttpTransport
 import com.apoorvdarshan.verceltics.data.registrar.RegistrarProvider
 import com.apoorvdarshan.verceltics.data.registrar.RegistrarRawApi
 import com.apoorvdarshan.verceltics.data.registrar.RegistrarRawHttpRequest
+import com.apoorvdarshan.verceltics.data.registrar.RegistrarSavedAccount
 import com.apoorvdarshan.verceltics.data.registrar.RegistrarStoredConnection
 import com.apoorvdarshan.verceltics.data.registrar.SecureRegistrarHttpTransport
 import com.apoorvdarshan.verceltics.data.registrar.TestAccountCipher
@@ -89,14 +91,23 @@ class RegistrarCompleteApiTest {
                 gateway.sendApiRequest("dynadot", ProviderRawRequest("GET", "/api3.json?command=list_domain")).exceptionOrNull()?.message,
             )
             repository.save(
-                RegistrarStoredConnection(
-                    RegistrarAccount(
-                        "Dynadot",
-                        RegistrarCredentials.fromInput(RegistrarProvider.DYNADOT, SecretValue.of("key-1234567"), null),
-                        1L,
-                        1L,
+                RegistrarAccountSet(
+                    provider = RegistrarProvider.DYNADOT,
+                    accounts = listOf(
+                        RegistrarSavedAccount(
+                            "dynadot-1",
+                            RegistrarStoredConnection(
+                                RegistrarAccount(
+                                    "Dynadot",
+                                    RegistrarCredentials.fromInput(RegistrarProvider.DYNADOT, SecretValue.of("key-1234567"), null),
+                                    1L,
+                                    1L,
+                                ),
+                                null,
+                            ),
+                        ),
                     ),
-                    null,
+                    activeAccountId = "dynadot-1",
                 ),
             )
             val response = gateway.sendApiRequest("dynadot", ProviderRawRequest("GET", "/api3.json?command=list_domain")).getOrThrow()

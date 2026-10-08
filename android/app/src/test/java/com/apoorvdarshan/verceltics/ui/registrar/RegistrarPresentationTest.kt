@@ -172,6 +172,43 @@ class RegistrarPresentationTest {
         assertTrue(SampleRegistrarUiGateway.refresh("porkbun").isFailure)
     }
 
+    @Test
+    fun phonesKeepTheSingleColumnLayout() {
+        listOf(320f, 411f, 599f).forEach { width ->
+            assertEquals(RegistrarScreenLayout(isRegular = false, sidePaddingDp = 18f, columns = 1), RegistrarLayout.dashboard(width))
+            assertEquals(RegistrarScreenLayout(isRegular = false, sidePaddingDp = 18f, columns = 1), RegistrarLayout.detail(width))
+        }
+    }
+
+    @Test
+    fun regularWidthsUseIosAdaptiveColumnsAndContentWidths() {
+        // 600 dp: regular padding, but two 340 dp columns do not fit yet.
+        assertEquals(RegistrarScreenLayout(isRegular = true, sidePaddingDp = 24f, columns = 1), RegistrarLayout.dashboard(600f))
+        assertEquals(1, RegistrarLayout.detail(600f).columns)
+        // iPad mini width: two columns.
+        assertEquals(2, RegistrarLayout.dashboard(744f).columns)
+        assertEquals(2, RegistrarLayout.detail(744f).columns)
+        // 840 dp (expanded): grid and side-by-side detail.
+        assertEquals(2, RegistrarLayout.dashboard(840f).columns)
+        assertEquals(2, RegistrarLayout.detail(840f).columns)
+        // Wide windows cap the content (1180 dp dashboard, 920 dp detail) and center it.
+        val wide = RegistrarLayout.dashboard(1400f)
+        assertEquals(3, wide.columns)
+        assertEquals((1400f - 1180f) / 2 + 24f, wide.sidePaddingDp)
+        val wideDetail = RegistrarLayout.detail(1400f)
+        assertEquals(2, wideDetail.columns)
+        assertEquals((1400f - 920f) / 2 + 24f, wideDetail.sidePaddingDp)
+    }
+
+    @Test
+    fun emptyNameserverHintPointsToTheCompleteApiExplorer() {
+        assertEquals(
+            "The list endpoint did not include nameservers. Open the Complete API explorer for the domain detail or DNS route.",
+            REGISTRAR_EMPTY_NAMESERVERS_HINT,
+        )
+        assertTrue(registrarAddAccountExplanation(RegistrarProvider.GANDI).startsWith("Your saved Gandi accounts stay connected."))
+    }
+
     private fun expires(days: Int): Long = NOW + days * DAY + if (days >= 0) DAY / 2 else -DAY / 2
 
     private fun domain(name: String, days: Int?, autoRenew: Boolean? = true) = RegistrarDomainUi(

@@ -333,7 +333,7 @@ class RegistrarApiException(
     }
 }
 
-/** Account label plus the encrypted credentials for one registrar slot. */
+/** Account label plus the encrypted credentials for one saved registrar account. */
 class RegistrarAccount(
     val displayName: String,
     val credentials: RegistrarCredentials,
@@ -402,9 +402,12 @@ enum class RegistrarRestoreProblem {
 sealed interface RegistrarRestoreResult {
     data object NotConnected : RegistrarRestoreResult
 
+    /** The active account (with its own cached portfolio) and every saved account's summary. */
     data class Restored(
         val provider: RegistrarProvider,
+        val accountId: String,
         val accountName: String,
+        val accounts: List<RegistrarAccountSummary>,
         val cachedSnapshot: RegistrarSnapshot?,
         val cacheIsStale: Boolean,
     ) : RegistrarRestoreResult

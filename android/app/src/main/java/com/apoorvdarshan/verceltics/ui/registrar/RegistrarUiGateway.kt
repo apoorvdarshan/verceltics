@@ -12,12 +12,29 @@ interface RegistrarUiGateway {
     /** Offline restore of every registrar slot; never contacts a registrar. */
     suspend fun restore(): Result<RegistrarRestoreUi>
 
-    /** Validates credentials against the registrar API, then saves them encrypted. */
+    /**
+     * Validates credentials against the registrar API, then saves them encrypted as the active
+     * account. Other saved accounts of the registrar stay connected; reconnecting an identity that
+     * is already saved rotates its credentials in place.
+     */
     suspend fun connect(request: RegistrarConnectRequest): Result<RegistrarDashboardUi>
 
+    /** Refreshes the registrar's active account. */
     suspend fun refresh(providerId: String): Result<RegistrarDashboardUi>
 
+    /** Removes every saved account of the registrar (iOS "Remove All"). */
     suspend fun disconnect(providerId: String): Result<Unit>
+
+    /** Makes another saved account active, offline; it opens with its own cached portfolio. */
+    suspend fun switchAccount(providerId: String, accountId: String): Result<RegistrarProviderRestoreUi> =
+        Result.failure(RegistrarUiException(ACCOUNTS_UNAVAILABLE))
+
+    /**
+     * Removes one saved account (iOS "Remove Current"). The result is the registrar's new state:
+     * the next active account, or [RegistrarProviderRestoreUi.NotConnected] after the last one.
+     */
+    suspend fun removeAccount(providerId: String, accountId: String): Result<RegistrarProviderRestoreUi> =
+        Result.failure(RegistrarUiException(ACCOUNTS_UNAVAILABLE))
 
     /** Public IPv4 of this network for Namecheap's ClientIp / Name.com's optional allowlist. */
     suspend fun detectPublicIpv4(): Result<String>
@@ -32,6 +49,7 @@ interface RegistrarUiGateway {
     companion object {
         const val SAMPLE_API_UNAVAILABLE: String =
             "Sample data can’t send live API requests. Connect an account to use the Complete API."
+        const val ACCOUNTS_UNAVAILABLE: String = "Saved registrar accounts can’t be changed here."
     }
 }
 
@@ -58,9 +76,13 @@ data class RegistrarRestoreUi(
 sealed interface RegistrarProviderRestoreUi {
     data object NotConnected : RegistrarProviderRestoreUi
 
+    /** The active account's cached portfolio; [RegistrarDashboardUi.accounts] lists every account. */
     data class Available(val dashboard: RegistrarDashboardUi) : RegistrarProviderRestoreUi
 
-    data class SavedWithoutInventory(val account: RegistrarAccountUi) : RegistrarProviderRestoreUi
+    data class SavedWithoutInventory(
+        val account: RegistrarAccountUi,
+        val accounts: List<RegistrarAccountUi> = listOf(account),
+    ) : RegistrarProviderRestoreUi
 
     data class SavedUnavailable(val message: String) : RegistrarProviderRestoreUi
 }
@@ -74,6 +96,8 @@ enum class RegistrarCacheState {
 data class RegistrarAccountUi(
     val providerId: String,
     val displayName: String,
+    /** Opaque id of this saved account within its registrar (empty only in single-account fixtures). */
+    val id: String = "",
 )
 
 data class RegistrarDomainUi(
@@ -89,6 +113,7 @@ data class RegistrarDomainUi(
 )
 
 data class RegistrarDashboardUi(
+    /** The active account this portfolio belongs to. */
     val account: RegistrarAccountUi,
     /** Sorted case-insensitively by name, like the iOS dashboard. */
     val domains: List<RegistrarDomainUi>,
@@ -96,6 +121,8 @@ data class RegistrarDashboardUi(
     val warnings: List<String>,
     val fetchedAtMillis: Long,
     val cacheState: RegistrarCacheState,
+    /** Every saved account of this registrar, in saved order (always includes [account]). */
+    val accounts: List<RegistrarAccountUi> = listOf(account),
 ) {
     val isPartial: Boolean
         get() = !inventoryComplete || warnings.isNotEmpty()

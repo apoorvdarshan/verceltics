@@ -69,17 +69,19 @@ internal class RegistrarRollbackEnvelope(val bytes: ByteArray?) {
     override fun toString(): String = "RegistrarRollbackEnvelope(<redacted>)"
 }
 
-internal class RegistrarVersionedConnection(
-    val connection: RegistrarStoredConnection,
+internal class RegistrarVersionedAccounts(
+    val accounts: RegistrarAccountSet,
     val revision: RegistrarRecordRevision,
 ) {
-    override fun toString(): String = "RegistrarVersionedConnection(<redacted>)"
+    override fun toString(): String = "RegistrarVersionedAccounts(<redacted>)"
 }
 
 /**
- * One encrypted, atomic, no-backup record per registrar provider. Several registrars can be
- * connected at once; each slot has its own file, authenticated-data domain, revision and pending
- * commit, so a corrupted or in-flight record never affects another registrar. All slots share one
+ * One encrypted, atomic, no-backup record per registrar provider holding every saved account of
+ * that registrar ([RegistrarAccountSet]). Several registrars can be connected at once; each slot has
+ * its own file, authenticated-data domain, revision and pending commit, so a corrupted or in-flight
+ * record never affects another registrar. Records written before multiple accounts existed keep
+ * their path and authenticated data and are decoded losslessly. All slots share one
  * non-exportable AndroidKeyStore key dedicated to registrars.
  */
 class RegistrarConnectionRepository internal constructor(
@@ -91,10 +93,10 @@ class RegistrarConnectionRepository internal constructor(
     private val pendingCommits = mutableMapOf<RegistrarProvider, RegistrarRecordCommit>()
 
     @Synchronized
-    fun load(provider: RegistrarProvider): RegistrarStoredConnection? = loadWithRevision(provider)?.connection
+    fun load(provider: RegistrarProvider): RegistrarAccountSet? = loadWithRevision(provider)?.accounts
 
     @Synchronized
-    internal fun loadWithRevision(provider: RegistrarProvider): RegistrarVersionedConnection? {
+    internal fun loadWithRevision(provider: RegistrarProvider): RegistrarVersionedAccounts? {
         val envelopeBytes = store(provider).read() ?: return null
         val associatedData = associatedData(provider).toByteArray(StandardCharsets.UTF_8)
         var plaintext: ByteArray? = null
@@ -102,11 +104,11 @@ class RegistrarConnectionRepository internal constructor(
             val revision = RegistrarRecordRevision.from(envelopeBytes)
             val sealedPayload = AccountEnvelopeCodec.decode(envelopeBytes)
             plaintext = cipher.decrypt(sealedPayload, associatedData)
-            val connection = RegistrarConnectionPayloadCodec.decode(plaintext)
-            require(connection.account.provider == provider) {
+            val accounts = RegistrarConnectionPayloadCodec.decode(plaintext)
+            require(accounts.provider == provider) {
                 "The registrar record does not match its storage slot."
             }
-            RegistrarVersionedConnection(connection, revision)
+            RegistrarVersionedAccounts(accounts, revision)
         } finally {
             envelopeBytes.fill(0)
             associatedData.fill(0)
@@ -115,10 +117,10 @@ class RegistrarConnectionRepository internal constructor(
     }
 
     @Synchronized
-    fun save(connection: RegistrarStoredConnection) {
-        val provider = connection.account.provider
+    fun save(accounts: RegistrarAccountSet) {
+        val provider = accounts.provider
         check(pendingCommits[provider] == null) { "A registrar connection replacement is already pending." }
-        val envelope = encryptedEnvelope(connection)
+        val envelope = encryptedEnvelope(accounts)
         try {
             store(provider).write(envelope)
         } finally {
@@ -127,14 +129,14 @@ class RegistrarConnectionRepository internal constructor(
     }
 
     @Synchronized
-    internal fun saveWithRevision(connection: RegistrarStoredConnection): RegistrarRecordCommit {
-        val provider = connection.account.provider
+    internal fun saveWithRevision(accounts: RegistrarAccountSet): RegistrarRecordCommit {
+        val provider = accounts.provider
         check(pendingCommits[provider] == null) { "A registrar connection replacement is already pending." }
         val store = store(provider)
         var previousEnvelope = store.read()
         var envelope: ByteArray? = null
         return try {
-            envelope = encryptedEnvelope(connection)
+            envelope = encryptedEnvelope(accounts)
             store.write(envelope)
             RegistrarRecordCommit(
                 provider = provider,
@@ -154,16 +156,16 @@ class RegistrarConnectionRepository internal constructor(
     @Synchronized
     internal fun saveIfRevisionMatches(
         expectedRevision: RegistrarRecordRevision,
-        connection: RegistrarStoredConnection,
+        accounts: RegistrarAccountSet,
     ): Boolean {
-        val provider = connection.account.provider
+        val provider = accounts.provider
         if (pendingCommits[provider] != null) return false
         val store = store(provider)
         val currentEnvelope = store.read() ?: return false
         var replacementEnvelope: ByteArray? = null
         return try {
             if (!expectedRevision.matches(currentEnvelope)) return false
-            replacementEnvelope = encryptedEnvelope(connection)
+            replacementEnvelope = encryptedEnvelope(accounts)
             store.write(replacementEnvelope)
             true
         } finally {
@@ -201,7 +203,7 @@ class RegistrarConnectionRepository internal constructor(
         }
     }
 
-    /** Only an explicit user disconnect flow should erase a registrar slot. */
+    /** Only an explicit user removal of every account (or of the last one) erases a registrar slot. */
     @Synchronized
     fun delete(provider: RegistrarProvider) {
         pendingCommits.remove(provider)?.accept()?.fill(0)
@@ -212,9 +214,9 @@ class RegistrarConnectionRepository internal constructor(
     private fun store(provider: RegistrarProvider): AtomicBytesStore =
         stores.getOrPut(provider) { storeFactory(provider) }
 
-    private fun encryptedEnvelope(connection: RegistrarStoredConnection): ByteArray {
-        val provider = connection.account.provider
-        val plaintext = RegistrarConnectionPayloadCodec.encode(connection)
+    private fun encryptedEnvelope(accounts: RegistrarAccountSet): ByteArray {
+        val provider = accounts.provider
+        val plaintext = RegistrarConnectionPayloadCodec.encode(accounts)
         val associatedData = associatedData(provider).toByteArray(StandardCharsets.UTF_8)
         return try {
             AccountEnvelopeCodec.encode(cipher.encrypt(plaintext, associatedData))

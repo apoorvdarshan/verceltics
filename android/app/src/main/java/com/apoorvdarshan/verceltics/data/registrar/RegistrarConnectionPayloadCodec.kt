@@ -7,9 +7,17 @@ import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.nio.charset.StandardCharsets
 
-/** Plaintext exists only between this codec and authenticated encryption. */
+/**
+ * Plaintext exists only between this codec and authenticated encryption.
+ *
+ * Version 2 stores every saved account of one registrar plus the active one. Version 1 (one
+ * account per registrar, written before multiple accounts existed) is still decoded: its account
+ * becomes the only, active account with id [RegistrarAccountSet.MIGRATED_ACCOUNT_ID]. The record is
+ * rewritten as version 2 only by the next explicit change, so restoring never modifies it.
+ */
 internal object RegistrarConnectionPayloadCodec {
-    private const val PAYLOAD_VERSION = 1
+    private const val LEGACY_PAYLOAD_VERSION = 1
+    private const val PAYLOAD_VERSION = 2
     private const val MAX_ID_BYTES = 256
     private const val MAX_NAME_BYTES = 4_096
     private const val MAX_SECRET_BYTES = 65_536
@@ -24,32 +32,63 @@ internal object RegistrarConnectionPayloadCodec {
     internal const val MAX_NAMESERVER_BYTES = 1_024
     internal const val MAX_PLAINTEXT_BYTES = 448 * 1024
 
-    fun encode(connection: RegistrarStoredConnection): ByteArray {
+    fun encode(accounts: RegistrarAccountSet): ByteArray = encodeWith { output ->
+        output.writeInt(PAYLOAD_VERSION)
+        writeString(output, accounts.provider.id, MAX_ID_BYTES)
+        output.writeInt(accounts.accounts.size)
+        output.writeInt(accounts.accounts.indexOfFirst { it.id == accounts.activeAccountId })
+        accounts.accounts.forEach { saved ->
+            writeString(output, saved.id, RegistrarAccountSet.MAX_ACCOUNT_ID_CHARACTERS)
+            writeConnection(output, saved.connection)
+        }
+    }
+
+    /** The pre-multi-account (version 1) layout. Only migration tests write it now. */
+    fun encodeLegacy(connection: RegistrarStoredConnection): ByteArray = encodeWith { output ->
+        output.writeInt(LEGACY_PAYLOAD_VERSION)
+        writeString(output, connection.account.provider.id, MAX_ID_BYTES)
+        writeConnection(output, connection)
+    }
+
+    fun decode(bytes: ByteArray): RegistrarAccountSet {
+        require(bytes.size <= MAX_PLAINTEXT_BYTES) { "The registrar payload is too large." }
+        DataInputStream(ByteArrayInputStream(bytes)).use { input ->
+            val version = input.readInt()
+            require(version == LEGACY_PAYLOAD_VERSION || version == PAYLOAD_VERSION) {
+                "Unsupported registrar payload version."
+            }
+            val provider = requireNotNull(RegistrarProvider.fromId(readString(input, MAX_ID_BYTES))) {
+                "Unknown registrar provider."
+            }
+            val accounts = if (version == LEGACY_PAYLOAD_VERSION) {
+                RegistrarAccountSet(
+                    provider = provider,
+                    accounts = listOf(
+                        RegistrarSavedAccount(RegistrarAccountSet.MIGRATED_ACCOUNT_ID, readConnection(input, provider)),
+                    ),
+                    activeAccountId = RegistrarAccountSet.MIGRATED_ACCOUNT_ID,
+                )
+            } else {
+                val count = input.readInt()
+                require(count in 1..RegistrarAccountSet.MAX_ACCOUNTS) { "Invalid registrar account count." }
+                val activeIndex = input.readInt()
+                require(activeIndex in 0 until count) { "Invalid active registrar account." }
+                val saved = List(count) {
+                    val id = readString(input, RegistrarAccountSet.MAX_ACCOUNT_ID_CHARACTERS)
+                    RegistrarSavedAccount(id, readConnection(input, provider))
+                }
+                RegistrarAccountSet(provider, saved, saved[activeIndex].id)
+            }
+            require(input.available() == 0) { "Unexpected trailing registrar account data." }
+            return accounts
+        }
+    }
+
+    private inline fun encodeWith(write: (DataOutputStream) -> Unit): ByteArray {
         val bytes = WipingRegistrarPayloadStream()
         val output = DataOutputStream(bytes)
         return try {
-            val account = connection.account
-            output.writeInt(PAYLOAD_VERSION)
-            writeString(output, account.provider.id, MAX_ID_BYTES)
-            writeString(output, account.displayName, MAX_NAME_BYTES)
-            writeSecret(output, account.credentials.primary)
-            output.writeBoolean(account.credentials.secondary != null)
-            account.credentials.secondary?.let { writeSecret(output, it) }
-            writeMetadata(output, account.credentials.metadata)
-            output.writeLong(account.createdAtMillis)
-            output.writeLong(account.updatedAtMillis)
-            output.writeBoolean(connection.cachedSnapshot != null)
-            connection.cachedSnapshot?.let { snapshot ->
-                writeString(output, snapshot.accountName, MAX_NAME_BYTES)
-                output.writeLong(snapshot.fetchedAtMillis)
-                output.writeBoolean(snapshot.domainsComplete)
-                require(snapshot.warnings.size <= MAX_WARNINGS) { "Too many registrar warnings." }
-                output.writeInt(snapshot.warnings.size)
-                snapshot.warnings.forEach { writeString(output, it, MAX_WARNING_BYTES) }
-                require(snapshot.domains.size <= MAX_CACHED_DOMAINS) { "Too many cached registrar domains." }
-                output.writeInt(snapshot.domains.size)
-                snapshot.domains.forEach { writeDomain(output, it) }
-            }
+            write(output)
             output.flush()
             bytes.toByteArray().also {
                 require(it.size <= MAX_PLAINTEXT_BYTES) { "The registrar cache is too large to store safely." }
@@ -59,50 +98,71 @@ internal object RegistrarConnectionPayloadCodec {
         }
     }
 
-    fun decode(bytes: ByteArray): RegistrarStoredConnection {
-        require(bytes.size <= MAX_PLAINTEXT_BYTES) { "The registrar payload is too large." }
-        DataInputStream(ByteArrayInputStream(bytes)).use { input ->
-            require(input.readInt() == PAYLOAD_VERSION) { "Unsupported registrar payload version." }
-            val provider = requireNotNull(RegistrarProvider.fromId(readString(input, MAX_ID_BYTES))) {
-                "Unknown registrar provider."
-            }
-            val displayName = readString(input, MAX_NAME_BYTES)
-            val primary = readSecret(input)
-            val secondary = if (input.readBoolean()) readSecret(input) else null
-            val metadata = readMetadata(input)
-            val account = RegistrarAccount(
-                displayName = displayName,
-                credentials = RegistrarCredentials(provider, primary, secondary, metadata),
-                createdAtMillis = input.readLong(),
-                updatedAtMillis = input.readLong(),
-            )
-            val snapshot = if (input.readBoolean()) {
-                val accountName = readString(input, MAX_NAME_BYTES)
-                val fetchedAtMillis = input.readLong()
-                val complete = input.readBoolean()
-                val warnings = List(readCount(input, MAX_WARNINGS, "warning")) {
-                    readString(input, MAX_WARNING_BYTES)
-                }
-                val domains = List(readCount(input, MAX_CACHED_DOMAINS, "domain")) { readDomain(input) }
-                RegistrarSnapshot(
-                    provider = provider,
-                    accountName = accountName,
-                    domains = domains,
-                    fetchedAtMillis = fetchedAtMillis,
-                    domainsComplete = complete,
-                    warnings = warnings,
-                )
-            } else {
-                null
-            }
-            require(input.available() == 0) { "Unexpected trailing registrar account data." }
-            return RegistrarStoredConnection(account, snapshot)
+    private fun writeConnection(output: DataOutputStream, connection: RegistrarStoredConnection) {
+        val account = connection.account
+        writeString(output, account.displayName, MAX_NAME_BYTES)
+        writeSecret(output, account.credentials.primary)
+        output.writeBoolean(account.credentials.secondary != null)
+        account.credentials.secondary?.let { writeSecret(output, it) }
+        writeMetadata(output, account.credentials.metadata)
+        output.writeLong(account.createdAtMillis)
+        output.writeLong(account.updatedAtMillis)
+        output.writeBoolean(connection.cachedSnapshot != null)
+        connection.cachedSnapshot?.let { snapshot ->
+            writeString(output, snapshot.accountName, MAX_NAME_BYTES)
+            output.writeLong(snapshot.fetchedAtMillis)
+            output.writeBoolean(snapshot.domainsComplete)
+            require(snapshot.warnings.size <= MAX_WARNINGS) { "Too many registrar warnings." }
+            output.writeInt(snapshot.warnings.size)
+            snapshot.warnings.forEach { writeString(output, it, MAX_WARNING_BYTES) }
+            require(snapshot.domains.size <= MAX_CACHED_DOMAINS) { "Too many cached registrar domains." }
+            output.writeInt(snapshot.domains.size)
+            snapshot.domains.forEach { writeDomain(output, it) }
         }
     }
 
+    private fun readConnection(input: DataInputStream, provider: RegistrarProvider): RegistrarStoredConnection {
+        val displayName = readString(input, MAX_NAME_BYTES)
+        val primary = readSecret(input)
+        val secondary = if (input.readBoolean()) readSecret(input) else null
+        val metadata = readMetadata(input)
+        val account = RegistrarAccount(
+            displayName = displayName,
+            credentials = RegistrarCredentials(provider, primary, secondary, metadata),
+            createdAtMillis = input.readLong(),
+            updatedAtMillis = input.readLong(),
+        )
+        val snapshot = if (input.readBoolean()) {
+            val accountName = readString(input, MAX_NAME_BYTES)
+            val fetchedAtMillis = input.readLong()
+            val complete = input.readBoolean()
+            val warnings = List(readCount(input, MAX_WARNINGS, "warning")) {
+                readString(input, MAX_WARNING_BYTES)
+            }
+            val domains = List(readCount(input, MAX_CACHED_DOMAINS, "domain")) { readDomain(input) }
+            RegistrarSnapshot(
+                provider = provider,
+                accountName = accountName,
+                domains = domains,
+                fetchedAtMillis = fetchedAtMillis,
+                domainsComplete = complete,
+                warnings = warnings,
+            )
+        } else {
+            null
+        }
+        return RegistrarStoredConnection(account, snapshot)
+    }
+
+    /**
+     * Exact encoded size of a cached snapshot without its domains (account name, timestamp,
+     * completeness and warnings, plus the domain count), excluding the presence flag.
+     */
+    fun encodedSnapshotHeaderSize(accountName: String, warnings: List<String>): Int =
+        stringSize(accountName) + 8 + 1 + 4 + warnings.sumOf(::stringSize) + 4
+
     /** Exact encoded size of one cached domain, used to keep the offline cache within budget. */
     fun encodedDomainSize(domain: RegistrarDomain): Int {
-        fun stringSize(value: String) = 4 + value.toByteArray(StandardCharsets.UTF_8).size
         fun nullableStringSize(value: String?) = 1 + (value?.let(::stringSize) ?: 0)
         return stringSize(domain.name) +
             nullableStringSize(domain.status) +
@@ -112,6 +172,8 @@ internal object RegistrarConnectionPayloadCodec {
             4 + domain.nameservers.sumOf(::stringSize) +
             4 + domain.metadata.entries.sumOf { stringSize(it.key) + stringSize(it.value) }
     }
+
+    private fun stringSize(value: String): Int = 4 + value.toByteArray(StandardCharsets.UTF_8).size
 
     private fun writeDomain(output: DataOutputStream, domain: RegistrarDomain) {
         writeString(output, domain.name, MAX_DOMAIN_NAME_BYTES)

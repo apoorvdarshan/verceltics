@@ -150,6 +150,57 @@ class NativeRegistrarUiGatewayTest {
     }
 
     @Test
+    fun accountsCanBeAddedSwitchedAndRemovedWithoutDisconnectingTheRegistrar() = runBlocking {
+        val fixture = Fixture(handler = { request ->
+            val token = request.headers["Authorization"].orEmpty()
+            FakeRegistrarResponse(200, if (token.endsWith("pat-one")) """[{"fqdn":"one.example"}]""" else """[{"fqdn":"two.example"}]""")
+        })
+        try {
+            val first = fixture.gateway.connect(gandiRequest("pat-one", organization = "One Org")).getOrThrow()
+            val second = fixture.gateway.connect(gandiRequest("pat-two", organization = "Two Org")).getOrThrow()
+
+            assertEquals("Two Org", second.account.displayName)
+            assertEquals(listOf("One Org", "Two Org"), second.accounts.map { it.displayName })
+            assertEquals(listOf(first.account.id, second.account.id), second.accounts.map { it.id })
+            assertTrue(first.account.id.isNotEmpty() && first.account.id != second.account.id)
+
+            val switched = fixture.gateway.switchAccount("gandi", first.account.id).getOrThrow()
+                as RegistrarProviderRestoreUi.Available
+            assertEquals(first.account.id, switched.dashboard.account.id)
+            assertEquals(listOf("one.example"), switched.dashboard.domains.map { it.name })
+            assertEquals(RegistrarCacheState.CACHED_FRESH, switched.dashboard.cacheState)
+
+            // Refresh and the Complete API use the active account's credentials.
+            fixture.transport.requests.clear()
+            fixture.gateway.refresh("gandi").getOrThrow()
+            assertEquals("Bearer pat-one", fixture.transport.requests.single().headers["Authorization"])
+
+            val restored = fixture.gateway.restore().getOrThrow().providers.getValue("gandi")
+                as RegistrarProviderRestoreUi.Available
+            assertEquals(first.account.id, restored.dashboard.account.id)
+            assertEquals(2, restored.dashboard.accounts.size)
+
+            val afterRemoval = fixture.gateway.removeAccount("gandi", first.account.id).getOrThrow()
+                as RegistrarProviderRestoreUi.Available
+            assertEquals(second.account.id, afterRemoval.dashboard.account.id)
+            assertEquals(listOf("two.example"), afterRemoval.dashboard.domains.map { it.name })
+            assertEquals(listOf(second.account.id), afterRemoval.dashboard.accounts.map { it.id })
+
+            assertEquals(
+                "That Gandi account is no longer saved on this device.",
+                fixture.gateway.switchAccount("gandi", first.account.id).exceptionOrNull()?.message,
+            )
+            assertEquals(
+                RegistrarProviderRestoreUi.NotConnected,
+                fixture.gateway.removeAccount("gandi", second.account.id).getOrThrow(),
+            )
+            assertNull(fixture.stores.getValue(RegistrarProvider.GANDI).bytes)
+        } finally {
+            fixture.close()
+        }
+    }
+
+    @Test
     fun unreadableRecordsRestoreAsAttentionWithoutDeletion() = runBlocking {
         val fixture = Fixture()
         try {
@@ -206,7 +257,7 @@ class NativeRegistrarUiGatewayTest {
             assertArrayEquals(original, blocking.read())
             assertEquals(
                 SecretValue.of("original"),
-                checkNotNull(fixture.repository.load(RegistrarProvider.GANDI)).account.credentials.primary,
+                checkNotNull(fixture.repository.load(RegistrarProvider.GANDI)).active.connection.account.credentials.primary,
             )
         } finally {
             fixture.close()
@@ -252,10 +303,10 @@ class NativeRegistrarUiGatewayTest {
         }
     }
 
-    private fun gandiRequest(token: String) = RegistrarConnectRequest(
+    private fun gandiRequest(token: String, organization: String = " Example Org ") = RegistrarConnectRequest(
         providerId = "gandi",
         apiKey = SecretValue.of(token),
-        organization = " Example Org ",
+        organization = organization,
     )
 
     private class Fixture(
