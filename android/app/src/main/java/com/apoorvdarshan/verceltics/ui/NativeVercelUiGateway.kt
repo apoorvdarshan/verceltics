@@ -84,7 +84,8 @@ class NativeVercelUiGateway private constructor(
 
     /**
      * Validates the token and loads its dashboard, then saves it as the active account. Other
-     * saved accounts stay saved; the same Vercel identity has its token rotated in place.
+     * saved accounts stay saved. Like iOS, the same token updates its saved account in place;
+     * any other token, even for the same Vercel user, is saved as a separate account.
      */
     override suspend fun connect(personalToken: String): Result<VercelDashboardUi> = capture {
         val secret = SecretValue.of(personalToken.trim())
@@ -96,7 +97,7 @@ class NativeVercelUiGateway private constructor(
                 .connect(candidate, nowMillis = System.currentTimeMillis())
                 .also(accountRepository::saveAll)
         }
-        // A rotated identity keeps what was saved for it, such as long analytics history.
+        // A reconnected token keeps its local id and what was saved for it (analytics history).
         connectedDashboard.copy(account = checkNotNull(saved.active).toUi())
     }
 
@@ -265,9 +266,9 @@ class NativeVercelUiGateway private constructor(
      */
     private fun VercelAccounts.withRefreshedProfile(update: ProfileUpdate): VercelAccounts {
         val account = find(update.accountId) ?: return this
-        if (account.token != update.token || update.user.id != account.id) return this
+        if (account.token != update.token || update.user.id != account.vercelUserId) return this
         val refreshed = runCatching {
-            val profile = api.accountForValidatedUser(update.user, account.token)
+            val profile = api.accountForValidatedUser(update.user, account.token, accountId = account.id)
             account.withProfile(
                 displayName = profile.displayName,
                 email = profile.email,
@@ -669,6 +670,7 @@ internal fun VercelAccount.toUi(): VercelAccountUi = VercelAccountUi(
     hasLongAnalyticsHistory = hasLongAnalyticsHistory,
     id = id,
     avatarUrl = VercelAvatarPolicy.avatarUrl(avatar),
+    vercelUserId = vercelUserId,
 )
 
 internal fun VercelAccounts.toUi(): VercelAccountsUi = VercelAccountsUi(

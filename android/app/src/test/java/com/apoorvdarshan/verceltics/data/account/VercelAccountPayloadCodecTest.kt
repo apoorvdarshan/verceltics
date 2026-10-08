@@ -60,6 +60,7 @@ class VercelAccountPayloadCodecTest {
         val decoded = VercelAccountPayloadCodec.decode(legacy)
 
         assertEquals("user_123", decoded.id)
+        assertEquals("The legacy id was the Vercel user id.", "user_123", decoded.vercelUserId)
         assertEquals(SecretValue.of("legacy-token"), decoded.token)
         assertNull("Legacy accounts learn their username on the next refresh.", decoded.username)
         assertFalse(decoded.hasLongAnalyticsHistory)
@@ -127,17 +128,76 @@ class VercelAccountPayloadCodecTest {
     }
 
     @Test
-    fun anotherIdentityCannotReplaceAnAccount() {
-        val other = VercelAccount(
-            id = "user_other",
-            displayName = "Other",
+    fun onlyTheSameTokenUpdatesAnAccountInPlace() {
+        val saved = account("token").withUsername("apoorv").withLongAnalyticsHistory()
+        val sameToken = VercelAccount(
+            id = "local-new",
+            vercelUserId = "user_123",
+            displayName = "Apoorv Darshan",
+            email = "new@example.com",
+            token = SecretValue.of("token"),
+            createdAtMillis = 9_000L,
+            updatedAtMillis = 9_000L,
+            avatar = "abc",
+        )
+
+        val updated = saved.reconnectedWith(sameToken, nowMillis = 9_000L)
+
+        assertEquals("The local id never changes.", saved.id, updated.id)
+        assertEquals("Apoorv Darshan", updated.displayName)
+        assertEquals("abc", updated.avatar)
+        assertEquals(saved.createdAtMillis, updated.createdAtMillis)
+        assertEquals(9_000L, updated.updatedAtMillis)
+        assertEquals("apoorv", updated.username)
+        assertTrue(updated.hasLongAnalyticsHistory)
+        assertThrows(IllegalArgumentException::class.java) {
+            saved.reconnectedWith(account("another-token"), nowMillis = 5L)
+        }
+    }
+
+    @Test
+    fun versionFourKeepsTheLocalIdApartFromTheVercelUserId() {
+        val original = VercelAccount(
+            id = "3f1c2a52-local",
+            vercelUserId = "user_123",
+            displayName = "Studio token",
             email = null,
-            token = SecretValue.of("other"),
+            token = SecretValue.of("team-token"),
             createdAtMillis = 1L,
             updatedAtMillis = 1L,
         )
 
-        assertThrows(IllegalArgumentException::class.java) { account("token").reconnectedAs(other, nowMillis = 5L) }
+        val decoded = VercelAccountPayloadCodec.decode(VercelAccountPayloadCodec.encode(original))
+
+        assertEquals("3f1c2a52-local", decoded.id)
+        assertEquals("user_123", decoded.vercelUserId)
+    }
+
+    @Test
+    fun recordsBeforeVersionFourUseTheirIdAsBothLocalAndVercelUserId() {
+        val versionThree = ByteArrayOutputStream().also { bytes ->
+            DataOutputStream(bytes).use { output ->
+                output.writeInt(3)
+                output.writeUtf8("vercel")
+                output.writeUtf8("user_123")
+                output.writeUtf8("Apoorv")
+                output.writeBoolean(false)
+                output.writeUtf8("v3-token")
+                output.writeLong(1_000L)
+                output.writeLong(2_000L)
+                output.writeBoolean(false)
+                output.writeBoolean(false)
+                output.writeBoolean(true)
+                output.writeUtf8("avatarhash")
+            }
+        }.toByteArray()
+
+        val decoded = VercelAccountPayloadCodec.decode(versionThree)
+
+        assertEquals("user_123", decoded.id)
+        assertEquals("user_123", decoded.vercelUserId)
+        assertEquals("avatarhash", decoded.avatar)
+        assertEquals(SecretValue.of("v3-token"), decoded.token)
     }
 
     @Test

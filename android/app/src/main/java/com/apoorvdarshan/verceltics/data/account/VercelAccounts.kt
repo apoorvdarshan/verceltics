@@ -4,7 +4,10 @@ package com.apoorvdarshan.verceltics.data.account
  * Every saved Vercel account in connection order, plus the one the app shows (iOS `AuthManager`
  * `accounts` and `activeAccountId`). Immutable: each operation returns the next snapshot.
  *
- * A non-empty list always has an active account; an empty list never does.
+ * Accounts are keyed by their local id and identified by their token, exactly like iOS: the same
+ * token is one account, while another token — even for the same Vercel user, such as a
+ * team-scoped token — is a separate account. A non-empty list always has an active account; an
+ * empty list never does.
  */
 class VercelAccounts private constructor(
     val accounts: List<VercelAccount>,
@@ -13,7 +16,10 @@ class VercelAccounts private constructor(
     init {
         require(accounts.size <= MAX_ACCOUNTS) { "You can save up to $MAX_ACCOUNTS Vercel accounts." }
         require(accounts.map(VercelAccount::id).toSet().size == accounts.size) {
-            "Each Vercel identity can only be saved once."
+            "Each saved Vercel account needs its own id."
+        }
+        require(accounts.map(VercelAccount::token).toSet().size == accounts.size) {
+            "Each Vercel token can only be saved once."
         }
         require((activeAccountId == null) == accounts.isEmpty()) { "Invalid active Vercel account." }
         require(activeAccountId == null || accounts.any { it.id == activeAccountId }) {
@@ -29,19 +35,22 @@ class VercelAccounts private constructor(
 
     fun find(accountId: String): VercelAccount? = accounts.firstOrNull { it.id == accountId }
 
+    /** The saved account holding exactly this token, if any. */
+    fun findByToken(token: SecretValue): VercelAccount? = accounts.firstOrNull { it.token == token }
+
     /**
-     * Saves a freshly validated account and makes it active. Reconnecting an identity that is
-     * already saved rotates its token and profile in place (same position, same id) instead of
-     * adding a second copy.
+     * Saves a freshly validated token and makes its account active (iOS `login(token:)`). When
+     * the same token is already saved, that account's profile is updated in place (same position,
+     * same local id); any other token is added as a new account under [account]'s local id.
      */
     fun connect(account: VercelAccount, nowMillis: Long): VercelAccounts {
-        val existing = find(account.id)
-        val updated = if (existing == null) {
-            accounts + account
-        } else {
-            accounts.map { if (it.id == account.id) it.reconnectedAs(account, nowMillis) else it }
+        val existing = findByToken(account.token)
+        if (existing != null) {
+            val updated = existing.reconnectedWith(account, nowMillis)
+            return VercelAccounts(accounts.map { if (it.id == existing.id) updated else it }, existing.id)
         }
-        return VercelAccounts(updated, account.id)
+        require(find(account.id) == null) { "A new Vercel account needs a new local id." }
+        return VercelAccounts(accounts + account, account.id)
     }
 
     /** Makes a saved account active. */
@@ -61,7 +70,7 @@ class VercelAccounts private constructor(
         return VercelAccounts(remaining, nextActive)
     }
 
-    /** Replaces a saved account with an updated copy of the same identity. */
+    /** Replaces a saved account with an updated copy under the same local id. */
     fun replace(account: VercelAccount): VercelAccounts {
         require(find(account.id) != null) { "That Vercel account is no longer saved on this device." }
         return VercelAccounts(accounts.map { if (it.id == account.id) account else it }, activeAccountId)
@@ -69,31 +78,26 @@ class VercelAccounts private constructor(
 
     /**
      * Folds an account read from the single-account storage of earlier builds into this list
-     * without losing anything. An empty list adopts it as the active account; a list that already
-     * has the identity keeps whichever copy was updated last (merging the analytics flag); any
-     * other list gains it as an extra, inactive account.
+     * without losing anything. An empty list adopts it as the active account. A list that already
+     * holds the same token keeps that account (an interrupted migration), merging the analytics
+     * flag and username. Any other token joins as an extra, inactive account, under a fresh local
+     * id from [newLocalId] if its stored id is already taken.
      */
-    fun adoptingLegacy(legacy: VercelAccount): VercelAccounts {
-        val existing = find(legacy.id) ?: return if (isEmpty) {
-            VercelAccounts(listOf(legacy), legacy.id)
-        } else {
-            VercelAccounts(accounts + legacy, activeAccountId)
+    fun adoptingLegacy(
+        legacy: VercelAccount,
+        newLocalId: () -> String = VercelAccount::newLocalId,
+    ): VercelAccounts {
+        if (isEmpty) return VercelAccounts(listOf(legacy), legacy.id)
+        val sameToken = findByToken(legacy.token)
+        if (sameToken != null) {
+            var merged = sameToken
+            if (legacy.hasLongAnalyticsHistory && !merged.hasLongAnalyticsHistory) merged = merged.withLongAnalyticsHistory()
+            if (merged.username == null && legacy.username != null) merged = merged.withUsername(legacy.username)
+            return if (merged === sameToken) this else replace(merged)
         }
-        if (legacy.updatedAtMillis <= existing.updatedAtMillis && legacy.token == existing.token) {
-            return if (legacy.hasLongAnalyticsHistory && !existing.hasLongAnalyticsHistory) {
-                replace(existing.withLongAnalyticsHistory())
-            } else {
-                this
-            }
-        }
-        val newer = if (legacy.updatedAtMillis >= existing.updatedAtMillis) legacy else existing
-        val older = if (newer === legacy) existing else legacy
-        val merged = if (older.hasLongAnalyticsHistory && !newer.hasLongAnalyticsHistory) {
-            newer.withLongAnalyticsHistory()
-        } else {
-            newer
-        }
-        return replace(merged)
+        var adopted = legacy
+        while (find(adopted.id) != null) adopted = adopted.withLocalId(newLocalId())
+        return VercelAccounts(accounts + adopted, activeAccountId)
     }
 
     override fun toString(): String =

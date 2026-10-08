@@ -7,6 +7,7 @@ import com.apoorvdarshan.verceltics.data.network.ProviderHttpClient
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class VercelApiTest {
@@ -149,7 +150,15 @@ class VercelApiTest {
         )
 
         assertEquals("vercel", account.providerId)
-        assertEquals("user_123", account.id)
+        assertEquals("The Vercel user id is kept apart from the local id.", "user_123", account.vercelUserId)
+        assertTrue("Each validated token gets its own local id.", account.id != account.vercelUserId)
+        assertTrue(
+            account.id != api.accountForValidatedUser(FakeParser.USER, SecretValue.of("token"), nowMillis = 42L).id,
+        )
+        assertEquals(
+            "local-7",
+            api.accountForValidatedUser(FakeParser.USER, SecretValue.of("token"), nowMillis = 42L, accountId = "local-7").id,
+        )
         assertEquals("Apoorv", account.displayName)
         assertEquals(42L, account.createdAtMillis)
     }

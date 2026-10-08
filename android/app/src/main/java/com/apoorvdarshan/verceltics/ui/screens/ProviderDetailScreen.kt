@@ -279,7 +279,7 @@ private fun VercelConnectionPanel(
                 state.status == VercelConnectionStatus.RESTORING ->
                     RestoringVercelConnectionContent()
 
-                // Adding keeps every saved account; the same identity only has its token rotated.
+                // Adding keeps every saved account; an already saved token is updated in place.
                 isAddingAccount -> {
                     VercelTokenConnectForm(
                         title = "Add Vercel account",

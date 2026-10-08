@@ -237,7 +237,8 @@ class VercelConnectionViewModel(
 
     /**
      * Validates and saves a token, then shows its account. While another account is connected
-     * this adds it (or rotates the token of the same Vercel identity) without removing anything.
+     * this adds it without removing anything. Like iOS, an already saved token updates its account
+     * in place, while a different token for the same Vercel user becomes a separate account.
      */
     fun connect(personalToken: String) {
         val adding = _uiState.value.isAddingAccount
@@ -257,7 +258,7 @@ class VercelConnectionViewModel(
                 onSuccess = { dashboard ->
                     val connectedId = dashboard.account.id
                     if (_uiState.value.activeAccountId != connectedId) closeProjectAnalytics()
-                    // A new or rotated token may see different projects: drop what was cached for it.
+                    // Connecting is an explicit reload: nothing cached for this account is reused.
                     dropAccountCaches(connectedId)
                     val accounts = gateway.loadAccounts().getOrNull()?.accounts.orEmpty()
                     showDashboard(
