@@ -40,6 +40,6 @@ Leave everything else unchecked: location, personal info, messages, photos, audi
 
 Provider tokens and dashboard data are sent only to the provider you choose to connect, when you ask to load it. Verceltics and its service providers never receive them, so these answers don't list them as collected. If you'd rather be conservative, you can add **App activity → Other actions** or **Personal info → Other info** as collected for app functionality. Google's guidance treats any off-device transfer as collection, so decide which reading you're comfortable with.
 
-## Before submitting
+## Privacy policy
 
-The privacy policy at verceltics.com/privacy currently describes App Store purchases only. Add Google Play billing and Android Keystore storage before you submit, so the policy matches these answers.
+https://verceltics.com/privacy covers Android and Google Play Billing (updated October 9, 2026), so it matches these answers.
