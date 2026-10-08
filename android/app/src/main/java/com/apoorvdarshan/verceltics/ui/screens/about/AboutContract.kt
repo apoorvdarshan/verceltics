@@ -5,6 +5,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import kotlin.coroutines.cancellation.CancellationException
 
 @Immutable
 data class AboutAppVersion(
@@ -36,8 +37,8 @@ interface AppearancePreferenceStore {
 }
 
 /**
- * Platform update seam. Android intentionally ships with an unconfigured implementation until a
- * trusted Play or release endpoint is selected by the app shell.
+ * Platform update seam. Release builds use Google Play In-App Updates; builds that Google Play did
+ * not install report themselves as unconfigured so the About row stays truthful.
  */
 interface AboutUpdateChecker {
     val isConfigured: Boolean
@@ -54,6 +55,9 @@ sealed interface AboutUpdateResult {
     ) : AboutUpdateResult
 
     data class Failed(val message: String) : AboutUpdateResult
+
+    /** The update service cannot serve this install, for example a sideloaded build. */
+    data object Unavailable : AboutUpdateResult
 }
 
 sealed interface AboutUpdateState {
@@ -62,6 +66,10 @@ sealed interface AboutUpdateState {
     data object Checking : AboutUpdateState
     data class Current(val checkedVersion: String) : AboutUpdateState
 
+    /**
+     * A newer build is ready. [latestVersion] is blank when the store only reports a build number,
+     * in which case the row uses generic copy instead of inventing a version name.
+     */
     data class Available(
         val latestVersion: String,
         val destinationUri: String,
@@ -69,6 +77,10 @@ sealed interface AboutUpdateState {
 
     data class Failed(val message: String) : AboutUpdateState
 }
+
+/** The navigation badge mirrors iOS: it only appears while an update is ready to install. */
+val AboutUpdateState.showsUpdateBadge: Boolean
+    get() = this is AboutUpdateState.Available
 
 enum class AboutDestination(val uri: String) {
     WEBSITE("https://verceltics.com"),
@@ -84,6 +96,7 @@ enum class AboutDestination(val uri: String) {
     DISCORD_FEATURE_REQUEST("https://discord.gg/R798cm6n3h"),
     PRODUCT_HUNT("https://www.producthunt.com/products/verceltics-2"),
     RATE_APP("market://details?id=com.apoorvdarshan.verceltics"),
+    PLAY_STORE_LISTING("https://play.google.com/store/apps/details?id=com.apoorvdarshan.verceltics"),
     MANAGE_SUBSCRIPTION("https://play.google.com/store/account/subscriptions?package=com.apoorvdarshan.verceltics"),
     PRIVACY_POLICY("https://verceltics.com/privacy"),
     TERMS_OF_SERVICE("https://verceltics.com/terms"),
@@ -103,6 +116,12 @@ sealed interface AboutScreenAction {
     data class OpenDestination(val destination: AboutDestination) : AboutScreenAction
     data class OpenExternalUri(val uri: String) : AboutScreenAction
     data object ShareApp : AboutScreenAction
+
+    /** Start the store's in-app update flow, opening [fallbackUri] when that flow is unavailable. */
+    data class InstallUpdate(val fallbackUri: String) : AboutScreenAction
+
+    /** Ask for an in-app rating, opening the store listing when the review flow is unavailable. */
+    data object RateApp : AboutScreenAction
 }
 
 @Stable
@@ -110,7 +129,10 @@ class AboutScreenController(
     private val appearanceStore: AppearancePreferenceStore,
     private val updateChecker: AboutUpdateChecker,
     version: AboutAppVersion,
+    private val nowMillis: () -> Long = System::currentTimeMillis,
 ) {
+    private var lastCheckedAtMillis: Long? = null
+
     var state by mutableStateOf(
         AboutScreenState(
             version = version,
@@ -131,31 +153,58 @@ class AboutScreenController(
         }
     }
 
-    suspend fun checkForUpdates() {
+    /**
+     * Checks the update service. Automatic launch and foreground checks pass `force = false` and
+     * are throttled to once an hour, like the iOS App Store lookup; the About row always forces.
+     */
+    suspend fun checkForUpdates(force: Boolean = true) {
         if (!updateChecker.isConfigured || state.update == AboutUpdateState.Checking) return
+        if (state.update == AboutUpdateState.NotConfigured) return
+        val lastCheckedAt = lastCheckedAtMillis
+        if (!force && lastCheckedAt != null &&
+            nowMillis() - lastCheckedAt < AUTOMATIC_CHECK_INTERVAL_MILLIS
+        ) {
+            return
+        }
 
+        val previous = state.update
         state = state.copy(update = AboutUpdateState.Checking)
-        val result = runCatching { updateChecker.check(state.version) }
-            .getOrElse { AboutUpdateResult.Failed("Unable to check right now") }
-        state = state.copy(
-            update = when (result) {
-                AboutUpdateResult.Current -> AboutUpdateState.Current(state.version.name)
-                is AboutUpdateResult.Available -> AboutUpdateState.Available(
-                    latestVersion = result.latestVersion,
-                    destinationUri = result.destinationUri,
-                )
+        val result = try {
+            updateChecker.check(state.version)
+        } catch (cancellation: CancellationException) {
+            state = state.copy(update = previous)
+            throw cancellation
+        } catch (_: Exception) {
+            AboutUpdateResult.Failed(UPDATE_CHECK_FAILED_MESSAGE)
+        }
+        lastCheckedAtMillis = nowMillis()
+        state = state.copy(update = aboutUpdateState(result, state.version))
+    }
 
-                is AboutUpdateResult.Failed -> AboutUpdateState.Failed(
-                    result.message.ifBlank { "Unable to check right now" },
-                )
-            },
-        )
+    companion object {
+        const val AUTOMATIC_CHECK_INTERVAL_MILLIS: Long = 60L * 60L * 1_000L
+        const val UPDATE_CHECK_FAILED_MESSAGE = "Unable to check right now"
     }
 }
+
+/** Pure result-to-row mapping shared by every update checker. */
+fun aboutUpdateState(result: AboutUpdateResult, version: AboutAppVersion): AboutUpdateState =
+    when (result) {
+        AboutUpdateResult.Current -> AboutUpdateState.Current(version.name)
+        is AboutUpdateResult.Available -> AboutUpdateState.Available(
+            latestVersion = result.latestVersion,
+            destinationUri = result.destinationUri,
+        )
+        is AboutUpdateResult.Failed -> AboutUpdateState.Failed(
+            result.message.ifBlank { AboutScreenController.UPDATE_CHECK_FAILED_MESSAGE },
+        )
+        // A build Google Play cannot update stays "unavailable" rather than a scary failure.
+        AboutUpdateResult.Unavailable -> AboutUpdateState.NotConfigured
+    }
 
 object UnconfiguredAboutUpdateChecker : AboutUpdateChecker {
     override val isConfigured: Boolean = false
 
     override suspend fun check(currentVersion: AboutAppVersion): AboutUpdateResult =
-        AboutUpdateResult.Failed("Android update checks are not configured.")
+        AboutUpdateResult.Unavailable
 }

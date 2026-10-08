@@ -8,7 +8,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,7 +24,6 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import com.apoorvdarshan.verceltics.ui.sample.SampleRegistrarScreen
@@ -59,13 +57,20 @@ import com.apoorvdarshan.verceltics.billing.ProAccessGate
 import com.apoorvdarshan.verceltics.data.hosting.HostingProvider
 import com.apoorvdarshan.verceltics.data.registrar.RegistrarProvider
 import com.apoorvdarshan.verceltics.ui.registrar.RegistrarConnectionCards
+import com.apoorvdarshan.verceltics.ui.registrar.RegistrarConnectionStatus
+import com.apoorvdarshan.verceltics.ui.registrar.RegistrarOperation
 import com.apoorvdarshan.verceltics.ui.registrar.RegistrarRoute
+import com.apoorvdarshan.verceltics.ui.registrar.RegistrarUiState
 import com.apoorvdarshan.verceltics.ui.registrar.RegistrarViewModel
 import com.apoorvdarshan.verceltics.ui.sites.SiteServiceConnectionCards
+import com.apoorvdarshan.verceltics.ui.sites.SiteServiceConnectionStatus
+import com.apoorvdarshan.verceltics.ui.sites.SiteServiceOperation
 import com.apoorvdarshan.verceltics.ui.sites.SiteServiceProviderIds
 import com.apoorvdarshan.verceltics.ui.sites.SiteServiceRoute
+import com.apoorvdarshan.verceltics.ui.sites.SiteServicesUiState
 import com.apoorvdarshan.verceltics.ui.sites.SiteServicesViewModel
 import com.apoorvdarshan.verceltics.ui.sites.connectedProviderIds as connectedSiteServiceIdsOf
+import com.apoorvdarshan.verceltics.ui.hosting.HostingConnectionStatus
 import com.apoorvdarshan.verceltics.ui.hosting.HostingProviderConnectionCards
 import com.apoorvdarshan.verceltics.ui.hosting.HostingProviderRoute
 import com.apoorvdarshan.verceltics.ui.hosting.HostingProvidersViewModel
@@ -79,8 +84,9 @@ import com.apoorvdarshan.verceltics.ui.billing.PaywallScreen
 import com.apoorvdarshan.verceltics.ui.billing.ProAccess
 import com.apoorvdarshan.verceltics.ui.billing.TipJarContent
 import com.apoorvdarshan.verceltics.domain.Workspace
+import com.apoorvdarshan.verceltics.ui.cloudflare.CloudflareConnectionStatus
+import com.apoorvdarshan.verceltics.ui.components.AdaptiveNavigationScaffold
 import com.apoorvdarshan.verceltics.ui.components.AppNavigationDestination
-import com.apoorvdarshan.verceltics.ui.components.AppNavigationDock
 import com.apoorvdarshan.verceltics.ui.components.OffsetPanel
 import com.apoorvdarshan.verceltics.ui.components.ProviderMark
 import com.apoorvdarshan.verceltics.ui.components.StatusPill
@@ -90,10 +96,16 @@ import com.apoorvdarshan.verceltics.ui.cloudflare.CloudflareConnectionCard
 import com.apoorvdarshan.verceltics.ui.cloudflare.CloudflareRoute
 import com.apoorvdarshan.verceltics.ui.cloudflare.CloudflareViewModel
 import com.apoorvdarshan.verceltics.ui.netlify.NetlifyConnectionCard
+import com.apoorvdarshan.verceltics.ui.netlify.NetlifyConnectionStatus
 import com.apoorvdarshan.verceltics.ui.netlify.NetlifyRoute
 import com.apoorvdarshan.verceltics.ui.netlify.NetlifyViewModel
+import com.apoorvdarshan.verceltics.ui.onboarding.FirstConnectionFlow
+import com.apoorvdarshan.verceltics.ui.onboarding.FirstLaunchExperienceStore
+import com.apoorvdarshan.verceltics.ui.onboarding.FirstLaunchPresentation
+import com.apoorvdarshan.verceltics.ui.onboarding.firstLaunchPresentation
 import com.apoorvdarshan.verceltics.ui.pagespeed.PageSpeedCacheState
 import com.apoorvdarshan.verceltics.ui.pagespeed.PageSpeedConnectionStatus
+import com.apoorvdarshan.verceltics.ui.pagespeed.PageSpeedOperation
 import com.apoorvdarshan.verceltics.ui.pagespeed.PageSpeedRoute
 import com.apoorvdarshan.verceltics.ui.pagespeed.PageSpeedUiState
 import com.apoorvdarshan.verceltics.ui.pagespeed.PageSpeedViewModel
@@ -106,16 +118,24 @@ import com.apoorvdarshan.verceltics.ui.screens.about.AboutScreenAction
 import com.apoorvdarshan.verceltics.ui.screens.about.AboutScreenState
 import com.apoorvdarshan.verceltics.ui.screens.about.AboutUpdateState
 import com.apoorvdarshan.verceltics.ui.screens.about.currentAndroidAppVersion
+import com.apoorvdarshan.verceltics.ui.screens.about.showsUpdateBadge
 import com.apoorvdarshan.verceltics.ui.searchconsole.SearchConsoleConnectionCard
+import com.apoorvdarshan.verceltics.ui.searchconsole.SearchConsoleConnectionStatus
+import com.apoorvdarshan.verceltics.ui.searchconsole.SearchConsoleOperation
 import com.apoorvdarshan.verceltics.ui.searchconsole.SearchConsoleRoute
+import com.apoorvdarshan.verceltics.ui.searchconsole.SearchConsoleUiState
 import com.apoorvdarshan.verceltics.ui.searchconsole.SearchConsoleViewModel
+import kotlinx.coroutines.delay
 
 private const val UI_PREFERENCES = "verceltics.ui"
 private const val LAST_PRIMARY_WORKSPACE = "lastPrimaryWorkspace"
-private const val PAGE_SPEED_PROVIDER_ID = "pageSpeed"
+internal const val PAGE_SPEED_PROVIDER_ID = "pageSpeed"
 private const val NETLIFY_PROVIDER_ID = "netlify"
 private const val CLOUDFLARE_PROVIDER_ID = "cloudflare"
-private const val SEARCH_CONSOLE_PROVIDER_ID = "googleSearchConsole"
+internal const val SEARCH_CONSOLE_PROVIDER_ID = "googleSearchConsole"
+
+/** Upper bound on the first-launch loading screen if a saved connection is slow to restore. */
+private const val RESTORE_WAIT_MILLIS = 2_500L
 
 private enum class MainDestination(
     val id: String,
@@ -147,11 +167,16 @@ private enum class MainDestination(
 }
 
 /**
- * Native Android app shell matching the SwiftUI MainTabView hierarchy.
+ * Native Android app shell matching the SwiftUI app root and MainTabView hierarchy.
  *
  * Four destinations are persistent. Search is a contextual action that focuses the current or
  * last primary workspace; it is deliberately not a fifth destination and tab taps do not build a
- * synthetic back stack.
+ * synthetic back stack. Compact windows use the bottom dock and windows at least 600dp wide use a
+ * navigation rail.
+ *
+ * When [firstLaunchExperience] is supplied and nothing is connected, the tabs are hidden and the
+ * first-connection flow (one-time welcome, then the connect catalog) is shown instead, like iOS.
+ * [onProjectsFirstLoaded] is forwarded from the Vercel workspace for the one-time rating prompt.
  */
 @Composable
 fun VercelticsApp(
@@ -172,6 +197,8 @@ fun VercelticsApp(
     onRequestGoogleSignIn: (Set<String>) -> Unit = {},
     registrarViewModel: RegistrarViewModel? = null,
     siteServicesViewModel: SiteServicesViewModel? = null,
+    firstLaunchExperience: FirstLaunchExperienceStore? = null,
+    onProjectsFirstLoaded: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val preferences = remember(context) {
@@ -198,6 +225,12 @@ fun VercelticsApp(
     var hostingProviderSearchRequestId by rememberSaveable { mutableIntStateOf(0) }
     var registrarRouteSearchRequestId by rememberSaveable { mutableIntStateOf(0) }
     var siteServicesSearchRequestId by rememberSaveable { mutableIntStateOf(0) }
+    var registrarHubQuery by rememberSaveable { mutableStateOf("") }
+    var sitesHubQuery by rememberSaveable { mutableStateOf("") }
+    // A provider route opened by Search records the current request id on first composition, so
+    // its search request is issued one composition later. Never restored: it must not replay.
+    var pendingRouteSearchProviderId by remember { mutableStateOf<String?>(null) }
+    var restoreWaitExpired by remember { mutableStateOf(false) }
     val connectionState by vercelConnectionViewModel.uiState.collectAsStateWithLifecycle()
     val pageSpeedState by pageSpeedViewModel.uiState.collectAsStateWithLifecycle()
     val netlifyState by netlifyViewModel.uiState.collectAsStateWithLifecycle()
@@ -220,12 +253,63 @@ fun VercelticsApp(
             addAll(connectedSiteServiceIds)
         }
     }
+    val registrarRestoreError = registrarRestoreFailureMessage(registrarState)
+    val siteServicesRestoreError = siteServicesRestoreFailureMessage(siteServicesState)
+
+    // Hub search across connected cards (iOS `.searchable` on the Registrars and Sites roots).
+    val usesRegistrarHubSearch = registrarState != null && usesHubSearch(connectedRegistrarIds.size)
+    val registrarHubText = remember(registrarState, usesRegistrarHubSearch) {
+        if (usesRegistrarHubSearch) registrarHubSearchText(registrarState) else emptyMap()
+    }
+    val registrarHubMatches = remember(registrarHubText, registrarHubQuery, connectedRegistrarIds) {
+        if (registrarHubText.isEmpty()) connectedRegistrarIds else hubSearchMatches(registrarHubText, registrarHubQuery)
+    }
+    val siteHubText = remember(pageSpeedState, searchConsoleState, siteServicesState) {
+        siteHubSearchText(pageSpeedState, searchConsoleState, siteServicesState)
+    }
+    val usesSitesHubSearch = usesHubSearch(siteHubText.size)
+    val sitesHubMatches = remember(siteHubText, sitesHubQuery, usesSitesHubSearch) {
+        if (usesSitesHubSearch) hubSearchMatches(siteHubText, sitesHubQuery) else siteHubText.keys
+    }
+
+    // First-launch gating, from the view models the shell already owns.
+    val hasAnyConnection = connectionState.status.let {
+        it == VercelConnectionStatus.CONNECTED || it == VercelConnectionStatus.SAVED_UNAVAILABLE
+    } ||
+        netlifyState.isConnected ||
+        cloudflareState.isConnected ||
+        pageSpeedState.isConnected ||
+        searchConsoleState.isConnected ||
+        connectedHostingProviderIds.isNotEmpty() ||
+        connectedRegistrarIds.isNotEmpty() ||
+        connectedSiteServiceIds.isNotEmpty() ||
+        // A failed restore implies saved accounts exist; keep the shell so its banner is visible.
+        registrarRestoreError != null ||
+        siteServicesRestoreError != null
+    val isRestoringConnections = connectionState.status == VercelConnectionStatus.RESTORING ||
+        netlifyState.status == NetlifyConnectionStatus.RESTORING ||
+        cloudflareState.status == CloudflareConnectionStatus.RESTORING ||
+        pageSpeedState.status == PageSpeedConnectionStatus.RESTORING ||
+        searchConsoleState.status == SearchConsoleConnectionStatus.RESTORING ||
+        hostingState?.providers?.values?.any { it.status == HostingConnectionStatus.RESTORING } == true ||
+        registrarState?.providers?.values?.any { it.status == RegistrarConnectionStatus.RESTORING } == true ||
+        siteServicesState?.services?.values?.any { it.status == SiteServiceConnectionStatus.RESTORING } == true
+    val proState = proAccessViewModel?.uiState?.collectAsStateWithLifecycle()?.value
+    val hasActiveSubscription = proState?.let { it.hasCheckedEntitlements && it.hasPro } == true
+    val presentation = firstLaunchPresentation(
+        isEnabled = firstLaunchExperience != null,
+        isSampleData = isSampleData,
+        hasAnyConnection = hasAnyConnection,
+        isRestoringConnections = isRestoringConnections && !restoreWaitExpired,
+        hasCompletedWelcome = firstLaunchExperience?.hasCompletedWelcome == true,
+        hasActiveSubscription = hasActiveSubscription,
+    )
+
     val destination = MainDestination.fromId(destinationId)
     val provider = providerId?.let(IntegrationCatalog::provider)
     val destinationState = rememberSaveableStateHolder()
     val haptic = LocalHapticFeedback.current
     val activity = LocalActivity.current
-    val proState = proAccessViewModel?.uiState?.collectAsStateWithLifecycle()?.value
     val tipJarState = tipJarViewModel?.uiState?.collectAsStateWithLifecycle()?.value
     // The pending tap lives only in composition, like iOS @State: it is never restored later.
     val proGate = remember { ProAccessGate<() -> Unit>() }
@@ -258,6 +342,20 @@ fun VercelticsApp(
         if (isPaywallVisible && proState?.hasPro == true) dismissPaywall()
     }
 
+    LaunchedEffect(Unit) {
+        delay(RESTORE_WAIT_MILLIS)
+        restoreWaitExpired = true
+    }
+
+    // Existing connected, subscribed, or sample-data users never see the new welcome.
+    LaunchedEffect(firstLaunchExperience, hasAnyConnection, hasActiveSubscription, isSampleData) {
+        firstLaunchExperience?.migrateIfNeeded(
+            hasAnyConnection = hasAnyConnection,
+            hasActiveSubscription = hasActiveSubscription,
+            isSampleData = isSampleData,
+        )
+    }
+
     fun closeProvider() {
         providerId = null
         cloudflareSearchRequestId = 0
@@ -269,6 +367,30 @@ fun VercelticsApp(
         selected.workspace?.let { workspace ->
             lastWorkspaceId = workspace.id
             if (!isSampleData) preferences.edit { putString(LAST_PRIMARY_WORKSPACE, workspace.id) }
+        }
+    }
+
+    /** Issues the search request owned by an open provider route. */
+    fun requestRouteSearch(routeProviderId: String) {
+        when {
+            routeProviderId == PAGE_SPEED_PROVIDER_ID -> pageSpeedSearchRequestId += 1
+            routeProviderId == SEARCH_CONSOLE_PROVIDER_ID -> searchConsoleSearchRequestId += 1
+            routeProviderId == NETLIFY_PROVIDER_ID -> netlifySearchRequestId += 1
+            routeProviderId == CLOUDFLARE_PROVIDER_ID -> cloudflareSearchRequestId += 1
+            routeProviderId in SiteServiceProviderIds -> siteServicesSearchRequestId += 1
+            routeProviderId in RegistrarProvider.ids -> registrarRouteSearchRequestId += 1
+            routeProviderId in HostingProvider.ids -> hostingProviderSearchRequestId += 1
+        }
+    }
+
+    /** Registrars and Sites roots search their connected providers, never the add catalog. */
+    fun requestRootSearch(target: RootSearchTarget, onHubOrCatalog: () -> Unit) {
+        when (target) {
+            is RootSearchTarget.Provider -> {
+                providerId = target.providerId
+                pendingRouteSearchProviderId = target.providerId
+            }
+            RootSearchTarget.HubSearch, RootSearchTarget.ConnectionCatalog -> onHubOrCatalog()
         }
     }
 
@@ -301,17 +423,6 @@ fun VercelticsApp(
             hostingProviderSearchRequestId += 1
             return
         }
-        if (provider == null &&
-            destination == MainDestination.SITES &&
-            searchConsoleState.isConnected
-        ) {
-            destinationId = MainDestination.SITES.id
-            lastWorkspaceId = Workspace.SITES.id
-            if (!isSampleData) preferences.edit { putString(LAST_PRIMARY_WORKSPACE, Workspace.SITES.id) }
-            providerId = SEARCH_CONSOLE_PROVIDER_ID
-            searchConsoleSearchRequestId += 1
-            return
-        }
 
         val preferredWorkspace = provider?.workspace
             ?: destination.workspace
@@ -320,9 +431,22 @@ fun VercelticsApp(
         selectDestination(MainDestination.fromWorkspace(preferredWorkspace))
         when (preferredWorkspace) {
             Workspace.HOSTING -> hostingSearchRequestId += 1
-            Workspace.REGISTRARS -> registrarSearchRequestId += 1
-            Workspace.SITES -> sitesSearchRequestId += 1
+            Workspace.REGISTRARS -> if (registrarViewModel == null) {
+                registrarSearchRequestId += 1
+            } else {
+                requestRootSearch(rootSearchTarget(connectedRegistrarIds)) { registrarSearchRequestId += 1 }
+            }
+            Workspace.SITES -> requestRootSearch(rootSearchTarget(siteHubText.keys)) {
+                sitesSearchRequestId += 1
+            }
         }
+    }
+
+    LaunchedEffect(pendingRouteSearchProviderId, providerId) {
+        val pending = pendingRouteSearchProviderId ?: return@LaunchedEffect
+        pendingRouteSearchProviderId = null
+        // The route has composed with the old request id by now; leaving it first cancels search.
+        if (providerId == pending) requestRouteSearch(pending)
     }
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
@@ -360,47 +484,45 @@ fun VercelticsApp(
 
     CompositionLocalProvider(LocalProAccess provides proAccess) {
         Box(modifier = modifier.fillMaxSize()) {
-            Scaffold(
-                modifier = Modifier.fillMaxSize(),
-                containerColor = MaterialTheme.colorScheme.background,
-                contentWindowInsets = WindowInsets(0, 0, 0, 0),
-                topBar = {
-                    if (isSampleData) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth()
-                                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
-                                .padding(horizontal = 18.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text("Sample data", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-                            TextButton(onClick = { onToggleSampleData?.invoke() }) { Text("Exit preview", style = MaterialTheme.typography.labelMedium) }
+            if (presentation != FirstLaunchPresentation.SHELL && provider == null) {
+                FirstConnectionFlow(
+                    presentation = presentation,
+                    onContinue = { firstLaunchExperience?.completeWelcome() },
+                    onConnectProvider = { selected ->
+                        selectDestination(MainDestination.fromWorkspace(selected.workspace))
+                        providerId = selected.id
+                    },
+                    onPreviewSampleData = onToggleSampleData,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                AdaptiveNavigationScaffold(
+                    selectedDestination = destination.navigationDestination,
+                    onDestinationSelected = { selected ->
+                        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                        selectDestination(MainDestination.fromNavigation(selected))
+                    },
+                    onSearch = {
+                        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                        requestSearch()
+                    },
+                    // While the first connection is being made, provider routes stay full screen.
+                    showsNavigation = presentation == FirstLaunchPresentation.SHELL,
+                    showsAboutBadge = aboutState.update.showsUpdateBadge,
+                    topBar = {
+                        if (isSampleData) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth()
+                                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
+                                    .padding(horizontal = 18.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text("Sample data", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                                TextButton(onClick = { onToggleSampleData?.invoke() }) { Text("Exit preview", style = MaterialTheme.typography.labelMedium) }
+                            }
                         }
-                    }
-                },
-                bottomBar = {
-                    AppNavigationDock(
-                        selectedDestination = destination.navigationDestination,
-                        onDestinationSelected = { selected ->
-                            haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                            selectDestination(MainDestination.fromNavigation(selected))
-                        },
-                        onSearch = {
-                            haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                            requestSearch()
-                        },
-                    )
-                },
-            ) { contentPadding ->
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(top = contentPadding.calculateTopPadding(), bottom = contentPadding.calculateBottomPadding())
-                        .windowInsetsPadding(
-                            WindowInsets.safeDrawing.only(
-                                if (isSampleData) WindowInsetsSides.Horizontal else WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
-                            ),
-                        )
-                        .background(MaterialTheme.colorScheme.background),
+                    },
+                    modifier = Modifier.fillMaxSize(),
                 ) {
                     if (provider != null) {
                         when (provider.id) {
@@ -551,12 +673,13 @@ fun VercelticsApp(
                                     workspace = Workspace.REGISTRARS,
                                     onConnectProvider = { providerId = it.id },
                                     onAccountAction = {},
+                                    persistenceError = registrarRestoreError,
                                     searchRequestId = registrarSearchRequestId,
                                     connectedProviderIds = connectedRegistrarIds,
                                     connectedContent = if (registrarState != null && connectedRegistrarIds.isNotEmpty()) {
                                         {
                                             RegistrarConnectionCards(
-                                                state = registrarState,
+                                                state = registrarState.onlyProviders(registrarHubMatches),
                                                 onOpenProvider = { providerId = it },
                                                 modifier = Modifier.fillMaxWidth(),
                                             )
@@ -564,6 +687,17 @@ fun VercelticsApp(
                                     } else {
                                         null
                                     },
+                                    hubSearchQuery = registrarHubQuery.takeIf { usesRegistrarHubSearch },
+                                    onHubSearchQueryChange = { registrarHubQuery = it },
+                                    hubSearchMatchCount = registrarHubMatches.size,
+                                    onRefresh = if (registrarViewModel != null && connectedRegistrarIds.isNotEmpty()) {
+                                        { connectedRegistrarIds.forEach(registrarViewModel::refresh) }
+                                    } else {
+                                        null
+                                    },
+                                    isRefreshing = registrarState?.providers?.values?.any {
+                                        it.operation == RegistrarOperation.REFRESHING
+                                    } == true,
                                     modifier = Modifier.fillMaxSize(),
                                 )
 
@@ -571,6 +705,7 @@ fun VercelticsApp(
                                     workspace = Workspace.SITES,
                                     onConnectProvider = { providerId = it.id },
                                     onAccountAction = {},
+                                    persistenceError = siteServicesRestoreError,
                                     searchRequestId = sitesSearchRequestId,
                                     connectedProviderIds = connectedSiteProviderIds,
                                     modifier = Modifier.fillMaxSize(),
@@ -580,7 +715,7 @@ fun VercelticsApp(
                                     ) {
                                         {
                                             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                                if (searchConsoleState.isConnected) {
+                                                if (searchConsoleState.isConnected && SEARCH_CONSOLE_PROVIDER_ID in sitesHubMatches) {
                                                     SearchConsoleConnectionCard(
                                                         state = searchConsoleState,
                                                         onClick = {
@@ -589,7 +724,7 @@ fun VercelticsApp(
                                                         modifier = Modifier.fillMaxWidth(),
                                                     )
                                                 }
-                                                if (pageSpeedState.isConnected) {
+                                                if (pageSpeedState.isConnected && PAGE_SPEED_PROVIDER_ID in sitesHubMatches) {
                                                     PageSpeedConnectionCard(
                                                         state = pageSpeedState,
                                                         onClick = { providerId = PAGE_SPEED_PROVIDER_ID },
@@ -598,7 +733,7 @@ fun VercelticsApp(
                                                 }
                                                 if (siteServicesState != null && connectedSiteServiceIds.isNotEmpty()) {
                                                     SiteServiceConnectionCards(
-                                                        state = siteServicesState,
+                                                        state = siteServicesState.onlyServices(sitesHubMatches),
                                                         onOpenProvider = { providerId = it },
                                                         modifier = Modifier.fillMaxWidth(),
                                                     )
@@ -608,6 +743,25 @@ fun VercelticsApp(
                                     } else {
                                         null
                                     },
+                                    hubSearchQuery = sitesHubQuery.takeIf { usesSitesHubSearch },
+                                    onHubSearchQueryChange = { sitesHubQuery = it },
+                                    hubSearchMatchCount = sitesHubMatches.size,
+                                    onRefresh = if (siteHubText.isNotEmpty()) {
+                                        {
+                                            if (searchConsoleState.isConnected) searchConsoleViewModel.refresh()
+                                            if (pageSpeedState.isConnected) pageSpeedViewModel.refresh()
+                                            siteServicesViewModel?.let { viewModel ->
+                                                connectedSiteServiceIds.forEach(viewModel::refresh)
+                                            }
+                                        }
+                                    } else {
+                                        null
+                                    },
+                                    isRefreshing = searchConsoleState.operation == SearchConsoleOperation.REFRESHING ||
+                                        pageSpeedState.operation == PageSpeedOperation.REFRESHING ||
+                                        siteServicesState?.services?.values?.any {
+                                            it.operation == SiteServiceOperation.REFRESHING
+                                        } == true,
                                 )
 
                                 MainDestination.ABOUT -> AboutScreen(
@@ -660,6 +814,134 @@ fun VercelticsApp(
         }
     }
 }
+
+// MARK: - Root search routing (pure, unit tested)
+
+/** Where the Search action goes from a Registrars or Sites root, mirroring iOS. */
+internal sealed interface RootSearchTarget {
+    /** Exactly one provider is connected: open it and focus its own resource search. */
+    data class Provider(val providerId: String) : RootSearchTarget
+
+    /** Several providers are connected: focus the hub search across their cards. */
+    data object HubSearch : RootSearchTarget
+
+    /** Nothing is connected: fall back to the "Connect an integration" catalog. */
+    data object ConnectionCatalog : RootSearchTarget
+}
+
+internal fun rootSearchTarget(connectedProviderIds: Collection<String>): RootSearchTarget =
+    when (connectedProviderIds.size) {
+        0 -> RootSearchTarget.ConnectionCatalog
+        1 -> RootSearchTarget.Provider(connectedProviderIds.first())
+        else -> RootSearchTarget.HubSearch
+    }
+
+/** A root offers hub search once it shows at least two connected provider cards. */
+internal fun usesHubSearch(connectedProviderCount: Int): Boolean = connectedProviderCount >= 2
+
+/**
+ * Providers whose searchable text contains every query term, in card order. A blank query
+ * matches every provider. Matching uses the catalog's accent- and punctuation-insensitive rules.
+ */
+internal fun hubSearchMatches(searchableText: Map<String, String>, query: String): Set<String> {
+    val terms = IntegrationCatalog.normalizeSearchText(query).split(' ').filter(String::isNotEmpty)
+    if (terms.isEmpty()) return LinkedHashSet(searchableText.keys)
+    return searchableText.entries
+        .filter { (_, text) ->
+            val normalized = IntegrationCatalog.normalizeSearchText(text)
+            terms.all(normalized::contains)
+        }
+        .mapTo(LinkedHashSet()) { it.key }
+}
+
+/** Registrar hub cards are searchable by registrar, account, and every loaded domain name. */
+internal fun registrarHubSearchText(state: RegistrarUiState): Map<String, String> =
+    state.connectedRegistrarIdsOf.associateWith { id ->
+        val providerState = state.provider(id)
+        buildList {
+            IntegrationCatalog.provider(id)?.let { add(it.displayName); add(it.description) }
+            providerState.savedAccount?.displayName?.let(::add)
+            providerState.dashboard?.let { dashboard ->
+                add(dashboard.account.displayName)
+                dashboard.domains.forEach { add(it.name) }
+            }
+        }.joinToString(" ")
+    }
+
+/**
+ * Sites hub cards in on-screen order (Search Console, PageSpeed, then site services), searchable by
+ * provider, account, and loaded property, site, or resource names.
+ */
+internal fun siteHubSearchText(
+    pageSpeed: PageSpeedUiState,
+    searchConsole: SearchConsoleUiState,
+    siteServices: SiteServicesUiState?,
+): Map<String, String> {
+    val result = LinkedHashMap<String, String>()
+    if (searchConsole.isConnected) {
+        result[SEARCH_CONSOLE_PROVIDER_ID] = buildList {
+            IntegrationCatalog.provider(SEARCH_CONSOLE_PROVIDER_ID)?.let { add(it.displayName); add(it.description) }
+            searchConsole.savedAccount?.displayName?.let(::add)
+            searchConsole.dashboard?.let { dashboard ->
+                add(dashboard.account.displayName)
+                dashboard.properties.forEach { add(it.displayName); add(it.siteUrl) }
+            }
+        }.joinToString(" ")
+    }
+    if (pageSpeed.isConnected) {
+        result[PAGE_SPEED_PROVIDER_ID] = buildList {
+            IntegrationCatalog.provider(PAGE_SPEED_PROVIDER_ID)?.let { add(it.displayName); add(it.description) }
+            pageSpeed.savedSiteUrl?.let(::add)
+            pageSpeed.dashboard?.let { add(it.siteName); add(it.siteUrl) }
+        }.joinToString(" ")
+    }
+    siteServices?.connectedSiteServiceIdsOf?.forEach { id ->
+        val service = siteServices.service(id)
+        result[id] = buildList {
+            IntegrationCatalog.provider(id)?.let { add(it.displayName); add(it.description) }
+            service.savedAccountName?.let(::add)
+            service.dashboard?.let { dashboard ->
+                add(dashboard.accountName)
+                dashboard.accountDetail?.let(::add)
+                dashboard.resources.forEach { resource ->
+                    add(resource.name)
+                    resource.url?.let(::add)
+                }
+            }
+        }.joinToString(" ")
+    }
+    return result
+}
+
+/** A registrar state whose cards only include [providerIds]; others read as disconnected. */
+internal fun RegistrarUiState.onlyProviders(providerIds: Set<String>): RegistrarUiState =
+    if (connectedRegistrarIdsOf.all { it in providerIds }) this else copy(providers = providers.filterKeys { it in providerIds })
+
+/** A site services state whose cards only include [providerIds]; others read as disconnected. */
+internal fun SiteServicesUiState.onlyServices(providerIds: Set<String>): SiteServicesUiState =
+    if (connectedSiteServiceIdsOf.all { it in providerIds }) this else copy(services = services.filterKeys { it in providerIds })
+
+// MARK: - Saved-account banners (pure, unit tested)
+
+/** "Saved registrar accounts need attention" when registrar restore failed as a whole. */
+internal fun registrarRestoreFailureMessage(state: RegistrarUiState?): String? =
+    state?.restoreError?.takeIf(String::isNotBlank)
+
+/**
+ * "Saved site services need attention" when the saved site-service store could not be restored:
+ * the view model then marks every service disconnected with an error and no operation in flight.
+ */
+internal fun siteServicesRestoreFailureMessage(state: SiteServicesUiState?): String? {
+    val services = state?.services?.values?.takeIf { it.isNotEmpty() } ?: return null
+    val restoreFailed = services.all {
+        it.status == SiteServiceConnectionStatus.DISCONNECTED && it.operation == null && !it.error.isNullOrBlank()
+    }
+    if (!restoreFailed) return null
+    return services.mapNotNull { it.error }.distinct().singleOrNull() ?: SITE_SERVICES_RESTORE_FAILED_MESSAGE
+}
+
+internal const val SITE_SERVICES_RESTORE_FAILED_MESSAGE =
+    "Saved site service connections could not be read on this device. Reconnect to continue."
 
 @Composable
 private fun PageSpeedConnectionCard(

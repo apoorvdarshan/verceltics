@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="onboarding_brand">Verceltics</string>
+    <string name="onboarding_open_source">OPEN SOURCE</string>
+    <string name="onboarding_headline">Check your whole stack. Close the laptop.</string>
+    <string name="onboarding_body">Hosting, domains, search, analytics, speed, and uptime—from one native Android workspace.</string>
+    <string name="onboarding_privacy">Credentials are encrypted on this device with Android Keystore. Requests go directly to provider APIs.</string>
+    <string name="onboarding_no_account">No Verceltics account required.</string>
+    <string name="onboarding_continue">Choose what to connect</string>
+    <string name="onboarding_continue_compact">Connect services</string>
+
+    <string name="onboarding_catalog_title">WORKS WITH YOUR STACK</string>
+    <string name="onboarding_integration_count">%1$d INTEGRATIONS</string>
+    <string name="onboarding_lane_hosting">HOSTING</string>
+    <string name="onboarding_lane_domains">DOMAINS</string>
+    <string name="onboarding_lane_sites">SITE SERVICES</string>
+    <string name="onboarding_lane_description">%1$s, %2$d integrations: %3$s</string>
+
+    <string name="onboarding_connect_title">Connect your first service</string>
+    <string name="onboarding_connect_subtitle">Pick a provider to get started. You can add more at any time.</string>
+    <string name="onboarding_sample_data">Explore sample data</string>
+    <string name="onboarding_loading">Loading workspace</string>
+</resources>

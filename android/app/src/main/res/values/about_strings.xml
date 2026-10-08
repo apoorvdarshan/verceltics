@@ -20,12 +20,13 @@
 
     <string name="about_updates_not_configured">Version %1$s · Update checks unavailable</string>
     <string name="about_check_updates">Check for Updates</string>
-    <string name="about_checking_updates">Checking for updates</string>
+    <string name="about_checking_updates">Checking Google Play…</string>
     <string name="about_update_available">Update available</string>
     <string name="about_update_failed">Update check failed</string>
     <string name="about_version_format">Version %1$s</string>
     <string name="about_version_current">Version %1$s is current</string>
     <string name="about_version_ready">Version %1$s is ready</string>
+    <string name="about_update_ready_generic">A newer version is ready · Tap to update</string>
     <string name="about_update_failed_detail">%1$s · Tap to retry</string>
 
     <string name="about_website">Website</string>
@@ -60,13 +61,13 @@
 
     <string name="about_share">Share Verceltics</string>
     <string name="about_share_subtitle">Tell others about the app</string>
-    <string name="about_share_message">Verceltics — hosting, domains, deployments, analytics, search, speed, and uptime. Open source, no ads. https://verceltics.com</string>
+    <string name="about_share_message">Verceltics — hosting, domains, deployments, analytics, search, speed, and uptime. Open source, no ads. https://verceltics.com\n\nGet it on Google Play: https://play.google.com/store/apps/details?id=com.apoorvdarshan.verceltics</string>
     <string name="about_star_github">Star on GitHub</string>
     <string name="about_star_github_subtitle">Open the GitHub repository</string>
     <string name="about_product_hunt">Upvote on Product Hunt</string>
     <string name="about_product_hunt_subtitle">producthunt.com/products/verceltics-2</string>
     <string name="about_rate_app">Rate Verceltics</string>
-    <string name="about_rate_app_subtitle">Open the Google Play listing</string>
+    <string name="about_rate_app_subtitle">Tap a star without leaving the app</string>
     <string name="about_section_pro">Verceltics Pro</string>
     <string name="about_pro_active">Verceltics Pro is active</string>
     <string name="about_pro_active_subtitle">Details and provider tools are unlocked across every workspace</string>

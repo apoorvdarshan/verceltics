@@ -11,7 +11,13 @@ import com.apoorvdarshan.verceltics.ui.sites.NativeSiteServicesUiGateway
 import com.apoorvdarshan.verceltics.ui.NativeVercelUiGateway
 import com.apoorvdarshan.verceltics.ui.cloudflare.NativeCloudflareUiGateway
 import com.apoorvdarshan.verceltics.ui.netlify.NativeNetlifyUiGateway
+import com.apoorvdarshan.verceltics.ui.onboarding.FirstLaunchExperienceStore
+import com.apoorvdarshan.verceltics.ui.onboarding.SharedPreferencesFirstLaunchPreferences
 import com.apoorvdarshan.verceltics.ui.pagespeed.NativePageSpeedUiGateway
+import com.apoorvdarshan.verceltics.ui.screens.about.AboutScreenController
+import com.apoorvdarshan.verceltics.ui.screens.about.PlayInAppUpdateChecker
+import com.apoorvdarshan.verceltics.ui.screens.about.SharedPreferencesAppearancePreferenceStore
+import com.apoorvdarshan.verceltics.ui.screens.about.currentAndroidAppVersion
 import com.apoorvdarshan.verceltics.ui.searchconsole.NativeSearchConsoleUiGateway
 
 class VercelticsApplication : Application() {
@@ -53,6 +59,28 @@ class VercelticsApplication : Application() {
 
     val registrarGateway: NativeRegistrarUiGateway by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
         NativeRegistrarUiGateway.create(this)
+    }
+
+    /** Google Play In-App Updates; unconfigured (never calls Play) for sideloaded builds. */
+    val playUpdateChecker: PlayInAppUpdateChecker by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        PlayInAppUpdateChecker(this)
+    }
+
+    /**
+     * Process-wide About state so the update result, its hourly throttle, and the navigation
+     * badge survive activity recreation.
+     */
+    val aboutController: AboutScreenController by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        AboutScreenController(
+            appearanceStore = SharedPreferencesAppearancePreferenceStore(this),
+            updateChecker = playUpdateChecker,
+            version = currentAndroidAppVersion(),
+        )
+    }
+
+    /** One-time first-launch welcome completion, shared by every activity instance. */
+    val firstLaunchExperience: FirstLaunchExperienceStore by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        FirstLaunchExperienceStore(SharedPreferencesFirstLaunchPreferences(this))
     }
 
     /** RevenueCat billing, or an unavailable gateway when this build has no RevenueCat key. */

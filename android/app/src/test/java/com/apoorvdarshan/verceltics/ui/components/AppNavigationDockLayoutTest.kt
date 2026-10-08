@@ -1,6 +1,7 @@
 package com.apoorvdarshan.verceltics.ui.components
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -64,5 +65,13 @@ class AppNavigationDockLayoutTest {
             NavigationDockArrangement.INLINE,
             navigationDockArrangement(availableWidthDp = 286f),
         )
+    }
+
+    @Test
+    fun `windows at least 600dp wide use a navigation rail instead of the dock`() {
+        assertFalse(usesNavigationRail(windowWidthDp = 411f))
+        assertFalse(usesNavigationRail(windowWidthDp = 599.9f))
+        assertTrue(usesNavigationRail(windowWidthDp = 600f))
+        assertTrue(usesNavigationRail(windowWidthDp = 1280f))
     }
 }

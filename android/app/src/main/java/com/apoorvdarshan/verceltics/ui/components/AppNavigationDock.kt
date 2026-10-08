@@ -12,18 +12,27 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -32,8 +41,14 @@ import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.QueryStats
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Storage
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.NavigationRailItemDefaults
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -285,7 +300,7 @@ private fun NavigationDestinationButton(
                 .fillMaxSize()
                 .testTag("mainNavigation.${destination.id}")
                 .semantics {
-                    contentDescription = destination.label
+                    contentDescription = destinationContentDescription(destination, showsBadge)
                     role = Role.Tab
                     selected = isSelected
                 },
@@ -331,7 +346,8 @@ private fun NavigationDestinationButton(
                             .padding(top = 3.dp, end = 5.dp)
                             .size(9.dp)
                             .background(colors.error, CircleShape)
-                            .border(1.dp, colors.outline, CircleShape),
+                            .border(1.dp, colors.outline, CircleShape)
+                            .testTag("mainNavigation.${destination.id}.badge"),
                     )
                 }
 
@@ -459,3 +475,202 @@ private fun Modifier.consumeUnclaimedPointerInput(): Modifier = pointerInput(Uni
 private val DockShape = RoundedCornerShape(24.dp)
 private val SelectedShape = RoundedCornerShape(19.dp)
 private val MinimumTouchTarget: Dp = 48.dp
+
+private fun destinationContentDescription(
+    destination: AppNavigationDestination,
+    showsBadge: Boolean,
+): String = if (showsBadge) "${destination.label}, update available" else destination.label
+
+/** Material window-size breakpoint: medium and expanded windows get a navigation rail. */
+internal const val NavigationRailMinWidthDp: Float = 600f
+
+/** Pure layout policy: a rail replaces the bottom dock once the window is at least 600dp wide. */
+internal fun usesNavigationRail(windowWidthDp: Float): Boolean = windowWidthDp >= NavigationRailMinWidthDp
+
+/**
+ * App shell layout that keeps the four persistent destinations and the contextual Search action in
+ * a bottom [AppNavigationDock] on compact windows and an [AppNavigationRail] on windows at least
+ * 600dp wide, matching the adaptive iOS sidebar/tab bar.
+ *
+ * [content] is placed in a box that already avoids the system bars, the optional [topBar], and the
+ * navigation chrome, so callers never double-apply window insets. With [showsNavigation] false
+ * (for example while the first connection is being made) no navigation chrome is shown at all.
+ */
+@Composable
+fun AdaptiveNavigationScaffold(
+    selectedDestination: AppNavigationDestination,
+    onDestinationSelected: (AppNavigationDestination) -> Unit,
+    onSearch: () -> Unit,
+    modifier: Modifier = Modifier,
+    showsNavigation: Boolean = true,
+    showsAboutBadge: Boolean = false,
+    topBar: @Composable () -> Unit = {},
+    content: @Composable BoxScope.() -> Unit,
+) {
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+    ) {
+        val showsRail = showsNavigation && usesNavigationRail(maxWidth.value)
+        val showsDock = showsNavigation && !showsRail
+        // Screens own keyboard insets themselves, so the shell only avoids system bars and cutouts.
+        // The dock already pads for the navigation bar; without it the content must.
+        val contentInsets = WindowInsets.safeDrawing
+            .only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
+            .let { insets ->
+                if (showsDock) insets else insets.union(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))
+            }
+        Row(Modifier.fillMaxSize()) {
+            if (showsRail) {
+                AppNavigationRail(
+                    selectedDestination = selectedDestination,
+                    onDestinationSelected = onDestinationSelected,
+                    onSearch = onSearch,
+                    showsAboutBadge = showsAboutBadge,
+                )
+            }
+            Scaffold(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
+                containerColor = MaterialTheme.colorScheme.background,
+                contentWindowInsets = WindowInsets(0, 0, 0, 0),
+                topBar = topBar,
+                bottomBar = {
+                    if (showsDock) {
+                        AppNavigationDock(
+                            selectedDestination = selectedDestination,
+                            onDestinationSelected = onDestinationSelected,
+                            onSearch = onSearch,
+                            showsAboutBadge = showsAboutBadge,
+                        )
+                    }
+                },
+            ) { contentPadding ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(contentPadding)
+                        .consumeWindowInsets(contentPadding)
+                        // The rail already pads for start-side system bars and display cutouts.
+                        .then(
+                            if (showsRail) {
+                                Modifier.consumeWindowInsets(
+                                    WindowInsets.safeDrawing.only(WindowInsetsSides.Start),
+                                )
+                            } else {
+                                Modifier
+                            },
+                        )
+                        .windowInsetsPadding(contentInsets)
+                        .testTag(if (showsRail) "mainNavigation.content.rail" else "mainNavigation.content"),
+                    content = content,
+                )
+            }
+        }
+    }
+}
+
+/** Navigation rail for medium and expanded windows; destinations stay tabs and Search a button. */
+@Composable
+fun AppNavigationRail(
+    selectedDestination: AppNavigationDestination,
+    onDestinationSelected: (AppNavigationDestination) -> Unit,
+    onSearch: () -> Unit,
+    modifier: Modifier = Modifier,
+    showsAboutBadge: Boolean = false,
+) {
+    val colors = MaterialTheme.colorScheme
+    NavigationRail(
+        modifier = modifier
+            .fillMaxHeight()
+            .testTag("mainNavigation.rail")
+            .semantics { isTraversalGroup = true },
+        containerColor = colors.surface,
+        contentColor = colors.onSurface,
+        header = {
+            RailSearchButton(
+                onClick = onSearch,
+                modifier = Modifier.padding(top = 8.dp, bottom = 12.dp),
+            )
+        },
+        windowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Vertical + WindowInsetsSides.Start),
+    ) {
+        AppNavigationDestination.entries.forEach { destination ->
+            val showsBadge = showsAboutBadge && destination == AppNavigationDestination.ABOUT
+            NavigationRailItem(
+                selected = selectedDestination == destination,
+                onClick = { onDestinationSelected(destination) },
+                icon = {
+                    if (showsBadge) {
+                        BadgedBox(
+                            badge = {
+                                Badge(
+                                    modifier = Modifier.testTag("mainNavigation.${destination.id}.badge"),
+                                    containerColor = colors.error,
+                                )
+                            },
+                        ) {
+                            Icon(destination.icon, contentDescription = null)
+                        }
+                    } else {
+                        Icon(destination.icon, contentDescription = null)
+                    }
+                },
+                label = {
+                    Text(
+                        text = destination.label,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                },
+                modifier = Modifier
+                    .padding(vertical = 2.dp)
+                    .testTag("mainNavigation.${destination.id}")
+                    .semantics {
+                        contentDescription = destinationContentDescription(destination, showsBadge)
+                    },
+                colors = NavigationRailItemDefaults.colors(
+                    selectedIconColor = colors.onSurface,
+                    selectedTextColor = colors.onSurface,
+                    indicatorColor = colors.surfaceVariant,
+                    unselectedIconColor = colors.onSurfaceVariant,
+                    unselectedTextColor = colors.onSurfaceVariant,
+                ),
+            )
+        }
+    }
+}
+
+@Composable
+private fun RailSearchButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = MaterialTheme.colorScheme
+    Surface(
+        onClick = onClick,
+        modifier = modifier
+            .size(56.dp)
+            .testTag("mainNavigation.search")
+            .semantics {
+                contentDescription = "Search current workspace"
+                role = Role.Button
+            },
+        shape = RoundedCornerShape(18.dp),
+        color = colors.surfaceVariant,
+        contentColor = colors.onSurface,
+        border = BorderStroke(1.dp, colors.outline),
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = Icons.Rounded.Search,
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+            )
+        }
+    }
+}
