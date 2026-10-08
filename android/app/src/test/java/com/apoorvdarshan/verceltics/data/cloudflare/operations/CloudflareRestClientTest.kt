@@ -134,6 +134,37 @@ class CloudflareRestClientTest {
     }
 
     @Test
+    fun readOnlyGraphQLIsNotReportedAsAMutation() {
+        fun graphQL(query: String) = CloudflareRestRequest.json(
+            CloudflareHttpMethod.POST,
+            listOf("graphql"),
+            ProviderJsonValue.from(mapOf("query" to query)),
+        )
+        assertTrue(CloudflareRestClient.isReadOnlyGraphQL(graphQL("query Zone { viewer { zones { settings { hourly: httpRequests1hGroups { enabled } } } } }")))
+        assertFalse(CloudflareRestClient.isReadOnlyGraphQL(graphQL("mutation { doThing }")))
+        assertFalse(
+            CloudflareRestClient.isReadOnlyGraphQL(
+                CloudflareRestRequest(CloudflareHttpMethod.POST, listOf("zones", "z", "purge_cache"), body = "{}".toByteArray()),
+            ),
+        )
+    }
+
+    @Test
+    fun paginationGuardMatchesIosSafetyTests() {
+        val repeated = CloudflarePaginationGuard()
+        repeated.record(2, 42)
+        val repeatError = runCatching { repeated.record(2, 42) }.exceptionOrNull() as CloudflareOperationException
+        assertEquals("Cloudflare repeated a results page, so loading stopped safely.", repeatError.userMessage)
+
+        val terminal = CloudflarePaginationGuard()
+        terminal.record(1, 7)
+        terminal.record(0, null)
+
+        val bounded = runCatching { CloudflarePaginationGuard().record(100_001, 1) }.exceptionOrNull() as CloudflareOperationException
+        assertEquals("Cloudflare returned too many paginated results. Narrow the request and try again.", bounded.userMessage)
+    }
+
+    @Test
     fun cursorWalkFollowsCursorsUntilExhausted() = runTest {
         transport.enqueueJson(CloudflareHttpMethod.GET, "/keys", envelope("[{\"name\":\"a\"}]", "{\"cursor\":\"c1\"}"))
         transport.enqueueJson(CloudflareHttpMethod.GET, "/keys", envelope("[{\"name\":\"b\"}]", "{\"cursor\":\"\"}"))

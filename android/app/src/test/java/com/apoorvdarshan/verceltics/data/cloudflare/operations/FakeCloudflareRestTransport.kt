@@ -52,7 +52,9 @@ class FakeCloudflareRestTransport : CloudflareRestTransport {
     fun alwaysJson(method: CloudflareHttpMethod, path: String, json: String, status: Int = 200) =
         always(method, path, response(json, status))
 
-    fun mutations(): List<RecordedCloudflareRequest> = requests.filter { it.method.isMutation }
+    /** Requests that change Cloudflare state (read-only `POST /graphql` analytics queries excluded). */
+    fun mutations(): List<RecordedCloudflareRequest> =
+        requests.filter { it.method.isMutation && !CloudflareRestClient.isReadOnlyGraphQL(it.request) }
 
     override fun newCall(request: CloudflareRestRequest, credential: SecretValue): CancelableCall<CloudflareRestResponse> {
         val token = credential.use { it }

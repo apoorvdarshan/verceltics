@@ -80,7 +80,7 @@ class CloudflareRestClient(
         } catch (error: IllegalStateException) {
             throw CloudflareOperationException.invalidRequest(error.message ?: "The Cloudflare request is invalid.")
         }
-        if (request.method.isMutation && response.isSuccessful) {
+        if (request.method.isMutation && response.isSuccessful && !isReadOnlyGraphQL(request)) {
             mutationEvents.tryEmit(CloudflareMutationEvent(request.method, request.apiPath))
         }
         return response
@@ -195,6 +195,19 @@ class CloudflareRestClient(
     companion object {
         /** Pages upload JWT requests never read the account token; the transport ignores this value. */
         private val PLACEHOLDER_CREDENTIAL = SecretValue.of("unused-account-credential")
+
+        private val GRAPHQL_MUTATION = Regex("\\bmutation\\b", RegexOption.IGNORE_CASE)
+
+        /**
+         * iOS `isReadOnlyGraphQLBody`: a `POST /graphql` whose query has no `mutation` keyword only
+         * reads analytics, so it must not tell other screens that data changed.
+         */
+        fun isReadOnlyGraphQL(request: CloudflareRestRequest): Boolean {
+            if (request.method != CloudflareHttpMethod.POST || request.apiPath != "/graphql") return false
+            val query = runCatching { ProviderJsonParser.parse(request.bodyText() ?: return false)["query"]?.stringValue }
+                .getOrNull() ?: return false
+            return !GRAPHQL_MUTATION.containsMatchIn(query)
+        }
 
         /** iOS `throwForHTTPFailure`: 401 → credentials, 403 → forbidden, everything else → request failed. */
         fun throwForHttpFailure(response: CloudflareRestResponse) {
