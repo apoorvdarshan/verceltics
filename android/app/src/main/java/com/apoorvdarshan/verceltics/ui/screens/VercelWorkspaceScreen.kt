@@ -242,12 +242,7 @@ fun VercelWorkspaceScreen(
                 }
             },
             connectedProviderIds = connectedProviderIds,
-            onConnectNetlify = {
-                IntegrationCatalog.provider("netlify")?.let(onConnectProvider)
-            },
-            onConnectCloudflare = {
-                IntegrationCatalog.provider("cloudflare")?.let(onConnectProvider)
-            },
+            onOpenHostingProvider = onConnectProvider,
             modifier = modifier,
         )
     }
@@ -354,8 +349,7 @@ private fun ConnectedVercelWorkspace(
     onDisconnect: () -> Unit,
     onProjectSelected: (VercelProjectUi) -> Unit,
     connectedProviderIds: Set<String>,
-    onConnectNetlify: () -> Unit,
-    onConnectCloudflare: () -> Unit,
+    onOpenHostingProvider: (IntegrationProvider) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
@@ -481,15 +475,18 @@ private fun ConnectedVercelWorkspace(
                             accountMenuExpanded = false
                         },
                     )
-                    listOf("cloudflare" to onConnectCloudflare, "netlify" to onConnectNetlify).forEach { (id, openProvider) ->
-                        val provider = requireNotNull(IntegrationCatalog.provider(id))
-                        DropdownMenuItem(
-                            modifier = Modifier.testTag("workspace.hosting.connect${if (id == "cloudflare") "Cloudflare" else "Netlify"}"),
-                            text = { Text(if (id in connectedProviderIds) provider.displayName else "Connect ${provider.displayName}") },
-                            leadingIcon = { ProviderLogo(provider, Modifier.size(22.dp)) },
-                            onClick = { accountMenuExpanded = false; openProvider() },
-                        )
-                    }
+                    // Connected hosting platforms first, then the ones still to connect.
+                    IntegrationCatalog.providers(Workspace.HOSTING)
+                        .filter { it.id != "vercel" }
+                        .sortedBy { it.id !in connectedProviderIds }
+                        .forEach { provider ->
+                            DropdownMenuItem(
+                                modifier = Modifier.testTag("workspace.hosting.connect${provider.id.replaceFirstChar(Char::uppercaseChar)}"),
+                                text = { Text(if (provider.id in connectedProviderIds) provider.displayName else "Connect ${provider.displayName}") },
+                                leadingIcon = { ProviderLogo(provider, Modifier.size(22.dp)) },
+                                onClick = { accountMenuExpanded = false; onOpenHostingProvider(provider) },
+                            )
+                        }
                     DropdownMenuItem(
                         modifier = Modifier
                             .fillMaxWidth()

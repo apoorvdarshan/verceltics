@@ -959,6 +959,13 @@ private val SupportedProviderIds = setOf(
     "goDaddy",
     "pageSpeed",
     "googleSearchConsole",
+    "googleAnalytics",
+    "bingWebmaster",
+    "clarity",
+    "plausible",
+    "umami",
+    "uptimeRobot",
+    "betterStack",
 )
 
 private val ConnectedProviderGreen = Color(0xFF2E9E58)

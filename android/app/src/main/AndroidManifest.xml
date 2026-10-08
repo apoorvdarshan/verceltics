@@ -41,6 +41,25 @@
                     tools:ignore="AppLinkUrlError" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".ui.googleoauth.GoogleOAuthCallbackActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:noHistory="true"
+            android:theme="@style/Theme.Verceltics">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                    android:path="/oauth2redirect"
+                    android:scheme="${googleOAuthRedirectScheme}"
+                    android:sspPrefix="/oauth2redirect?"
+                    tools:ignore="AppLinkUrlError" />
+            </intent-filter>
+        </activity>
     </application>
 
 </manifest>

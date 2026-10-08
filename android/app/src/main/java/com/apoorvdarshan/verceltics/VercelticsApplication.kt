@@ -3,9 +3,11 @@ package com.apoorvdarshan.verceltics
 import android.app.Application
 import com.apoorvdarshan.verceltics.billing.BillingGateway
 import com.apoorvdarshan.verceltics.billing.RevenueCatBillingGateway
+import com.apoorvdarshan.verceltics.data.googleoauth.GoogleOAuthSession
 import com.apoorvdarshan.verceltics.data.hosting.GoogleAccessTokenSource
 import com.apoorvdarshan.verceltics.ui.hosting.NativeHostingProviderUiGateway
 import com.apoorvdarshan.verceltics.ui.registrar.NativeRegistrarUiGateway
+import com.apoorvdarshan.verceltics.ui.sites.NativeSiteServicesUiGateway
 import com.apoorvdarshan.verceltics.ui.NativeVercelUiGateway
 import com.apoorvdarshan.verceltics.ui.cloudflare.NativeCloudflareUiGateway
 import com.apoorvdarshan.verceltics.ui.netlify.NativeNetlifyUiGateway
@@ -33,8 +35,20 @@ class VercelticsApplication : Application() {
         NativeSearchConsoleUiGateway.create(this)
     }
 
+    /** Google sign-in used by Firebase Hosting, kept separate from the GA4 credential. */
+    val firebaseGoogleSession: GoogleOAuthSession by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        GoogleOAuthSession.create(this, slot = "hosting.firebase")
+    }
+
     val hostingGateway: NativeHostingProviderUiGateway by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
-        NativeHostingProviderUiGateway.create(this, googleAccessTokenSource = GoogleAccessTokenSource.Unavailable)
+        NativeHostingProviderUiGateway.create(
+            this,
+            googleAccessTokenSource = GoogleAccessTokenSource { scopes -> firebaseGoogleSession.accessToken(scopes) },
+        )
+    }
+
+    val siteServicesGateway: NativeSiteServicesUiGateway by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        NativeSiteServicesUiGateway.create(this)
     }
 
     val registrarGateway: NativeRegistrarUiGateway by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {

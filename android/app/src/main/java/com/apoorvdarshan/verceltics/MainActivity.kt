@@ -27,6 +27,9 @@ import com.apoorvdarshan.verceltics.ui.hosting.requiresSecureWindow
 import com.apoorvdarshan.verceltics.ui.registrar.RegistrarViewModel
 import com.apoorvdarshan.verceltics.ui.registrar.SampleRegistrarUiGateway
 import com.apoorvdarshan.verceltics.ui.registrar.requiresSecureWindow as registrarRequiresSecureWindow
+import com.apoorvdarshan.verceltics.ui.sites.SampleSiteServicesUiGateway
+import com.apoorvdarshan.verceltics.ui.sites.SiteServicesViewModel
+import com.apoorvdarshan.verceltics.ui.sites.requiresSecureWindow as siteServicesRequiresSecureWindow
 import com.apoorvdarshan.verceltics.ui.hosting.HostingProvidersViewModel
 import com.apoorvdarshan.verceltics.ui.hosting.SampleHostingProviderUiGateway
 import com.apoorvdarshan.verceltics.ui.cloudflare.CloudflareViewModel
@@ -82,6 +85,12 @@ class MainActivity : ComponentActivity() {
     }
     private val sampleRegistrarViewModel by lazy {
         ViewModelProvider(this, RegistrarViewModel.Factory(SampleRegistrarUiGateway))["sample.registrar", RegistrarViewModel::class.java]
+    }
+    private val siteServicesViewModel by viewModels<SiteServicesViewModel> {
+        SiteServicesViewModel.Factory((application as VercelticsApplication).siteServicesGateway)
+    }
+    private val sampleSiteServicesViewModel by lazy {
+        ViewModelProvider(this, SiteServicesViewModel.Factory(SampleSiteServicesUiGateway))["sample.siteServices", SiteServicesViewModel::class.java]
     }
     private val billingGateway
         get() = (application as VercelticsApplication).billingGateway
@@ -141,6 +150,8 @@ class MainActivity : ComponentActivity() {
                         onOpenExternalUri = ::openAboutUri,
                         hostingViewModel = if (showSampleData) sampleHostingViewModel else hostingViewModel,
                         registrarViewModel = if (showSampleData) sampleRegistrarViewModel else registrarViewModel,
+                        siteServicesViewModel = if (showSampleData) sampleSiteServicesViewModel else siteServicesViewModel,
+                        onRequestGoogleSignIn = ::signInToGoogleForFirebase,
                         isSampleData = showSampleData,
                         onToggleSampleData = {
                             if (!showSampleData) {
@@ -150,6 +161,7 @@ class MainActivity : ComponentActivity() {
                                 samplePageSpeedViewModel.restore()
                                 sampleHostingViewModel.restore()
                                 sampleRegistrarViewModel.restore()
+                                sampleSiteServicesViewModel.restore()
                             }
                             showSampleData = !showSampleData
                             samplePreferences.edit().putBoolean("enabled", showSampleData).apply()
@@ -169,9 +181,8 @@ class MainActivity : ComponentActivity() {
                     searchConsoleViewModel.uiState.map { it.requiresSecureWindow },
                     hostingViewModel.uiState.map { it.requiresSecureWindow },
                     registrarViewModel.uiState.map { it.registrarRequiresSecureWindow },
-                ) { netlifyRequired, cloudflareRequired, searchConsoleRequired, hostingRequired, registrarRequired ->
-                    netlifyRequired || cloudflareRequired || searchConsoleRequired || hostingRequired || registrarRequired
-                }
+                    siteServicesViewModel.uiState.map { it.siteServicesRequiresSecureWindow },
+                ) { required -> required.any { it } }
                     .distinctUntilChanged()
                     .collect(::setProviderCredentialProtection)
             }
@@ -188,6 +199,15 @@ class MainActivity : ComponentActivity() {
         } else if (ownsProviderSecureFlag) {
             window.clearFlags(secureFlag)
             ownsProviderSecureFlag = false
+        }
+    }
+
+    /** Firebase Hosting asks for Google sign-in; the browser flow returns via GoogleOAuthCallbackActivity. */
+    private fun signInToGoogleForFirebase(scopes: Set<String>) {
+        val session = (application as VercelticsApplication).firebaseGoogleSession
+        lifecycleScope.launch {
+            runCatching { session.signIn(scopes) }
+            hostingViewModel.onGoogleSignInCompleted()
         }
     }
 

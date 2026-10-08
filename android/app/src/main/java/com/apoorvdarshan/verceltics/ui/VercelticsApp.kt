@@ -61,6 +61,11 @@ import com.apoorvdarshan.verceltics.data.registrar.RegistrarProvider
 import com.apoorvdarshan.verceltics.ui.registrar.RegistrarConnectionCards
 import com.apoorvdarshan.verceltics.ui.registrar.RegistrarRoute
 import com.apoorvdarshan.verceltics.ui.registrar.RegistrarViewModel
+import com.apoorvdarshan.verceltics.ui.sites.SiteServiceConnectionCards
+import com.apoorvdarshan.verceltics.ui.sites.SiteServiceProviderIds
+import com.apoorvdarshan.verceltics.ui.sites.SiteServiceRoute
+import com.apoorvdarshan.verceltics.ui.sites.SiteServicesViewModel
+import com.apoorvdarshan.verceltics.ui.sites.connectedProviderIds as connectedSiteServiceIdsOf
 import com.apoorvdarshan.verceltics.ui.hosting.HostingProviderConnectionCards
 import com.apoorvdarshan.verceltics.ui.hosting.HostingProviderRoute
 import com.apoorvdarshan.verceltics.ui.hosting.HostingProvidersViewModel
@@ -166,6 +171,7 @@ fun VercelticsApp(
     hostingViewModel: HostingProvidersViewModel? = null,
     onRequestGoogleSignIn: (Set<String>) -> Unit = {},
     registrarViewModel: RegistrarViewModel? = null,
+    siteServicesViewModel: SiteServicesViewModel? = null,
 ) {
     val context = LocalContext.current
     val preferences = remember(context) {
@@ -191,6 +197,7 @@ fun VercelticsApp(
     var hostingRefreshRequestId by rememberSaveable { mutableIntStateOf(0) }
     var hostingProviderSearchRequestId by rememberSaveable { mutableIntStateOf(0) }
     var registrarRouteSearchRequestId by rememberSaveable { mutableIntStateOf(0) }
+    var siteServicesSearchRequestId by rememberSaveable { mutableIntStateOf(0) }
     val connectionState by vercelConnectionViewModel.uiState.collectAsStateWithLifecycle()
     val pageSpeedState by pageSpeedViewModel.uiState.collectAsStateWithLifecycle()
     val netlifyState by netlifyViewModel.uiState.collectAsStateWithLifecycle()
@@ -200,13 +207,17 @@ fun VercelticsApp(
     val connectedHostingProviderIds = hostingState?.connectedHostingIds.orEmpty()
     val registrarState = registrarViewModel?.uiState?.collectAsStateWithLifecycle()?.value
     val connectedRegistrarIds = registrarState?.connectedRegistrarIdsOf.orEmpty()
+    val siteServicesState = siteServicesViewModel?.uiState?.collectAsStateWithLifecycle()?.value
+    val connectedSiteServiceIds = siteServicesState?.connectedSiteServiceIdsOf.orEmpty()
     val connectedSiteProviderIds = remember(
         pageSpeedState.isConnected,
         searchConsoleState.isConnected,
+        connectedSiteServiceIds,
     ) {
         buildSet {
             if (pageSpeedState.isConnected) add(PAGE_SPEED_PROVIDER_ID)
             if (searchConsoleState.isConnected) add(SEARCH_CONSOLE_PROVIDER_ID)
+            addAll(connectedSiteServiceIds)
         }
     }
     val destination = MainDestination.fromId(destinationId)
@@ -262,6 +273,10 @@ fun VercelticsApp(
     }
 
     fun requestSearch() {
+        if (siteServicesViewModel != null && provider != null && provider.id in SiteServiceProviderIds) {
+            siteServicesSearchRequestId += 1
+            return
+        }
         if (registrarViewModel != null && provider != null && provider.id in RegistrarProvider.ids) {
             registrarRouteSearchRequestId += 1
             return
@@ -315,6 +330,7 @@ fun VercelticsApp(
         hostingRefreshRequestId += 1
         hostingViewModel?.onForeground()
         registrarViewModel?.onForeground()
+        siteServicesViewModel?.onForeground()
         netlifyViewModel.onForeground()
         cloudflareViewModel.onForeground()
         searchConsoleViewModel.onForeground()
@@ -323,6 +339,7 @@ fun VercelticsApp(
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) {
         hostingViewModel?.onBackground()
         registrarViewModel?.onBackground()
+        siteServicesViewModel?.onBackground()
         netlifyViewModel.onBackground()
         cloudflareViewModel.onBackground()
         searchConsoleViewModel.onBackground()
@@ -335,7 +352,8 @@ fun VercelticsApp(
             provider.id != CLOUDFLARE_PROVIDER_ID &&
             provider.id != SEARCH_CONSOLE_PROVIDER_ID &&
             !(hostingViewModel != null && provider.id in HostingProvider.ids) &&
-            !(registrarViewModel != null && provider.id in RegistrarProvider.ids),
+            !(registrarViewModel != null && provider.id in RegistrarProvider.ids) &&
+            !(siteServicesViewModel != null && provider.id in SiteServiceProviderIds),
     ) {
         closeProvider()
     }
@@ -417,6 +435,17 @@ fun VercelticsApp(
                                     onBack = ::closeProvider,
                                     onRequestGoogleSignIn = onRequestGoogleSignIn,
                                     searchRequestId = hostingProviderSearchRequestId,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            } else {
+                                ProviderDetailScreen(provider = provider, vercelConnectionViewModel = vercelConnectionViewModel, onBack = ::closeProvider, modifier = Modifier.fillMaxSize())
+                            }
+                            in SiteServiceProviderIds -> if (siteServicesViewModel != null) {
+                                SiteServiceRoute(
+                                    viewModel = siteServicesViewModel,
+                                    providerId = provider.id,
+                                    onBack = ::closeProvider,
+                                    searchRequestId = siteServicesSearchRequestId,
                                     modifier = Modifier.fillMaxSize(),
                                 )
                             } else {
@@ -546,7 +575,8 @@ fun VercelticsApp(
                                     connectedProviderIds = connectedSiteProviderIds,
                                     modifier = Modifier.fillMaxSize(),
                                     connectedContent = if (
-                                        pageSpeedState.isConnected || searchConsoleState.isConnected
+                                        pageSpeedState.isConnected || searchConsoleState.isConnected ||
+                                        connectedSiteServiceIds.isNotEmpty()
                                     ) {
                                         {
                                             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -563,6 +593,13 @@ fun VercelticsApp(
                                                     PageSpeedConnectionCard(
                                                         state = pageSpeedState,
                                                         onClick = { providerId = PAGE_SPEED_PROVIDER_ID },
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                    )
+                                                }
+                                                if (siteServicesState != null && connectedSiteServiceIds.isNotEmpty()) {
+                                                    SiteServiceConnectionCards(
+                                                        state = siteServicesState,
+                                                        onOpenProvider = { providerId = it },
                                                         modifier = Modifier.fillMaxWidth(),
                                                     )
                                                 }
