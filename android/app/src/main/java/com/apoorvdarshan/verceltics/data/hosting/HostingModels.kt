@@ -88,10 +88,23 @@ sealed class HostingCredentials {
         val organization: String = requireIdentifier(organization, "Fly.io organization slug")
     }
 
-    /** Firebase stores no secret: Google access tokens come from [GoogleAccessTokenSource]. */
-    class Firebase(projectId: String) : HostingCredentials() {
+    /**
+     * Firebase stores no secret: Google access tokens come from [GoogleAccessTokenSource]. Each
+     * saved Firebase account reads them from its own Google OAuth slot ([googleSlot]); a fresh
+     * connection reads the shell's sign-in slot until the gateway adopts it into the account slot.
+     * The slot is derived from the saved account id, so it is never persisted with the record.
+     */
+    class Firebase(
+        projectId: String,
+        googleSlot: String = FirebaseGoogleSlots.SIGN_IN,
+    ) : HostingCredentials() {
         override val provider = HostingProvider.FIREBASE
         val projectId: String = requireIdentifier(projectId, "Firebase project ID")
+        val googleSlot: String = googleSlot.also {
+            require(FirebaseGoogleSlots.isValid(it)) { "Invalid Firebase Google account slot." }
+        }
+
+        fun inGoogleSlot(slot: String): Firebase = Firebase(projectId, slot)
     }
 
     class AwsAmplify(
@@ -110,7 +123,7 @@ sealed class HostingCredentials {
     override fun toString(): String = when (this) {
         is Railway -> "HostingCredentials.Railway(tokenType=$tokenType, token=<redacted>)"
         is Fly -> "HostingCredentials.Fly(organization=$organization, token=<redacted>)"
-        is Firebase -> "HostingCredentials.Firebase(projectId=$projectId)"
+        is Firebase -> "HostingCredentials.Firebase(projectId=$projectId, googleSlot=$googleSlot)"
         is AwsAmplify -> "HostingCredentials.AwsAmplify(accessKeyId=…${accessKeyId.takeLast(4)}, " +
             "region=$region, secretAccessKey=<redacted>, sessionToken=" +
             "${if (sessionToken == null) "none" else "<redacted>"})"
@@ -296,7 +309,7 @@ enum class HostingRestoreProblem {
     SECURE_STORAGE_UNAVAILABLE,
 }
 
-/** Offline-only restore result for one provider slot. Never exposes credentials. */
+/** Offline-only restore result for one provider's active account. Never exposes credentials. */
 sealed interface HostingRestoreResult {
     data object NotConnected : HostingRestoreResult
 
@@ -307,6 +320,8 @@ sealed interface HostingRestoreResult {
         val cacheIsStale: Boolean,
         /** Non-secret context needed to build console links (Firebase project, AWS region). */
         val linkContext: HostingLinkContext,
+        /** The active saved account this restore describes. */
+        val accountId: String = AccountVaultLayout.PRIMARY_ACCOUNT_ID,
     ) : HostingRestoreResult
 
     data class Unavailable(val problem: HostingRestoreProblem) : HostingRestoreResult

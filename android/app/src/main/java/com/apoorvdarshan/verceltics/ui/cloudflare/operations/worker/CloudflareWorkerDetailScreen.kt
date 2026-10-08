@@ -86,7 +86,13 @@ fun CloudflareWorkerDetailScreen(
     val hasModules = worker?.hasModules ?: fallback.hasModules
     val routes = worker?.routes.orEmpty()
 
-    CloudflareOpsScreen("cloudflare.workerDetail", modifier) {
+    CloudflareOpsScreen(
+        "cloudflare.workerDetail",
+        modifier,
+        maximumContentWidth = 850.dp,
+        isRefreshing = state.isLoading || state.isRefreshing,
+        onRefresh = { viewModel.load(forceRefresh = true) },
+    ) {
         item("hero") {
             CloudflareOpsHero(
                 title = scriptName,

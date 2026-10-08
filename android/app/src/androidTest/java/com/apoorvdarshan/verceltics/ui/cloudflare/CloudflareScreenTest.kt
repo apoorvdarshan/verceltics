@@ -1,6 +1,7 @@
 package com.apoorvdarshan.verceltics.ui.cloudflare
 
 import androidx.compose.ui.test.assertCountEquals
+import com.apoorvdarshan.verceltics.ui.hosting.ProviderAccountUi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsSelected
@@ -27,6 +28,100 @@ import org.junit.Test
 class CloudflareScreenTest {
     @get:Rule
     val compose = createComposeRule()
+
+    @Test
+    fun connectedDashboardAccountMenuSwitchesLoginsAndAddsOne() {
+        val switched = mutableListOf<String>()
+        var added = 0
+        compose.setContent {
+            VercelticsTheme {
+                CloudflareScreen(
+                    state = connectedState().copy(savedLogins = TWO_LOGINS),
+                    onBack = {},
+                    onConnect = {},
+                    onRefresh = {},
+                    onCancel = {},
+                    onSelectAccount = {},
+                    onOpenResource = { _, _ -> },
+                    onRequestDisconnect = {},
+                    onDismissDisconnect = {},
+                    onConfirmDisconnect = {},
+                    accountActions = CloudflareAccountActions(
+                        onSwitchLogin = { switched += it },
+                        onAddAccount = { added += 1 },
+                    ),
+                )
+            }
+        }
+
+        compose.onNodeWithTag("cloudflare.accountMenuButton").assertIsDisplayed().performClick()
+        compose.onNodeWithTag("cloudflare.account.second").performClick()
+        compose.onNodeWithTag("cloudflare.accountMenuButton").performClick()
+        compose.onNodeWithTag("cloudflare.addAccount").performClick()
+
+        compose.runOnIdle {
+            assertEquals(listOf("second"), switched)
+            assertEquals(1, added)
+        }
+    }
+
+    @Test
+    fun addingALoginShowsTheCredentialFormWithABackButton() {
+        var cancelled = 0
+        compose.setContent {
+            VercelticsTheme {
+                CloudflareScreen(
+                    state = connectedState().copy(savedLogins = TWO_LOGINS, isAddingAccount = true),
+                    onBack = {},
+                    onConnect = {},
+                    onRefresh = {},
+                    onCancel = {},
+                    onSelectAccount = {},
+                    onOpenResource = { _, _ -> },
+                    onRequestDisconnect = {},
+                    onDismissDisconnect = {},
+                    onConfirmDisconnect = {},
+                    accountActions = CloudflareAccountActions(onCancelAddAccount = { cancelled += 1 }),
+                )
+            }
+        }
+
+        val form = compose.onNodeWithTag("cloudflare.connectionForm").assertIsDisplayed()
+        compose.onAllNodesWithTag("cloudflare.accountMenuButton").assertCountEquals(0)
+        compose.onAllNodesWithTag("cloudflare.dashboard").assertCountEquals(0)
+        form.performScrollToNode(hasTestTag("cloudflare.cancelAddAccount"))
+        compose.onNodeWithTag("cloudflare.cancelAddAccount").performClick()
+
+        compose.runOnIdle { assertEquals(1, cancelled) }
+    }
+
+    @Test
+    fun removeAllConfirmationForwardsTheDestructiveAction() {
+        var confirmed = 0
+        compose.setContent {
+            VercelticsTheme {
+                CloudflareScreen(
+                    state = connectedState().copy(savedLogins = TWO_LOGINS, showRemoveAllConfirmation = true),
+                    onBack = {},
+                    onConnect = {},
+                    onRefresh = {},
+                    onCancel = {},
+                    onSelectAccount = {},
+                    onOpenResource = { _, _ -> },
+                    onRequestDisconnect = {},
+                    onDismissDisconnect = {},
+                    onConfirmDisconnect = {},
+                    accountActions = CloudflareAccountActions(onConfirmRemoveAll = { confirmed += 1 }),
+                )
+            }
+        }
+
+        compose.onNodeWithTag("cloudflare.removeAllDialog").assertIsDisplayed()
+        compose.onNodeWithText("Remove all Cloudflare accounts?").assertIsDisplayed()
+        compose.onNodeWithText("REMOVE ALL ACCOUNTS").performClick()
+
+        compose.runOnIdle { assertEquals(1, confirmed) }
+    }
 
     @Test
     fun dashboardSearchSectionsAndAccountPickerExposeRealInventory() {
@@ -264,6 +359,11 @@ class CloudflareScreenTest {
         compose.onAllNodesWithTag("cloudflare.zone.zone-one").assertCountEquals(0)
     }
 }
+
+private val TWO_LOGINS = listOf(
+    ProviderAccountUi("primary", "Primary login", "Scoped API token", isActive = true),
+    ProviderAccountUi("second", "Second login", "owner@example.com"),
+)
 
 private fun connectedState(): CloudflareUiState = CloudflareUiState(
     status = CloudflareConnectionStatus.CONNECTED,

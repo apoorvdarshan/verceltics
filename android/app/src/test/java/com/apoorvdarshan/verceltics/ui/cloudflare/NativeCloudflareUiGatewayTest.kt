@@ -1,5 +1,6 @@
 package com.apoorvdarshan.verceltics.ui.cloudflare
 
+import com.apoorvdarshan.verceltics.data.hosting.primaryFiles
 import com.apoorvdarshan.verceltics.data.account.AccountCipher
 import com.apoorvdarshan.verceltics.data.account.AtomicBytesStore
 import com.apoorvdarshan.verceltics.data.account.SealedPayload
@@ -42,7 +43,7 @@ class NativeCloudflareUiGatewayTest {
     private val api = RecordingReadApi()
     private val transport = FakeCloudflareRestTransport()
     private val gateway = NativeCloudflareUiGateway(
-        connectionStore = CloudflareConnectionStore(CloudflareConnectionRepository(MemoryStore(), XorCipher())),
+        connectionStore = CloudflareConnectionStore(CloudflareConnectionRepository(primaryFiles(CloudflareConnectionRepository.ACCOUNT_PATH, MemoryStore()), XorCipher())),
         dataSource = CloudflareDataSource(api),
         networkExecutor = Executors.newSingleThreadExecutor(),
         storageExecutor = Executors.newSingleThreadExecutor(),

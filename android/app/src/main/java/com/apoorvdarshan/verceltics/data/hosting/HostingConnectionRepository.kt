@@ -2,216 +2,153 @@ package com.apoorvdarshan.verceltics.data.hosting
 
 import android.content.Context
 import com.apoorvdarshan.verceltics.data.account.AccountCipher
-import com.apoorvdarshan.verceltics.data.account.AccountEnvelopeCodec
 import com.apoorvdarshan.verceltics.data.account.AndroidKeystoreAccountCipher
 import com.apoorvdarshan.verceltics.data.account.AtomicBytesStore
 import com.apoorvdarshan.verceltics.data.account.NoBackupAtomicFileStore
-import java.nio.charset.StandardCharsets
-import java.security.MessageDigest
 
-/** In-memory identity of one encrypted hosting record revision. */
-internal class HostingRecordRevision private constructor(private val digest: ByteArray) {
-    fun matches(envelope: ByteArray): Boolean {
-        val candidate = MessageDigest.getInstance("SHA-256").digest(envelope)
-        return try {
-            MessageDigest.isEqual(digest, candidate)
-        } finally {
-            candidate.fill(0)
-        }
-    }
+/** In-memory identity of one encrypted hosting record revision (its account and digest). */
+internal typealias HostingRecordRevision = AccountRecordRevision
 
-    override fun toString(): String = "HostingRecordRevision(<redacted>)"
-
-    companion object {
-        fun from(envelope: ByteArray) = HostingRecordRevision(MessageDigest.getInstance("SHA-256").digest(envelope))
-    }
-}
-
-/** Opaque encrypted rollback state for one pending replacement in one provider slot. */
+/** Opaque encrypted rollback state for one pending replacement in one provider's account list. */
 internal class HostingRecordCommit(
     val provider: HostingProvider,
-    val revision: HostingRecordRevision,
-    previousEnvelope: ByteArray?,
+    val vaultCommit: AccountVaultCommit,
 ) {
-    private var state = State.PENDING
-    private var rollbackEnvelope: ByteArray? = previousEnvelope
+    val accountId: String get() = vaultCommit.accountId
 
-    @Synchronized
-    fun accept(): ByteArray? {
-        if (state != State.PENDING) return null
-        state = State.ACCEPTED
-        return rollbackEnvelope.also { rollbackEnvelope = null }
-    }
-
-    /** Returns the envelope to restore (null bytes meaning "the slot was empty"), once. */
-    @Synchronized
-    fun claimRollback(): Array<ByteArray?>? {
-        if (state != State.PENDING) return null
-        state = State.ROLLBACK_CLAIMED
-        return arrayOf(rollbackEnvelope).also { rollbackEnvelope = null }
-    }
-
-    override fun toString(): String = "HostingRecordCommit(provider=${provider.id}, <redacted>)"
-
-    private enum class State {
-        PENDING,
-        ACCEPTED,
-        ROLLBACK_CLAIMED,
-    }
+    override fun toString(): String = "HostingRecordCommit(provider=${provider.id}, accountId=$accountId, <redacted>)"
 }
 
 internal class HostingVersionedConnection(
     val connection: HostingStoredConnection,
     val revision: HostingRecordRevision,
-)
+) {
+    val accountId: String get() = revision.accountId
+}
 
 /**
- * One encrypted, no-backup storage slot per hosting provider, sharing a single Keystore key.
- * Each slot's AAD names its provider, so an envelope copied into another slot fails to decrypt.
- * Several providers can be connected at once; each slot holds one account.
+ * Encrypted, no-backup account lists for every hosting provider, sharing a single Keystore key.
+ *
+ * Each provider keeps several accounts plus an active one ([ProviderAccountVault]); the account
+ * saved before multi-account support stays in its original slot as the first account. Record AADs
+ * name the provider (and account), so an envelope copied into another slot fails to decrypt.
+ * Several providers can be connected at once.
  */
 class HostingConnectionRepository(
-    storeFactory: (HostingProvider) -> AtomicBytesStore,
-    private val cipher: AccountCipher,
+    storeFactory: (relativePath: String) -> AtomicBytesStore,
+    cipher: AccountCipher,
+    newAccountId: () -> String = { java.util.UUID.randomUUID().toString() },
+    storedAccountIds: (AccountVaultLayout) -> List<String> = { emptyList() },
 ) {
-    private val stores: Map<HostingProvider, AtomicBytesStore> = HostingProvider.entries.associateWith(storeFactory)
-    private val pendingCommits = mutableMapOf<HostingProvider, HostingRecordCommit>()
-
-    @Synchronized
-    fun load(provider: HostingProvider): HostingStoredConnection? = loadWithRevision(provider)?.connection
-
-    @Synchronized
-    internal fun loadWithRevision(provider: HostingProvider): HostingVersionedConnection? {
-        val envelope = store(provider).read() ?: return null
-        val associatedData = associatedData(provider).toByteArray(StandardCharsets.UTF_8)
-        var plaintext: ByteArray? = null
-        return try {
-            val revision = HostingRecordRevision.from(envelope)
-            plaintext = cipher.decrypt(AccountEnvelopeCodec.decode(envelope), associatedData)
-            HostingVersionedConnection(HostingConnectionPayloadCodec.decode(plaintext, provider), revision)
-        } finally {
-            envelope.fill(0)
-            associatedData.fill(0)
-            plaintext?.fill(0)
+    private val vaults: Map<HostingProvider, ProviderAccountVault<HostingStoredConnection>> =
+        HostingProvider.entries.associateWith { provider ->
+            ProviderAccountVault(
+                layout = layout(provider),
+                storeFactory = storeFactory,
+                cipher = cipher,
+                encode = HostingConnectionPayloadCodec::encode,
+                decode = { accountId, plaintext ->
+                    HostingConnectionPayloadCodec.decode(plaintext, provider).scopedTo(accountId)
+                },
+                newAccountId = newAccountId,
+                storedAccountIds = { storedAccountIds(layout(provider)) },
+            )
         }
-    }
 
-    /** Direct replacement, used by tests and migrations. Connect flows use [saveWithRevision]. */
-    @Synchronized
+    /** The active account's connection. */
+    fun load(provider: HostingProvider): HostingStoredConnection? = vault(provider).loadActive()?.value
+
+    fun load(provider: HostingProvider, accountId: String): HostingStoredConnection? =
+        vault(provider).load(accountId)?.value
+
+    internal fun loadWithRevision(provider: HostingProvider): HostingVersionedConnection? =
+        vault(provider).loadActive()?.toVersioned()
+
+    internal fun loadWithRevision(provider: HostingProvider, accountId: String): HostingVersionedConnection? =
+        vault(provider).load(accountId)?.toVersioned()
+
+    fun activeAccountId(provider: HostingProvider): String? = vault(provider).activeAccountId()
+
+    /** Every saved account in the order it was added; unreadable records are listed, not dropped. */
+    fun records(provider: HostingProvider): List<AccountVaultRecord<HostingStoredConnection>> = vault(provider).records()
+
+    /** Direct replacement of the active account (or the first account), used by tests and migrations. */
     fun save(connection: HostingStoredConnection) {
-        val provider = connection.account.provider
-        check(pendingCommits[provider] == null) { "A hosting connection replacement is already pending." }
-        val envelope = encryptedEnvelope(connection)
-        try {
-            store(provider).write(envelope)
-        } finally {
-            envelope.fill(0)
-        }
+        vault(connection.account.provider).save(connection)
     }
 
-    @Synchronized
-    internal fun saveWithRevision(connection: HostingStoredConnection): HostingRecordCommit {
+    /** Saves a validated connection into [accountId] (rotation) or a new account (null), active. */
+    internal fun saveWithRevision(accountId: String?, connection: HostingStoredConnection): HostingRecordCommit {
         val provider = connection.account.provider
-        check(pendingCommits[provider] == null) { "A hosting connection replacement is already pending." }
-        var previousEnvelope = store(provider).read()
-        var envelope: ByteArray? = null
-        return try {
-            envelope = encryptedEnvelope(connection)
-            store(provider).write(envelope)
-            HostingRecordCommit(provider, HostingRecordRevision.from(envelope), previousEnvelope).also {
-                pendingCommits[provider] = it
-                previousEnvelope = null
-            }
-        } finally {
-            envelope?.fill(0)
-            previousEnvelope?.fill(0)
-        }
+        return HostingRecordCommit(provider, vault(provider).saveWithRevision(accountId, connection))
     }
 
     /** Compare-and-swap for refreshes, so stale work cannot resurrect or replace a newer record. */
-    @Synchronized
     internal fun saveIfRevisionMatches(
         expectedRevision: HostingRecordRevision,
         connection: HostingStoredConnection,
-    ): Boolean {
-        val provider = connection.account.provider
-        if (pendingCommits[provider] != null) return false
-        val current = store(provider).read() ?: return false
-        var replacement: ByteArray? = null
-        return try {
-            if (!expectedRevision.matches(current)) return false
-            replacement = encryptedEnvelope(connection)
-            store(provider).write(replacement)
-            true
-        } finally {
-            current.fill(0)
-            replacement?.fill(0)
-        }
-    }
+    ): Boolean = vault(connection.account.provider).saveIfRevisionMatches(expectedRevision, connection)
 
-    @Synchronized
-    internal fun accept(commit: HostingRecordCommit) {
-        if (pendingCommits[commit.provider] === commit) pendingCommits.remove(commit.provider)
-        commit.accept()?.fill(0)
-    }
+    internal fun accept(commit: HostingRecordCommit) = vault(commit.provider).accept(commit.vaultCommit)
 
-    /** Restores the prior envelope only while this exact replacement is still current. */
-    @Synchronized
-    internal fun rollbackIfRevisionMatches(commit: HostingRecordCommit): Boolean {
-        if (pendingCommits[commit.provider] !== commit) return false
-        val rollback = commit.claimRollback() ?: return false
-        pendingCommits.remove(commit.provider)
-        val previous = rollback[0]
-        val store = store(commit.provider)
-        val current = store.read()
-        return try {
-            if (current == null || !commit.revision.matches(current)) {
-                false
-            } else {
-                if (previous == null) store.delete() else store.write(previous)
-                true
-            }
-        } finally {
-            current?.fill(0)
-            previous?.fill(0)
-        }
-    }
+    /** Restores the prior account record only while this exact replacement is still current. */
+    internal fun rollbackIfRevisionMatches(commit: HostingRecordCommit): Boolean =
+        vault(commit.provider).rollbackIfRevisionMatches(commit.vaultCommit)
 
-    /** Only an explicit user disconnect should erase a slot. */
-    @Synchronized
-    fun delete(provider: HostingProvider) {
-        pendingCommits.remove(provider)?.accept()?.fill(0)
-        store(provider).delete()
-    }
+    /** Makes [accountId] the provider's active account. */
+    fun activate(provider: HostingProvider, accountId: String): Boolean = vault(provider).activate(accountId)
 
-    private fun store(provider: HostingProvider): AtomicBytesStore = checkNotNull(stores[provider])
+    /** Removes one account; returns the provider's new active account id, if any remain. */
+    fun deleteAccount(provider: HostingProvider, accountId: String): String? = vault(provider).delete(accountId)
 
-    private fun encryptedEnvelope(connection: HostingStoredConnection): ByteArray {
-        val provider = connection.account.provider
-        val plaintext = HostingConnectionPayloadCodec.encode(connection)
-        val associatedData = associatedData(provider).toByteArray(StandardCharsets.UTF_8)
-        return try {
-            AccountEnvelopeCodec.encode(cipher.encrypt(plaintext, associatedData))
-        } finally {
-            plaintext.fill(0)
-            associatedData.fill(0)
-        }
-    }
+    /** Only an explicit user "Remove All" should erase every account of a provider. Returns the removed ids. */
+    fun delete(provider: HostingProvider): List<String> = vault(provider).deleteAll()
+
+    /** Removes the provider's active account; returns the new active account id. */
+    fun deleteActiveAccount(provider: HostingProvider): String? = vault(provider).deleteActive()
+
+    private fun vault(provider: HostingProvider): ProviderAccountVault<HostingStoredConnection> =
+        checkNotNull(vaults[provider])
+
+    private fun AccountVaultEntry<HostingStoredConnection>.toVersioned() = HostingVersionedConnection(value, revision)
 
     companion object {
         internal const val KEY_ALIAS = "verceltics.account-storage.hosting.v1"
 
+        /** The pre-multi-account record path, kept as the provider's first account. */
         internal fun accountPath(provider: HostingProvider): String = "accounts/hosting-${provider.id}.account"
 
         internal fun associatedData(provider: HostingProvider): String =
             "verceltics.account-envelope.v1:hosting-${provider.id}"
 
+        internal fun layout(provider: HostingProvider): AccountVaultLayout = AccountVaultLayout(
+            domain = "hosting-${provider.id}",
+            primaryPath = accountPath(provider),
+            primaryAssociatedData = associatedData(provider),
+        )
+
         fun create(context: Context): HostingConnectionRepository {
             val applicationContext = context.applicationContext
             return HostingConnectionRepository(
-                storeFactory = { provider -> NoBackupAtomicFileStore(applicationContext, accountPath(provider)) },
+                storeFactory = { path -> NoBackupAtomicFileStore(applicationContext, path) },
                 cipher = AndroidKeystoreAccountCipher(keyAlias = KEY_ALIAS),
+                storedAccountIds = { layout -> noBackupStoredAccountIds(applicationContext.noBackupFilesDir, layout) },
             )
         }
     }
+}
+
+/** Binds a decoded record to its account: Firebase reads Google tokens from the account's slot. */
+internal fun HostingStoredConnection.scopedTo(accountId: String): HostingStoredConnection {
+    val firebase = account.credentials as? HostingCredentials.Firebase ?: return this
+    val slot = FirebaseGoogleSlots.forAccount(accountId)
+    if (firebase.googleSlot == slot) return this
+    return copy(
+        account = HostingAccount(
+            profile = account.profile,
+            credentials = firebase.inGoogleSlot(slot),
+            createdAtMillis = account.createdAtMillis,
+            updatedAtMillis = account.updatedAtMillis,
+        ),
+    )
 }

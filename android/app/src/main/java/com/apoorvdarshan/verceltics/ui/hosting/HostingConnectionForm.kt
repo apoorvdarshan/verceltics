@@ -89,8 +89,11 @@ internal fun HostingConnectionForm(
     onCancel: () -> Unit,
     onOpenLink: (String) -> Unit,
     modifier: Modifier = Modifier,
+    /** Shown while adding another account: returns to the active account's dashboard. */
+    onCancelAddAccount: (() -> Unit)? = null,
 ) {
     val haptic = LocalHapticFeedback.current
+    val addingAccount = state.isConnected && state.isAddingAccount
     val accent = Color(catalogProvider.accentColor)
     val tokenController = remember(provider) { EphemeralSecretController() }
     val awsSecretController = remember(provider) { EphemeralSecretController() }
@@ -179,11 +182,12 @@ internal fun HostingConnectionForm(
         }
     }
 
+    ProviderAdaptivePage(ProviderLayout.FormMaxWidth, modifier.fillMaxWidth()) { metrics ->
     LazyColumn(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxWidth()
             .testTag("hosting.${provider.id}.connectionForm"),
-        contentPadding = PaddingValues(start = 18.dp, top = 8.dp, end = 18.dp, bottom = 32.dp),
+        contentPadding = metrics.contentPadding(top = 8.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item("header") {
@@ -193,7 +197,10 @@ internal fun HostingConnectionForm(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 ProviderMark(provider = catalogProvider, size = 64.dp)
-                Text("Connect ${provider.displayName}", style = MaterialTheme.typography.headlineSmall)
+                Text(
+                    if (addingAccount) "Add ${provider.displayName} account" else "Connect ${provider.displayName}",
+                    style = MaterialTheme.typography.headlineSmall,
+                )
                 Text(
                     catalogProvider.description,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -362,6 +369,18 @@ internal fun HostingConnectionForm(
                 )
             }
         }
+        if (addingAccount && !connecting && onCancelAddAccount != null) {
+            item("cancel-add-account") {
+                ThemedActionButton(
+                    "BACK TO SAVED ACCOUNT",
+                    onClick = onCancelAddAccount,
+                    tone = ThemedActionTone.NEUTRAL,
+                    modifier = Modifier.fillMaxWidth(),
+                    testTag = "hosting.${provider.id}.cancelAddAccount",
+                )
+            }
+        }
+    }
     }
 }
 

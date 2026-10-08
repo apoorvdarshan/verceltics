@@ -78,6 +78,7 @@ import com.apoorvdarshan.verceltics.ui.apiexplorer.CompleteApiEntryCard
 import com.apoorvdarshan.verceltics.ui.apiexplorer.DashboardAndCompleteApiActions
 import com.apoorvdarshan.verceltics.ui.apiexplorer.ProviderApiWorkspace
 import com.apoorvdarshan.verceltics.ui.billing.LocalProAccess
+import com.apoorvdarshan.verceltics.ui.components.AppPullToRefresh
 import com.apoorvdarshan.verceltics.ui.components.AppToolbarAction
 import com.apoorvdarshan.verceltics.ui.components.ControlSearchField
 import com.apoorvdarshan.verceltics.ui.components.OffsetPanel
@@ -176,6 +177,12 @@ fun HostingProviderRoute(
             onConfirmPrimaryAction = { viewModel.confirmPrimaryAction(providerId) },
             onContinueWithGoogle = { viewModel.requestGoogleSignIn(providerId) },
             onOpenCompleteApi = { resourceId -> proAccess.requestPro { viewModel.openApiWorkspace(providerId, resourceId) } },
+            onSwitchAccount = { accountId -> viewModel.switchAccount(providerId, accountId) },
+            onAddAccount = { viewModel.startAddingAccount(providerId) },
+            onCancelAddAccount = { viewModel.cancelAddingAccount(providerId) },
+            onRequestRemoveAll = { viewModel.requestRemoveAllConfirmation(providerId) },
+            onDismissRemoveAll = { viewModel.dismissRemoveAllConfirmation(providerId) },
+            onConfirmRemoveAll = { viewModel.confirmRemoveAll(providerId) },
         ),
         searchFocusRequestId = searchFocusRequestId,
         modifier = modifier,
@@ -203,6 +210,13 @@ class HostingProviderScreenCallbacks(
     val onContinueWithGoogle: () -> Unit = {},
     /** Pro-gated iOS "Complete API": the dashboard passes null, a resource detail its id. */
     val onOpenCompleteApi: (resourceId: String?) -> Unit = {},
+    /** Account menu (iOS `ProviderAccountMenu`). */
+    val onSwitchAccount: (accountId: String) -> Unit = {},
+    val onAddAccount: () -> Unit = {},
+    val onCancelAddAccount: () -> Unit = {},
+    val onRequestRemoveAll: () -> Unit = {},
+    val onDismissRemoveAll: () -> Unit = {},
+    val onConfirmRemoveAll: () -> Unit = {},
 )
 
 @Composable
@@ -217,7 +231,7 @@ fun HostingProviderScreen(
     val catalogProvider = IntegrationCatalog.provider(providerId)
     if (provider == null || catalogProvider == null) {
         Column(modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-            HostingTopBar("Hosting", null, false, false, false, callbacks.onBack, {}, {})
+            HostingTopBar("Hosting", null, false, false, false, callbacks.onBack, {}, {}, accountMenu = null)
             HostingFeedbackPanel(null, "This hosting provider is not supported.", isError = true, modifier = Modifier.padding(18.dp))
         }
         return
@@ -225,26 +239,26 @@ fun HostingProviderScreen(
     val haptic = LocalHapticFeedback.current
     val selected = state.selectedResource
 
-    if (state.showDisconnectConfirmation) {
-        ThemedAlertDialog(
-            title = "Disconnect ${provider.displayName}?",
-            message = if (provider == HostingProvider.FIREBASE) {
-                "The saved Firebase Hosting project and inventory will be removed from this device. Google sign-in is managed separately."
-            } else {
-                "The encrypted credentials and saved ${provider.displayName} inventory will be removed from this device."
-            },
-            confirmText = "DISCONNECT",
-            confirmTone = ThemedActionTone.DESTRUCTIVE,
-            dismissText = "KEEP ACCOUNT",
-            enabled = state.operation != HostingOperation.DISCONNECTING,
-            onConfirm = {
-                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                callbacks.onConfirmDisconnect()
-            },
-            onDismissRequest = callbacks.onDismissDisconnect,
-            testTag = "hosting.$providerId.disconnectDialog",
-        )
-    }
+    ProviderAccountRemovalDialogs(
+        providerName = provider.displayName,
+        currentAccountName = state.accounts.firstOrNull { it.isActive }?.displayName
+            ?: state.dashboard?.account?.displayName
+            ?: state.savedAccount?.displayName,
+        showRemoveCurrent = state.showDisconnectConfirmation,
+        showRemoveAll = state.showRemoveAllConfirmation,
+        accountCount = state.accounts.size,
+        enabled = state.operation != HostingOperation.DISCONNECTING,
+        onConfirmRemoveCurrent = callbacks.onConfirmDisconnect,
+        onDismissRemoveCurrent = callbacks.onDismissDisconnect,
+        onConfirmRemoveAll = callbacks.onConfirmRemoveAll,
+        onDismissRemoveAll = callbacks.onDismissRemoveAll,
+        testTagPrefix = "hosting.$providerId",
+        removeCurrentMessage = if (provider == HostingProvider.FIREBASE) {
+            "The saved Firebase Hosting project, its Google sign-in and its inventory are removed from this device only."
+        } else {
+            "The encrypted credentials and saved ${provider.displayName} inventory for this account are removed from this device only."
+        },
+    )
     val actionLabel = provider.primaryActionLabel
     if (state.showActionConfirmation && selected != null && actionLabel != null) {
         ThemedAlertDialog(
@@ -268,12 +282,13 @@ fun HostingProviderScreen(
             .background(MaterialTheme.colorScheme.background)
             .testTag("hosting.$providerId.screen"),
     ) {
-        val inDetail = state.status == HostingConnectionStatus.CONNECTED && selected != null
+        val inDetail = state.status == HostingConnectionStatus.CONNECTED && selected != null && !state.showsConnectionForm
+        val showsAccountMenu = state.isConnected && !inDetail && !state.showsConnectionForm
         HostingTopBar(
             title = if (inDetail) selected.name else provider.displayName,
             operation = state.operation,
             isLoading = state.isLoadingResource && inDetail,
-            canRefresh = state.isConnected,
+            canRefresh = state.isConnected && !state.showsConnectionForm,
             isDetail = inDetail,
             onBack = {
                 haptic.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -288,6 +303,24 @@ fun HostingProviderScreen(
                 callbacks.onCancel()
             },
             providerName = provider.displayName,
+            accountMenu = if (showsAccountMenu) {
+                {
+                    ProviderAccountMenu(
+                        provider = catalogProvider,
+                        accounts = state.accounts,
+                        actions = ProviderAccountMenuActions(
+                            onSwitchAccount = callbacks.onSwitchAccount,
+                            onAddAccount = callbacks.onAddAccount,
+                            onRemoveCurrent = callbacks.onRequestDisconnect,
+                            onRemoveAll = callbacks.onRequestRemoveAll,
+                        ),
+                        testTagPrefix = "hosting.$providerId",
+                        enabled = !state.isBusy,
+                    )
+                }
+            } else {
+                null
+            },
         )
         when {
             state.status == HostingConnectionStatus.RESTORING -> HostingLoading(
@@ -295,7 +328,7 @@ fun HostingProviderScreen(
                 Color(catalogProvider.accentColor),
                 Modifier.weight(1f),
             )
-            state.status == HostingConnectionStatus.DISCONNECTED -> HostingConnectionForm(
+            state.showsConnectionForm -> HostingConnectionForm(
                 provider = provider,
                 catalogProvider = catalogProvider,
                 state = state,
@@ -303,6 +336,7 @@ fun HostingProviderScreen(
                 onCancel = callbacks.onCancel,
                 onOpenLink = callbacks.onOpenLink,
                 modifier = Modifier.weight(1f),
+                onCancelAddAccount = callbacks.onCancelAddAccount,
             )
             state.status == HostingConnectionStatus.SAVED_UNAVAILABLE -> HostingSavedRecovery(
                 provider = provider,
@@ -448,6 +482,7 @@ private fun HostingTopBar(
     onRefresh: () -> Unit,
     onCancel: () -> Unit,
     providerName: String = "",
+    accountMenu: (@Composable () -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier
@@ -470,6 +505,7 @@ private fun HostingTopBar(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+        accountMenu?.invoke()
         val isCancelable = !isDetail && (operation == HostingOperation.CONNECTING || operation == HostingOperation.REFRESHING)
         AppToolbarAction(
             modifier = Modifier.size(48.dp),
@@ -506,11 +542,12 @@ private fun HostingSavedRecovery(
     modifier: Modifier = Modifier,
 ) {
     val haptic = LocalHapticFeedback.current
+    ProviderAdaptivePage(ProviderLayout.FormMaxWidth, modifier.fillMaxWidth()) { metrics ->
     LazyColumn(
-        modifier = modifier
-            .fillMaxWidth()
+        modifier = Modifier
+            .fillMaxSize()
             .testTag("hosting.${provider.id}.savedUnavailable"),
-        contentPadding = PaddingValues(18.dp),
+        contentPadding = metrics.contentPadding(top = 18.dp, bottom = 18.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item("recovery") {
@@ -552,7 +589,7 @@ private fun HostingSavedRecovery(
                         testTag = "hosting.${provider.id}.recovery.refresh",
                     )
                     ThemedActionButton(
-                        "DISCONNECT",
+                        if (state.accounts.size > 1) "REMOVE THIS ACCOUNT" else "DISCONNECT",
                         onClick = callbacks.onRequestDisconnect,
                         enabled = !state.isBusy,
                         tone = ThemedActionTone.DESTRUCTIVE,
@@ -562,6 +599,7 @@ private fun HostingSavedRecovery(
                 }
             }
         }
+    }
     }
 }
 
@@ -590,11 +628,20 @@ private fun HostingDashboard(
             keyboard?.show()
         }
     }
+    AppPullToRefresh(
+        isRefreshing = state.operation == HostingOperation.REFRESHING,
+        onRefresh = callbacks.onRefresh,
+        modifier = modifier.fillMaxWidth(),
+        enabled = state.operation == null || state.operation == HostingOperation.REFRESHING,
+        testTag = "hosting.${provider.id}.dashboardRefresh",
+    ) {
+    ProviderAdaptivePage(ProviderLayout.DashboardMaxWidth, Modifier.fillMaxSize()) { metrics ->
+    val columns = metrics.columns(minimumCellWidth = 340.dp, spacing = 14.dp, maximumColumns = 3)
     LazyColumn(
-        modifier = modifier
-            .fillMaxWidth()
+        modifier = Modifier
+            .fillMaxSize()
             .testTag("hosting.${provider.id}.dashboard"),
-        contentPadding = PaddingValues(start = 18.dp, top = 6.dp, end = 18.dp, bottom = 32.dp),
+        contentPadding = metrics.contentPadding(top = 6.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item("summary") {
@@ -693,17 +740,27 @@ private fun HostingDashboard(
                     }
                 }
             }
-        } else {
+        } else if (columns <= 1) {
             items(visibleResources, key = { "resource-${it.id}" }) { resource ->
                 HostingResourceRow(provider, accent, resource) {
                     haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                     callbacks.onOpenResource(resource.id)
                 }
             }
+        } else {
+            // iOS `resourceColumns`: an adaptive grid (340–540 pt cells) on regular-width windows.
+            items(visibleResources.adaptiveRows(columns), key = { row -> "resource-row-${row.first().id}" }) { row ->
+                ProviderGridRow(row, columns, spacing = 14.dp) { resource ->
+                    HostingResourceRow(provider, accent, resource) {
+                        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                        callbacks.onOpenResource(resource.id)
+                    }
+                }
+            }
         }
         item("disconnect") {
             ThemedActionButton(
-                "DISCONNECT ${provider.displayName.uppercase()}",
+                if (state.accounts.size > 1) "REMOVE THIS ${provider.displayName.uppercase()} ACCOUNT" else "DISCONNECT ${provider.displayName.uppercase()}",
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                     callbacks.onRequestDisconnect()
@@ -714,6 +771,8 @@ private fun HostingDashboard(
                 testTag = "hosting.${provider.id}.disconnect",
             )
         }
+    }
+    }
     }
 }
 
@@ -776,11 +835,19 @@ private fun HostingResourceDetail(
     val accent = Color(catalogProvider.accentColor)
     val workspace = state.resourceWorkspace?.takeIf { it.resourceId == resource.id }
     val historyTitle = provider.historyTitle
+    AppPullToRefresh(
+        isRefreshing = state.isLoadingResource,
+        onRefresh = callbacks.onRefreshResource,
+        modifier = modifier.fillMaxWidth(),
+        testTag = "hosting.${provider.id}.resourceRefresh",
+    ) {
+    ProviderAdaptivePage(ProviderLayout.DetailMaxWidth, Modifier.fillMaxSize()) { metrics ->
+    val columns = metrics.columns(minimumCellWidth = 340.dp, spacing = 14.dp, maximumColumns = 2)
     LazyColumn(
-        modifier = modifier
-            .fillMaxWidth()
+        modifier = Modifier
+            .fillMaxSize()
             .testTag("hosting.${provider.id}.resourceDetail"),
-        contentPadding = PaddingValues(start = 18.dp, top = 6.dp, end = 18.dp, bottom = 32.dp),
+        contentPadding = metrics.contentPadding(top = 6.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item("header") {
@@ -883,10 +950,16 @@ private fun HostingResourceDetail(
                     }
                 }
             }
-            else -> items(workspace.deployments, key = { "deployment-${it.id}" }) { deployment ->
+            columns <= 1 -> items(workspace.deployments, key = { "deployment-${it.id}" }) { deployment ->
                 HostingDeploymentRow(provider, deployment)
             }
+            // iOS `deploymentColumns`: adaptive 340–440 pt cells on regular-width windows.
+            else -> items(workspace.deployments.adaptiveRows(columns), key = { row -> "deployment-row-${row.first().id}" }) { row ->
+                ProviderGridRow(row, columns, spacing = 14.dp) { deployment -> HostingDeploymentRow(provider, deployment) }
+            }
         }
+    }
+    }
     }
 }
 

@@ -1,5 +1,8 @@
 package com.apoorvdarshan.verceltics.ui.cloudflare.tools
 
+import com.apoorvdarshan.verceltics.ui.hosting.adaptiveRows
+import com.apoorvdarshan.verceltics.ui.hosting.ProviderGridRow
+import com.apoorvdarshan.verceltics.ui.hosting.ProviderLayout
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -84,13 +87,12 @@ internal fun CloudflareProductCenterScreen(
     var query by rememberSaveable { mutableStateOf("") }
     val products = remember(query) { CloudflareProductCatalog.filtered(query) }
     val selectedZone = context.zones.firstOrNull { it.id == selectedZoneId }
-    LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .testTag("cloudflare.productCenter"),
-        contentPadding = PaddingValues(start = 18.dp, top = 6.dp, end = 18.dp, bottom = 40.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
+    CloudflareToolsPage(
+        "cloudflare.productCenter",
+        modifier,
+        maximumContentWidth = ProviderLayout.CatalogMaxWidth,
+        spacing = 16.dp,
+    ) { page ->
         item("header") {
             ToolPanel(accentAlpha = 0.09f) {
                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -181,9 +183,13 @@ internal fun CloudflareProductCenterScreen(
                 }
             }
         }
-        items(products, key = { "product-${it.id}" }) { product ->
-            ProductPanel(product, context.authMode) { preset ->
-                onOpenOperation(preset.resolved(context.accountId, selectedZoneId))
+        // iOS `productColumns`: adaptiveColumns(regularMinimum: 400, regularMaximum: 520, spacing: 16).
+        val columns = page.columns(minimumCellWidth = 400.dp, spacing = 16.dp, maximumColumns = 3)
+        items(products.adaptiveRows(columns), key = { row -> "product-${row.joinToString("+") { it.id }}" }) { row ->
+            ProviderGridRow(row, columns, spacing = 16.dp) { product ->
+                ProductPanel(product, context.authMode) { preset ->
+                    onOpenOperation(preset.resolved(context.accountId, selectedZoneId))
+                }
             }
         }
     }

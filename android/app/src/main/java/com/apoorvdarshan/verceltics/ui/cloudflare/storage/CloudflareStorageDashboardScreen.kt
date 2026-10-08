@@ -29,6 +29,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.apoorvdarshan.verceltics.ui.hosting.ProviderLayout
+import com.apoorvdarshan.verceltics.ui.hosting.ProviderTwoPane
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -117,82 +119,63 @@ fun CloudflareStorageDashboardScreen(
             it.jurisdiction?.contains(query, true) == true || it.storageClass?.contains(query, true) == true
     }
 
-    CloudflareOpsScreen("cloudflare.storage.dashboard", modifier) {
-        item("header") { StorageHeader(accountName, state) }
-        item("notice") { CloudflareWriteNotice() }
-        banner?.let { item("banner") { CloudflareActionResultBanner(it, viewModel::dismissBanner) } }
-        if (state.warnings.isNotEmpty()) item("warnings") { StorageWarnings(state.warnings) }
-        item("search") {
-            ControlSearchField(
-                value = query,
-                onValueChange = { query = it },
-                placeholder = "Search storage",
-                modifier = Modifier.fillMaxWidth(),
-                testTag = "cloudflare.storage.search",
-            )
+    val d1Panel: @Composable () -> Unit = {
+        StorageSectionPanel(
+            key = "d1",
+            title = "D1 Databases",
+            icon = Icons.Rounded.TableChart,
+            count = databases.size,
+            emptyTitle = "No D1 databases",
+            emptyMessage = "Create a serverless SQL database for this account.",
+            onCreate = { viewModel.openCreation(CloudflareStorageCreation.D1) },
+        ) {
+            databases.forEachIndexed { index, database ->
+                CloudflareOpsResourceRow(
+                    icon = Icons.Rounded.TableChart,
+                    title = database.name,
+                    subtitle = CloudflareStorageDashboardViewModel.d1Subtitle(database),
+                    testTag = "cloudflare.storage.d1.${database.uuid}",
+                    onClick = { onOpenD1(database) },
+                )
+                if (index < databases.lastIndex) CloudflareOpsDivider(inset = true)
+            }
         }
-        if (state.isLoading) {
-            item("loading") { CloudflareOpsLoading("Loading storage…") }
-        } else if (query.isNotBlank() && databases.isEmpty() && namespaces.isEmpty() && buckets.isEmpty()) {
-            item("no-results") {
-                CloudflareOpsPanel {
-                    CloudflareOpsEmptySection(Icons.Rounded.Search, "No results", "Nothing in storage matches “$query”.")
-                }
+    }
+    val kvPanel: @Composable () -> Unit = {
+        StorageSectionPanel(
+            key = "kv",
+            title = "Workers KV",
+            icon = Icons.Rounded.Key,
+            count = namespaces.size,
+            emptyTitle = "No KV namespaces",
+            emptyMessage = "Create a namespace to store globally distributed key-value data.",
+            onCreate = { viewModel.openCreation(CloudflareStorageCreation.KV) },
+        ) {
+            namespaces.forEachIndexed { index, namespace ->
+                CloudflareOpsResourceRow(
+                    icon = Icons.Rounded.Key,
+                    title = namespace.title,
+                    subtitle = namespace.id,
+                    tint = CloudflareOpsColors.Amber,
+                    testTag = "cloudflare.storage.kv.${namespace.id}",
+                    onClick = { onOpenKV(namespace) },
+                )
+                if (index < namespaces.lastIndex) CloudflareOpsDivider(inset = true)
+            }
+        }
+    }
+    val r2Panel: @Composable () -> Unit = {
+        if (!viewModel.allowsR2) {
+            CloudflareOpsPanel(testTag = "cloudflare.storage.section.r2") {
+                CloudflareOpsEmptySection(
+                    Icons.Rounded.Inventory2,
+                    "R2 requires a scoped token",
+                    CLOUDFLARE_R2_REQUIRES_TOKEN_MESSAGE,
+                    testTag = "cloudflare.storage.r2.requiresToken",
+                )
             }
         } else {
-            storageSection(
-                key = "d1",
-                title = "D1 Databases",
-                icon = Icons.Rounded.TableChart,
-                count = databases.size,
-                emptyTitle = "No D1 databases",
-                emptyMessage = "Create a serverless SQL database for this account.",
-                onCreate = { viewModel.openCreation(CloudflareStorageCreation.D1) },
-            ) {
-                databases.forEachIndexed { index, database ->
-                    CloudflareOpsResourceRow(
-                        icon = Icons.Rounded.TableChart,
-                        title = database.name,
-                        subtitle = CloudflareStorageDashboardViewModel.d1Subtitle(database),
-                        testTag = "cloudflare.storage.d1.${database.uuid}",
-                        onClick = { onOpenD1(database) },
-                    )
-                    if (index < databases.lastIndex) CloudflareOpsDivider(inset = true)
-                }
-            }
-            storageSection(
-                key = "kv",
-                title = "Workers KV",
-                icon = Icons.Rounded.Key,
-                count = namespaces.size,
-                emptyTitle = "No KV namespaces",
-                emptyMessage = "Create a namespace to store globally distributed key-value data.",
-                onCreate = { viewModel.openCreation(CloudflareStorageCreation.KV) },
-            ) {
-                namespaces.forEachIndexed { index, namespace ->
-                    CloudflareOpsResourceRow(
-                        icon = Icons.Rounded.Key,
-                        title = namespace.title,
-                        subtitle = namespace.id,
-                        tint = CloudflareOpsColors.Amber,
-                        testTag = "cloudflare.storage.kv.${namespace.id}",
-                        onClick = { onOpenKV(namespace) },
-                    )
-                    if (index < namespaces.lastIndex) CloudflareOpsDivider(inset = true)
-                }
-            }
-            if (!viewModel.allowsR2) {
-                item("r2-requires-token") {
-                    CloudflareOpsPanel(testTag = "cloudflare.storage.section.r2") {
-                        CloudflareOpsEmptySection(
-                            Icons.Rounded.Inventory2,
-                            "R2 requires a scoped token",
-                            CLOUDFLARE_R2_REQUIRES_TOKEN_MESSAGE,
-                            testTag = "cloudflare.storage.r2.requiresToken",
-                        )
-                    }
-                }
-            } else storageSection(
+            StorageSectionPanel(
                 key = "r2",
                 title = "R2 Buckets",
                 icon = Icons.Rounded.Inventory2,
@@ -215,9 +198,57 @@ fun CloudflareStorageDashboardScreen(
             }
         }
     }
+
+    CloudflareOpsScreen(
+        "cloudflare.storage.dashboard",
+        modifier,
+        maximumContentWidth = ProviderLayout.DashboardMaxWidth,
+        isRefreshing = state.isLoading || state.isRefreshing,
+        onRefresh = { viewModel.load(force = true) },
+    ) { page ->
+        item("header") { StorageHeader(accountName, state) }
+        item("notice") { CloudflareWriteNotice() }
+        banner?.let { item("banner") { CloudflareActionResultBanner(it, viewModel::dismissBanner) } }
+        if (state.warnings.isNotEmpty()) item("warnings") { StorageWarnings(state.warnings) }
+        item("search") {
+            ControlSearchField(
+                value = query,
+                onValueChange = { query = it },
+                placeholder = "Search storage",
+                modifier = Modifier.fillMaxWidth(),
+                testTag = "cloudflare.storage.search",
+            )
+        }
+        if (state.isLoading) {
+            item("loading") { CloudflareOpsLoading("Loading storage…") }
+        } else if (query.isNotBlank() && databases.isEmpty() && namespaces.isEmpty() && buckets.isEmpty()) {
+            item("no-results") {
+                CloudflareOpsPanel {
+                    CloudflareOpsEmptySection(Icons.Rounded.Search, "No results", "Nothing in storage matches “$query”.")
+                }
+            }
+        } else if (page.fitsTwoPanes(primaryMinimumWidth = 380.dp, secondaryMinimumWidth = 380.dp)) {
+            // iOS `AppAdaptiveTwoPane(primaryMinimumWidth: 380, secondaryMinimumWidth: 380)`.
+            item("sections-two-pane") {
+                ProviderTwoPane(
+                    twoPanes = true,
+                    primary = { d1Panel() },
+                    secondary = {
+                        kvPanel()
+                        r2Panel()
+                    },
+                )
+            }
+        } else {
+            item("section-d1") { d1Panel() }
+            item("section-kv") { kvPanel() }
+            item(if (viewModel.allowsR2) "section-r2" else "r2-requires-token") { r2Panel() }
+        }
+    }
 }
 
-private fun LazyListScope.storageSection(
+@Composable
+private fun StorageSectionPanel(
     key: String,
     title: String,
     icon: ImageVector,
@@ -227,19 +258,17 @@ private fun LazyListScope.storageSection(
     onCreate: () -> Unit,
     rows: @Composable () -> Unit,
 ) {
-    item("section-$key") {
-        CloudflareOpsPanel(testTag = "cloudflare.storage.section.$key") {
-            CloudflareOpsSectionHeader(
-                title = title,
-                icon = icon,
-                count = count,
-                actionTitle = "Create",
-                actionTestTag = "cloudflare.storage.create.$key",
-                onAction = onCreate,
-            )
-            CloudflareOpsDivider()
-            if (count == 0) CloudflareOpsEmptySection(icon, emptyTitle, emptyMessage) else rows()
-        }
+    CloudflareOpsPanel(testTag = "cloudflare.storage.section.$key") {
+        CloudflareOpsSectionHeader(
+            title = title,
+            icon = icon,
+            count = count,
+            actionTitle = "Create",
+            actionTestTag = "cloudflare.storage.create.$key",
+            onAction = onCreate,
+        )
+        CloudflareOpsDivider()
+        if (count == 0) CloudflareOpsEmptySection(icon, emptyTitle, emptyMessage) else rows()
     }
 }
 

@@ -19,12 +19,18 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class AndroidHostingConnectionRepositoryTest {
     private val context = ApplicationProvider.getApplicationContext<Context>()
+    private val opened = mutableMapOf<String, NoBackupAtomicFileStore>()
     private val stores by lazy {
-        HostingProvider.entries.associateWith { NoBackupAtomicFileStore(context, "accounts/test-hosting-${it.id}.account") }
+        HostingProvider.entries.associateWith { testStore(HostingConnectionRepository.accountPath(it)) }
+    }
+
+    /** Every repository path, redirected under `accounts/test-…` so real accounts are never touched. */
+    private fun testStore(path: String): NoBackupAtomicFileStore = synchronized(opened) {
+        opened.getOrPut(path) { NoBackupAtomicFileStore(context, path.replaceFirst("accounts/", "accounts/test-")) }
     }
 
     private fun repository() = HostingConnectionRepository(
-        storeFactory = { checkNotNull(stores[it]) },
+        storeFactory = ::testStore,
         cipher = AndroidKeystoreAccountCipher(TEST_KEY_ALIAS),
     )
 
@@ -77,8 +83,39 @@ class AndroidHostingConnectionRepositoryTest {
         assertTrue(repository().load(HostingProvider.RENDER) != null)
     }
 
+    @Test
+    fun secondAccountGetsItsOwnKeystoreEncryptedSlotAndRemovingItKeepsTheFirst() {
+        val first = HostingProfile("render-first", "First", null, null)
+        val second = HostingProfile("render-second", "Second", null, null)
+        val repository = repository()
+        val store = HostingConnectionStore(repository)
+        store.acceptValidatedConnection(
+            store.saveValidatedConnection(
+                HostingCredentials.Render(SecretValue.of("first-key")),
+                HostingSnapshot(HostingProvider.RENDER, first, emptyList(), 1L),
+            ),
+        )
+        val added = store.saveValidatedConnection(
+            HostingCredentials.Render(SecretValue.of("second-key")),
+            HostingSnapshot(HostingProvider.RENDER, second, emptyList(), 2L),
+        )
+        store.acceptValidatedConnection(added)
+
+        assertEquals(listOf("render-first", "render-second"), store.accounts(HostingProvider.RENDER).map { it.profile?.id })
+        assertEquals("render-second", repository().load(HostingProvider.RENDER)?.account?.profile?.id)
+        assertTrue(store.switchAccount(HostingProvider.RENDER, AccountVaultLayout.PRIMARY_ACCOUNT_ID))
+        assertEquals("render-first", repository().load(HostingProvider.RENDER)?.account?.profile?.id)
+
+        assertEquals(AccountVaultLayout.PRIMARY_ACCOUNT_ID, store.removeAccount(HostingProvider.RENDER, added.accountId))
+        assertEquals(listOf("render-first"), store.accounts(HostingProvider.RENDER).map { it.profile?.id })
+    }
+
     private fun clean() {
         stores.values.forEach(NoBackupAtomicFileStore::delete)
+        HostingProvider.entries.forEach { provider ->
+            runCatching { repository().delete(provider) }
+        }
+        synchronized(opened) { opened.values.forEach(NoBackupAtomicFileStore::delete) }
         KeyStore.getInstance("AndroidKeyStore").apply { load(null) }.deleteEntry(TEST_KEY_ALIAS)
     }
 

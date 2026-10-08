@@ -7,6 +7,10 @@ import com.apoorvdarshan.verceltics.data.apicatalog.ProviderApiRequestException
 import com.apoorvdarshan.verceltics.data.apicatalog.ProviderRawRequest
 import com.apoorvdarshan.verceltics.data.apicatalog.ProviderRawResponse
 import com.apoorvdarshan.verceltics.data.apicatalog.RailwayGraphQLTemplateBuilder
+import com.apoorvdarshan.verceltics.data.hosting.AndroidFirebaseGoogleCredentialSlots
+import com.apoorvdarshan.verceltics.data.hosting.FirebaseGoogleCredentialSlots
+import com.apoorvdarshan.verceltics.data.hosting.FirebaseGoogleSlotUndo
+import com.apoorvdarshan.verceltics.data.hosting.FirebaseGoogleSlots
 import com.apoorvdarshan.verceltics.data.hosting.GoogleAccessTokenSource
 import com.apoorvdarshan.verceltics.data.hosting.HostingApiDefaults
 import com.apoorvdarshan.verceltics.data.hosting.HostingApiException
@@ -22,6 +26,7 @@ import com.apoorvdarshan.verceltics.data.hosting.HostingProvider
 import com.apoorvdarshan.verceltics.data.hosting.HostingProviderApi
 import com.apoorvdarshan.verceltics.data.hosting.HostingRawApi
 import com.apoorvdarshan.verceltics.data.hosting.HostingResource
+import com.apoorvdarshan.verceltics.data.hosting.HostingSavedAccount
 import com.apoorvdarshan.verceltics.data.hosting.HostingRestoreProblem
 import com.apoorvdarshan.verceltics.data.hosting.HostingRestoreResult
 import com.apoorvdarshan.verceltics.data.hosting.HostingSnapshot
@@ -52,6 +57,8 @@ class NativeHostingProviderUiGateway internal constructor(
     private val afterAcceptValidatedConnection: suspend () -> Unit = {},
     /** Complete API raw requests; null disables the explorer (tests that don't exercise it). */
     private val rawApi: HostingRawApi? = null,
+    /** Per-account Google OAuth slots for Firebase Hosting. */
+    private val firebaseSlots: FirebaseGoogleCredentialSlots = FirebaseGoogleCredentialSlots.None,
 ) : HostingProviderUiGateway {
     private class RailwayCatalogEntry(val accountId: String, val catalog: ProviderApiCatalog, val loadedAtMillis: Long)
 
@@ -64,6 +71,12 @@ class NativeHostingProviderUiGateway internal constructor(
         }
     }
 
+    /**
+     * Validates [credentials] and saves them as the active account. A validated identity that is
+     * already saved is rotated in place; anything else becomes a new account, so adding an account
+     * never disconnects the others. Firebase adopts the shell's fresh Google sign-in into the
+     * account's own Google slot before the save is accepted.
+     */
     override suspend fun connect(credentials: HostingCredentials): Result<HostingDashboardUi> =
         capture(credentials.provider) {
             val snapshot = withContext(workDispatcher) {
@@ -73,23 +86,34 @@ class NativeHostingProviderUiGateway internal constructor(
             }
             val link = HostingLinkContext.of(credentials)
             var pendingCommit: HostingConnectionCommit? = null
+            var slotUndo: FirebaseGoogleSlotUndo? = null
             try {
                 val commit = persistValidatedConnectionAwait(storageExecutor, connectionStore, credentials, snapshot)
                 pendingCommit = commit
+                val signInSlot = (credentials as? HostingCredentials.Firebase)?.googleSlot
+                    ?.takeIf { it == FirebaseGoogleSlots.SIGN_IN }
+                if (signInSlot != null) {
+                    slotUndo = withContext(NonCancellable) {
+                        firebaseSlots.copy(from = signInSlot, to = FirebaseGoogleSlots.forAccount(commit.accountId))
+                    }
+                }
                 beforeAcceptValidatedConnection()
                 // Acceptance is the commit point; cancellation can no longer turn a durable
                 // connection into a reported failure.
                 withContext(NonCancellable) {
                     executeAwait(storageExecutor) { connectionStore.acceptValidatedConnection(commit) }
                     pendingCommit = null
+                    slotUndo = null
+                    if (signInSlot != null) runCatching { firebaseSlots.clear(signInSlot) }
                     afterAcceptValidatedConnection()
-                    snapshot.toDashboardUi(link, HostingCacheState.LIVE)
+                    snapshot.toDashboardUi(link, HostingCacheState.LIVE, commit.accountId)
                 }
             } catch (error: CancellationException) {
                 withContext(NonCancellable) {
                     pendingCommit?.let { commit ->
                         executeAwait(storageExecutor) { connectionStore.rollbackValidatedConnection(commit) }
                     }
+                    slotUndo?.let { runCatching { firebaseSlots.undo(it) } }
                     // Barrier: wait for any rollback queued by an interrupted save.
                     executeAwait(storageExecutor) {}
                 }
@@ -99,22 +123,77 @@ class NativeHostingProviderUiGateway internal constructor(
                     pendingCommit?.let { commit ->
                         executeAwait(storageExecutor) { connectionStore.rollbackValidatedConnection(commit) }
                     }
+                    slotUndo?.let { runCatching { firebaseSlots.undo(it) } }
                 }
                 throw error
             }
         }
 
+    /** Refreshes the active account; the result is stored only into that same account. */
     override suspend fun refresh(providerId: String): Result<HostingDashboardUi> =
         capture(HostingProvider.fromId(providerId)) {
             val provider = provider(providerId)
-            val saved = executeAwait(storageExecutor) { connectionStore.loadForRefresh(provider) }
+            val saved = executeAwait(storageExecutor) { connectionStore.loadActive(provider) }
                 ?: throw HostingUiException("Connect ${provider.displayName} first.")
-            val credentials = saved.account.credentials
+            val credentials = saved.connection.account.credentials
             val snapshot = withContext(workDispatcher) {
-                HostingSnapshot(provider, saved.account.profile, api.fetchResources(credentials), nowMillis())
+                HostingSnapshot(provider, saved.connection.account.profile, api.fetchResources(credentials), nowMillis())
             }
-            executeAwait(storageExecutor) { connectionStore.persistRefreshResult(snapshot) }
-            snapshot.toDashboardUi(HostingLinkContext.of(credentials), HostingCacheState.LIVE)
+            executeAwait(storageExecutor) { connectionStore.persistRefreshResult(saved.accountId, snapshot) }
+            snapshot.toDashboardUi(HostingLinkContext.of(credentials), HostingCacheState.LIVE, saved.accountId)
+        }
+
+    override suspend fun accounts(providerId: String): Result<List<ProviderAccountUi>> =
+        capture(HostingProvider.fromId(providerId)) {
+            val provider = provider(providerId)
+            executeAwait(storageExecutor) { connectionStore.accounts(provider) }.map { it.toUi(provider) }
+        }
+
+    override suspend fun switchAccount(providerId: String, accountId: String): Result<HostingRestoreUi> =
+        capture(HostingProvider.fromId(providerId)) {
+            val provider = provider(providerId)
+            val switched = executeAwait(storageExecutor) { connectionStore.switchAccount(provider, accountId) }
+            if (!switched) throw HostingUiException("That ${provider.displayName} account is no longer saved.")
+            executeAwait(storageExecutor) { connectionStore.restore(provider) }.toUi(provider)
+        }
+
+    override suspend fun removeAccount(providerId: String, accountId: String): Result<HostingRestoreUi> =
+        capture(HostingProvider.fromId(providerId)) {
+            val provider = provider(providerId)
+            executeAwait(storageExecutor) { connectionStore.removeAccount(provider, accountId) }
+            if (provider == HostingProvider.FIREBASE) {
+                runCatching { firebaseSlots.clear(FirebaseGoogleSlots.forAccount(accountId)) }
+            }
+            executeAwait(storageExecutor) { connectionStore.restore(provider) }.toUi(provider)
+        }
+
+    override suspend fun removeActiveAccount(providerId: String): Result<HostingRestoreUi> =
+        capture(HostingProvider.fromId(providerId)) {
+            val provider = provider(providerId)
+            val activeId = executeAwait(storageExecutor) { connectionStore.activeAccountId(provider) }
+                ?: return@capture HostingRestoreUi.NotConnected
+            removeAccount(providerId, activeId).getOrThrow()
+        }
+
+    /**
+     * iOS `refreshAccountProfiles`: every saved account is validated again and a changed name,
+     * email or avatar is stored with compare-and-swap. Failures never touch saved accounts.
+     */
+    override suspend fun refreshAccountProfiles(providerId: String): Result<List<ProviderAccountUi>> =
+        capture(HostingProvider.fromId(providerId)) {
+            val provider = provider(providerId)
+            val saved = executeAwait(storageExecutor) { connectionStore.loadAllAccounts(provider) }
+            saved.forEach { versioned ->
+                val profile = try {
+                    withContext(workDispatcher) { api.validateProfile(versioned.connection.account.credentials) }
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (_: Exception) {
+                    null
+                } ?: return@forEach
+                executeAwait(storageExecutor) { connectionStore.persistRefreshedProfile(versioned, profile) }
+            }
+            executeAwait(storageExecutor) { connectionStore.accounts(provider) }.map { it.toUi(provider) }
         }
 
     override suspend fun loadResource(
@@ -154,7 +233,12 @@ class NativeHostingProviderUiGateway internal constructor(
 
     override suspend fun disconnect(providerId: String): Result<Unit> = capture(HostingProvider.fromId(providerId)) {
         val provider = provider(providerId)
-        executeAwait(storageExecutor) { connectionStore.disconnect(provider) }
+        val removedIds = executeAwait(storageExecutor) { connectionStore.disconnect(provider) }
+        if (provider == HostingProvider.FIREBASE) {
+            (removedIds.map(FirebaseGoogleSlots::forAccount) + FirebaseGoogleSlots.SIGN_IN)
+                .distinct()
+                .forEach { slot -> runCatching { firebaseSlots.clear(slot) } }
+        }
     }
 
     /**
@@ -212,10 +296,11 @@ class NativeHostingProviderUiGateway internal constructor(
                 snapshot.toDashboardUi(
                     linkContext,
                     if (cacheIsStale) HostingCacheState.CACHED_STALE else HostingCacheState.CACHED_FRESH,
+                    accountId,
                 ),
             )
         } ?: HostingRestoreUi.SavedWithoutInventory(
-            account = profile.toUi(),
+            account = profile.toUi(accountId, linkContext),
             dashboardUrl = HostingProviderApi.dashboardUrl(linkContext),
         )
         is HostingRestoreResult.Unavailable -> HostingRestoreUi.SavedUnavailable(
@@ -229,10 +314,14 @@ class NativeHostingProviderUiGateway internal constructor(
     }
 
     /** The live inventory is never truncated; only the encrypted offline cache is bounded. */
-    private fun HostingSnapshot.toDashboardUi(link: HostingLinkContext, cacheState: HostingCacheState): HostingDashboardUi =
+    private fun HostingSnapshot.toDashboardUi(
+        link: HostingLinkContext,
+        cacheState: HostingCacheState,
+        savedAccountId: String?,
+    ): HostingDashboardUi =
         HostingDashboardUi(
             providerId = provider.id,
-            account = profile.toUi(),
+            account = profile.toUi(savedAccountId, link),
             resources = resources.map { resource ->
                 HostingResourceUi(
                     id = resource.id,
@@ -259,27 +348,56 @@ class NativeHostingProviderUiGateway internal constructor(
     companion object {
         internal const val RAILWAY_CATALOG_LIFETIME_MILLIS: Long = 5 * 60 * 1_000L
 
+        /**
+         * [googleAccessTokenSource] answers slot-less token requests; every Firebase account reads
+         * its own Google slot through [AndroidFirebaseGoogleCredentialSlots].
+         */
         fun create(context: Context, googleAccessTokenSource: GoogleAccessTokenSource): NativeHostingProviderUiGateway {
             val networkExecutor = Executors.newFixedThreadPool(8) { runnable ->
                 Thread(runnable, "verceltics-hosting").apply { isDaemon = true }
             }
             val transport = SecureHostingHttpTransport(networkExecutor)
+            val firebaseSlots = AndroidFirebaseGoogleCredentialSlots(context.applicationContext)
+            val slotTokens = firebaseSlots.tokenSource()
+            val tokens = object : GoogleAccessTokenSource {
+                override suspend fun accessToken(scopes: Set<String>): String? = googleAccessTokenSource.accessToken(scopes)
+
+                override suspend fun accessToken(slot: String, scopes: Set<String>): String? =
+                    slotTokens.accessToken(slot, scopes)
+            }
             return NativeHostingProviderUiGateway(
                 connectionStore = HostingConnectionStore(HostingConnectionRepository.create(context.applicationContext)),
                 api = HostingProviderApi(
                     transport = transport,
-                    googleAccessTokenSource = googleAccessTokenSource,
+                    googleAccessTokenSource = tokens,
                 ),
                 storageExecutor = Executors.newSingleThreadExecutor { runnable ->
                     Thread(runnable, "verceltics-hosting-storage").apply { isDaemon = true }
                 },
-                rawApi = HostingRawApi(transport, googleAccessTokenSource),
+                rawApi = HostingRawApi(transport, tokens),
+                firebaseSlots = firebaseSlots,
             )
         }
     }
 }
 
-private fun HostingProfile.toUi(): HostingAccountUi = HostingAccountUi(id, name, email)
+private fun HostingProfile.toUi(savedAccountId: String?, link: HostingLinkContext): HostingAccountUi = HostingAccountUi(
+    id = id,
+    displayName = name,
+    email = email,
+    avatarUrl = avatarUrl,
+    savedAccountId = savedAccountId,
+    firebaseProjectId = link.firebaseProjectId,
+)
+
+private fun HostingSavedAccount.toUi(provider: HostingProvider): ProviderAccountUi = ProviderAccountUi(
+    id = accountId,
+    displayName = profile?.name ?: "Saved ${provider.displayName} account",
+    detail = if (profile == null) "Couldn’t open this saved account" else profile.email,
+    avatarUrl = profile?.avatarUrl,
+    isActive = isActive,
+    isReadable = profile != null,
+)
 
 private fun HostingResourceUi.toModel(): HostingResource = HostingResource(
     id = id,

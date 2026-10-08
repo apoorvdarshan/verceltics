@@ -112,7 +112,13 @@ fun CloudflarePagesProjectDetailScreen(
     val domains = project?.domains ?: summary.domains
     val subdomain = project?.subdomain ?: summary.subdomain
 
-    CloudflareOpsScreen("cloudflare.pages.detail", modifier) {
+    CloudflareOpsScreen(
+        "cloudflare.pages.detail",
+        modifier,
+        maximumContentWidth = 850.dp,
+        isRefreshing = state.isLoading || state.isRefreshing,
+        onRefresh = viewModel::load,
+    ) {
         item("hero") {
             val environment = project?.latestDeployment?.environment
             CloudflareOpsHero(

@@ -4,6 +4,7 @@ import android.app.Application
 import com.apoorvdarshan.verceltics.billing.BillingGateway
 import com.apoorvdarshan.verceltics.billing.RevenueCatBillingGateway
 import com.apoorvdarshan.verceltics.data.googleoauth.GoogleOAuthSession
+import com.apoorvdarshan.verceltics.data.hosting.FirebaseGoogleSlots
 import com.apoorvdarshan.verceltics.data.hosting.GoogleAccessTokenSource
 import com.apoorvdarshan.verceltics.ui.hosting.NativeHostingProviderUiGateway
 import com.apoorvdarshan.verceltics.ui.registrar.NativeRegistrarUiGateway
@@ -41,9 +42,12 @@ class VercelticsApplication : Application() {
         NativeSearchConsoleUiGateway.create(this)
     }
 
-    /** Google sign-in used by Firebase Hosting, kept separate from the GA4 credential. */
+    /**
+     * Google sign-in used by Firebase Hosting, kept separate from the GA4 credential. It signs in to
+     * a staging slot; each saved Firebase account then keeps its own slot (see FirebaseGoogleSlots).
+     */
     val firebaseGoogleSession: GoogleOAuthSession by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
-        GoogleOAuthSession.create(this, slot = "hosting.firebase")
+        GoogleOAuthSession.create(this, slot = FirebaseGoogleSlots.SIGN_IN)
     }
 
     val hostingGateway: NativeHostingProviderUiGateway by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {

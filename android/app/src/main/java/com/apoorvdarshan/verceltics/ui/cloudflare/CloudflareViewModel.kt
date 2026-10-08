@@ -12,6 +12,7 @@ import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareMutatio
 import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareRestClient
 import com.apoorvdarshan.verceltics.data.cloudflare.operations.cloudflareMutationAffectsDashboard
 import com.apoorvdarshan.verceltics.ui.cloudflare.tools.CloudflareToolsCredentialSource
+import com.apoorvdarshan.verceltics.ui.hosting.ProviderAccountUi
 import com.apoorvdarshan.verceltics.ui.cloudflare.operations.CloudflareOperationsNavigator
 import com.apoorvdarshan.verceltics.ui.cloudflare.storage.CloudflareStorageRoutes
 import kotlinx.coroutines.CancellationException
@@ -34,6 +35,8 @@ enum class CloudflareOperation {
     CONNECTING,
     REFRESHING,
     SWITCHING_ACCOUNT,
+    /** Switching between saved Cloudflare logins (the toolbar account menu). */
+    SWITCHING_LOGIN,
     DISCONNECTING,
 }
 
@@ -47,6 +50,12 @@ data class CloudflareUiState(
     val showDisconnectConfirmation: Boolean = false,
     val selectedResource: CloudflareResourceSelection? = null,
     val routeVisible: Boolean = false,
+    /** Every saved Cloudflare login (token or Global API Key), for the toolbar account menu. */
+    val savedLogins: List<ProviderAccountUi> = emptyList(),
+    /** True while the credential form is shown to add another login without disconnecting. */
+    val isAddingAccount: Boolean = false,
+    /** iOS "Remove All Accounts" confirmation. */
+    val showRemoveAllConfirmation: Boolean = false,
 ) {
     val isBusy: Boolean get() = operation != null
 
@@ -54,11 +63,18 @@ data class CloudflareUiState(
         get() = status == CloudflareConnectionStatus.CONNECTED ||
             status == CloudflareConnectionStatus.SAVED_UNAVAILABLE
 
+    /** The credential form is on screen: first connection, or adding another login. */
+    val showsConnectionForm: Boolean
+        get() = status == CloudflareConnectionStatus.DISCONNECTED || (isConnected && isAddingAccount)
+
+    /** The saved (storage) id of the active login, when known. */
+    val activeLoginId: String?
+        get() = savedLogins.firstOrNull { it.isActive }?.id
+            ?: dashboard?.profile?.savedAccountId
+            ?: savedProfile?.savedAccountId
+
     val requiresSecureWindow: Boolean
-        get() = routeVisible && (
-            status == CloudflareConnectionStatus.DISCONNECTED ||
-                operation == CloudflareOperation.CONNECTING
-            )
+        get() = routeVisible && (showsConnectionForm || operation == CloudflareOperation.CONNECTING)
 }
 
 class CloudflareViewModel(
@@ -82,6 +98,9 @@ class CloudflareViewModel(
     private var isForeground = false
     private var restoredCacheNeedsRefresh = false
     private var restoredCacheRefreshStarted = false
+    private var loginJob: Job? = null
+    private var loginGeneration = 0L
+    private var profileRefreshStarted = false
 
     init {
         restore()
@@ -150,7 +169,9 @@ class CloudflareViewModel(
             if (isCurrent(generation)) {
                 operationJob = null
                 operationBaseline = null
+                loadSavedLogins()
                 startRestoredCacheRefreshIfReady()
+                refreshLoginProfilesOnce()
             }
         }
     }
@@ -191,6 +212,7 @@ class CloudflareViewModel(
     fun onForeground() {
         isForeground = true
         startRestoredCacheRefreshIfReady()
+        refreshLoginProfilesOnce()
     }
 
     fun onBackground() {
@@ -224,10 +246,17 @@ class CloudflareViewModel(
                 gateway.restore().fold(
                     onSuccess = { restored ->
                         if (isCurrent(generation)) {
-                            applyRestore(restored)
+                            // While adding a login the previous login restores as before; the
+                            // connect only completed when a different (or a first) login is active.
+                            val restoredId = restored.savedLoginId()
+                            val completed = restored is CloudflareRestoreUi.Available &&
+                                (!baseline.isConnected || (restoredId != null && restoredId != baseline.activeLoginId))
+                            if (completed) savedStateHandle[ADDING_ACCOUNT] = null
+                            applyRestore(restored, keepLogins = false)
+                            loadSavedLogins()
                             _uiState.update {
                                 it.copy(
-                                    notice = if (restored is CloudflareRestoreUi.Available) {
+                                    notice = if (completed) {
                                         "The connection completed before cancellation and remains saved."
                                     } else {
                                         "Request cancelled."
@@ -268,14 +297,66 @@ class CloudflareViewModel(
         _uiState.update { it.copy(showDisconnectConfirmation = false) }
     }
 
+    /**
+     * iOS "Remove Current Account": removes only the active login and opens the next saved one
+     * (or the credential form when none remain). Without a known login id it removes everything.
+     */
     fun confirmDisconnect() {
-        val baseline = _uiState.value
-        if (!baseline.isConnected || baseline.isBusy) return
+        val current = _uiState.value
+        if (!current.isConnected || current.isBusy) return
+        val loginId = current.activeLoginId
         closeResource()
+        setAddingAccount(false)
+        val baseline = _uiState.value
+        launchRootOperation(CloudflareOperation.DISCONNECTING, baseline) { generation ->
+            // Without a listed login id the data layer resolves the active one; this never turns
+            // "Remove current account" into removing every login.
+            val result = if (loginId == null) gateway.removeActiveLogin() else gateway.removeLogin(loginId)
+            result.fold(
+                onSuccess = { restored ->
+                    if (isCurrent(generation)) {
+                        applyRestore(restored, keepLogins = false)
+                        loadSavedLogins()
+                        restoredCacheNeedsRefresh = restored is CloudflareRestoreUi.Available &&
+                            restored.dashboard.cacheState == CloudflareCacheState.CACHED_STALE
+                        restoredCacheRefreshStarted = false
+                        startRestoredCacheRefreshIfReady(afterOperation = true)
+                    }
+                },
+                onFailure = { error ->
+                    if (isCurrent(generation)) {
+                        _uiState.value = baseline.copy(
+                            operation = null,
+                            showDisconnectConfirmation = false,
+                            error = safeMessage(error),
+                        )
+                    }
+                },
+            )
+        }
+    }
+
+    fun requestRemoveAllConfirmation() {
+        if (_uiState.value.isConnected && !_uiState.value.isBusy) {
+            _uiState.update { it.copy(showRemoveAllConfirmation = true) }
+        }
+    }
+
+    fun dismissRemoveAllConfirmation() {
+        _uiState.update { it.copy(showRemoveAllConfirmation = false) }
+    }
+
+    /** iOS "Remove All Accounts": erases every saved Cloudflare login. */
+    fun confirmRemoveAll() {
+        if (!_uiState.value.isConnected || _uiState.value.isBusy) return
+        closeResource()
+        setAddingAccount(false)
+        val baseline = _uiState.value
         launchRootOperation(CloudflareOperation.DISCONNECTING, baseline) { generation ->
             gateway.disconnect().fold(
                 onSuccess = {
                     if (isCurrent(generation)) {
+                        loginGeneration += 1
                         _uiState.value = CloudflareUiState(
                             status = CloudflareConnectionStatus.DISCONNECTED,
                             operation = null,
@@ -287,9 +368,58 @@ class CloudflareViewModel(
                     if (isCurrent(generation)) {
                         _uiState.value = baseline.copy(
                             operation = null,
-                            showDisconnectConfirmation = false,
+                            showRemoveAllConfirmation = false,
                             error = safeMessage(error),
                         )
+                    }
+                },
+            )
+        }
+    }
+
+    /** Opens the credential form on top of the dashboard to add another login (no disconnect). */
+    fun startAddingAccount() {
+        val state = _uiState.value
+        if (!state.isConnected || state.isBusy) return
+        closeResource()
+        setAddingAccount(true)
+    }
+
+    fun cancelAddingAccount() {
+        if (_uiState.value.operation == CloudflareOperation.CONNECTING) return
+        setAddingAccount(false)
+        _uiState.update { it.copy(error = null) }
+        startRestoredCacheRefreshIfReady()
+    }
+
+    /**
+     * Makes another saved login active (iOS `switchAccount`). Operations, storage and every
+     * Cloudflare tool read the active login's credential per request, so they follow at once.
+     */
+    fun switchLogin(savedAccountId: String) {
+        val state = _uiState.value
+        if (!state.isConnected || state.isBusy || state.activeLoginId == savedAccountId) return
+        if (state.savedLogins.none { it.id == savedAccountId }) return
+        closeResource()
+        setAddingAccount(false)
+        val baseline = _uiState.value
+        launchRootOperation(CloudflareOperation.SWITCHING_LOGIN, baseline) { generation ->
+            gateway.switchLogin(savedAccountId).fold(
+                onSuccess = { restored ->
+                    if (!isCurrent(generation)) return@fold
+                    val marked = baseline.savedLogins.map { it.copy(isActive = it.id == savedAccountId) }
+                    applyRestore(restored, keepLogins = false)
+                    _uiState.update { it.copy(savedLogins = marked) }
+                    loadSavedLogins()
+                    restoredCacheNeedsRefresh = restored is CloudflareRestoreUi.Available &&
+                        restored.dashboard.cacheState == CloudflareCacheState.CACHED_STALE
+                    restoredCacheRefreshStarted = false
+                    startRestoredCacheRefreshIfReady(afterOperation = true)
+                },
+                onFailure = { error ->
+                    if (isCurrent(generation)) {
+                        _uiState.value = baseline.copy(operation = null, error = safeMessage(error))
+                        loadSavedLogins()
                     }
                 },
             )
@@ -325,6 +455,15 @@ class CloudflareViewModel(
             dismissDisconnectConfirmation()
             true
         }
+        _uiState.value.showRemoveAllConfirmation -> {
+            dismissRemoveAllConfirmation()
+            true
+        }
+        _uiState.value.isConnected && _uiState.value.isAddingAccount &&
+            _uiState.value.operation != CloudflareOperation.CONNECTING -> {
+            cancelAddingAccount()
+            true
+        }
         operationsNavigator.pop() -> true
         _uiState.value.selectedResource != null -> {
             closeResource()
@@ -340,7 +479,7 @@ class CloudflareViewModel(
         restoredCacheRefreshStarted = true
         launchRootOperation(operation, baseline) { generation ->
             gateway.refresh(preferredAccountId).fold(
-                onSuccess = { dashboard -> if (isCurrent(generation)) applyDashboard(dashboard) },
+                onSuccess = { dashboard -> if (isCurrent(generation)) applyDashboard(dashboard, fromConnect = false) },
                 onFailure = { error ->
                     if (isCurrent(generation)) {
                         _uiState.value = baseline.copy(
@@ -358,8 +497,13 @@ class CloudflareViewModel(
         }
     }
 
-    private fun applyRestore(restored: CloudflareRestoreUi) {
+    private fun applyRestore(restored: CloudflareRestoreUi, keepLogins: Boolean = true) {
         val visible = _uiState.value.routeVisible
+        val logins = if (keepLogins) _uiState.value.savedLogins else emptyList()
+        // Saved-state guard: "adding a login" only survives recreation over a saved login.
+        val addingAccount = restored !is CloudflareRestoreUi.NotConnected &&
+            savedStateHandle.get<Boolean>(ADDING_ACCOUNT) == true
+        if (!addingAccount) savedStateHandle[ADDING_ACCOUNT] = null
         if (restored !is CloudflareRestoreUi.Available) operationsNavigator.clear()
         _uiState.value = when (restored) {
             CloudflareRestoreUi.NotConnected -> CloudflareUiState(
@@ -374,6 +518,8 @@ class CloudflareViewModel(
                 operation = null,
                 selectedResource = validatedSelection(restored.dashboard),
                 routeVisible = visible,
+                savedLogins = logins,
+                isAddingAccount = addingAccount,
             )
             is CloudflareRestoreUi.SavedWithoutInventory -> CloudflareUiState(
                 status = CloudflareConnectionStatus.SAVED_UNAVAILABLE,
@@ -381,25 +527,94 @@ class CloudflareViewModel(
                 operation = null,
                 notice = "This connection has no saved inventory. Refresh when you are online.",
                 routeVisible = visible,
+                savedLogins = logins,
+                isAddingAccount = addingAccount,
             )
             is CloudflareRestoreUi.SavedUnavailable -> CloudflareUiState(
                 status = CloudflareConnectionStatus.SAVED_UNAVAILABLE,
                 operation = null,
                 error = restored.message,
                 routeVisible = visible,
+                savedLogins = logins,
+                isAddingAccount = addingAccount,
             )
         }
     }
 
-    private fun applyDashboard(dashboard: CloudflareDashboardUi) {
+    /** Reloads the account menu entries from encrypted storage (offline). */
+    private fun loadSavedLogins() {
+        val generation = ++loginGeneration
+        loginJob?.cancel()
+        loginJob = viewModelScope.launch {
+            gateway.savedLogins().onSuccess { logins ->
+                if (loginGeneration == generation) applySavedLogins(logins)
+            }
+        }
+    }
+
+    private fun applySavedLogins(logins: List<ProviderAccountUi>) {
+        _uiState.update { state ->
+            if (state.status == CloudflareConnectionStatus.DISCONNECTED && logins.isNotEmpty()) return@update state
+            val active = logins.firstOrNull { it.isActive }
+            val dashboard = state.dashboard?.let { dashboard ->
+                if (active != null && active.isReadable && dashboard.profile.savedAccountId == active.id) {
+                    dashboard.copy(profile = dashboard.profile.copy(displayName = active.displayName))
+                } else {
+                    dashboard
+                }
+            }
+            state.copy(savedLogins = logins, dashboard = dashboard)
+        }
+    }
+
+    /** iOS refreshes every saved login's profile once per launch; Android once per process. */
+    private fun refreshLoginProfilesOnce() {
+        if (!isForeground || profileRefreshStarted || !_uiState.value.isConnected) return
+        profileRefreshStarted = true
+        viewModelScope.launch {
+            // Let the restored-cache refresh and the offline login list finish first, so the two
+            // never race on one record and the menu never waits for the network.
+            operationJob?.join()
+            loginJob?.join()
+            val generation = loginGeneration
+            gateway.refreshLoginProfiles().fold(
+                onSuccess = { logins ->
+                    if (loginGeneration == generation && _uiState.value.isConnected) applySavedLogins(logins)
+                },
+                onFailure = { if (loginGeneration == generation) loadSavedLogins() },
+            )
+        }
+    }
+
+    private fun setAddingAccount(adding: Boolean) {
+        savedStateHandle[ADDING_ACCOUNT] = if (adding) true else null
+        _uiState.update { it.copy(isAddingAccount = adding) }
+    }
+
+    private fun CloudflareRestoreUi.savedLoginId(): String? = when (this) {
+        is CloudflareRestoreUi.Available -> dashboard.profile.savedAccountId
+        is CloudflareRestoreUi.SavedWithoutInventory -> profile.savedAccountId
+        else -> null
+    }
+
+    private fun applyDashboard(dashboard: CloudflareDashboardUi, fromConnect: Boolean = true) {
+        val current = _uiState.value
+        val activeId = dashboard.profile.savedAccountId
+        val switchedLogin = current.dashboard?.profile?.savedAccountId != activeId
+        if (switchedLogin && current.dashboard != null) operationsNavigator.clear()
+        val keepsAddForm = !fromConnect && current.isAddingAccount
+        if (!keepsAddForm) savedStateHandle[ADDING_ACCOUNT] = null
         _uiState.value = CloudflareUiState(
             status = CloudflareConnectionStatus.CONNECTED,
             dashboard = dashboard,
             savedProfile = dashboard.profile,
             operation = null,
             selectedResource = validatedSelection(dashboard),
-            routeVisible = _uiState.value.routeVisible,
+            routeVisible = current.routeVisible,
+            savedLogins = current.savedLogins.map { it.copy(isActive = it.id == activeId) },
+            isAddingAccount = keepsAddForm,
         )
+        if (switchedLogin || current.savedLogins.none { it.id == activeId }) loadSavedLogins()
     }
 
     private fun validatedSelection(dashboard: CloudflareDashboardUi): CloudflareResourceSelection? {
@@ -445,6 +660,7 @@ class CloudflareViewModel(
             error = null,
             notice = null,
             showDisconnectConfirmation = false,
+            showRemoveAllConfirmation = false,
         )
         operationJob = viewModelScope.launch {
             try {
@@ -464,9 +680,19 @@ class CloudflareViewModel(
         }
     }
 
-    private fun startRestoredCacheRefreshIfReady() {
+    private fun startRestoredCacheRefreshIfReady(afterOperation: Boolean = false) {
         if (!isForeground || !restoredCacheNeedsRefresh || restoredCacheRefreshStarted) return
+        if (afterOperation) {
+            // Called from inside the finishing operation: start once it has released the lock.
+            viewModelScope.launch {
+                operationJob?.join()
+                startRestoredCacheRefreshIfReady()
+            }
+            return
+        }
         if (operationJob?.isActive == true || !_uiState.value.isConnected) return
+        // Never refresh the form away while the user is adding a login; it runs on cancel.
+        if (_uiState.value.isAddingAccount) return
         restoredCacheRefreshStarted = true
         restoredCacheNeedsRefresh = false
         refresh()
@@ -504,5 +730,6 @@ class CloudflareViewModel(
     companion object {
         internal const val SELECTED_RESOURCE_KIND = "cloudflare.selectedResourceKind"
         internal const val SELECTED_RESOURCE_ID = "cloudflare.selectedResourceId"
+        internal const val ADDING_ACCOUNT = "cloudflare.addingAccount"
     }
 }

@@ -210,4 +210,14 @@ class DebugNetlifyUiGateway : NetlifyUiGateway {
     override suspend fun disconnect(): Result<Unit> = Result.success(
         DebugNetlifyGatewayController.disconnected(),
     )
+
+    /** One deterministic saved account whenever the debug scenario is connected. */
+    override suspend fun accounts(): Result<List<com.apoorvdarshan.verceltics.ui.hosting.ProviderAccountUi>> = Result.success(
+        if (DebugNetlifyGatewayController.scenario == DebugNetlifyScenario.DISCONNECTED) {
+            emptyList()
+        } else {
+            val account = DebugNetlifyGatewayController.dashboard.account
+            listOf(com.apoorvdarshan.verceltics.ui.hosting.ProviderAccountUi(account.id, account.displayName, account.email, isActive = true))
+        },
+    )
 }

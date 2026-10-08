@@ -88,7 +88,13 @@ fun CloudflareD1DatabaseScreen(viewModel: CloudflareD1DatabaseViewModel, modifie
     val database = state.database
     CloudflareConfirmationHost(viewModel)
 
-    CloudflareOpsScreen("cloudflare.storage.d1Screen", modifier) {
+    CloudflareOpsScreen(
+        "cloudflare.storage.d1Screen",
+        modifier,
+        maximumContentWidth = 900.dp,
+        isRefreshing = state.isRefreshing,
+        onRefresh = viewModel::load,
+    ) {
         item("hero") {
             CloudflareOpsHero(
                 title = database.name,

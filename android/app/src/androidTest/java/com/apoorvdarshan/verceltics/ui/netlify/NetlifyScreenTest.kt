@@ -3,7 +3,10 @@ package com.apoorvdarshan.verceltics.ui.netlify
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onAllNodesWithTag
+import com.apoorvdarshan.verceltics.ui.hosting.ProviderAccountUi
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.performClick
 import androidx.lifecycle.SavedStateHandle
@@ -425,6 +428,115 @@ class NetlifyScreenTest {
 
         composeRule.onNodeWithTag("netlify.refreshOrCancel").assertIsEnabled()
     }
+
+    @Test
+    fun connectedDashboardAccountMenuSwitchesAddsAndRemovesAccounts() {
+        val switched = mutableListOf<String>()
+        var added = 0
+        var removeAll = 0
+        composeRule.setContent {
+            VercelticsTheme {
+                NetlifyScreen(
+                    state = connectedWithAccounts(),
+                    onBack = {},
+                    onConnect = {},
+                    onRefresh = {},
+                    onCancel = {},
+                    onOpenSite = {},
+                    onRefreshSite = {},
+                    onRequestDisconnect = {},
+                    onDismissDisconnect = {},
+                    onConfirmDisconnect = {},
+                    accountActions = NetlifyAccountActions(
+                        onSwitchAccount = { switched += it },
+                        onAddAccount = { added += 1 },
+                        onRequestRemoveAll = { removeAll += 1 },
+                    ),
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("netlify.accountMenuButton").assertIsDisplayed().performClick()
+        composeRule.onNodeWithTag("netlify.account.second").performClick()
+        composeRule.onNodeWithTag("netlify.accountMenuButton").performClick()
+        composeRule.onNodeWithTag("netlify.addAccount").performClick()
+        composeRule.onNodeWithTag("netlify.accountMenuButton").performClick()
+        composeRule.onNodeWithTag("netlify.removeAllAccounts").performClick()
+
+        composeRule.runOnIdle {
+            assertEquals(listOf("second"), switched)
+            assertEquals(1, added)
+            assertEquals(1, removeAll)
+        }
+    }
+
+    @Test
+    fun addingAnAccountShowsTheTokenFormWithABackButton() {
+        var cancelled = 0
+        composeRule.setContent {
+            VercelticsTheme {
+                NetlifyScreen(
+                    state = connectedWithAccounts().copy(isAddingAccount = true, routeVisible = true),
+                    onBack = {},
+                    onConnect = {},
+                    onRefresh = {},
+                    onCancel = {},
+                    onOpenSite = {},
+                    onRefreshSite = {},
+                    onRequestDisconnect = {},
+                    onDismissDisconnect = {},
+                    onConfirmDisconnect = {},
+                    accountActions = NetlifyAccountActions(onCancelAddAccount = { cancelled += 1 }),
+                )
+            }
+        }
+
+        val form = composeRule.onNodeWithTag("netlify.connectionForm").assertIsDisplayed()
+        composeRule.onAllNodesWithTag("netlify.accountMenuButton").assertCountEquals(0)
+        composeRule.onAllNodesWithTag("netlify.dashboard").assertCountEquals(0)
+        form.performScrollToNode(hasTestTag("netlify.cancelAddAccount"))
+        composeRule.onNodeWithTag("netlify.cancelAddAccount").performClick()
+
+        composeRule.runOnIdle { assertEquals(1, cancelled) }
+    }
+
+    @Test
+    fun removeCurrentConfirmationKeepsTheExistingDialogTag() {
+        var confirmed = 0
+        composeRule.setContent {
+            VercelticsTheme {
+                NetlifyScreen(
+                    state = connectedWithAccounts().copy(showDisconnectConfirmation = true),
+                    onBack = {},
+                    onConnect = {},
+                    onRefresh = {},
+                    onCancel = {},
+                    onOpenSite = {},
+                    onRefreshSite = {},
+                    onRequestDisconnect = {},
+                    onDismissDisconnect = {},
+                    onConfirmDisconnect = { confirmed += 1 },
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("netlify.disconnectDialog").assertIsDisplayed()
+        composeRule.onNodeWithText("Remove Example Account?").assertIsDisplayed()
+        composeRule.onNodeWithText("REMOVE ACCOUNT").performClick()
+
+        composeRule.runOnIdle { assertEquals(1, confirmed) }
+    }
+
+    private fun connectedWithAccounts() = NetlifyUiState(
+        status = NetlifyConnectionStatus.CONNECTED,
+        dashboard = DASHBOARD,
+        savedAccount = DASHBOARD.account,
+        operation = null,
+        accounts = listOf(
+            ProviderAccountUi("primary", "Example Account", "owner@example.com", isActive = true),
+            ProviderAccountUi("second", "Second Account", "second@example.com"),
+        ),
+    )
 
     private fun setConnectedScreen(state: NetlifyUiState) {
         composeRule.setContent {

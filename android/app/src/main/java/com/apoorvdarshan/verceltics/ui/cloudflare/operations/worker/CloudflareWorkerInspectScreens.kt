@@ -74,7 +74,12 @@ fun CloudflareWorkerVersionScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     CloudflareWorkerRefreshEffect(refreshSignal) { viewModel.load(forceRefresh = true) }
     val detail = state.detail
-    CloudflareOpsScreen("cloudflare.workerVersion", modifier) {
+    CloudflareOpsScreen(
+        "cloudflare.workerVersion",
+        modifier,
+        isRefreshing = state.isLoading || state.isRefreshing,
+        onRefresh = { viewModel.load(forceRefresh = true) },
+    ) {
         when {
             detail != null -> {
                 item("header") {
@@ -149,7 +154,12 @@ fun CloudflareWorkerContentScreen(
     CloudflareWorkerRefreshEffect(refreshSignal) { viewModel.load() }
     val content = state.content
     val chunks = remember(content) { content?.text?.lines()?.chunked(CONTENT_LINES_PER_BLOCK).orEmpty() }
-    CloudflareOpsScreen("cloudflare.workerContent", modifier) {
+    CloudflareOpsScreen(
+        "cloudflare.workerContent",
+        modifier,
+        isRefreshing = state.isLoading || state.isRefreshing,
+        onRefresh = viewModel::load,
+    ) {
         when {
             content != null -> {
                 item("summary") {

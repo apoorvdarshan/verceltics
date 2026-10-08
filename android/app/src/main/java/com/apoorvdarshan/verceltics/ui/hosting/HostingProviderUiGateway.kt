@@ -33,7 +33,36 @@ interface HostingProviderUiGateway {
         latestDeploymentId: String?,
     ): Result<String>
 
+    /** Removes every saved account of [providerId] (iOS "Remove All Accounts"). */
     suspend fun disconnect(providerId: String): Result<Unit>
+
+    /** Every saved account of [providerId] for the account menu, offline (iOS `ProviderAccountMenu`). */
+    suspend fun accounts(providerId: String): Result<List<ProviderAccountUi>> = Result.success(emptyList())
+
+    /** Makes [accountId] the active account and restores it offline. */
+    suspend fun switchAccount(providerId: String, accountId: String): Result<HostingRestoreUi> =
+        Result.failure(HostingUiException("Switching accounts is unavailable here."))
+
+    /**
+     * Removes one saved account (iOS "Remove Current Account") and restores the account that becomes
+     * active, or [HostingRestoreUi.NotConnected] when none remain.
+     */
+    suspend fun removeAccount(providerId: String, accountId: String): Result<HostingRestoreUi> =
+        disconnect(providerId).map { HostingRestoreUi.NotConnected }
+
+    /**
+     * "Remove Current Account" when the UI could not list the accounts (for example an unreadable
+     * record): the data layer resolves the active account, so this never removes the others.
+     * Single-account gateways (samples, fakes) simply disconnect.
+     */
+    suspend fun removeActiveAccount(providerId: String): Result<HostingRestoreUi> =
+        disconnect(providerId).map { HostingRestoreUi.NotConnected }
+
+    /**
+     * iOS `refreshAccountProfiles`: re-validates every saved account online and stores updated
+     * names, emails and avatars. Failures leave saved accounts untouched.
+     */
+    suspend fun refreshAccountProfiles(providerId: String): Result<List<ProviderAccountUi>> = accounts(providerId)
 
     /**
      * Complete API catalog for [providerId]. [bundled] loads this build's catalog; Railway's live
@@ -84,6 +113,11 @@ data class HostingAccountUi(
     val id: String,
     val displayName: String,
     val email: String?,
+    val avatarUrl: String? = null,
+    /** The opaque saved-account (storage) id; null for sample fixtures. */
+    val savedAccountId: String? = null,
+    /** Firebase only: the project to reconnect when Google sign-in must be renewed. */
+    val firebaseProjectId: String? = null,
 )
 
 data class HostingResourceUi(

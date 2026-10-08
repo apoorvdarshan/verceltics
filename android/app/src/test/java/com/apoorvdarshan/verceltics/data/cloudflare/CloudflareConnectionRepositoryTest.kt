@@ -1,5 +1,6 @@
 package com.apoorvdarshan.verceltics.data.cloudflare
 
+import com.apoorvdarshan.verceltics.data.hosting.primaryFiles
 import com.apoorvdarshan.verceltics.data.account.AccountCipher
 import com.apoorvdarshan.verceltics.data.account.AtomicBytesStore
 import com.apoorvdarshan.verceltics.data.account.SealedPayload
@@ -17,7 +18,7 @@ class CloudflareConnectionRepositoryTest {
     @Test
     fun encryptedRecordRoundTripsTokenAndBoundedDashboardDataWithoutPrintingSecret() {
         val store = MemoryAtomicBytesStore()
-        val repository = CloudflareConnectionRepository(store, TestAccountCipher())
+        val repository = CloudflareConnectionRepository(primaryFiles(CloudflareConnectionRepository.ACCOUNT_PATH, store), TestAccountCipher())
         val original = connection("sensitive-cloudflare-token", completeSnapshot())
 
         repository.save(original)
@@ -36,7 +37,7 @@ class CloudflareConnectionRepositoryTest {
     @Test
     fun globalApiKeyRecordRoundTripsEmailKeyRoutesAndTagsWithoutPrintingSecrets() {
         val store = MemoryAtomicBytesStore()
-        val repository = CloudflareConnectionRepository(store, TestAccountCipher())
+        val repository = CloudflareConnectionRepository(primaryFiles(CloudflareConnectionRepository.ACCOUNT_PATH, store), TestAccountCipher())
         val profile = CloudflareProfile("user-1", "Ada Lovelace", "active", CloudflareAuthMode.GLOBAL_API_KEY, "owner@example.com")
         val snapshot = completeSnapshot().let { base ->
             val inventory = checkNotNull(base.selectedAccountInventory)
@@ -106,7 +107,7 @@ class CloudflareConnectionRepositoryTest {
     @Test
     fun validationForADifferentAuthModeCannotBeSaved() {
         val connectionStore = CloudflareConnectionStore(
-            CloudflareConnectionRepository(MemoryAtomicBytesStore(), TestAccountCipher()),
+            CloudflareConnectionRepository(primaryFiles(CloudflareConnectionRepository.ACCOUNT_PATH, MemoryAtomicBytesStore()), TestAccountCipher()),
         )
         assertThrows(IllegalArgumentException::class.java) {
             connectionStore.saveValidatedConnection(
@@ -134,7 +135,7 @@ class CloudflareConnectionRepositoryTest {
     @Test
     fun missingAndCorruptRecordsAreDistinguishedWithoutDeletingCorruption() {
         val store = MemoryAtomicBytesStore()
-        val repository = CloudflareConnectionRepository(store, TestAccountCipher())
+        val repository = CloudflareConnectionRepository(primaryFiles(CloudflareConnectionRepository.ACCOUNT_PATH, store), TestAccountCipher())
         assertNull(repository.load())
 
         store.bytes = byteArrayOf(1, 2, 3)
@@ -148,7 +149,7 @@ class CloudflareConnectionRepositoryTest {
 
     @Test
     fun offlineCacheIsBoundedAndTruthfullyMarkedIncomplete() {
-        val repository = CloudflareConnectionRepository(MemoryAtomicBytesStore(), TestAccountCipher())
+        val repository = CloudflareConnectionRepository(primaryFiles(CloudflareConnectionRepository.ACCOUNT_PATH, MemoryAtomicBytesStore()), TestAccountCipher())
         val connectionStore = CloudflareConnectionStore(repository, nowMillis = { 100L })
         val oversized = completeSnapshot(
             accountCount = CloudflareConnectionStore.MAX_CACHED_ACCOUNTS + 5,
@@ -176,7 +177,7 @@ class CloudflareConnectionRepositoryTest {
 
     @Test
     fun cancelledNewConnectionDeletesOnlyItsOwnRevision() {
-        val repository = CloudflareConnectionRepository(MemoryAtomicBytesStore(), TestAccountCipher())
+        val repository = CloudflareConnectionRepository(primaryFiles(CloudflareConnectionRepository.ACCOUNT_PATH, MemoryAtomicBytesStore()), TestAccountCipher())
         val connectionStore = CloudflareConnectionStore(repository, nowMillis = { 200L })
 
         val commit = connectionStore.saveValidatedConnection(
@@ -191,7 +192,7 @@ class CloudflareConnectionRepositoryTest {
     @Test
     fun cancelledReplacementRestoresExactPriorEncryptedRecord() {
         val store = MemoryAtomicBytesStore()
-        val repository = CloudflareConnectionRepository(store, TestAccountCipher())
+        val repository = CloudflareConnectionRepository(primaryFiles(CloudflareConnectionRepository.ACCOUNT_PATH, store), TestAccountCipher())
         val prior = connection("prior-token", completeSnapshot(zoneCount = 2))
         repository.save(prior)
         val exactPriorEnvelope = checkNotNull(store.bytes).copyOf()
@@ -211,7 +212,7 @@ class CloudflareConnectionRepositoryTest {
 
     @Test
     fun overlappingConnectIsRejectedAndLateRollbackAfterAcceptCannotChangeNewerData() {
-        val repository = CloudflareConnectionRepository(MemoryAtomicBytesStore(), TestAccountCipher())
+        val repository = CloudflareConnectionRepository(primaryFiles(CloudflareConnectionRepository.ACCOUNT_PATH, MemoryAtomicBytesStore()), TestAccountCipher())
         repository.save(connection("base-token", completeSnapshot()))
         val connectionStore = CloudflareConnectionStore(repository, nowMillis = { 400L })
         val pending = connectionStore.saveValidatedConnection(
@@ -235,7 +236,7 @@ class CloudflareConnectionRepositoryTest {
 
     @Test
     fun disconnectDuringPendingConnectWinsAgainstLateRollback() {
-        val repository = CloudflareConnectionRepository(MemoryAtomicBytesStore(), TestAccountCipher())
+        val repository = CloudflareConnectionRepository(primaryFiles(CloudflareConnectionRepository.ACCOUNT_PATH, MemoryAtomicBytesStore()), TestAccountCipher())
         repository.save(connection("base-token", completeSnapshot()))
         val connectionStore = CloudflareConnectionStore(repository, nowMillis = { 450L })
         val pending = connectionStore.saveValidatedConnection(
@@ -251,7 +252,7 @@ class CloudflareConnectionRepositoryTest {
 
     @Test
     fun disconnectAndNewerSaveWinAgainstStaleRefreshCompareAndSwap() {
-        val repository = CloudflareConnectionRepository(MemoryAtomicBytesStore(), TestAccountCipher())
+        val repository = CloudflareConnectionRepository(primaryFiles(CloudflareConnectionRepository.ACCOUNT_PATH, MemoryAtomicBytesStore()), TestAccountCipher())
         repository.save(connection("base-token", completeSnapshot()))
         val staleBeforeDisconnect = checkNotNull(repository.loadWithRevision())
         repository.delete()
@@ -278,7 +279,7 @@ class CloudflareConnectionRepositoryTest {
     @Test
     fun persistRefreshCannotResurrectDisconnectThatWinsAfterLoad() {
         val store = MemoryAtomicBytesStore()
-        val repository = CloudflareConnectionRepository(store, TestAccountCipher())
+        val repository = CloudflareConnectionRepository(primaryFiles(CloudflareConnectionRepository.ACCOUNT_PATH, store), TestAccountCipher())
         repository.save(connection("base-token", completeSnapshot()))
         val connectionStore = CloudflareConnectionStore(repository, nowMillis = { 700L })
         val expected = checkNotNull(connectionStore.loadForRefresh())
@@ -297,12 +298,12 @@ class CloudflareConnectionRepositoryTest {
     @Test
     fun persistRefreshCannotOverwriteNewConnectionThatWinsAfterLoad() {
         val newerStore = MemoryAtomicBytesStore()
-        CloudflareConnectionRepository(newerStore, TestAccountCipher()).save(
+        CloudflareConnectionRepository(primaryFiles(CloudflareConnectionRepository.ACCOUNT_PATH, newerStore), TestAccountCipher()).save(
             connection("newer-token", completeSnapshot(zoneCount = 4)),
         )
         val newerEnvelope = checkNotNull(newerStore.bytes).copyOf()
         val store = MemoryAtomicBytesStore()
-        val repository = CloudflareConnectionRepository(store, TestAccountCipher())
+        val repository = CloudflareConnectionRepository(primaryFiles(CloudflareConnectionRepository.ACCOUNT_PATH, store), TestAccountCipher())
         repository.save(connection("base-token", completeSnapshot()))
         val connectionStore = CloudflareConnectionStore(repository, nowMillis = { 750L })
         val expected = checkNotNull(connectionStore.loadForRefresh())
@@ -322,7 +323,7 @@ class CloudflareConnectionRepositoryTest {
 
     @Test
     fun partialReconnectPreservesFullerSameProfileOfflineCache() {
-        val repository = CloudflareConnectionRepository(MemoryAtomicBytesStore(), TestAccountCipher())
+        val repository = CloudflareConnectionRepository(primaryFiles(CloudflareConnectionRepository.ACCOUNT_PATH, MemoryAtomicBytesStore()), TestAccountCipher())
         repository.save(connection("prior-token", completeSnapshot(zoneCount = 3)))
         val connectionStore = CloudflareConnectionStore(repository, nowMillis = { 800L })
         val partial = partialSnapshot()
@@ -342,7 +343,7 @@ class CloudflareConnectionRepositoryTest {
 
     @Test
     fun partialReconnectMergesEachInventorySectionWithoutDiscardingCompleteSections() {
-        val repository = CloudflareConnectionRepository(MemoryAtomicBytesStore(), TestAccountCipher())
+        val repository = CloudflareConnectionRepository(primaryFiles(CloudflareConnectionRepository.ACCOUNT_PATH, MemoryAtomicBytesStore()), TestAccountCipher())
         val previous = sectionalSnapshot(
             zones = listOf(zone(0, "account-0"), zone(1, "account-0")),
             pages = listOf(pages(0), pages(1)),
@@ -378,7 +379,7 @@ class CloudflareConnectionRepositoryTest {
 
     @Test
     fun partialRefreshUnionsIncompleteSectionAndPreservesOtherCompleteSections() {
-        val repository = CloudflareConnectionRepository(MemoryAtomicBytesStore(), TestAccountCipher())
+        val repository = CloudflareConnectionRepository(primaryFiles(CloudflareConnectionRepository.ACCOUNT_PATH, MemoryAtomicBytesStore()), TestAccountCipher())
         val previous = sectionalSnapshot(
             zones = listOf(zone(0, "account-0")),
             pages = listOf(pages(0), pages(1)),
@@ -445,7 +446,7 @@ class CloudflareConnectionRepositoryTest {
             )
         }
 
-        val repository = CloudflareConnectionRepository(MemoryAtomicBytesStore(), TestAccountCipher())
+        val repository = CloudflareConnectionRepository(primaryFiles(CloudflareConnectionRepository.ACCOUNT_PATH, MemoryAtomicBytesStore()), TestAccountCipher())
         repository.save(connection("old-token", oversizedPartial(0, 1_000L)))
         val store = CloudflareConnectionStore(repository, nowMillis = { 1_100L })
         val reconnect = store.saveValidatedConnection(
@@ -469,7 +470,7 @@ class CloudflareConnectionRepositoryTest {
 
     @Test
     fun completeMergedInventoryDropsObsoleteBoundedWarningInsidePartialSnapshot() {
-        val repository = CloudflareConnectionRepository(MemoryAtomicBytesStore(), TestAccountCipher())
+        val repository = CloudflareConnectionRepository(primaryFiles(CloudflareConnectionRepository.ACCOUNT_PATH, MemoryAtomicBytesStore()), TestAccountCipher())
         val store = CloudflareConnectionStore(repository, nowMillis = { 1_300L })
         val oversized = completeSnapshot(
             accountCount = CloudflareConnectionStore.MAX_CACHED_ACCOUNTS + 1,
@@ -511,7 +512,7 @@ class CloudflareConnectionRepositoryTest {
 
     @Test
     fun complementaryPartialMergeDropsObsoleteWarningWhenSnapshotBecomesComplete() {
-        val repository = CloudflareConnectionRepository(MemoryAtomicBytesStore(), TestAccountCipher())
+        val repository = CloudflareConnectionRepository(primaryFiles(CloudflareConnectionRepository.ACCOUNT_PATH, MemoryAtomicBytesStore()), TestAccountCipher())
         val store = CloudflareConnectionStore(repository, nowMillis = { 1_400L })
         val accountBounded = completeSnapshot(
             accountCount = CloudflareConnectionStore.MAX_CACHED_ACCOUNTS + 1,

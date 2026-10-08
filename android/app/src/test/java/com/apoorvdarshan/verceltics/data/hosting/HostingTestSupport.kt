@@ -91,7 +91,9 @@ internal class TestAccountCipher : AccountCipher {
 internal class HostingStoreFixture {
     val stores: Map<HostingProvider, MemoryAtomicBytesStore> =
         HostingProvider.entries.associateWith { MemoryAtomicBytesStore() }
-    val repository = HostingConnectionRepository(storeFactory = { checkNotNull(stores[it]) }, cipher = TestAccountCipher())
+    /** Every path other than a provider's pre-multi-account record (index and added accounts). */
+    val files = MemoryFiles(HostingProvider.entries.associate { HostingConnectionRepository.accountPath(it) to stores.getValue(it) })
+    val repository = HostingConnectionRepository(storeFactory = files, cipher = TestAccountCipher())
 }
 
 internal fun profile(id: String = "profile-1", name: String = "Studio") = HostingProfile(id, name, "owner@example.com", null)

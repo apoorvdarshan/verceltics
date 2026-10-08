@@ -1,5 +1,6 @@
 package com.apoorvdarshan.verceltics.ui.cloudflare.tools
 
+import com.apoorvdarshan.verceltics.ui.hosting.ProviderAdaptivePage
 import android.content.ClipData
 import android.content.Context
 import android.net.Uri
@@ -160,58 +161,61 @@ internal fun CloudflareApiExplorerScreen(
         )
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(start = 18.dp, top = 6.dp, end = 18.dp, bottom = 40.dp)
-            .testTag("cloudflare.explorer"),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        ExplorerNotice(state)
-        if (isOfflineSample) {
-            ToolBanner(
-                message = "Sample workspace: requests are simulated on this device and never reach Cloudflare.",
-                isError = false,
-            )
-        }
-        ExplorerRequestPanel(
-            state = state,
-            accountId = accountId,
-            onSelectMethod = onSelectMethod,
-            onUpdatePath = onUpdatePath,
-            onUpdateQuery = onUpdateQuery,
-            onUpdateHeaders = onUpdateHeaders,
-            onUpdateBody = onUpdateBody,
-            onUpdateContentType = onUpdateContentType,
-            onUpdateEncoding = onUpdateEncoding,
-            onQuickPath = onQuickPath,
-            onExecute = onExecute,
-            onCancel = onCancel,
-            onImport = { importLauncher.launch(arrayOf("*/*")) },
-            onCompose = { showComposer = true },
-            onRemoveAttachment = onRemoveAttachment,
-        )
-        state.error?.let { ToolBanner(it, isError = true, testTag = "cloudflare.explorer.error") }
-        state.notice?.let { ToolBanner(it, isError = false, testTag = "cloudflare.explorer.notice") }
-        val response = state.response
-        if (response != null) {
-            CloudflareToolsErrors.explorerHint(response.statusCode, state.permissions, authMode)?.let { hint ->
+    // iOS caps the explorer at 900 pt on regular widths; phones keep the 18 dp page.
+    ProviderAdaptivePage(maximumContentWidth = 900.dp, modifier = modifier.fillMaxSize()) { page ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(start = page.horizontalPadding, top = 6.dp, end = page.horizontalPadding, bottom = 40.dp)
+                .testTag("cloudflare.explorer"),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            ExplorerNotice(state)
+            if (isOfflineSample) {
                 ToolBanner(
-                    hint,
-                    isError = true,
-                    title = if (authMode == CloudflareAuthMode.API_TOKEN) "Token scope" else "Account access",
-                    testTag = "cloudflare.explorer.scopeHint",
+                    message = "Sample workspace: requests are simulated on this device and never reach Cloudflare.",
+                    isError = false,
                 )
             }
-            ExplorerResponsePanel(response)
-        } else if (!state.isExecuting && state.error == null) {
-            ToolPanel {
-                ToolEmptyBlock(
-                    title = "Ready for a request",
-                    message = "Responses stay only in this screen and are never saved.",
-                    icon = Icons.Rounded.Terminal,
-                )
+            ExplorerRequestPanel(
+                state = state,
+                accountId = accountId,
+                onSelectMethod = onSelectMethod,
+                onUpdatePath = onUpdatePath,
+                onUpdateQuery = onUpdateQuery,
+                onUpdateHeaders = onUpdateHeaders,
+                onUpdateBody = onUpdateBody,
+                onUpdateContentType = onUpdateContentType,
+                onUpdateEncoding = onUpdateEncoding,
+                onQuickPath = onQuickPath,
+                onExecute = onExecute,
+                onCancel = onCancel,
+                onImport = { importLauncher.launch(arrayOf("*/*")) },
+                onCompose = { showComposer = true },
+                onRemoveAttachment = onRemoveAttachment,
+            )
+            state.error?.let { ToolBanner(it, isError = true, testTag = "cloudflare.explorer.error") }
+            state.notice?.let { ToolBanner(it, isError = false, testTag = "cloudflare.explorer.notice") }
+            val response = state.response
+            if (response != null) {
+                CloudflareToolsErrors.explorerHint(response.statusCode, state.permissions, authMode)?.let { hint ->
+                    ToolBanner(
+                        hint,
+                        isError = true,
+                        title = if (authMode == CloudflareAuthMode.API_TOKEN) "Token scope" else "Account access",
+                        testTag = "cloudflare.explorer.scopeHint",
+                    )
+                }
+                ExplorerResponsePanel(response)
+            } else if (!state.isExecuting && state.error == null) {
+                ToolPanel {
+                    ToolEmptyBlock(
+                        title = "Ready for a request",
+                        message = "Responses stay only in this screen and are never saved.",
+                        icon = Icons.Rounded.Terminal,
+                    )
+                }
             }
         }
     }

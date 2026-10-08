@@ -166,7 +166,13 @@ fun CloudflareWorkerOperationsScreen(
     }
 
     val worker = state.worker
-    CloudflareOpsScreen("cloudflare.workerOperations", modifier) {
+    CloudflareOpsScreen(
+        "cloudflare.workerOperations",
+        modifier,
+        maximumContentWidth = 900.dp,
+        isRefreshing = state.isLoading || state.isRefreshing,
+        onRefresh = { viewModel.load(forceRefresh = true) },
+    ) {
         item("rail") {
             CloudflareOpsPanel(accent = 0.09f, testTag = "cloudflare.worker.capabilities") {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {

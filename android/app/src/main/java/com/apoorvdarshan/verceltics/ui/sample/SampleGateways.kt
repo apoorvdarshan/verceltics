@@ -162,6 +162,9 @@ object SampleCloudflareGateway : CloudflareUiGateway {
     override suspend fun connect(credential: com.apoorvdarshan.verceltics.data.cloudflare.CloudflareCredential) = Result.success(dashboard())
     override suspend fun refresh(preferredAccountId: String?) = Result.success(dashboard(preferredAccountId))
     override suspend fun disconnect() = Result.success(Unit)
+    override suspend fun savedLogins() = Result.success(
+        listOf(com.apoorvdarshan.verceltics.ui.hosting.ProviderAccountUi("sample-profile", "Apoorv · Sample account", "Scoped API token", isActive = true)),
+    )
 }
 
 object SampleSearchConsoleGateway : SearchConsoleUiGateway {

@@ -11,6 +11,12 @@ package com.apoorvdarshan.verceltics.data.hosting
 fun interface GoogleAccessTokenSource {
     suspend fun accessToken(scopes: Set<String>): String?
 
+    /**
+     * A token from one Google OAuth [slot] (one per saved Firebase account, see
+     * [FirebaseGoogleSlots]). Single-slot sources (tests, previews) ignore the slot.
+     */
+    suspend fun accessToken(slot: String, scopes: Set<String>): String? = accessToken(scopes)
+
     companion object {
         /** Exactly the scopes iOS requests (`GoogleOAuthService.firebaseHostingScopes`). */
         val FIREBASE_HOSTING_SCOPES: Set<String> = linkedSetOf(

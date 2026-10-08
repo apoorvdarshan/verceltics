@@ -1,11 +1,18 @@
 package com.apoorvdarshan.verceltics.data.cloudflare
 
 import com.apoorvdarshan.verceltics.data.account.SecretValue
+import com.apoorvdarshan.verceltics.data.hosting.AccountVaultRecord
 
 class CloudflareConnectionCommit internal constructor(
     val profileId: String,
     internal val recordCommit: CloudflareRecordCommit,
 ) {
+    /** The saved login (storage slot) the connection was written to. */
+    val savedAccountId: String get() = recordCommit.accountId
+
+    /** False when the validated identity was already saved and its credential was rotated in place. */
+    val isNewAccount: Boolean get() = recordCommit.vaultCommit.isNewAccount
+
     override fun toString(): String =
         "CloudflareConnectionCommit(profileId=$profileId, recordCommit=<redacted>)"
 }
@@ -15,14 +22,17 @@ class CloudflareConnectionStore(
     private val repository: CloudflareConnectionRepository,
     private val nowMillis: () -> Long = System::currentTimeMillis,
 ) {
+    /** Offline restore of the active login. */
     fun restore(): CloudflareRestoreResult = try {
-        val connection = repository.load() ?: return CloudflareRestoreResult.NotConnected
+        val versioned = repository.loadWithRevision() ?: return CloudflareRestoreResult.NotConnected
+        val connection = versioned.connection
         val snapshot = connection.cachedSnapshot
         CloudflareRestoreResult.Restored(
             profile = connection.account.profile,
             cachedSnapshot = snapshot,
             cacheIsStale = snapshot == null ||
                 nowMillis() - snapshot.fetchedAtMillis >= CACHE_LIFETIME_MILLIS,
+            savedAccountId = versioned.savedAccountId,
         )
     } catch (_: SecurityException) {
         CloudflareRestoreResult.Unavailable(CloudflareRestoreProblem.SECURE_STORAGE_UNAVAILABLE)
@@ -30,8 +40,28 @@ class CloudflareConnectionStore(
         CloudflareRestoreResult.Unavailable(CloudflareRestoreProblem.SAVED_RECORD_UNREADABLE)
     }
 
-    /** Internal backend access for refresh. UI-facing restore never receives the credential. */
+    /** Every saved login for the account menu. Offline and credential-free. */
+    fun accounts(): List<CloudflareSavedAccount> {
+        val activeId = repository.activeAccountId()
+        return repository.records().map { record ->
+            CloudflareSavedAccount(
+                savedAccountId = record.accountId,
+                profile = (record as? AccountVaultRecord.Readable)?.entry?.value?.account?.profile,
+                isActive = record.accountId == activeId,
+            )
+        }
+    }
+
+    /**
+     * Internal backend access for refresh, operations, storage and tools: always the **active**
+     * login. UI-facing restore never receives the credential.
+     */
     internal fun loadForRefresh(): CloudflareVersionedConnection? = repository.loadWithRevision()
+
+    /** Every readable saved login, for the launch profile refresh (iOS `refreshAccountProfiles`). */
+    internal fun loadAllAccounts(): List<CloudflareVersionedConnection> = repository.records().mapNotNull { record ->
+        (record as? AccountVaultRecord.Readable)?.entry?.let { CloudflareVersionedConnection(it.value, it.revision) }
+    }
 
     fun saveValidatedConnection(
         token: SecretValue,
@@ -47,8 +77,11 @@ class CloudflareConnectionStore(
             "The Cloudflare validation belongs to a different authentication mode."
         }
         val now = nowMillis()
-        val existing = repository.load()
-        val sameProfile = existing?.takeIf { it.account.profile.id == snapshot.profile.id }
+        val sameRecord = repository.records()
+            .filterIsInstance<AccountVaultRecord.Readable<CloudflareStoredConnection>>()
+            .map { it.entry }
+            .firstOrNull { it.value.account.isSameIdentity(credential, snapshot.profile) }
+        val sameProfile = sameRecord?.value?.takeIf { it.account.profile.id == snapshot.profile.id }
         val candidateCache = snapshot.forOfflineCache()
         val savedCache = if (result is CloudflareFetchResult.Partial) {
             candidateCache.mergePartialCache(sameProfile?.cachedSnapshot).forOfflineCache()
@@ -59,14 +92,14 @@ class CloudflareConnectionStore(
             account = CloudflareAccount(
                 profile = snapshot.profile,
                 credential = credential,
-                createdAtMillis = sameProfile?.account?.createdAtMillis ?: now,
-                updatedAtMillis = now,
+                createdAtMillis = sameRecord?.value?.account?.createdAtMillis ?: now,
+                updatedAtMillis = maxOf(now, sameRecord?.value?.account?.createdAtMillis ?: now),
             ),
             cachedSnapshot = savedCache,
         )
         return CloudflareConnectionCommit(
             profileId = snapshot.profile.id,
-            recordCommit = repository.saveWithRevision(connection),
+            recordCommit = repository.saveWithRevision(sameRecord?.accountId, connection),
         )
     }
 
@@ -100,14 +133,62 @@ class CloudflareConnectionStore(
                     profile = liveSnapshot.profile,
                     credential = existing.account.credential,
                     createdAtMillis = existing.account.createdAtMillis,
-                    updatedAtMillis = nowMillis(),
+                    updatedAtMillis = maxOf(nowMillis(), existing.account.createdAtMillis),
                 ),
                 cachedSnapshot = liveSnapshot.forOfflineCache(),
             ),
         )
     }
 
-    fun disconnect() = repository.delete()
+    /**
+     * iOS `refreshAccountProfiles`: updates a saved login's name and token status when Cloudflare
+     * still reports the same identity and the record did not change meanwhile.
+     */
+    internal fun persistRefreshedProfile(expected: CloudflareVersionedConnection, profile: CloudflareProfile): Boolean {
+        val existing = expected.connection
+        val current = existing.account.profile
+        if (current.id != profile.id || current.authMode != profile.authMode || current.email != profile.email) return false
+        if (current == profile) return false
+        return repository.saveIfRevisionMatches(
+            expectedRevision = expected.revision,
+            connection = CloudflareStoredConnection(
+                account = CloudflareAccount(
+                    profile = profile,
+                    credential = existing.account.credential,
+                    createdAtMillis = existing.account.createdAtMillis,
+                    updatedAtMillis = maxOf(nowMillis(), existing.account.createdAtMillis),
+                ),
+                cachedSnapshot = existing.cachedSnapshot?.copy(profile = profile),
+            ),
+        )
+    }
+
+    fun switchAccount(savedAccountId: String): Boolean = repository.activate(savedAccountId)
+
+    /** Removes one saved login; returns the new active login id (null when none remain). */
+    fun removeAccount(savedAccountId: String): String? = repository.deleteAccount(savedAccountId)
+
+    /** Removes every saved Cloudflare login (iOS "Remove All Accounts"). */
+    fun disconnect() {
+        repository.delete()
+    }
+
+    /** Removes the active login (resolved here, so it is never "all logins"). */
+    fun removeActiveAccount(): String? = repository.deleteActiveAccount()
+
+    /**
+     * iOS `loginCloudflare`: a Global API Key login is the same identity when the Cloudflare user id
+     * (or, for records without one, the email) matches; a scoped token when its verification id or
+     * the token itself matches. Different authentication modes are always different logins.
+     */
+    private fun CloudflareAccount.isSameIdentity(candidate: CloudflareCredential, candidateProfile: CloudflareProfile): Boolean {
+        if (credential.authMode != candidate.authMode) return false
+        if (profile.id == candidateProfile.id) return true
+        return when (candidate) {
+            is CloudflareCredential.ApiToken -> credential == candidate
+            is CloudflareCredential.GlobalApiKey -> profile.email != null && profile.email == candidateProfile.email
+        }
+    }
 
     private fun CloudflareFetchResult.snapshotOrThrow(): CloudflareSnapshot = when (this) {
         is CloudflareFetchResult.Complete -> snapshot
