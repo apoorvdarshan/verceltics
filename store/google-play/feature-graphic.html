@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Verceltics feature graphic</title>
+<style>
+  @font-face {
+    font-family: "Space Grotesk";
+    src: url("../../marketing/video/public/space-grotesk.woff2") format("woff2");
+    font-weight: 300 700;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1024px; height: 500px; overflow: hidden; background: #050608; }
+  .canvas {
+    position: relative;
+    width: 1024px;
+    height: 500px;
+    overflow: hidden;
+    background:
+      radial-gradient(620px 420px at 86% 18%, rgba(79, 161, 255, 0.20), transparent 70%),
+      radial-gradient(520px 380px at 70% 108%, rgba(171, 122, 250, 0.18), transparent 70%),
+      #050608;
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    color: #F0F2F7;
+  }
+  .grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
+    background-size: 32px 32px;
+    mask-image: linear-gradient(90deg, transparent 0%, #000 55%, #000 100%);
+  }
+  .copy {
+    position: absolute;
+    left: 72px;
+    top: 0;
+    bottom: 0;
+    width: 500px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 18px;
+  }
+  .brand { display: flex; align-items: center; gap: 16px; }
+  .logo {
+    width: 72px; height: 72px; border-radius: 18px;
+    background: #0B0B09;
+    border: 1px solid rgba(255,255,255,0.12);
+    display: grid; place-items: center;
+    box-shadow: 0 14px 34px rgba(0,0,0,0.5);
+  }
+  .logo img { width: 58px; height: 58px; }
+  .name { font-size: 40px; font-weight: 700; letter-spacing: -0.8px; }
+  h1 {
+    font-size: 50px;
+    line-height: 1.04;
+    font-weight: 700;
+    letter-spacing: -1.4px;
+  }
+  h1 span { color: #4FA1FF; }
+  .sub { font-size: 19px; line-height: 1.4; color: #A3ABBA; max-width: 440px; }
+  .stack {
+    position: absolute;
+    right: 64px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 330px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .row {
+    display: flex; align-items: center; gap: 14px;
+    padding: 12px 16px;
+    border-radius: 16px;
+    background: rgba(15, 18, 23, 0.92);
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 10px 26px rgba(0,0,0,0.35);
+  }
+  .row:nth-child(2) { margin-left: 26px; }
+  .row:nth-child(4) { margin-left: 26px; }
+  .mark {
+    width: 40px; height: 40px; border-radius: 11px;
+    background: #15171D;
+    display: grid; place-items: center;
+    flex: none;
+  }
+  .mark img { width: 24px; height: 24px; }
+  .mark img.invert { filter: invert(1); }
+  .label { font-size: 17px; font-weight: 600; }
+  .detail { font-size: 13px; color: #8E97A8; margin-top: 2px; }
+</style>
+</head>
+<body>
+<div class="canvas">
+  <div class="grid"></div>
+  <div class="copy">
+    <div class="brand">
+      <div class="logo"><img src="../../marketing/video/public/logo.png" alt=""></div>
+      <div class="name">Verceltics</div>
+    </div>
+    <h1>Your web stack,<br><span>now on Android.</span></h1>
+    <p class="sub">Projects, zones, sites, search and speed audits in one native app.</p>
+  </div>
+  <div class="stack">
+    <div class="row">
+      <div class="mark"><img class="invert" src="../../marketing/video/public/providers/VercelMark.svg" alt=""></div>
+      <div><div class="label">Vercel</div><div class="detail">Projects · analytics</div></div>
+    </div>
+    <div class="row">
+      <div class="mark"><img src="../../marketing/video/public/providers/CloudflareMark.svg" alt=""></div>
+      <div><div class="label">Cloudflare</div><div class="detail">Zones · Pages · Workers</div></div>
+    </div>
+    <div class="row">
+      <div class="mark"><img src="../../marketing/video/public/providers/NetlifyMark.svg" alt=""></div>
+      <div><div class="label">Netlify</div><div class="detail">Sites · deploys</div></div>
+    </div>
+    <div class="row">
+      <div class="mark"><img src="../../marketing/video/public/providers/GoogleSearchConsoleMark.svg" alt=""></div>
+      <div><div class="label">Search Console</div><div class="detail">Clicks · indexing</div></div>
+    </div>
+    <div class="row">
+      <div class="mark"><img src="../../marketing/video/public/providers/PageSpeedMark.svg" alt=""></div>
+      <div><div class="label">PageSpeed</div><div class="detail">Lighthouse · CrUX</div></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
