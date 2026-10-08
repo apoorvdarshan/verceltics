@@ -39,7 +39,10 @@ A catalog entry is not considered provider parity. A provider is complete only a
 | Android Cloudflare | Implemented read-only flow | Protected scoped-token connection, cached restore, themed account switching, searchable zones/Pages/Workers inventory, refresh, cancellation reconciliation, and read-only resource details. DNS, analytics, storage, security, advanced API tooling, and mutations remain pending. |
 | Android Google Search Console | Implemented read-only flow | Native PKCE Google OAuth, encrypted credential restore/refresh, cached searchable properties, performance query controls and pagination, sitemaps, URL inspection, adaptive Compose states, cancellation reconciliation, and tests. A source build must supply its own Google Android OAuth client configuration. |
 | Android Verceltics Pro | Implemented | RevenueCat paywall with the iOS plans, copy, and soft gating: lists stay free, while project analytics, Netlify sites, Cloudflare resources, Search Console properties, and the full PageSpeed breakdown require Pro. Includes restore, Google Play subscription management, and the in-app tip jar. Needs the RevenueCat Google Play key and Play Console products before testers can buy. |
-| Android remaining providers | Catalogued, not yet parity-complete | Provider API clients and detail workflows will be migrated and tested one screen at a time. |
+| Android hosting platforms | Implemented | Railway, Render, DigitalOcean, Heroku, Fly.io, Firebase Hosting (Google sign-in) and AWS Amplify (SigV4): protected connections, cached restore, resources, deployments, confirmed primary actions, refresh and details. |
+| Android registrars | Implemented | Name.com, Namecheap, Porkbun, Spaceship, Dynadot, NameSilo, Gandi and GoDaddy: protected connections, domain portfolio, expiry health, search, refresh and domain details. |
+| Android site services | Implemented | Google Analytics 4 (Google sign-in), Bing Webmaster, Microsoft Clarity, Plausible, Umami (Cloud and self-hosted), UptimeRobot and Better Stack: protected connections, overviews, search, refresh and full detail reports. |
+| Android API explorers | Pending | The iOS raw API explorers and Complete API catalogs are not yet ported. |
 
 The matrix describes source parity, not store availability. It should be updated whenever a provider passes or falls back from the completion gates above.
 
