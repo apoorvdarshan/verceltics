@@ -8,6 +8,9 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.apoorvdarshan.verceltics.data.account.SecretValue
 import com.apoorvdarshan.verceltics.ui.cloudflare.tools.CloudflareToolsTokenSource
+import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareRestClient
+import com.apoorvdarshan.verceltics.ui.cloudflare.operations.CloudflareOperationsNavigator
+import com.apoorvdarshan.verceltics.ui.cloudflare.storage.CloudflareStorageRoutes
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -63,6 +66,12 @@ class CloudflareViewModel(
         CloudflareUiState(selectedResource = restoredSelection()),
     )
     val uiState: StateFlow<CloudflareUiState> = _uiState.asStateFlow()
+
+    /** Back stack of pushed zone, Pages, Worker and storage operations screens. */
+    val operationsNavigator = CloudflareOperationsNavigator(savedStateHandle)
+
+    /** Authenticated operations client, or null for sample data (screens stay read-only). */
+    val operationsClient: CloudflareRestClient? = gateway.operationsClient()
 
     private var operationJob: Job? = null
     private var operationGeneration = 0L
@@ -143,7 +152,8 @@ class CloudflareViewModel(
         }
     }
 
-    fun refresh() = refreshInternal(null, CloudflareOperation.REFRESHING)
+    // Keep the selected account: a manual refresh must not jump back to the first account.
+    fun refresh() = refreshInternal(_uiState.value.dashboard?.selectedAccountId, CloudflareOperation.REFRESHING)
 
     fun selectAccount(accountId: String) {
         val current = _uiState.value
@@ -269,7 +279,17 @@ class CloudflareViewModel(
         _uiState.update { it.copy(selectedResource = selection) }
     }
 
+    /** Opens Storage & databases for the selected account. Callers gate this behind Pro. */
+    fun openStorage(): Boolean {
+        val dashboard = _uiState.value.dashboard ?: return false
+        val accountId = dashboard.inventory?.accountId ?: dashboard.selectedAccountId ?: return false
+        if (!_uiState.value.isConnected) return false
+        operationsNavigator.push(CloudflareStorageRoutes.dashboard(accountId, dashboard.selectedAccount?.name))
+        return true
+    }
+
     fun closeResource() {
+        operationsNavigator.clear()
         savedStateHandle[SELECTED_RESOURCE_KIND] = null
         savedStateHandle[SELECTED_RESOURCE_ID] = null
         _uiState.update { it.copy(selectedResource = null) }
@@ -280,6 +300,7 @@ class CloudflareViewModel(
             dismissDisconnectConfirmation()
             true
         }
+        operationsNavigator.pop() -> true
         _uiState.value.selectedResource != null -> {
             closeResource()
             true
@@ -314,6 +335,7 @@ class CloudflareViewModel(
 
     private fun applyRestore(restored: CloudflareRestoreUi) {
         val visible = _uiState.value.routeVisible
+        if (restored !is CloudflareRestoreUi.Available) operationsNavigator.clear()
         _uiState.value = when (restored) {
             CloudflareRestoreUi.NotConnected -> CloudflareUiState(
                 status = CloudflareConnectionStatus.DISCONNECTED,
@@ -438,6 +460,7 @@ class CloudflareViewModel(
         (error as? CloudflareUiException)?.message ?: "Cloudflare could not complete this request."
 
     override fun onCleared() {
+        operationsNavigator.clear()
         operationGeneration += 1
         operationJob?.cancel()
         super.onCleared()

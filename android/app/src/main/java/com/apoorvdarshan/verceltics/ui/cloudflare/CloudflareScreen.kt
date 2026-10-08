@@ -113,6 +113,7 @@ import com.apoorvdarshan.verceltics.ui.cloudflare.tools.CloudflareToolsViewModel
 import com.apoorvdarshan.verceltics.ui.cloudflare.tools.cloudflareAdvancedTools
 import com.apoorvdarshan.verceltics.ui.cloudflare.tools.cloudflareToolsContext
 import com.apoorvdarshan.verceltics.ui.cloudflare.tools.rememberCloudflareToolsViewModel
+import com.apoorvdarshan.verceltics.ui.cloudflare.operations.CloudflareOperationsHost
 
 private val CloudflareAccent = Color(0xFFF26B14)
 private val CloudflareSuccess = Color(0xFF35C86F)
@@ -129,6 +130,7 @@ fun CloudflareRoute(
     onOpenStorage: ((accountId: String) -> Unit)? = null,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val operationsStack by viewModel.operationsNavigator.stack.collectAsStateWithLifecycle()
     val proAccess = LocalProAccess.current
     val tools = toolsViewModel ?: rememberCloudflareToolsViewModel(viewModel)
     val toolsState by tools.uiState.collectAsStateWithLifecycle()
@@ -136,11 +138,18 @@ fun CloudflareRoute(
     val routeBack = {
         if (!viewModel.handleBack()) onBack()
     }
-    // Zone, Pages and Worker details are Pro: close one restored from saved state once access is locked.
-    LaunchedEffect(proAccess.isConfirmedLocked, state.selectedResource) {
-        if (proAccess.isConfirmedLocked && state.selectedResource != null) viewModel.closeResource()
+    // Zone, Pages and Worker details and every operations screen are Pro: close ones restored from
+    // saved state once access is locked.
+    LaunchedEffect(proAccess.isConfirmedLocked, state.selectedResource, operationsStack.isEmpty()) {
+        if (proAccess.isConfirmedLocked && (state.selectedResource != null || operationsStack.isNotEmpty())) {
+            viewModel.closeResource()
+        }
     }
     CloudflareToolsRouteEffects(tools, toolsState.isOpen, state, proAccess)
+    val detailTitle = operationsStack.lastOrNull()?.title
+        ?: state.selectedResource?.let { selection -> resourceDisplayName(state, selection) }
+    val showsOperations = detailTitle != null && state.status == CloudflareConnectionStatus.CONNECTED &&
+        state.dashboard != null
     DisposableEffect(viewModel) {
         viewModel.setRouteVisible(true)
         onDispose { viewModel.setRouteVisible(false) }
@@ -149,7 +158,7 @@ fun CloudflareRoute(
     LaunchedEffect(searchRequestId) {
         if (searchRequestId > 0 && searchRequestId != lastHandledSearchRequestId) {
             lastHandledSearchRequestId = searchRequestId
-            if (state.selectedResource != null) viewModel.closeResource()
+            if (state.selectedResource != null || operationsStack.isNotEmpty()) viewModel.closeResource()
             tools.closeAll()
         }
     }
@@ -163,7 +172,9 @@ fun CloudflareRoute(
         state = state,
         onBack = routeBack,
         onConnect = viewModel::connect,
-        onRefresh = viewModel::refresh,
+        onRefresh = {
+            if (showsOperations) viewModel.operationsNavigator.requestRefresh() else viewModel.refresh()
+        },
         onCancel = viewModel::cancelOperation,
         onSelectAccount = viewModel::selectAccount,
         onOpenResource = { kind, id -> proAccess.requestPro { viewModel.openResource(kind, id) } },
@@ -172,8 +183,34 @@ fun CloudflareRoute(
         onConfirmDisconnect = viewModel::confirmDisconnect,
         searchRequestId = searchRequestId,
         modifier = modifier,
-        advancedTools = cloudflareAdvancedTools(tools, state, proAccess, onOpenStorage),
+        advancedTools = cloudflareAdvancedTools(
+            tools,
+            state,
+            proAccess,
+            onOpenStorage ?: { _ -> viewModel.openStorage(); Unit },
+        ),
+        detailTitle = detailTitle,
+        detailContent = { contentModifier ->
+            CloudflareOperationsHost(
+                navigator = viewModel.operationsNavigator,
+                client = viewModel.operationsClient,
+                dashboard = state.dashboard,
+                selectedResource = state.selectedResource,
+                onCloseResource = viewModel::closeResource,
+                onInventoryChanged = viewModel::refresh,
+                modifier = contentModifier,
+            )
+        },
     ) }
+}
+
+private fun resourceDisplayName(state: CloudflareUiState, selection: CloudflareResourceSelection): String {
+    val inventory = state.dashboard?.inventory
+    return when (selection.kind) {
+        CloudflareResourceKind.ZONE -> inventory?.zones?.firstOrNull { it.id == selection.id }?.name
+        CloudflareResourceKind.PAGES -> inventory?.pagesProjects?.firstOrNull { it.id == selection.id }?.name
+        CloudflareResourceKind.WORKER -> inventory?.workers?.firstOrNull { it.id == selection.id }?.id
+    } ?: resourceTitle(selection.kind)
 }
 
 @Composable
@@ -191,8 +228,14 @@ fun CloudflareScreen(
     searchRequestId: Int = 0,
     modifier: Modifier = Modifier,
     advancedTools: CloudflareAdvancedToolsUi? = null,
+    /** Title for the open operations screen; null when the dashboard is showing. */
+    detailTitle: String? = null,
+    /** Live zone/Pages/Worker/storage operations; tests and previews fall back to read-only detail. */
+    detailContent: (@Composable (Modifier) -> Unit)? = null,
 ) {
     val haptic = LocalHapticFeedback.current
+    val showsOperations = detailContent != null && detailTitle != null &&
+        state.status == CloudflareConnectionStatus.CONNECTED && state.dashboard != null
     if (state.showDisconnectConfirmation) {
         ThemedAlertDialog(
             title = "Disconnect Cloudflare?",
@@ -217,7 +260,11 @@ fun CloudflareScreen(
             .testTag("cloudflare.screen"),
     ) {
         CloudflareTopBar(
-            title = if (state.selectedResource == null) "Cloudflare" else resourceTitle(state.selectedResource.kind),
+            title = when {
+                showsOperations -> requireNotNull(detailTitle)
+                state.selectedResource == null -> "Cloudflare"
+                else -> resourceTitle(state.selectedResource.kind)
+            },
             operation = state.operation,
             canRefresh = state.isConnected,
             onBack = {
@@ -251,6 +298,7 @@ fun CloudflareScreen(
                 onDisconnect = onRequestDisconnect,
                 modifier = Modifier.weight(1f),
             )
+            showsOperations -> requireNotNull(detailContent)(Modifier.weight(1f))
             state.selectedResource != null -> CloudflareResourceDetail(
                 state = state,
                 modifier = Modifier.weight(1f),
@@ -1022,7 +1070,7 @@ private fun CloudflareResourceDetail(state: CloudflareUiState, modifier: Modifie
         }
         item("disclosure") {
             Text(
-                "Read-only Cloudflare data fetched for ${dashboard.selectedAccount?.name ?: "this account"}. Changes to these resources are unavailable.",
+                "Read-only Cloudflare data fetched for ${dashboard.selectedAccount?.name ?: "this account"}. No mutation controls are available.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall,
             )
