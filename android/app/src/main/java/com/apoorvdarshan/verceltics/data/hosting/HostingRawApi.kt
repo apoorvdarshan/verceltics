@@ -75,7 +75,7 @@ internal class HostingRawTarget(
                 providerId = credentials.provider.id,
                 endpoint = HostingEndpoint.FIREBASE,
                 basePath = "/v1beta1",
-                auth = { HostingAuth.Bearer(firebaseToken(tokenSource)) },
+                auth = { HostingAuth.Bearer(firebaseToken(tokenSource, credentials.googleSlot)) },
             )
             is HostingCredentials.AwsAmplify -> HostingRawTarget(
                 displayName = credentials.provider.displayName,
@@ -108,9 +108,9 @@ internal class HostingRawTarget(
             auth = { HostingAuth.Bearer(token()) },
         )
 
-        private suspend fun firebaseToken(tokenSource: GoogleAccessTokenSource): SecretValue {
+        private suspend fun firebaseToken(tokenSource: GoogleAccessTokenSource, slot: String): SecretValue {
             val raw = try {
-                tokenSource.accessToken(GoogleAccessTokenSource.FIREBASE_HOSTING_SCOPES)
+                tokenSource.accessToken(slot, GoogleAccessTokenSource.FIREBASE_HOSTING_SCOPES)
             } catch (error: CancellationException) {
                 throw error
             } catch (_: Exception) {

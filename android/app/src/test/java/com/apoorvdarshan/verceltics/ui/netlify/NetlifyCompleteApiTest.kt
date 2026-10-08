@@ -1,5 +1,6 @@
 package com.apoorvdarshan.verceltics.ui.netlify
 
+import com.apoorvdarshan.verceltics.data.hosting.primaryFiles
 import androidx.lifecycle.SavedStateHandle
 import com.apoorvdarshan.verceltics.data.account.SecretValue
 import com.apoorvdarshan.verceltics.data.apicatalog.ProviderRawRequest
@@ -50,7 +51,7 @@ class NetlifyCompleteApiTest {
         val transport = FakeHostingTransport {
             if (fail) throw IOException("reset") else jsonResponse("{\"id\":\"site-1\",\"token\":\"nfp_secret_token\"}", status = 201)
         }
-        val repository = NetlifyConnectionRepository(MemoryAtomicBytesStore(), TestAccountCipher())
+        val repository = NetlifyConnectionRepository(primaryFiles(NetlifyConnectionRepository.ACCOUNT_PATH, MemoryAtomicBytesStore()), TestAccountCipher())
         val networkExecutor = Executors.newFixedThreadPool(2)
         val storageExecutor = Executors.newSingleThreadExecutor()
         try {

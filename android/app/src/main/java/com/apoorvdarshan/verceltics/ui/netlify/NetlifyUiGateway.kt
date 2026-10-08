@@ -3,6 +3,7 @@ package com.apoorvdarshan.verceltics.ui.netlify
 import com.apoorvdarshan.verceltics.data.account.SecretValue
 import com.apoorvdarshan.verceltics.data.apicatalog.ProviderRawRequest
 import com.apoorvdarshan.verceltics.data.apicatalog.ProviderRawResponse
+import com.apoorvdarshan.verceltics.ui.hosting.ProviderAccountUi
 
 /** UI-only boundary for Netlify. Personal tokens never enter observable screen state. */
 interface NetlifyUiGateway {
@@ -14,7 +15,22 @@ interface NetlifyUiGateway {
 
     suspend fun loadSite(siteId: String): Result<NetlifySiteWorkspaceUi>
 
+    /** Removes every saved Netlify account (iOS "Remove All Accounts"). */
     suspend fun disconnect(): Result<Unit>
+
+    /** Every saved Netlify account for the account menu, offline (iOS `ProviderAccountMenu`). */
+    suspend fun accounts(): Result<List<ProviderAccountUi>> = Result.success(emptyList())
+
+    /** Makes [accountId] the active account and restores it offline. */
+    suspend fun switchAccount(accountId: String): Result<NetlifyRestoreUi> =
+        Result.failure(NetlifyUiException("Switching accounts is unavailable here."))
+
+    /** Removes one saved account and restores the one that becomes active (or NotConnected). */
+    suspend fun removeAccount(accountId: String): Result<NetlifyRestoreUi> =
+        disconnect().map { NetlifyRestoreUi.NotConnected }
+
+    /** iOS `refreshAccountProfiles`: refreshes saved names, emails and avatars online. */
+    suspend fun refreshAccountProfiles(): Result<List<ProviderAccountUi>> = accounts()
 
     /**
      * iOS "Redeploy": starts a new Netlify build of [siteId]. This is a real provider write, so
@@ -58,6 +74,9 @@ data class NetlifyAccountUi(
     val id: String,
     val displayName: String,
     val email: String?,
+    val avatarUrl: String? = null,
+    /** The opaque saved-account (storage) id; null for sample fixtures. */
+    val savedAccountId: String? = null,
 )
 
 data class NetlifySiteUi(

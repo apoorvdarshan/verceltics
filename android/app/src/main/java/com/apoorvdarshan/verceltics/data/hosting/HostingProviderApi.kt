@@ -839,7 +839,7 @@ private class FirebaseAdapter(
     private suspend fun token(): SecretValue {
         accessToken?.let { return it }
         val raw = try {
-            tokenSource.accessToken(GoogleAccessTokenSource.FIREBASE_HOSTING_SCOPES)
+            tokenSource.accessToken(credentials.googleSlot, GoogleAccessTokenSource.FIREBASE_HOSTING_SCOPES)
         } catch (error: CancellationException) {
             throw error
         } catch (_: Exception) {

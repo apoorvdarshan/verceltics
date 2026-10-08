@@ -13,6 +13,7 @@ import com.apoorvdarshan.verceltics.data.hosting.HostingApiDefaults
 import com.apoorvdarshan.verceltics.ui.apiexplorer.ProviderApiBackend
 import com.apoorvdarshan.verceltics.ui.apiexplorer.ProviderApiProfile
 import com.apoorvdarshan.verceltics.ui.apiexplorer.ProviderApiWorkspaceController
+import com.apoorvdarshan.verceltics.ui.hosting.ProviderAccountUi
 import com.apoorvdarshan.verceltics.ui.hosting.ResourceHistoryCache
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -34,6 +35,7 @@ enum class NetlifyOperation {
     RESTORING,
     CONNECTING,
     REFRESHING,
+    SWITCHING_ACCOUNT,
     DISCONNECTING,
 }
 
@@ -55,6 +57,12 @@ data class NetlifyUiState(
     val redeployMessage: String? = null,
     val redeployError: String? = null,
     val routeVisible: Boolean = false,
+    /** Every saved Netlify account, for the toolbar account menu. */
+    val accounts: List<ProviderAccountUi> = emptyList(),
+    /** True while the token form is shown to add another account without disconnecting. */
+    val isAddingAccount: Boolean = false,
+    /** iOS "Remove All Accounts" confirmation. */
+    val showRemoveAllConfirmation: Boolean = false,
 ) {
     val selectedSite: NetlifySiteUi?
         get() = selectedSiteId?.let { id -> dashboard?.sites?.firstOrNull { it.id == id } }
@@ -66,12 +74,19 @@ data class NetlifyUiState(
         get() = status == NetlifyConnectionStatus.CONNECTED ||
             status == NetlifyConnectionStatus.SAVED_UNAVAILABLE
 
+    /** The token form is on screen: first connection, or adding another account. */
+    val showsConnectionForm: Boolean
+        get() = status == NetlifyConnectionStatus.DISCONNECTED || (isConnected && isAddingAccount)
+
+    /** The saved (storage) id of the active account, when known. */
+    val activeAccountId: String?
+        get() = accounts.firstOrNull { it.isActive }?.id
+            ?: dashboard?.account?.savedAccountId
+            ?: savedAccount?.savedAccountId
+
     /** The activity owns FLAG_SECURE only while a Netlify credential can be visible/in flight. */
     val requiresSecureWindow: Boolean
-        get() = routeVisible && (
-            status == NetlifyConnectionStatus.DISCONNECTED ||
-                operation == NetlifyOperation.CONNECTING
-            )
+        get() = routeVisible && (showsConnectionForm || operation == NetlifyOperation.CONNECTING)
 }
 
 /** Activity-scoped owner; connection and selected-site state survive configuration recreation. */
@@ -97,6 +112,9 @@ class NetlifyViewModel(
     private var siteJob: Job? = null
     private var siteGeneration = 0L
     private var redeployJob: Job? = null
+    private var accountJob: Job? = null
+    private var accountGeneration = 0L
+    private var profileRefreshStarted = false
 
     /**
      * Netlify's Complete API workspace (iOS `ProviderFullAPICatalogView` for the Netlify hosting
@@ -165,7 +183,9 @@ class NetlifyViewModel(
             if (isCurrent(generation)) {
                 operationJob = null
                 operationBaseline = null
+                loadAccounts()
                 startRestoredCacheRefreshIfReady()
+                refreshAccountProfilesOnce()
             }
         }
     }
@@ -224,6 +244,7 @@ class NetlifyViewModel(
     fun onForeground() {
         isForeground = true
         startRestoredCacheRefreshIfReady()
+        refreshAccountProfilesOnce()
     }
 
     fun onBackground() {
@@ -300,16 +321,71 @@ class NetlifyViewModel(
         _uiState.update { it.copy(showDisconnectConfirmation = false) }
     }
 
+    /**
+     * iOS "Remove Current Account": removes only the active account and opens the next saved one
+     * (or the token form when none remain). Without a known account id it removes everything.
+     */
     fun confirmDisconnect() {
-        val baseline = _uiState.value
-        if (!baseline.isConnected || baseline.isBusy) return
+        val current = _uiState.value
+        if (!current.isConnected || current.isBusy) return
+        val accountId = current.activeAccountId
         closeApiWorkspace()
         closeSite()
+        setAddingAccount(false)
+        val baseline = _uiState.value
+        launchRootOperation(NetlifyOperation.DISCONNECTING, baseline) { generation ->
+            val result = if (accountId == null) {
+                gateway.disconnect().map { NetlifyRestoreUi.NotConnected }
+            } else {
+                gateway.removeAccount(accountId)
+            }
+            result.fold(
+                onSuccess = { restored ->
+                    siteCache.clear()
+                    if (isCurrent(generation)) {
+                        applyRestore(restored, keepAccounts = false)
+                        loadAccounts()
+                        restoredCacheNeedsRefresh = restored is NetlifyRestoreUi.Available
+                        restoredCacheRefreshStarted = false
+                        startRestoredCacheRefreshIfReady(afterOperation = true)
+                    }
+                },
+                onFailure = { error ->
+                    if (isCurrent(generation)) {
+                        _uiState.value = baseline.copy(
+                            operation = null,
+                            showDisconnectConfirmation = false,
+                            error = safeMessage(error),
+                        )
+                    }
+                },
+            )
+        }
+    }
+
+    fun requestRemoveAllConfirmation() {
+        if (_uiState.value.isConnected && !_uiState.value.isBusy) {
+            _uiState.update { it.copy(showRemoveAllConfirmation = true) }
+        }
+    }
+
+    fun dismissRemoveAllConfirmation() {
+        _uiState.update { it.copy(showRemoveAllConfirmation = false) }
+    }
+
+    /** iOS "Remove All Accounts": erases every saved Netlify account. */
+    fun confirmRemoveAll() {
+        if (!_uiState.value.isConnected || _uiState.value.isBusy) return
+        closeApiWorkspace()
+        closeSite()
+        setAddingAccount(false)
+        val baseline = _uiState.value
         launchRootOperation(NetlifyOperation.DISCONNECTING, baseline) { generation ->
             gateway.disconnect().fold(
                 onSuccess = {
                     siteCache.clear()
                     if (isCurrent(generation)) {
+                        accountGeneration += 1
                         _uiState.value = NetlifyUiState(
                             status = NetlifyConnectionStatus.DISCONNECTED,
                             operation = null,
@@ -321,9 +397,55 @@ class NetlifyViewModel(
                     if (isCurrent(generation)) {
                         _uiState.value = baseline.copy(
                             operation = null,
-                            showDisconnectConfirmation = false,
+                            showRemoveAllConfirmation = false,
                             error = safeMessage(error),
                         )
+                    }
+                },
+            )
+        }
+    }
+
+    /** Opens the token form on top of the dashboard to add another account (no disconnect). */
+    fun startAddingAccount() {
+        val state = _uiState.value
+        if (!state.isConnected || state.isBusy) return
+        closeApiWorkspace()
+        setAddingAccount(true)
+    }
+
+    fun cancelAddingAccount() {
+        if (_uiState.value.operation == NetlifyOperation.CONNECTING) return
+        setAddingAccount(false)
+        _uiState.update { it.copy(error = null) }
+    }
+
+    /** Makes another saved Netlify account active (iOS `switchAccount`) and refreshes it when stale. */
+    fun switchAccount(accountId: String) {
+        val state = _uiState.value
+        if (!state.isConnected || state.isBusy || state.activeAccountId == accountId) return
+        if (state.accounts.none { it.id == accountId }) return
+        closeApiWorkspace()
+        closeSite()
+        setAddingAccount(false)
+        val baseline = _uiState.value
+        launchRootOperation(NetlifyOperation.SWITCHING_ACCOUNT, baseline) { generation ->
+            gateway.switchAccount(accountId).fold(
+                onSuccess = { restored ->
+                    if (!isCurrent(generation)) return@fold
+                    val marked = baseline.accounts.map { it.copy(isActive = it.id == accountId) }
+                    applyRestore(restored, keepAccounts = false)
+                    _uiState.update { it.copy(accounts = marked) }
+                    loadAccounts()
+                    restoredCacheNeedsRefresh = restored is NetlifyRestoreUi.Available &&
+                        restored.dashboard.cacheState == NetlifyCacheState.CACHED_STALE
+                    restoredCacheRefreshStarted = false
+                    startRestoredCacheRefreshIfReady(afterOperation = true)
+                },
+                onFailure = { error ->
+                    if (isCurrent(generation)) {
+                        _uiState.value = baseline.copy(operation = null, error = safeMessage(error))
+                        loadAccounts()
                     }
                 },
             )
@@ -429,6 +551,15 @@ class NetlifyViewModel(
             dismissDisconnectConfirmation()
             true
         }
+        _uiState.value.showRemoveAllConfirmation -> {
+            dismissRemoveAllConfirmation()
+            true
+        }
+        _uiState.value.isConnected && _uiState.value.isAddingAccount &&
+            _uiState.value.operation != NetlifyOperation.CONNECTING -> {
+            cancelAddingAccount()
+            true
+        }
         _uiState.value.selectedSiteId != null -> {
             closeSite()
             true
@@ -440,8 +571,13 @@ class NetlifyViewModel(
         _uiState.update { it.copy(error = null, notice = null, siteError = null, redeployMessage = null, redeployError = null) }
     }
 
-    private fun applyRestore(restored: NetlifyRestoreUi) {
+    private fun applyRestore(restored: NetlifyRestoreUi, keepAccounts: Boolean = true) {
         val visible = _uiState.value.routeVisible
+        val accounts = if (keepAccounts) _uiState.value.accounts else emptyList()
+        // Saved-state guard: "adding an account" only survives recreation over a saved account.
+        val addingAccount = restored !is NetlifyRestoreUi.NotConnected &&
+            savedStateHandle.get<Boolean>(ADDING_ACCOUNT) == true
+        if (!addingAccount) savedStateHandle[ADDING_ACCOUNT] = null
         _uiState.value = when (restored) {
             NetlifyRestoreUi.NotConnected -> NetlifyUiState(
                 status = NetlifyConnectionStatus.DISCONNECTED,
@@ -455,6 +591,8 @@ class NetlifyViewModel(
                 operation = null,
                 selectedSiteId = restoredSelectedSite(restored.dashboard),
                 routeVisible = visible,
+                accounts = accounts,
+                isAddingAccount = addingAccount,
             )
             is NetlifyRestoreUi.SavedWithoutInventory -> NetlifyUiState(
                 status = NetlifyConnectionStatus.SAVED_UNAVAILABLE,
@@ -462,12 +600,16 @@ class NetlifyViewModel(
                 operation = null,
                 notice = "This connection has no saved site inventory. Refresh when you are online.",
                 routeVisible = visible,
+                accounts = accounts,
+                isAddingAccount = addingAccount,
             )
             is NetlifyRestoreUi.SavedUnavailable -> NetlifyUiState(
                 status = NetlifyConnectionStatus.SAVED_UNAVAILABLE,
                 operation = null,
                 error = restored.message,
                 routeVisible = visible,
+                accounts = accounts,
+                isAddingAccount = addingAccount,
             )
         }
         if (_uiState.value.selectedSiteId != null) loadSelectedSite(forceRefresh = false)
@@ -481,6 +623,8 @@ class NetlifyViewModel(
             siteJob?.cancel()
             savedStateHandle[SELECTED_SITE_ID] = null
         }
+        val activeId = dashboard.account.savedAccountId
+        savedStateHandle[ADDING_ACCOUNT] = null
         _uiState.value = NetlifyUiState(
             status = NetlifyConnectionStatus.CONNECTED,
             dashboard = dashboard,
@@ -494,7 +638,62 @@ class NetlifyViewModel(
             redeployMessage = current.redeployMessage?.takeIf { selected != null },
             redeployError = current.redeployError?.takeIf { selected != null },
             routeVisible = current.routeVisible,
+            accounts = current.accounts.map { it.copy(isActive = it.id == activeId) },
         )
+        if (current.dashboard?.account?.savedAccountId != activeId || current.accounts.none { it.id == activeId }) {
+            loadAccounts()
+        }
+    }
+
+    /** Reloads the account menu entries from encrypted storage (offline). */
+    private fun loadAccounts() {
+        val generation = ++accountGeneration
+        accountJob?.cancel()
+        accountJob = viewModelScope.launch {
+            gateway.accounts().onSuccess { accounts ->
+                if (accountGeneration == generation) applyAccounts(accounts)
+            }
+        }
+    }
+
+    private fun applyAccounts(accounts: List<ProviderAccountUi>) {
+        _uiState.update { state ->
+            if (state.status == NetlifyConnectionStatus.DISCONNECTED && accounts.isNotEmpty()) return@update state
+            val active = accounts.firstOrNull { it.isActive }
+            val dashboard = state.dashboard?.let { dashboard ->
+                if (active != null && active.isReadable && dashboard.account.savedAccountId == active.id) {
+                    dashboard.copy(
+                        account = dashboard.account.copy(
+                            displayName = active.displayName,
+                            email = active.detail,
+                            avatarUrl = active.avatarUrl,
+                        ),
+                    )
+                } else {
+                    dashboard
+                }
+            }
+            state.copy(accounts = accounts, dashboard = dashboard)
+        }
+    }
+
+    /** iOS refreshes every saved account's profile once per launch; Android once per process. */
+    private fun refreshAccountProfilesOnce() {
+        if (!isForeground || profileRefreshStarted || !_uiState.value.isConnected) return
+        profileRefreshStarted = true
+        viewModelScope.launch {
+            // Let the restored-cache refresh finish first so the two never race on one record.
+            operationJob?.join()
+            val generation = ++accountGeneration
+            gateway.refreshAccountProfiles().onSuccess { accounts ->
+                if (accountGeneration == generation && _uiState.value.isConnected) applyAccounts(accounts)
+            }
+        }
+    }
+
+    private fun setAddingAccount(adding: Boolean) {
+        savedStateHandle[ADDING_ACCOUNT] = if (adding) true else null
+        _uiState.update { it.copy(isAddingAccount = adding) }
     }
 
     private fun restoredSelectedSite(dashboard: NetlifyDashboardUi): String? {
@@ -571,6 +770,7 @@ class NetlifyViewModel(
             error = null,
             notice = null,
             showDisconnectConfirmation = false,
+            showRemoveAllConfirmation = false,
         )
         operationJob = viewModelScope.launch {
             try {
@@ -593,8 +793,16 @@ class NetlifyViewModel(
         }
     }
 
-    private fun startRestoredCacheRefreshIfReady() {
+    private fun startRestoredCacheRefreshIfReady(afterOperation: Boolean = false) {
         if (!isForeground || !restoredCacheNeedsRefresh || restoredCacheRefreshStarted) return
+        if (afterOperation) {
+            // Called from inside the finishing operation: start once it has released the lock.
+            viewModelScope.launch {
+                operationJob?.join()
+                startRestoredCacheRefreshIfReady()
+            }
+            return
+        }
         if (operationJob?.isActive == true || !_uiState.value.isConnected) return
         restoredCacheRefreshStarted = true
         restoredCacheNeedsRefresh = false
@@ -639,5 +847,6 @@ class NetlifyViewModel(
         private const val NETLIFY_CACHE_SCOPE = "netlify"
         internal const val SELECTED_SITE_ID = "netlify.selectedSiteId"
         internal const val API_WORKSPACE_KEY = "netlify.completeApi"
+        internal const val ADDING_ACCOUNT = "netlify.addingAccount"
     }
 }

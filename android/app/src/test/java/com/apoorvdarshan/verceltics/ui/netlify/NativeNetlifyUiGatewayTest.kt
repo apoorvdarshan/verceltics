@@ -1,5 +1,6 @@
 package com.apoorvdarshan.verceltics.ui.netlify
 
+import com.apoorvdarshan.verceltics.data.hosting.primaryFiles
 import com.apoorvdarshan.verceltics.data.account.AccountCipher
 import com.apoorvdarshan.verceltics.data.account.AtomicBytesStore
 import com.apoorvdarshan.verceltics.data.account.SealedPayload
@@ -278,7 +279,7 @@ class NativeNetlifyUiGatewayTest {
         writeTransport: FakeHostingTransport = FakeHostingTransport { jsonResponse("{}") },
     ) {
         val store = BlockingAtomicBytesStore()
-        val repository = NetlifyConnectionRepository(store, TestAccountCipher())
+        val repository = NetlifyConnectionRepository(primaryFiles(NetlifyConnectionRepository.ACCOUNT_PATH, store), TestAccountCipher())
         private val networkExecutor = Executors.newFixedThreadPool(4)
         private val storageExecutor = Executors.newSingleThreadExecutor()
         val gateway = NativeNetlifyUiGateway(

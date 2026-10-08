@@ -3,6 +3,8 @@ package com.apoorvdarshan.verceltics.ui.cloudflare
 import android.content.Context
 import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareAccountInventory
 import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareAccountSummary
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareApi
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareAuthMode
 import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareConnectionCommit
 import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareConnectionRepository
 import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareConnectionStore
@@ -11,8 +13,10 @@ import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareDataSource
 import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareFetchResult
 import com.apoorvdarshan.verceltics.data.cloudflare.CloudflarePagesProject
 import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareProfile
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareReadApi
 import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareRestoreProblem
 import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareRestoreResult
+import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareSavedAccount
 import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareSnapshot
 import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareWorkerScript
 import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareZone
@@ -23,6 +27,7 @@ import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareRestTra
 import com.apoorvdarshan.verceltics.data.cloudflare.operations.HttpsCloudflareRestTransport
 import com.apoorvdarshan.verceltics.data.cloudflare.operations.cloudflareMutationEventFlow
 import com.apoorvdarshan.verceltics.data.network.CancelableCall
+import com.apoorvdarshan.verceltics.ui.hosting.ProviderAccountUi
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
@@ -50,6 +55,8 @@ class NativeCloudflareUiGateway internal constructor(
     private val beforeAcceptValidatedConnection: suspend () -> Unit = {},
     private val afterAcceptValidatedConnection: suspend () -> Unit = {},
     private val restTransport: CloudflareRestTransport = HttpsCloudflareRestTransport(),
+    /** Identity checks for the launch login refresh (iOS `refreshAccountProfiles`). */
+    private val profileApi: CloudflareReadApi = CloudflareApi(),
 ) : CloudflareUiGateway {
     override suspend fun restore(): Result<CloudflareRestoreUi> = capture {
         when (val restored = executeAwait(storageExecutor, connectionStore::restore)) {
@@ -62,9 +69,10 @@ class NativeCloudflareUiGateway internal constructor(
                         } else {
                             CloudflareCacheState.CACHED_FRESH
                         },
+                        restored.savedAccountId,
                     ),
                 )
-            } ?: CloudflareRestoreUi.SavedWithoutInventory(restored.profile.toUi())
+            } ?: CloudflareRestoreUi.SavedWithoutInventory(restored.profile.toUi(restored.savedAccountId))
             is CloudflareRestoreResult.Unavailable -> CloudflareRestoreUi.SavedUnavailable(
                 when (restored.problem) {
                     CloudflareRestoreProblem.SAVED_RECORD_UNREADABLE ->
@@ -103,7 +111,7 @@ class NativeCloudflareUiGateway internal constructor(
                 executeAwait(storageExecutor) { connectionStore.acceptValidatedConnection(commit) }
                 pendingCommit = null
                 afterAcceptValidatedConnection()
-                snapshot.toDashboardUi(CloudflareCacheState.LIVE)
+                snapshot.toDashboardUi(CloudflareCacheState.LIVE, commit.savedAccountId)
             }
         } catch (error: CancellationException) {
             withContext(NonCancellable) {
@@ -143,11 +151,60 @@ class NativeCloudflareUiGateway internal constructor(
                 "The saved Cloudflare connection changed while refreshing. Reopen it and try again.",
             )
         }
-        snapshot.toDashboardUi(CloudflareCacheState.LIVE)
+        snapshot.toDashboardUi(CloudflareCacheState.LIVE, saved.savedAccountId)
     }
 
     override suspend fun disconnect(): Result<Unit> = capture {
         executeAwait(storageExecutor, connectionStore::disconnect)
+    }
+
+    override suspend fun savedLogins(): Result<List<ProviderAccountUi>> = capture {
+        executeAwait(storageExecutor, connectionStore::accounts).map(CloudflareSavedAccount::toUi)
+    }
+
+    override suspend fun switchLogin(savedAccountId: String): Result<CloudflareRestoreUi> = capture {
+        if (!executeAwait(storageExecutor) { connectionStore.switchAccount(savedAccountId) }) {
+            throw CloudflareUiException("That Cloudflare account is no longer saved.")
+        }
+        restore().getOrThrow()
+    }
+
+    override suspend fun removeLogin(savedAccountId: String): Result<CloudflareRestoreUi> = capture {
+        executeAwait(storageExecutor) { connectionStore.removeAccount(savedAccountId) }
+        restore().getOrThrow()
+    }
+
+    /**
+     * iOS `refreshAccountProfiles`: a Global API Key login re-reads `/user` (its name), a scoped
+     * token re-verifies (its status). Changes are stored with compare-and-swap; failures and
+     * changed identities never touch saved logins.
+     */
+    override suspend fun refreshLoginProfiles(): Result<List<ProviderAccountUi>> = capture {
+        executeAwait(storageExecutor, connectionStore::loadAllAccounts).forEach { versioned ->
+            val account = versioned.connection.account
+            val refreshed = try {
+                when (val credential = account.credential) {
+                    is CloudflareCredential.GlobalApiKey -> {
+                        val user = profileApi.newUserCall(credential).executeAwait(networkExecutor)
+                        account.profile.takeIf { it.id == user.id }?.copy(
+                            displayName = user.displayName.take(MAX_PROFILE_NAME_CHARACTERS),
+                            tokenStatus = if (user.suspended == true) "suspended" else "active",
+                        )
+                    }
+                    is CloudflareCredential.ApiToken -> {
+                        val verification = profileApi.newVerifyTokenCall(credential.token).executeAwait(networkExecutor)
+                        account.profile.takeIf { verification.id == null || it.id == verification.id }
+                            ?.copy(tokenStatus = verification.status)
+                    }
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                null
+            } ?: return@forEach
+            executeAwait(storageExecutor) { connectionStore.persistRefreshedProfile(versioned, refreshed) }
+        }
+        executeAwait(storageExecutor, connectionStore::accounts).map(CloudflareSavedAccount::toUi)
     }
 
     /** Cloudflare tools borrow the saved credential through this gateway's serialized encrypted store. */
@@ -175,9 +232,12 @@ class NativeCloudflareUiGateway internal constructor(
     }
 
     /** Every loaded account and resource is listed, searchable and pickable (no display cap). */
-    internal fun CloudflareSnapshot.toDashboardUi(cacheState: CloudflareCacheState): CloudflareDashboardUi =
+    internal fun CloudflareSnapshot.toDashboardUi(
+        cacheState: CloudflareCacheState,
+        savedAccountId: String? = null,
+    ): CloudflareDashboardUi =
         CloudflareDashboardUi(
-            profile = profile.toUi(),
+            profile = profile.toUi(savedAccountId),
             accounts = accounts.map(CloudflareAccountSummary::toUi),
             loadedAccountCount = accounts.size,
             accountsComplete = accountsComplete,
@@ -207,6 +267,8 @@ class NativeCloudflareUiGateway internal constructor(
     )
 
     companion object {
+        private const val MAX_PROFILE_NAME_CHARACTERS = 1_024
+
         fun create(context: Context): NativeCloudflareUiGateway = NativeCloudflareUiGateway(
             connectionStore = CloudflareConnectionStore(
                 CloudflareConnectionRepository.create(context.applicationContext),
@@ -222,7 +284,21 @@ class NativeCloudflareUiGateway internal constructor(
     }
 }
 
-private fun CloudflareProfile.toUi() = CloudflareProfileUi(id, displayName, tokenStatus, authMode, email)
+private fun CloudflareProfile.toUi(savedAccountId: String?) =
+    CloudflareProfileUi(id, displayName, tokenStatus, authMode, email, savedAccountId)
+
+private fun CloudflareSavedAccount.toUi(): ProviderAccountUi = ProviderAccountUi(
+    id = savedAccountId,
+    displayName = profile?.displayName ?: "Saved Cloudflare account",
+    detail = when {
+        profile == null -> "Couldn’t open this saved account"
+        profile.authMode == CloudflareAuthMode.GLOBAL_API_KEY -> profile.email ?: "Global API Key"
+        else -> "Scoped API token"
+    },
+    avatarUrl = null,
+    isActive = isActive,
+    isReadable = profile != null,
+)
 
 private fun CloudflareAccountSummary.toUi() = CloudflareAccountUi(id, name, type)
 

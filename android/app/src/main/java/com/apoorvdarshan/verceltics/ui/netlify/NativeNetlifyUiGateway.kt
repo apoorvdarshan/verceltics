@@ -17,7 +17,10 @@ import com.apoorvdarshan.verceltics.data.netlify.NetlifyConnectionStore
 import com.apoorvdarshan.verceltics.data.netlify.NetlifyDataSource
 import com.apoorvdarshan.verceltics.data.netlify.NetlifyDeployment
 import com.apoorvdarshan.verceltics.data.netlify.NetlifyFetchResult
+import com.apoorvdarshan.verceltics.data.netlify.NetlifyApi
 import com.apoorvdarshan.verceltics.data.netlify.NetlifyProfile
+import com.apoorvdarshan.verceltics.data.netlify.NetlifyReadApi
+import com.apoorvdarshan.verceltics.data.netlify.NetlifySavedAccount
 import com.apoorvdarshan.verceltics.data.netlify.NetlifyResourceResult
 import com.apoorvdarshan.verceltics.data.netlify.NetlifyRestoreProblem
 import com.apoorvdarshan.verceltics.data.netlify.NetlifyRestoreResult
@@ -26,6 +29,7 @@ import com.apoorvdarshan.verceltics.data.netlify.NetlifySiteDetails
 import com.apoorvdarshan.verceltics.data.netlify.NetlifySnapshot
 import com.apoorvdarshan.verceltics.data.netlify.NetlifyWriteApi
 import com.apoorvdarshan.verceltics.data.network.CancelableCall
+import com.apoorvdarshan.verceltics.ui.hosting.ProviderAccountUi
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
@@ -51,6 +55,8 @@ class NativeNetlifyUiGateway internal constructor(
     private val rawApi: HostingRawApi = HostingRawApi(SecureHostingHttpTransport(networkExecutor)),
     /** Confirmed writes (iOS "Redeploy") on the same fixed origin. */
     private val writeApi: NetlifyWriteApi = NetlifyWriteApi(SecureHostingHttpTransport(networkExecutor)),
+    /** Profile validation for the launch account refresh (iOS `refreshAccountProfiles`). */
+    private val profileApi: NetlifyReadApi = NetlifyApi(),
 ) : NetlifyUiGateway {
     override suspend fun restore(): Result<NetlifyRestoreUi> = capture {
         when (val restored = executeAwait(storageExecutor, connectionStore::restore)) {
@@ -63,9 +69,10 @@ class NativeNetlifyUiGateway internal constructor(
                         } else {
                             NetlifyCacheState.CACHED_FRESH
                         },
+                        savedAccountId = restored.accountId,
                     ),
                 )
-            } ?: NetlifyRestoreUi.SavedWithoutInventory(restored.profile.toUi())
+            } ?: NetlifyRestoreUi.SavedWithoutInventory(restored.profile.toUi(restored.accountId))
             is NetlifyRestoreResult.Unavailable -> NetlifyRestoreUi.SavedUnavailable(
                 when (restored.problem) {
                     NetlifyRestoreProblem.SAVED_RECORD_UNREADABLE ->
@@ -96,7 +103,7 @@ class NativeNetlifyUiGateway internal constructor(
                 executeAwait(storageExecutor) { connectionStore.acceptValidatedConnection(commit) }
                 pendingCommit = null
                 afterAcceptValidatedConnection()
-                snapshot.toDashboardUi(NetlifyCacheState.LIVE)
+                snapshot.toDashboardUi(NetlifyCacheState.LIVE, commit.savedAccountId)
             }
         } catch (error: CancellationException) {
             // Cancellation can land after the encrypted save has returned but before accept. In
@@ -124,13 +131,49 @@ class NativeNetlifyUiGateway internal constructor(
         }
     }
 
+    /** Refreshes the active account; the result is stored only into that same account. */
     override suspend fun refresh(): Result<NetlifyDashboardUi> = capture {
-        val saved = executeAwait(storageExecutor, connectionStore::loadForRefresh)
+        val saved = executeAwait(storageExecutor, connectionStore::loadActive)
             ?: throw NetlifyUiException("Connect a Netlify account first.")
-        val result = dataSource.newSnapshotCall(saved.account.personalToken).executeAwait(networkExecutor)
+        val result = dataSource.newSnapshotCall(saved.connection.account.personalToken).executeAwait(networkExecutor)
         val snapshot = result.snapshotOrThrow()
-        executeAwait(storageExecutor) { connectionStore.persistRefreshResult(result) }
-        snapshot.toDashboardUi(NetlifyCacheState.LIVE)
+        executeAwait(storageExecutor) { connectionStore.persistRefreshResult(saved.accountId, result) }
+        snapshot.toDashboardUi(NetlifyCacheState.LIVE, saved.accountId)
+    }
+
+    override suspend fun accounts(): Result<List<ProviderAccountUi>> = capture {
+        executeAwait(storageExecutor, connectionStore::accounts).map(NetlifySavedAccount::toUi)
+    }
+
+    override suspend fun switchAccount(accountId: String): Result<NetlifyRestoreUi> = capture {
+        if (!executeAwait(storageExecutor) { connectionStore.switchAccount(accountId) }) {
+            throw NetlifyUiException("That Netlify account is no longer saved.")
+        }
+        restore().getOrThrow()
+    }
+
+    override suspend fun removeAccount(accountId: String): Result<NetlifyRestoreUi> = capture {
+        executeAwait(storageExecutor) { connectionStore.removeAccount(accountId) }
+        restore().getOrThrow()
+    }
+
+    /**
+     * iOS `refreshAccountProfiles`: every saved token is validated again and a changed name, email
+     * or avatar is stored with compare-and-swap. Failures never touch saved accounts.
+     */
+    override suspend fun refreshAccountProfiles(): Result<List<ProviderAccountUi>> = capture {
+        executeAwait(storageExecutor, connectionStore::loadAllAccounts).forEach { versioned ->
+            val profile = try {
+                profileApi.newValidatePersonalTokenCall(versioned.connection.account.personalToken)
+                    .executeAwait(networkExecutor)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                null
+            } ?: return@forEach
+            executeAwait(storageExecutor) { connectionStore.persistRefreshedProfile(versioned, profile) }
+        }
+        executeAwait(storageExecutor, connectionStore::accounts).map(NetlifySavedAccount::toUi)
     }
 
     override suspend fun loadSite(siteId: String): Result<NetlifySiteWorkspaceUi> = capture {
@@ -180,9 +223,12 @@ class NativeNetlifyUiGateway internal constructor(
     }
 
     /** The live inventory is never truncated; only the offline cache is bounded (by the store). */
-    private fun NetlifySnapshot.toDashboardUi(cacheState: NetlifyCacheState): NetlifyDashboardUi =
+    private fun NetlifySnapshot.toDashboardUi(
+        cacheState: NetlifyCacheState,
+        savedAccountId: String?,
+    ): NetlifyDashboardUi =
         NetlifyDashboardUi(
-            account = profile.toUi(),
+            account = profile.toUi(savedAccountId),
             sites = sites.map(NetlifySite::toUi),
             loadedSiteCount = sites.size,
             providerInventoryComplete = sitesComplete,
@@ -267,7 +313,17 @@ class NativeNetlifyUiGateway internal constructor(
     }
 }
 
-private fun NetlifyProfile.toUi(): NetlifyAccountUi = NetlifyAccountUi(id, displayName, email)
+private fun NetlifyProfile.toUi(savedAccountId: String?): NetlifyAccountUi =
+    NetlifyAccountUi(id, displayName, email, avatarUrl, savedAccountId)
+
+private fun NetlifySavedAccount.toUi(): ProviderAccountUi = ProviderAccountUi(
+    id = accountId,
+    displayName = profile?.displayName ?: "Saved Netlify account",
+    detail = if (profile == null) "Couldn’t open this saved account" else profile.email,
+    avatarUrl = profile?.avatarUrl,
+    isActive = isActive,
+    isReadable = profile != null,
+)
 
 private fun NetlifySite.toUi(): NetlifySiteUi = NetlifySiteUi(
     id = id,

@@ -94,7 +94,15 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.apoorvdarshan.verceltics.data.account.SecretValue
 import com.apoorvdarshan.verceltics.data.netlify.NetlifyLinks
 import com.apoorvdarshan.verceltics.domain.IntegrationCatalog
+import com.apoorvdarshan.verceltics.ui.components.AppPullToRefresh
 import com.apoorvdarshan.verceltics.ui.hosting.HostingStatusTone
+import com.apoorvdarshan.verceltics.ui.hosting.ProviderAccountMenu
+import com.apoorvdarshan.verceltics.ui.hosting.ProviderAccountMenuActions
+import com.apoorvdarshan.verceltics.ui.hosting.ProviderAccountRemovalDialogs
+import com.apoorvdarshan.verceltics.ui.hosting.ProviderAdaptivePage
+import com.apoorvdarshan.verceltics.ui.hosting.ProviderGridRow
+import com.apoorvdarshan.verceltics.ui.hosting.ProviderLayout
+import com.apoorvdarshan.verceltics.ui.hosting.adaptiveRows
 import com.apoorvdarshan.verceltics.ui.hosting.hostingStatusTone
 import com.apoorvdarshan.verceltics.ui.hosting.openHttpsLink
 import com.apoorvdarshan.verceltics.ui.apiexplorer.CompleteApiEntryCard
@@ -190,8 +198,26 @@ fun NetlifyRoute(
         onRequestRedeploy = viewModel::requestRedeployConfirmation,
         onDismissRedeploy = viewModel::dismissRedeployConfirmation,
         onConfirmRedeploy = viewModel::confirmRedeploy,
+        accountActions = NetlifyAccountActions(
+            onSwitchAccount = viewModel::switchAccount,
+            onAddAccount = viewModel::startAddingAccount,
+            onCancelAddAccount = viewModel::cancelAddingAccount,
+            onRequestRemoveAll = viewModel::requestRemoveAllConfirmation,
+            onDismissRemoveAll = viewModel::dismissRemoveAllConfirmation,
+            onConfirmRemoveAll = viewModel::confirmRemoveAll,
+        ),
     )
 }
+
+/** Account menu callbacks for [NetlifyScreen] (iOS `ProviderAccountMenu`). */
+class NetlifyAccountActions(
+    val onSwitchAccount: (accountId: String) -> Unit = {},
+    val onAddAccount: () -> Unit = {},
+    val onCancelAddAccount: () -> Unit = {},
+    val onRequestRemoveAll: () -> Unit = {},
+    val onDismissRemoveAll: () -> Unit = {},
+    val onConfirmRemoveAll: () -> Unit = {},
+)
 
 @Composable
 fun NetlifyScreen(
@@ -216,6 +242,7 @@ fun NetlifyScreen(
     onRequestRedeploy: () -> Unit = {},
     onDismissRedeploy: () -> Unit = {},
     onConfirmRedeploy: () -> Unit = {},
+    accountActions: NetlifyAccountActions = NetlifyAccountActions(),
 ) {
     val haptic = LocalHapticFeedback.current
     val selectedSite = state.selectedSite
@@ -235,22 +262,22 @@ fun NetlifyScreen(
             testTag = "netlify.redeployDialog",
         )
     }
-    if (state.showDisconnectConfirmation) {
-        ThemedAlertDialog(
-            title = "Disconnect Netlify?",
-            message = "The encrypted personal token and saved Netlify inventory will be removed from this device.",
-            confirmText = "DISCONNECT",
-            confirmTone = ThemedActionTone.DESTRUCTIVE,
-            dismissText = "KEEP ACCOUNT",
-            enabled = state.operation != NetlifyOperation.DISCONNECTING,
-            onConfirm = {
-                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                onConfirmDisconnect()
-            },
-            onDismissRequest = onDismissDisconnect,
-            testTag = "netlify.disconnectDialog",
-        )
-    }
+    ProviderAccountRemovalDialogs(
+        providerName = "Netlify",
+        currentAccountName = state.accounts.firstOrNull { it.isActive }?.displayName
+            ?: state.dashboard?.account?.displayName
+            ?: state.savedAccount?.displayName,
+        showRemoveCurrent = state.showDisconnectConfirmation,
+        showRemoveAll = state.showRemoveAllConfirmation,
+        accountCount = state.accounts.size,
+        enabled = state.operation != NetlifyOperation.DISCONNECTING,
+        onConfirmRemoveCurrent = onConfirmDisconnect,
+        onDismissRemoveCurrent = onDismissDisconnect,
+        onConfirmRemoveAll = accountActions.onConfirmRemoveAll,
+        onDismissRemoveAll = accountActions.onDismissRemoveAll,
+        testTagPrefix = "netlify",
+        removeCurrentMessage = "The encrypted personal token and saved Netlify inventory for this account are removed from this device only.",
+    )
 
     Column(
         modifier = modifier
@@ -258,8 +285,9 @@ fun NetlifyScreen(
             .background(MaterialTheme.colorScheme.background)
             .testTag("netlify.screen"),
     ) {
+        val inSite = state.selectedSiteId != null && !state.showsConnectionForm
         NetlifyTopBar(
-            title = if (state.selectedSiteId == null) "Netlify" else selectedSite?.name ?: "Site details",
+            title = if (!inSite) "Netlify" else selectedSite?.name ?: "Site details",
             operation = state.operation,
             isLoadingSite = state.isLoadingSite,
             canRefresh = state.isConnected,
@@ -275,6 +303,24 @@ fun NetlifyScreen(
                 haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                 onCancel()
             },
+            accountMenu = if (state.isConnected && !inSite && !state.showsConnectionForm) {
+                {
+                    ProviderAccountMenu(
+                        provider = checkNotNull(IntegrationCatalog.provider("netlify")),
+                        accounts = state.accounts,
+                        actions = ProviderAccountMenuActions(
+                            onSwitchAccount = accountActions.onSwitchAccount,
+                            onAddAccount = accountActions.onAddAccount,
+                            onRemoveCurrent = onRequestDisconnect,
+                            onRemoveAll = accountActions.onRequestRemoveAll,
+                        ),
+                        testTagPrefix = "netlify",
+                        enabled = !state.isBusy,
+                    )
+                }
+            } else {
+                null
+            },
         )
 
         when {
@@ -282,12 +328,13 @@ fun NetlifyScreen(
                 "Opening saved Netlify workspace…",
                 Modifier.weight(1f),
             )
-            state.status == NetlifyConnectionStatus.DISCONNECTED -> NetlifyConnectionForm(
+            state.showsConnectionForm -> NetlifyConnectionForm(
                 state = state,
                 onConnect = onConnect,
                 onCancel = onCancel,
                 onOpenCredentialsLink = onOpenCredentialsLink,
                 modifier = Modifier.weight(1f),
+                onCancelAddAccount = accountActions.onCancelAddAccount,
             )
             state.status == NetlifyConnectionStatus.SAVED_UNAVAILABLE -> SavedConnectionRecovery(
                 state = state,
@@ -300,6 +347,7 @@ fun NetlifyScreen(
                 onOpenCompleteApi = { onOpenCompleteApi(state.selectedSiteId) },
                 onOpenExternalLink = onOpenExternalLink,
                 onRequestRedeploy = onRequestRedeploy,
+                onRefreshSite = onRefreshSite,
                 modifier = Modifier.weight(1f),
             )
             else -> NetlifyDashboard(
@@ -308,6 +356,7 @@ fun NetlifyScreen(
                 onOpenCompleteApi = { onOpenCompleteApi(null) },
                 onOpenDashboard = { onOpenExternalLink(NetlifyLinks.DASHBOARD_URL) },
                 onDisconnect = onRequestDisconnect,
+                onRefresh = onRefresh,
                 searchFocusRequestId = searchFocusRequestId,
                 modifier = Modifier.weight(1f),
             )
@@ -422,6 +471,7 @@ private fun NetlifyTopBar(
     onBack: () -> Unit,
     onRefresh: () -> Unit,
     onCancel: () -> Unit,
+    accountMenu: (@Composable () -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier
@@ -450,6 +500,7 @@ private fun NetlifyTopBar(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+        accountMenu?.invoke()
         val isCancelable = operation == NetlifyOperation.CONNECTING ||
             operation == NetlifyOperation.REFRESHING
         AppToolbarAction(
@@ -490,7 +541,10 @@ private fun NetlifyConnectionForm(
     onCancel: () -> Unit,
     onOpenCredentialsLink: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Shown while adding another account: returns to the active account's dashboard. */
+    onCancelAddAccount: () -> Unit = {},
 ) {
+    val addingAccount = state.isConnected && state.isAddingAccount
     val controller = remember { EphemeralTokenController() }
     var hasToken by remember { mutableStateOf(false) }
     var localError by remember { mutableStateOf<String?>(null) }
@@ -502,11 +556,12 @@ private fun NetlifyConnectionForm(
             hasToken = false
         }
     }
+    ProviderAdaptivePage(ProviderLayout.FormMaxWidth, modifier.fillMaxWidth()) { metrics ->
     LazyColumn(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxWidth()
             .testTag("netlify.connectionForm"),
-        contentPadding = PaddingValues(start = 18.dp, top = 8.dp, end = 18.dp, bottom = 32.dp),
+        contentPadding = metrics.contentPadding(top = 8.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item("intro") {
@@ -527,7 +582,11 @@ private fun NetlifyConnectionForm(
                         )
                         Spacer(Modifier.width(14.dp))
                         Column(Modifier.weight(1f)) {
-                            Text("CONNECT NETLIFY", color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.labelSmall)
+                            Text(
+                                if (addingAccount) "ADD NETLIFY ACCOUNT" else "CONNECT NETLIFY",
+                                color = MaterialTheme.colorScheme.onSurface,
+                                style = MaterialTheme.typography.labelSmall,
+                            )
                             Text(
                                 NETLIFY_CONNECTION_SUBTITLE,
                                 color = MaterialTheme.colorScheme.onSurface,
@@ -616,10 +675,20 @@ private fun NetlifyConnectionForm(
                             modifier = Modifier.fillMaxWidth(),
                             testTag = "netlify.connect",
                         )
+                        if (addingAccount) {
+                            ThemedActionButton(
+                                "BACK TO SAVED ACCOUNT",
+                                onClick = onCancelAddAccount,
+                                tone = ThemedActionTone.NEUTRAL,
+                                modifier = Modifier.fillMaxWidth(),
+                                testTag = "netlify.cancelAddAccount",
+                            )
+                        }
                     }
                 }
             }
         }
+    }
     }
 }
 
@@ -664,7 +733,7 @@ private fun SavedConnectionRecovery(
                         testTag = "netlify.recovery.refresh",
                     )
                     ThemedActionButton(
-                        "DISCONNECT",
+                        if (state.accounts.size > 1) "REMOVE THIS ACCOUNT" else "DISCONNECT",
                         onClick = onDisconnect,
                         enabled = !state.isBusy,
                         tone = ThemedActionTone.DESTRUCTIVE,
@@ -686,6 +755,7 @@ private fun NetlifyDashboard(
     onDisconnect: () -> Unit,
     searchFocusRequestId: Int,
     modifier: Modifier = Modifier,
+    onRefresh: () -> Unit = {},
 ) {
     val dashboard = requireNotNull(state.dashboard)
     val haptic = LocalHapticFeedback.current
@@ -710,11 +780,20 @@ private fun NetlifyDashboard(
             keyboard?.show()
         }
     }
+    AppPullToRefresh(
+        isRefreshing = state.operation == NetlifyOperation.REFRESHING,
+        onRefresh = onRefresh,
+        modifier = modifier.fillMaxWidth(),
+        enabled = state.operation == null || state.operation == NetlifyOperation.REFRESHING,
+        testTag = "netlify.dashboardRefresh",
+    ) {
+    ProviderAdaptivePage(ProviderLayout.DashboardMaxWidth, Modifier.fillMaxSize()) { metrics ->
+    val columns = metrics.columns(minimumCellWidth = 340.dp, spacing = 14.dp, maximumColumns = 3)
     LazyColumn(
-        modifier = modifier
-            .fillMaxWidth()
+        modifier = Modifier
+            .fillMaxSize()
             .testTag("netlify.dashboard"),
-        contentPadding = PaddingValues(start = 18.dp, top = 6.dp, end = 18.dp, bottom = 32.dp),
+        contentPadding = metrics.contentPadding(top = 6.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item("summary") {
@@ -783,17 +862,27 @@ private fun NetlifyDashboard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-        } else {
+        } else if (columns <= 1) {
             items(visibleSites, key = NetlifySiteUi::id) { site ->
                 NetlifySiteRow(site) {
                     haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                     onOpenSite(site.id)
                 }
             }
+        } else {
+            // iOS `resourceColumns`: an adaptive grid (340–540 pt cells) on regular-width windows.
+            items(visibleSites.adaptiveRows(columns), key = { row -> "site-row-${row.first().id}" }) { row ->
+                ProviderGridRow(row, columns, spacing = 14.dp) { site ->
+                    NetlifySiteRow(site) {
+                        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                        onOpenSite(site.id)
+                    }
+                }
+            }
         }
         item("disconnect") {
             ThemedActionButton(
-                "DISCONNECT NETLIFY",
+                if (state.accounts.size > 1) "REMOVE THIS NETLIFY ACCOUNT" else "DISCONNECT NETLIFY",
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                     onDisconnect()
@@ -803,6 +892,8 @@ private fun NetlifyDashboard(
                 testTag = "netlify.disconnect",
             )
         }
+    }
+    }
     }
 }
 
@@ -879,15 +970,24 @@ private fun NetlifySiteDetail(
     onOpenExternalLink: (String) -> Unit,
     onRequestRedeploy: () -> Unit,
     modifier: Modifier = Modifier,
+    onRefreshSite: () -> Unit = {},
 ) {
     val selected = state.selectedSite
     val workspace = state.selectedSiteWorkspace?.takeIf { it.siteId == state.selectedSiteId }
     val haptic = LocalHapticFeedback.current
+    AppPullToRefresh(
+        isRefreshing = state.isLoadingSite,
+        onRefresh = onRefreshSite,
+        modifier = modifier.fillMaxWidth(),
+        testTag = "netlify.siteRefresh",
+    ) {
+    ProviderAdaptivePage(ProviderLayout.DetailMaxWidth, Modifier.fillMaxSize()) { metrics ->
+    val columns = metrics.columns(minimumCellWidth = 340.dp, spacing = 14.dp, maximumColumns = 2)
     LazyColumn(
-        modifier = modifier
-            .fillMaxWidth()
+        modifier = Modifier
+            .fillMaxSize()
             .testTag("netlify.siteDetail"),
-        contentPadding = PaddingValues(start = 18.dp, top = 6.dp, end = 18.dp, bottom = 32.dp),
+        contentPadding = metrics.contentPadding(top = 6.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item("site-summary") {
@@ -986,14 +1086,17 @@ private fun NetlifySiteDetail(
             if (loaded.deployments.items.isEmpty()) {
                 item("deploy-empty") { EmptyResource("No deployments are available.") }
             } else {
-                items(loaded.deployments.items, key = { "deploy-${it.id}" }) { deployment ->
-                    HistoryPanel(
-                        title = deployment.title,
-                        status = deployment.status,
-                        detail = listOfNotNull(deployment.branch, deployment.commitMessage).joinToString(" · "),
-                        timeMillis = deployment.createdAtMillis,
-                        testTag = "netlify.deploy.${deployment.id}",
-                    )
+                // iOS `deploymentColumns`: adaptive 340–440 pt cells on regular-width windows.
+                items(loaded.deployments.items.adaptiveRows(columns), key = { row -> "deploy-${row.first().id}" }) { row ->
+                    ProviderGridRow(row, columns, spacing = 14.dp) { deployment ->
+                        HistoryPanel(
+                            title = deployment.title,
+                            status = deployment.status,
+                            detail = listOfNotNull(deployment.branch, deployment.commitMessage).joinToString(" · "),
+                            timeMillis = deployment.createdAtMillis,
+                            testTag = "netlify.deploy.${deployment.id}",
+                        )
+                    }
                 }
             }
             item("build-heading") { CollectionHeading("Builds", loaded.builds) }
@@ -1016,6 +1119,8 @@ private fun NetlifySiteDetail(
                 }
             }
         }
+    }
+    }
     }
 }
 

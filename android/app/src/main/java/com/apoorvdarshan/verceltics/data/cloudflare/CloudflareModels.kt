@@ -314,6 +314,14 @@ data class CloudflareStoredConnection(
             "cachedSnapshot=${cachedSnapshot != null}, credential=<redacted>)"
 }
 
+/** One saved Cloudflare login for the account menu. Never carries the credential. */
+data class CloudflareSavedAccount(
+    val savedAccountId: String,
+    /** Null when the record exists but could not be opened (it is kept, never deleted). */
+    val profile: CloudflareProfile?,
+    val isActive: Boolean,
+)
+
 enum class CloudflareRestoreProblem {
     SAVED_RECORD_UNREADABLE,
     SECURE_STORAGE_UNAVAILABLE,
@@ -326,6 +334,8 @@ sealed interface CloudflareRestoreResult {
         val profile: CloudflareProfile,
         val cachedSnapshot: CloudflareSnapshot?,
         val cacheIsStale: Boolean,
+        /** The active saved login this restore describes. */
+        val savedAccountId: String = com.apoorvdarshan.verceltics.data.hosting.AccountVaultLayout.PRIMARY_ACCOUNT_ID,
     ) : CloudflareRestoreResult
 
     data class Unavailable(val problem: CloudflareRestoreProblem) : CloudflareRestoreResult

@@ -2,204 +2,115 @@ package com.apoorvdarshan.verceltics.data.cloudflare
 
 import android.content.Context
 import com.apoorvdarshan.verceltics.data.account.AccountCipher
-import com.apoorvdarshan.verceltics.data.account.AccountEnvelopeCodec
 import com.apoorvdarshan.verceltics.data.account.AndroidKeystoreAccountCipher
 import com.apoorvdarshan.verceltics.data.account.AtomicBytesStore
 import com.apoorvdarshan.verceltics.data.account.NoBackupAtomicFileStore
-import java.nio.charset.StandardCharsets
-import java.security.MessageDigest
+import com.apoorvdarshan.verceltics.data.hosting.AccountRecordRevision
+import com.apoorvdarshan.verceltics.data.hosting.AccountVaultCommit
+import com.apoorvdarshan.verceltics.data.hosting.AccountVaultEntry
+import com.apoorvdarshan.verceltics.data.hosting.AccountVaultLayout
+import com.apoorvdarshan.verceltics.data.hosting.AccountVaultRecord
+import com.apoorvdarshan.verceltics.data.hosting.ProviderAccountVault
 
-internal class CloudflareRecordRevision private constructor(private val digest: ByteArray) {
-    fun matches(envelope: ByteArray): Boolean {
-        val candidate = MessageDigest.getInstance(DIGEST_ALGORITHM).digest(envelope)
-        return try {
-            MessageDigest.isEqual(digest, candidate)
-        } finally {
-            candidate.fill(0)
-        }
-    }
+/** In-memory identity of one encrypted Cloudflare record revision (its saved account and digest). */
+internal typealias CloudflareRecordRevision = AccountRecordRevision
 
-    override fun toString(): String = "CloudflareRecordRevision(<redacted>)"
+internal class CloudflareRecordCommit(val vaultCommit: AccountVaultCommit) {
+    val accountId: String get() = vaultCommit.accountId
 
-    companion object {
-        private const val DIGEST_ALGORITHM = "SHA-256"
-
-        fun from(envelope: ByteArray): CloudflareRecordRevision = CloudflareRecordRevision(
-            MessageDigest.getInstance(DIGEST_ALGORITHM).digest(envelope),
-        )
-    }
-}
-
-internal class CloudflareRecordCommit(
-    val revision: CloudflareRecordRevision,
-    previousEnvelope: ByteArray?,
-) {
-    private var state = State.PENDING
-    private var rollbackEnvelope: ByteArray? = previousEnvelope
-
-    @Synchronized
-    fun accept(): ByteArray? {
-        if (state != State.PENDING) return null
-        state = State.ACCEPTED
-        return rollbackEnvelope.also { rollbackEnvelope = null }
-    }
-
-    @Synchronized
-    fun claimRollback(): CloudflareRollbackEnvelope? {
-        if (state != State.PENDING) return null
-        state = State.ROLLBACK_CLAIMED
-        return CloudflareRollbackEnvelope(rollbackEnvelope).also { rollbackEnvelope = null }
-    }
-
-    override fun toString(): String = "CloudflareRecordCommit(<redacted>)"
-
-    private enum class State { PENDING, ACCEPTED, ROLLBACK_CLAIMED }
-}
-
-internal class CloudflareRollbackEnvelope(val bytes: ByteArray?) {
-    override fun toString(): String = "CloudflareRollbackEnvelope(<redacted>)"
+    override fun toString(): String = "CloudflareRecordCommit(accountId=$accountId, <redacted>)"
 }
 
 internal data class CloudflareVersionedConnection(
     val connection: CloudflareStoredConnection,
     val revision: CloudflareRecordRevision,
-)
-
-/** Atomic encrypted Cloudflare storage in a provider-specific no-backup slot and AAD domain. */
-class CloudflareConnectionRepository(
-    private val store: AtomicBytesStore,
-    private val cipher: AccountCipher,
 ) {
-    private var pendingCommit: CloudflareRecordCommit? = null
+    /** The saved login (storage slot), not a Cloudflare account inside it. */
+    val savedAccountId: String get() = revision.accountId
+}
 
-    @Synchronized
-    fun load(): CloudflareStoredConnection? = loadWithRevision()?.connection
+/**
+ * Atomic encrypted Cloudflare logins in provider-specific no-backup slots and AAD domain. Several
+ * logins (scoped API tokens and email + Global API Key) can be saved; the one saved before
+ * multi-account support (a v1 or v2 record) stays in its original slot as the first login.
+ */
+class CloudflareConnectionRepository(
+    storeFactory: (relativePath: String) -> AtomicBytesStore,
+    cipher: AccountCipher,
+    newAccountId: () -> String = { java.util.UUID.randomUUID().toString() },
+) {
+    private val vault = ProviderAccountVault(
+        layout = LAYOUT,
+        storeFactory = storeFactory,
+        cipher = cipher,
+        encode = { connection: CloudflareStoredConnection ->
+            require(connection.account.providerId == CloudflareAccount.PROVIDER_ID)
+            CloudflareConnectionPayloadCodec.encode(connection)
+        },
+        decode = { _, plaintext -> CloudflareConnectionPayloadCodec.decode(plaintext) },
+        newAccountId = newAccountId,
+    )
 
-    @Synchronized
-    internal fun loadWithRevision(): CloudflareVersionedConnection? {
-        val envelope = store.read() ?: return null
-        val associatedData = ASSOCIATED_DATA.toByteArray(StandardCharsets.UTF_8)
-        var plaintext: ByteArray? = null
-        return try {
-            val revision = CloudflareRecordRevision.from(envelope)
-            val sealedPayload = AccountEnvelopeCodec.decode(envelope)
-            plaintext = cipher.decrypt(sealedPayload, associatedData)
-            CloudflareVersionedConnection(
-                connection = CloudflareConnectionPayloadCodec.decode(plaintext),
-                revision = revision,
-            )
-        } finally {
-            envelope.fill(0)
-            associatedData.fill(0)
-            plaintext?.fill(0)
-        }
-    }
+    /** The active login's connection. */
+    fun load(): CloudflareStoredConnection? = vault.loadActive()?.value
 
-    @Synchronized
+    fun load(savedAccountId: String): CloudflareStoredConnection? = vault.load(savedAccountId)?.value
+
+    internal fun loadWithRevision(): CloudflareVersionedConnection? = vault.loadActive()?.toVersioned()
+
+    internal fun loadWithRevision(savedAccountId: String): CloudflareVersionedConnection? =
+        vault.load(savedAccountId)?.toVersioned()
+
+    fun activeAccountId(): String? = vault.activeAccountId()
+
+    fun records(): List<AccountVaultRecord<CloudflareStoredConnection>> = vault.records()
+
+    /** Direct replacement of the active (or first) login, used by tests and migrations. */
     fun save(connection: CloudflareStoredConnection) {
-        check(pendingCommit == null) { "A Cloudflare connection replacement is already pending." }
-        val envelope = encryptedEnvelope(connection)
-        try {
-            store.write(envelope)
-        } finally {
-            envelope.fill(0)
-        }
+        vault.save(connection)
     }
 
-    @Synchronized
-    internal fun saveWithRevision(connection: CloudflareStoredConnection): CloudflareRecordCommit {
-        check(pendingCommit == null) { "A Cloudflare connection replacement is already pending." }
-        var previousEnvelope = store.read()
-        var replacementEnvelope: ByteArray? = null
-        return try {
-            replacementEnvelope = encryptedEnvelope(connection)
-            store.write(replacementEnvelope)
-            CloudflareRecordCommit(
-                revision = CloudflareRecordRevision.from(replacementEnvelope),
-                previousEnvelope = previousEnvelope,
-            ).also { commit ->
-                pendingCommit = commit
-                previousEnvelope = null
-            }
-        } finally {
-            replacementEnvelope?.fill(0)
-            previousEnvelope?.fill(0)
-        }
-    }
+    internal fun saveWithRevision(savedAccountId: String?, connection: CloudflareStoredConnection): CloudflareRecordCommit =
+        CloudflareRecordCommit(vault.saveWithRevision(savedAccountId, connection))
 
     /** Compare-and-swap prevents stale refreshes from resurrecting or overwriting a record. */
-    @Synchronized
     internal fun saveIfRevisionMatches(
         expectedRevision: CloudflareRecordRevision,
         connection: CloudflareStoredConnection,
-    ): Boolean {
-        if (pendingCommit != null) return false
-        val currentEnvelope = store.read() ?: return false
-        var replacementEnvelope: ByteArray? = null
-        return try {
-            if (!expectedRevision.matches(currentEnvelope)) return false
-            replacementEnvelope = encryptedEnvelope(connection)
-            store.write(replacementEnvelope)
-            true
-        } finally {
-            currentEnvelope.fill(0)
-            replacementEnvelope?.fill(0)
-        }
-    }
+    ): Boolean = vault.saveIfRevisionMatches(expectedRevision, connection)
 
-    @Synchronized
-    internal fun accept(commit: CloudflareRecordCommit) {
-        if (pendingCommit === commit) pendingCommit = null
-        commit.accept()?.fill(0)
-    }
+    internal fun accept(commit: CloudflareRecordCommit) = vault.accept(commit.vaultCommit)
 
-    @Synchronized
-    internal fun rollbackIfRevisionMatches(commit: CloudflareRecordCommit): Boolean {
-        if (pendingCommit !== commit) return false
-        val rollback = commit.claimRollback() ?: return false
-        pendingCommit = null
-        val previousEnvelope = rollback.bytes
-        val currentEnvelope = store.read()
-        return try {
-            if (currentEnvelope == null || !commit.revision.matches(currentEnvelope)) {
-                false
-            } else {
-                if (previousEnvelope == null) store.delete() else store.write(previousEnvelope)
-                true
-            }
-        } finally {
-            currentEnvelope?.fill(0)
-            previousEnvelope?.fill(0)
-        }
-    }
+    internal fun rollbackIfRevisionMatches(commit: CloudflareRecordCommit): Boolean =
+        vault.rollbackIfRevisionMatches(commit.vaultCommit)
 
-    @Synchronized
-    fun delete() {
-        pendingCommit?.accept()?.fill(0)
-        pendingCommit = null
-        store.delete()
-    }
+    fun activate(savedAccountId: String): Boolean = vault.activate(savedAccountId)
 
-    private fun encryptedEnvelope(connection: CloudflareStoredConnection): ByteArray {
-        require(connection.account.providerId == CloudflareAccount.PROVIDER_ID)
-        val plaintext = CloudflareConnectionPayloadCodec.encode(connection)
-        val associatedData = ASSOCIATED_DATA.toByteArray(StandardCharsets.UTF_8)
-        return try {
-            AccountEnvelopeCodec.encode(cipher.encrypt(plaintext, associatedData))
-        } finally {
-            plaintext.fill(0)
-            associatedData.fill(0)
-        }
-    }
+    /** Removes one login; returns the new active login id, if any remain. */
+    fun deleteAccount(savedAccountId: String): String? = vault.delete(savedAccountId)
+
+    /** Removes every saved Cloudflare login. */
+    fun delete() = vault.deleteAll()
+
+    private fun AccountVaultEntry<CloudflareStoredConnection>.toVersioned() =
+        CloudflareVersionedConnection(value, revision)
 
     companion object {
         internal const val ASSOCIATED_DATA = "verceltics.account-envelope.v1:cloudflare-api-token"
         internal const val ACCOUNT_PATH = "accounts/cloudflare-api-token.account"
         internal const val KEY_ALIAS = "verceltics.account-storage.cloudflare.v1"
-
-        fun create(context: Context): CloudflareConnectionRepository = CloudflareConnectionRepository(
-            store = NoBackupAtomicFileStore(context, ACCOUNT_PATH),
-            cipher = AndroidKeystoreAccountCipher(keyAlias = KEY_ALIAS),
+        internal val LAYOUT = AccountVaultLayout(
+            domain = "cloudflare-api-token",
+            primaryPath = ACCOUNT_PATH,
+            primaryAssociatedData = ASSOCIATED_DATA,
         )
+
+        fun create(context: Context): CloudflareConnectionRepository {
+            val applicationContext = context.applicationContext
+            return CloudflareConnectionRepository(
+                storeFactory = { path -> NoBackupAtomicFileStore(applicationContext, path) },
+                cipher = AndroidKeystoreAccountCipher(keyAlias = KEY_ALIAS),
+            )
+        }
     }
 }

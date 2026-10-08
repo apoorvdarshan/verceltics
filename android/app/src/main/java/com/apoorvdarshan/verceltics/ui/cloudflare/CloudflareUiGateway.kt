@@ -5,6 +5,7 @@ import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareAuthMode
 import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareCredential
 import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareMutationEvent
 import com.apoorvdarshan.verceltics.data.cloudflare.operations.CloudflareRestClient
+import com.apoorvdarshan.verceltics.ui.hosting.ProviderAccountUi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 
@@ -20,7 +21,25 @@ interface CloudflareUiGateway {
 
     suspend fun refresh(preferredAccountId: String? = null): Result<CloudflareDashboardUi>
 
+    /** Removes every saved Cloudflare login (iOS "Remove All Accounts"). */
     suspend fun disconnect(): Result<Unit>
+
+    /**
+     * Every saved Cloudflare login (scoped token or email + Global API Key) for the account menu,
+     * offline. Not to be confused with the Cloudflare accounts inside one login.
+     */
+    suspend fun savedLogins(): Result<List<ProviderAccountUi>> = Result.success(emptyList())
+
+    /** Makes [savedAccountId] the active login and restores it offline. */
+    suspend fun switchLogin(savedAccountId: String): Result<CloudflareRestoreUi> =
+        Result.failure(CloudflareUiException("Switching accounts is unavailable here."))
+
+    /** Removes one saved login and restores the one that becomes active (or NotConnected). */
+    suspend fun removeLogin(savedAccountId: String): Result<CloudflareRestoreUi> =
+        disconnect().map { CloudflareRestoreUi.NotConnected }
+
+    /** iOS `refreshAccountProfiles`: refreshes saved login names and token status online. */
+    suspend fun refreshLoginProfiles(): Result<List<ProviderAccountUi>> = savedLogins()
 
     /**
      * Authenticated client for zone, Pages, Worker and storage operations. It resolves the saved
@@ -59,6 +78,8 @@ data class CloudflareProfileUi(
     val authMode: CloudflareAuthMode = CloudflareAuthMode.API_TOKEN,
     /** The login email of a Global API Key connection; null for scoped tokens. */
     val email: String? = null,
+    /** The opaque saved-login (storage) id; null for sample fixtures. */
+    val savedAccountId: String? = null,
 ) {
     /** iOS `credentialLabel`: `email ?? "Scoped API token"`. */
     val credentialLabel: String get() = email ?: "Scoped API token"

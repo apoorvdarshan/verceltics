@@ -125,6 +125,13 @@ import com.apoorvdarshan.verceltics.ui.cloudflare.tools.cloudflareAdvancedTools
 import com.apoorvdarshan.verceltics.ui.cloudflare.tools.cloudflareToolsContext
 import com.apoorvdarshan.verceltics.ui.cloudflare.tools.rememberCloudflareToolsViewModel
 import com.apoorvdarshan.verceltics.ui.cloudflare.operations.CloudflareOperationsHost
+import com.apoorvdarshan.verceltics.ui.components.AppPullToRefresh
+import com.apoorvdarshan.verceltics.ui.hosting.ProviderAccountMenu
+import com.apoorvdarshan.verceltics.ui.hosting.ProviderAccountMenuActions
+import com.apoorvdarshan.verceltics.ui.hosting.ProviderAccountRemovalDialogs
+import com.apoorvdarshan.verceltics.ui.hosting.ProviderAdaptivePage
+import com.apoorvdarshan.verceltics.ui.hosting.ProviderLayout
+import com.apoorvdarshan.verceltics.ui.hosting.ProviderTwoPane
 
 private val CloudflareAccent = Color(0xFFF26B14)
 private val CloudflareSuccess = Color(0xFF35C86F)
@@ -173,6 +180,15 @@ fun CloudflareRoute(
             tools.closeAll()
         }
     }
+    // Tools hold per-login results: switching or removing a login closes them (operations clear in the VM).
+    val activeLoginId = state.dashboard?.profile?.savedAccountId ?: state.savedProfile?.savedAccountId
+    var lastActiveLoginId by rememberSaveable { mutableStateOf(activeLoginId) }
+    LaunchedEffect(activeLoginId) {
+        if (activeLoginId != lastActiveLoginId) {
+            if (lastActiveLoginId != null) tools.closeAll()
+            lastActiveLoginId = activeLoginId
+        }
+    }
     // Keeps the dashboard's scroll position and search while a Cloudflare tool is on top.
     val dashboardStateHolder = rememberSaveableStateHolder()
     if (toolsState.isOpen && state.status == CloudflareConnectionStatus.CONNECTED && state.dashboard != null) {
@@ -194,6 +210,14 @@ fun CloudflareRoute(
         onConfirmDisconnect = viewModel::confirmDisconnect,
         searchRequestId = searchRequestId,
         modifier = modifier,
+        accountActions = CloudflareAccountActions(
+            onSwitchLogin = viewModel::switchLogin,
+            onAddAccount = viewModel::startAddingAccount,
+            onCancelAddAccount = viewModel::cancelAddingAccount,
+            onRequestRemoveAll = viewModel::requestRemoveAllConfirmation,
+            onDismissRemoveAll = viewModel::dismissRemoveAllConfirmation,
+            onConfirmRemoveAll = viewModel::confirmRemoveAll,
+        ),
         advancedTools = cloudflareAdvancedTools(
             tools,
             state,
@@ -214,6 +238,16 @@ fun CloudflareRoute(
         },
     ) }
 }
+
+/** Account menu callbacks for [CloudflareScreen] (iOS `ProviderAccountMenu`), over saved logins. */
+class CloudflareAccountActions(
+    val onSwitchLogin: (savedAccountId: String) -> Unit = {},
+    val onAddAccount: () -> Unit = {},
+    val onCancelAddAccount: () -> Unit = {},
+    val onRequestRemoveAll: () -> Unit = {},
+    val onDismissRemoveAll: () -> Unit = {},
+    val onConfirmRemoveAll: () -> Unit = {},
+)
 
 private fun resourceDisplayName(state: CloudflareUiState, selection: CloudflareResourceSelection): String {
     val inventory = state.dashboard?.inventory
@@ -243,26 +277,28 @@ fun CloudflareScreen(
     detailTitle: String? = null,
     /** Live zone/Pages/Worker/storage operations; tests and previews fall back to read-only detail. */
     detailContent: (@Composable (Modifier) -> Unit)? = null,
+    accountActions: CloudflareAccountActions = CloudflareAccountActions(),
 ) {
     val haptic = LocalHapticFeedback.current
     val showsOperations = detailContent != null && detailTitle != null &&
-        state.status == CloudflareConnectionStatus.CONNECTED && state.dashboard != null
-    if (state.showDisconnectConfirmation) {
-        ThemedAlertDialog(
-            title = "Disconnect Cloudflare?",
-            message = "The encrypted Cloudflare credential and saved Cloudflare inventory will be removed from this device.",
-            confirmText = "DISCONNECT",
-            confirmTone = ThemedActionTone.DESTRUCTIVE,
-            dismissText = "KEEP ACCOUNT",
-            enabled = state.operation != CloudflareOperation.DISCONNECTING,
-            onConfirm = {
-                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                onConfirmDisconnect()
-            },
-            onDismissRequest = onDismissDisconnect,
-            testTag = "cloudflare.disconnectDialog",
-        )
-    }
+        state.status == CloudflareConnectionStatus.CONNECTED && state.dashboard != null &&
+        !state.showsConnectionForm
+    ProviderAccountRemovalDialogs(
+        providerName = "Cloudflare",
+        currentAccountName = state.savedLogins.firstOrNull { it.isActive }?.displayName
+            ?: state.dashboard?.profile?.displayName
+            ?: state.savedProfile?.displayName,
+        showRemoveCurrent = state.showDisconnectConfirmation,
+        showRemoveAll = state.showRemoveAllConfirmation,
+        accountCount = state.savedLogins.size,
+        enabled = state.operation != CloudflareOperation.DISCONNECTING,
+        onConfirmRemoveCurrent = onConfirmDisconnect,
+        onDismissRemoveCurrent = onDismissDisconnect,
+        onConfirmRemoveAll = accountActions.onConfirmRemoveAll,
+        onDismissRemoveAll = accountActions.onDismissRemoveAll,
+        testTagPrefix = "cloudflare",
+        removeCurrentMessage = "The encrypted Cloudflare credential and saved Cloudflare inventory for this login are removed from this device only.",
+    )
 
     Column(
         modifier = modifier
@@ -273,7 +309,7 @@ fun CloudflareScreen(
         CloudflareTopBar(
             title = when {
                 showsOperations -> requireNotNull(detailTitle)
-                state.selectedResource == null -> "Cloudflare"
+                state.selectedResource == null || state.showsConnectionForm -> "Cloudflare"
                 else -> resourceTitle(state.selectedResource.kind)
             },
             operation = state.operation,
@@ -290,6 +326,26 @@ fun CloudflareScreen(
                 haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                 onCancel()
             },
+            accountMenu = if (
+                state.isConnected && !state.showsConnectionForm && !showsOperations && state.selectedResource == null
+            ) {
+                {
+                    ProviderAccountMenu(
+                        provider = checkNotNull(IntegrationCatalog.provider("cloudflare")),
+                        accounts = state.savedLogins,
+                        actions = ProviderAccountMenuActions(
+                            onSwitchAccount = accountActions.onSwitchLogin,
+                            onAddAccount = accountActions.onAddAccount,
+                            onRemoveCurrent = onRequestDisconnect,
+                            onRemoveAll = accountActions.onRequestRemoveAll,
+                        ),
+                        testTagPrefix = "cloudflare",
+                        enabled = !state.isBusy,
+                    )
+                }
+            } else {
+                null
+            },
         )
 
         when {
@@ -297,11 +353,12 @@ fun CloudflareScreen(
                 "Opening saved Cloudflare workspace…",
                 Modifier.weight(1f),
             )
-            state.status == CloudflareConnectionStatus.DISCONNECTED -> CloudflareConnectionForm(
+            state.showsConnectionForm -> CloudflareConnectionForm(
                 state = state,
                 onConnect = onConnect,
                 onCancel = onCancel,
                 modifier = Modifier.weight(1f),
+                onCancelAddAccount = accountActions.onCancelAddAccount,
             )
             state.status == CloudflareConnectionStatus.SAVED_UNAVAILABLE -> CloudflareSavedRecovery(
                 state = state,
@@ -322,6 +379,7 @@ fun CloudflareScreen(
                 searchRequestId = searchRequestId,
                 modifier = Modifier.weight(1f),
                 advancedTools = advancedTools,
+                onRefresh = onRefresh,
             )
         }
     }
@@ -437,6 +495,7 @@ private fun CloudflareTopBar(
     onBack: () -> Unit,
     onRefresh: () -> Unit,
     onCancel: () -> Unit,
+    accountMenu: (@Composable () -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier
@@ -465,6 +524,7 @@ private fun CloudflareTopBar(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+        accountMenu?.invoke()
         val isCancelable = operation == CloudflareOperation.CONNECTING ||
             operation == CloudflareOperation.REFRESHING ||
             operation == CloudflareOperation.SWITCHING_ACCOUNT
@@ -539,7 +599,10 @@ private fun CloudflareConnectionForm(
     onConnect: (CloudflareCredential) -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Shown while adding another login: returns to the active login's dashboard. */
+    onCancelAddAccount: () -> Unit = {},
 ) {
+    val addingAccount = state.isConnected && state.isAddingAccount
     val controller = remember { CloudflareEphemeralTokenController() }
     // iOS opens the Cloudflare form on the Global API Key mode.
     var mode by rememberSaveable { mutableStateOf(CloudflareAuthMode.GLOBAL_API_KEY) }
@@ -577,11 +640,12 @@ private fun CloudflareConnectionForm(
             },
         )
     }
+    ProviderAdaptivePage(ProviderLayout.FormMaxWidth, modifier.fillMaxWidth()) { metrics ->
     LazyColumn(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxWidth()
             .testTag("cloudflare.connectionForm"),
-        contentPadding = PaddingValues(start = 18.dp, top = 8.dp, end = 18.dp, bottom = 32.dp),
+        contentPadding = metrics.contentPadding(top = 8.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item("intro") {
@@ -652,7 +716,10 @@ private fun CloudflareConnectionForm(
         item("token") {
             OffsetPanel(Modifier.fillMaxWidth(), MaterialTheme.colorScheme.surface) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Text("CONNECT CLOUDFLARE", style = MaterialTheme.typography.headlineSmall)
+                    Text(
+                        if (addingAccount) "ADD CLOUDFLARE ACCOUNT" else "CONNECT CLOUDFLARE",
+                        style = MaterialTheme.typography.headlineSmall,
+                    )
                     if (mode == CloudflareAuthMode.GLOBAL_API_KEY) {
                         ThemedAuthTextField(
                             value = email,
@@ -711,10 +778,20 @@ private fun CloudflareConnectionForm(
                             modifier = Modifier.fillMaxWidth(),
                             testTag = "cloudflare.connect",
                         )
+                        if (addingAccount) {
+                            ThemedActionButton(
+                                "BACK TO SAVED ACCOUNT",
+                                onClick = onCancelAddAccount,
+                                tone = ThemedActionTone.NEUTRAL,
+                                modifier = Modifier.fillMaxWidth(),
+                                testTag = "cloudflare.cancelAddAccount",
+                            )
+                        }
                     }
                 }
             }
         }
+    }
     }
 }
 
@@ -823,7 +900,7 @@ private fun CloudflareSavedRecovery(
                         testTag = "cloudflare.recovery.refresh",
                     )
                     ThemedActionButton(
-                        "DISCONNECT",
+                        if (state.savedLogins.size > 1) "REMOVE THIS ACCOUNT" else "DISCONNECT",
                         onClick = onDisconnect,
                         enabled = !state.isBusy,
                         tone = ThemedActionTone.DESTRUCTIVE,
@@ -845,6 +922,7 @@ private fun CloudflareDashboard(
     searchRequestId: Int,
     modifier: Modifier = Modifier,
     advancedTools: CloudflareAdvancedToolsUi? = null,
+    onRefresh: () -> Unit = {},
 ) {
     val dashboard = requireNotNull(state.dashboard)
     val inventory = dashboard.inventory
@@ -878,11 +956,21 @@ private fun CloudflareDashboard(
         )
     }
 
+    AppPullToRefresh(
+        isRefreshing = state.operation == CloudflareOperation.REFRESHING,
+        onRefresh = onRefresh,
+        modifier = modifier.fillMaxWidth(),
+        enabled = state.operation == null || state.operation == CloudflareOperation.REFRESHING,
+        testTag = "cloudflare.dashboardRefresh",
+    ) {
+    ProviderAdaptivePage(ProviderLayout.DashboardMaxWidth, Modifier.fillMaxSize()) { metrics ->
+    // iOS `resourceSections`: zones beside Pages + Workers when both panes get 360 pt.
+    val twoPanes = metrics.fitsTwoPanes(primaryMinimumWidth = 360.dp, secondaryMinimumWidth = 360.dp)
     LazyColumn(
-        modifier = modifier
-            .fillMaxWidth()
+        modifier = Modifier
+            .fillMaxSize()
             .testTag("cloudflare.dashboard"),
-        contentPadding = PaddingValues(start = 18.dp, top = 6.dp, end = 18.dp, bottom = 32.dp),
+        contentPadding = metrics.contentPadding(top = 6.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item("summary") {
@@ -938,7 +1026,65 @@ private fun CloudflareDashboard(
                 focusRequester = searchFocusRequester,
             )
         }
-        inventory?.let { loaded ->
+        if (twoPanes && inventory != null) {
+            val zones = inventory.zones.filter { it.matches(query) }
+            val pages = inventory.pagesProjects.filter { it.matches(query) }
+            val workers = inventory.workers.filter { it.matches(query) }
+            item("resources-two-pane") {
+                ProviderTwoPane(
+                    twoPanes = true,
+                    primary = {
+                        CloudflareListHeading("Zones", zones.size, inventory.loadedZoneCount, "cloudflare.section.zones")
+                        if (zones.isEmpty()) CloudflareEmpty(query, "zones")
+                        zones.forEach { zone ->
+                            key("zone-${zone.id}") {
+                                CloudflareResourceRow(
+                                    title = zone.name,
+                                    subtitle = listOfNotNull(zone.planName, zone.type).joinToString(" · ").ifBlank { "Cloudflare zone" },
+                                    status = if (zone.isActive) "Active" else zone.status ?: "Unknown",
+                                    icon = Icons.Rounded.Public,
+                                    testTag = "cloudflare.zone.${zone.id}",
+                                    onClick = { onOpenResource(CloudflareResourceKind.ZONE, zone.id) },
+                                )
+                            }
+                        }
+                    },
+                    secondary = {
+                        CloudflareListHeading("Pages projects", pages.size, inventory.loadedPagesProjectCount, "cloudflare.section.pages")
+                        if (pages.isEmpty()) CloudflareEmpty(query, "Pages projects")
+                        pages.forEach { project ->
+                            key("pages-${project.id}") {
+                                CloudflareResourceRow(
+                                    title = project.name,
+                                    subtitle = project.domains.firstOrNull() ?: project.subdomain ?: "Cloudflare Pages",
+                                    status = project.latestDeploymentStatus ?: "Project",
+                                    icon = Icons.Rounded.Description,
+                                    testTag = "cloudflare.pages.${project.id}",
+                                    onClick = { onOpenResource(CloudflareResourceKind.PAGES, project.id) },
+                                )
+                            }
+                        }
+                        CloudflareListHeading("Workers", workers.size, inventory.loadedWorkerCount, "cloudflare.section.workers")
+                        if (workers.isEmpty()) CloudflareEmpty(query, "Workers")
+                        workers.forEach { worker ->
+                            key("worker-${worker.id}") {
+                                CloudflareResourceRow(
+                                    title = worker.id,
+                                    subtitle = listOfNotNull(
+                                        worker.handlers.joinToString(", ").ifBlank { null },
+                                        worker.routes.size.takeIf { it > 0 }?.let { if (it == 1) "1 route" else "$it routes" },
+                                    ).joinToString(" · ").ifBlank { "Worker script" },
+                                    status = if (worker.hasModules == true) "Modules" else "Script",
+                                    icon = Icons.Rounded.Code,
+                                    testTag = "cloudflare.worker.${worker.id}",
+                                    onClick = { onOpenResource(CloudflareResourceKind.WORKER, worker.id) },
+                                )
+                            }
+                        }
+                    },
+                )
+            }
+        } else inventory?.let { loaded ->
             val zones = loaded.zones.filter { it.matches(query) }
             item("heading-zones") {
                 CloudflareListHeading("Zones", zones.size, loaded.loadedZoneCount, "cloudflare.section.zones")
@@ -993,7 +1139,7 @@ private fun CloudflareDashboard(
         advancedTools?.let { tools -> item("advanced") { CloudflareAdvancedSection(tools) } }
         item("disconnect") {
             ThemedActionButton(
-                "DISCONNECT CLOUDFLARE",
+                if (state.savedLogins.size > 1) "REMOVE THIS CLOUDFLARE ACCOUNT" else "DISCONNECT CLOUDFLARE",
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                     onDisconnect()
@@ -1003,6 +1149,8 @@ private fun CloudflareDashboard(
                 testTag = "cloudflare.disconnect",
             )
         }
+    }
+    }
     }
 }
 
@@ -1204,11 +1352,12 @@ private fun CloudflareResourceDetail(state: CloudflareUiState, modifier: Modifie
     val dashboard = requireNotNull(state.dashboard)
     val selection = requireNotNull(state.selectedResource)
     val inventory = dashboard.inventory
+    ProviderAdaptivePage(ProviderLayout.DetailMaxWidth, modifier.fillMaxWidth()) { metrics ->
     LazyColumn(
-        modifier = modifier
-            .fillMaxWidth()
+        modifier = Modifier
+            .fillMaxSize()
             .testTag("cloudflare.resourceDetail"),
-        contentPadding = PaddingValues(start = 18.dp, top = 6.dp, end = 18.dp, bottom = 32.dp),
+        contentPadding = metrics.contentPadding(top = 6.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         when (selection.kind) {
@@ -1273,6 +1422,7 @@ private fun CloudflareResourceDetail(state: CloudflareUiState, modifier: Modifie
                 style = MaterialTheme.typography.bodySmall,
             )
         }
+    }
     }
 }
 

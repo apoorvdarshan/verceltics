@@ -141,6 +141,16 @@ object SampleHostingProviderUiGateway : HostingProviderUiGateway {
 
     override suspend fun disconnect(providerId: String): Result<Unit> = Result.success(Unit)
 
+    /** One fictional, active account per connected sample provider. */
+    override suspend fun accounts(providerId: String): Result<List<ProviderAccountUi>> {
+        val provider = HostingProvider.fromId(providerId) ?: return Result.success(emptyList())
+        val account = accounts[provider] ?: return Result.success(emptyList())
+        return Result.success(listOf(ProviderAccountUi(account.id, account.displayName, account.email, isActive = true)))
+    }
+
+    override suspend fun switchAccount(providerId: String, accountId: String): Result<HostingRestoreUi> =
+        Result.failure(HostingUiException("Sample data has a single fictional account."))
+
     private fun dashboard(provider: HostingProvider): HostingDashboardUi? {
         val account = accounts[provider] ?: return null
         val items = resources[provider].orEmpty()

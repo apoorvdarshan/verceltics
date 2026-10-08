@@ -39,6 +39,7 @@ enum class HostingOperation {
     RESTORING,
     CONNECTING,
     REFRESHING,
+    SWITCHING_ACCOUNT,
     DISCONNECTING,
 }
 
@@ -69,6 +70,12 @@ data class HostingProviderUiState(
     val awaitingGoogleSignIn: Boolean = false,
     /** True when the last Firebase failure can only be fixed by signing in with Google again. */
     val googleSignInRequired: Boolean = false,
+    /** Every saved account of this provider, for the toolbar account menu. */
+    val accounts: List<ProviderAccountUi> = emptyList(),
+    /** True while the connect form is shown to add another account without disconnecting. */
+    val isAddingAccount: Boolean = false,
+    /** iOS "Remove All Accounts" confirmation. */
+    val showRemoveAllConfirmation: Boolean = false,
 ) {
     val isBusy: Boolean
         get() = operation != null
@@ -81,6 +88,16 @@ data class HostingProviderUiState(
 
     val dashboardUrl: String?
         get() = dashboard?.dashboardUrl ?: savedDashboardUrl
+
+    /** The saved (storage) id of the active account, when known. */
+    val activeAccountId: String?
+        get() = accounts.firstOrNull { it.isActive }?.id
+            ?: dashboard?.account?.savedAccountId
+            ?: savedAccount?.savedAccountId
+
+    /** The connect form is on screen: first connection, or adding another account. */
+    val showsConnectionForm: Boolean
+        get() = status == HostingConnectionStatus.DISCONNECTED || (isConnected && isAddingAccount)
 }
 
 data class HostingProvidersUiState(
@@ -106,8 +123,7 @@ val HostingProvidersUiState.requiresSecureWindow: Boolean
         // Firebase uses Google sign-in; its form holds only a non-secret project ID.
         if (id == HostingProvider.FIREBASE.id) return false
         val provider = providers[id] ?: return false
-        return provider.status == HostingConnectionStatus.DISCONNECTED ||
-            provider.operation == HostingOperation.CONNECTING
+        return provider.showsConnectionForm || provider.operation == HostingOperation.CONNECTING
     }
 
 /**
@@ -137,6 +153,9 @@ class HostingProvidersViewModel(
     private var pendingGoogleRetry: GoogleRetry? = null
     private var isForeground = false
     private val apiWorkspaces = mutableMapOf<String, ProviderApiWorkspaceController>()
+    private val accountJobs = mutableMapOf<String, Job>()
+    private val accountGenerations = mutableMapOf<String, Long>()
+    private val profileRefreshStarted = mutableSetOf<String>()
 
     private sealed interface GoogleRetry {
         data class Connect(val projectId: String) : GoogleRetry
@@ -179,7 +198,9 @@ class HostingProvidersViewModel(
             )
             if (generation == restoreGeneration) {
                 restoreJob = null
+                HostingProvider.ids.forEach(::loadAccounts)
                 refreshStaleInventories()
+                refreshAccountProfilesOnce()
             }
         }
     }
@@ -187,6 +208,7 @@ class HostingProvidersViewModel(
     fun onForeground() {
         isForeground = true
         refreshStaleInventories()
+        refreshAccountProfilesOnce()
         retryAfterGoogleSignIn()
     }
 
@@ -221,7 +243,11 @@ class HostingProvidersViewModel(
         if (providerId != HostingProvider.FIREBASE.id) return
         val state = provider(providerId)
         if (state.isBusy) return
-        pendingGoogleRetry = if (state.isConnected) GoogleRetry.Refresh else pendingGoogleRetry
+        if (state.isConnected) {
+            // A fresh sign-in reconnects the active project, so it rotates that account in place.
+            val projectId = state.dashboard?.account?.firebaseProjectId ?: state.savedAccount?.firebaseProjectId
+            pendingGoogleRetry = projectId?.let { GoogleRetry.Connect(it) } ?: GoogleRetry.Refresh
+        }
         if (pendingGoogleRetry == null) return
         emitGoogleSignInRequest(providerId)
     }
@@ -313,11 +339,58 @@ class HostingProvidersViewModel(
         updateProvider(providerId) { it.copy(showDisconnectConfirmation = false) }
     }
 
+    /**
+     * iOS "Remove Current Account": removes only the active account and opens the next saved one
+     * (or the connect form when none remain). Without a known account id it removes the slot.
+     */
     fun confirmDisconnect(providerId: String) {
+        val baseline = provider(providerId)
+        if (!baseline.isConnected || baseline.isBusy) return
+        val accountId = baseline.activeAccountId
+        closeApiWorkspace(providerId)
+        closeResource(providerId)
+        setAddingAccount(providerId, false)
+        val closed = provider(providerId)
+        launchOperation(providerId, HostingOperation.DISCONNECTING, closed.cleared()) { generation ->
+            val result = if (accountId == null) {
+                gateway.disconnect(providerId).map { HostingRestoreUi.NotConnected }
+            } else {
+                gateway.removeAccount(providerId, accountId)
+            }
+            result.fold(
+                onSuccess = { restored ->
+                    historyCache.invalidateScope(ResourceHistoryCache.scope(providerId))
+                    if (!isCurrent(providerId, generation)) return@fold
+                    if (pendingGoogleRetry != null && providerId == HostingProvider.FIREBASE.id) pendingGoogleRetry = null
+                    applyRestore(providerId, restored, keepAccounts = false)
+                    loadAccounts(providerId)
+                    refreshIfStale(providerId)
+                },
+                onFailure = { error ->
+                    if (isCurrent(providerId, generation)) {
+                        replaceProvider(closed.cleared().copy(operation = null, error = safeMessage(providerId, error)))
+                    }
+                },
+            )
+        }
+    }
+
+    fun requestRemoveAllConfirmation(providerId: String) {
+        val state = provider(providerId)
+        if (state.isConnected && !state.isBusy) updateProvider(providerId) { it.copy(showRemoveAllConfirmation = true) }
+    }
+
+    fun dismissRemoveAllConfirmation(providerId: String) {
+        updateProvider(providerId) { it.copy(showRemoveAllConfirmation = false) }
+    }
+
+    /** iOS "Remove All Accounts": erases every saved account of this provider. */
+    fun confirmRemoveAll(providerId: String) {
         val baseline = provider(providerId)
         if (!baseline.isConnected || baseline.isBusy) return
         closeApiWorkspace(providerId)
         closeResource(providerId)
+        setAddingAccount(providerId, false)
         val closed = provider(providerId)
         launchOperation(providerId, HostingOperation.DISCONNECTING, closed.cleared()) { generation ->
             gateway.disconnect(providerId).fold(
@@ -325,6 +398,7 @@ class HostingProvidersViewModel(
                     historyCache.invalidateScope(ResourceHistoryCache.scope(providerId))
                     if (!isCurrent(providerId, generation)) return@fold
                     if (pendingGoogleRetry != null && providerId == HostingProvider.FIREBASE.id) pendingGoogleRetry = null
+                    nextAccountGeneration(providerId)
                     replaceProvider(
                         HostingProviderUiState(providerId, status = HostingConnectionStatus.DISCONNECTED, operation = null),
                     )
@@ -332,6 +406,50 @@ class HostingProvidersViewModel(
                 onFailure = { error ->
                     if (isCurrent(providerId, generation)) {
                         replaceProvider(closed.cleared().copy(operation = null, error = safeMessage(providerId, error)))
+                    }
+                },
+            )
+        }
+    }
+
+    /** Opens the connect form on top of the dashboard to add another account (no disconnect). */
+    fun startAddingAccount(providerId: String) {
+        val state = provider(providerId)
+        if (!state.isConnected || state.isBusy) return
+        closeApiWorkspace(providerId)
+        setAddingAccount(providerId, true)
+    }
+
+    fun cancelAddingAccount(providerId: String) {
+        if (provider(providerId).operation == HostingOperation.CONNECTING) return
+        setAddingAccount(providerId, false)
+        updateProvider(providerId) { it.copy(error = null, googleSignInRequired = false) }
+    }
+
+    /** Makes another saved account active (iOS `switchAccount`) and refreshes it when stale. */
+    fun switchAccount(providerId: String, accountId: String) {
+        val state = provider(providerId)
+        if (!state.isConnected || state.isBusy || state.activeAccountId == accountId) return
+        if (state.accounts.none { it.id == accountId }) return
+        closeApiWorkspace(providerId)
+        closeResource(providerId)
+        setAddingAccount(providerId, false)
+        if (providerId == HostingProvider.FIREBASE.id) pendingGoogleRetry = null
+        val closed = provider(providerId)
+        launchOperation(providerId, HostingOperation.SWITCHING_ACCOUNT, closed.cleared()) { generation ->
+            gateway.switchAccount(providerId, accountId).fold(
+                onSuccess = { restored ->
+                    if (!isCurrent(providerId, generation)) return@fold
+                    val marked = closed.accounts.map { it.copy(isActive = it.id == accountId) }
+                    applyRestore(providerId, restored, keepAccounts = false)
+                    updateProvider(providerId) { it.copy(accounts = marked) }
+                    loadAccounts(providerId)
+                    refreshIfStale(providerId)
+                },
+                onFailure = { error ->
+                    if (isCurrent(providerId, generation)) {
+                        replaceProvider(closed.cleared().copy(operation = null, error = safeMessage(providerId, error)))
+                        loadAccounts(providerId)
                     }
                 },
             )
@@ -501,6 +619,14 @@ class HostingProvidersViewModel(
                 dismissDisconnectConfirmation(providerId)
                 true
             }
+            state.showRemoveAllConfirmation -> {
+                dismissRemoveAllConfirmation(providerId)
+                true
+            }
+            state.isConnected && state.isAddingAccount && state.operation != HostingOperation.CONNECTING -> {
+                cancelAddingAccount(providerId)
+                true
+            }
             state.selectedResourceId != null -> {
                 closeResource(providerId)
                 true
@@ -575,7 +701,12 @@ class HostingProvidersViewModel(
         }
     }
 
-    private fun applyRestore(providerId: String, restored: HostingRestoreUi) {
+    private fun applyRestore(providerId: String, restored: HostingRestoreUi, keepAccounts: Boolean = true) {
+        val accounts = if (keepAccounts) provider(providerId).accounts else emptyList()
+        // Saved-state guard: "adding an account" only survives recreation over a connected provider.
+        val addingAccount = restored !is HostingRestoreUi.NotConnected &&
+            savedStateHandle.get<Boolean>(addingAccountKey(providerId)) == true
+        if (!addingAccount) savedStateHandle[addingAccountKey(providerId)] = null
         when (restored) {
             HostingRestoreUi.NotConnected -> replaceProvider(
                 HostingProviderUiState(providerId, status = HostingConnectionStatus.DISCONNECTED, operation = null),
@@ -588,6 +719,8 @@ class HostingProvidersViewModel(
                     savedAccount = restored.dashboard.account,
                     operation = null,
                     selectedResourceId = restoredSelection(providerId, restored.dashboard),
+                    accounts = accounts,
+                    isAddingAccount = addingAccount,
                 ),
             )
             is HostingRestoreUi.SavedWithoutInventory -> replaceProvider(
@@ -598,6 +731,8 @@ class HostingProvidersViewModel(
                     savedDashboardUrl = restored.dashboardUrl,
                     operation = null,
                     notice = "This connection has no saved inventory. Refresh when you are online.",
+                    accounts = accounts,
+                    isAddingAccount = addingAccount,
                 ),
             )
             is HostingRestoreUi.SavedUnavailable -> replaceProvider(
@@ -606,11 +741,75 @@ class HostingProvidersViewModel(
                     status = HostingConnectionStatus.SAVED_UNAVAILABLE,
                     operation = null,
                     error = restored.message,
+                    accounts = accounts,
+                    isAddingAccount = addingAccount,
                 ),
             )
         }
         if (provider(providerId).selectedResourceId != null) loadSelectedResource(providerId, forceRefresh = false)
     }
+
+    /** Reloads the account menu entries for [providerId] from encrypted storage (offline). */
+    private fun loadAccounts(providerId: String) {
+        val generation = nextAccountGeneration(providerId)
+        accountJobs.remove(providerId)?.cancel()
+        accountJobs[providerId] = viewModelScope.launch {
+            gateway.accounts(providerId).onSuccess { accounts ->
+                if (accountGenerations[providerId] == generation) applyAccounts(providerId, accounts)
+            }
+            if (accountGenerations[providerId] == generation) accountJobs.remove(providerId)
+        }
+    }
+
+    private fun applyAccounts(providerId: String, accounts: List<ProviderAccountUi>) {
+        updateProvider(providerId) { state ->
+            if (state.status == HostingConnectionStatus.DISCONNECTED && accounts.isNotEmpty()) return@updateProvider state
+            val active = accounts.firstOrNull { it.isActive }
+            // The launch profile refresh may rename the active account: keep the dashboard in step.
+            val dashboard = state.dashboard?.let { dashboard ->
+                if (active != null && dashboard.account.savedAccountId == active.id && active.isReadable) {
+                    dashboard.copy(
+                        account = dashboard.account.copy(
+                            displayName = active.displayName,
+                            email = active.detail,
+                            avatarUrl = active.avatarUrl,
+                        ),
+                    )
+                } else {
+                    dashboard
+                }
+            }
+            state.copy(accounts = accounts, dashboard = dashboard)
+        }
+    }
+
+    /** iOS refreshes every saved account's profile once per launch; Android does it once per process. */
+    private fun refreshAccountProfilesOnce() {
+        if (!isForeground || restoreJob?.isActive == true) return
+        HostingProvider.ids.forEach { providerId ->
+            val state = provider(providerId)
+            if (!state.isConnected || providerId in profileRefreshStarted) return@forEach
+            profileRefreshStarted += providerId
+            viewModelScope.launch {
+                // Let the stale-inventory refresh finish first so the two never race on one record.
+                operationJobs[providerId]?.join()
+                val generation = nextAccountGeneration(providerId)
+                gateway.refreshAccountProfiles(providerId).onSuccess { accounts ->
+                    if (accountGenerations[providerId] == generation && provider(providerId).isConnected) {
+                        applyAccounts(providerId, accounts)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun setAddingAccount(providerId: String, adding: Boolean) {
+        savedStateHandle[addingAccountKey(providerId)] = if (adding) true else null
+        updateProvider(providerId) { it.copy(isAddingAccount = adding) }
+    }
+
+    private fun nextAccountGeneration(providerId: String): Long =
+        ((accountGenerations[providerId] ?: 0L) + 1L).also { accountGenerations[providerId] = it }
 
     private fun applyDashboard(providerId: String, dashboard: HostingDashboardUi) {
         val current = provider(providerId)
@@ -620,6 +819,8 @@ class HostingProvidersViewModel(
             resourceJobs.remove(providerId)?.cancel()
             savedStateHandle[selectedResourceKey(providerId)] = null
         }
+        val switchedAccount = current.dashboard?.account?.savedAccountId != dashboard.account.savedAccountId
+        savedStateHandle[addingAccountKey(providerId)] = null
         replaceProvider(
             HostingProviderUiState(
                 providerId = providerId,
@@ -634,8 +835,10 @@ class HostingProvidersViewModel(
                 isPerformingAction = current.isPerformingAction && selected != null,
                 actionMessage = current.actionMessage?.takeIf { selected != null },
                 actionError = current.actionError?.takeIf { selected != null },
+                accounts = current.accounts.map { it.copy(isActive = it.id == dashboard.account.savedAccountId) },
             ),
         )
+        if (switchedAccount || current.accounts.none { it.id == dashboard.account.savedAccountId }) loadAccounts(providerId)
     }
 
     private fun restoredSelection(providerId: String, dashboard: HostingDashboardUi): String? {
@@ -718,7 +921,7 @@ class HostingProvidersViewModel(
         if (operationJobs[providerId]?.isActive == true) return
         val generation = nextGeneration(providerId)
         operationBaselines[providerId] = baseline
-        replaceProvider(baseline.copy(operation = operation, showDisconnectConfirmation = false))
+        replaceProvider(baseline.copy(operation = operation, showDisconnectConfirmation = false, showRemoveAllConfirmation = false))
         operationJobs[providerId] = viewModelScope.launch {
             try {
                 block(generation)
@@ -740,9 +943,11 @@ class HostingProvidersViewModel(
     private fun cancelProviderWork(providerId: String) {
         nextGeneration(providerId)
         nextResourceGeneration(providerId)
+        nextAccountGeneration(providerId)
         operationJobs.remove(providerId)?.cancel()
         operationBaselines.remove(providerId)
         resourceJobs.remove(providerId)?.cancel()
+        accountJobs.remove(providerId)?.cancel()
     }
 
     private fun nextGeneration(providerId: String): Long =
@@ -771,6 +976,7 @@ class HostingProvidersViewModel(
         error = null,
         notice = null,
         showDisconnectConfirmation = false,
+        showRemoveAllConfirmation = false,
         googleSignInRequired = false,
     )
 
@@ -818,6 +1024,8 @@ class HostingProvidersViewModel(
         internal fun selectedResourceKey(providerId: String) = "hosting.$providerId.selectedResourceId"
 
         internal fun apiWorkspaceKey(providerId: String) = "hosting.$providerId.completeApi"
+
+        internal fun addingAccountKey(providerId: String) = "hosting.$providerId.addingAccount"
 
         private fun HostingResourceUi.toApiModel(): HostingResource? = runCatching {
             HostingResource(

@@ -1,5 +1,6 @@
 package com.apoorvdarshan.verceltics.data.netlify
 
+import com.apoorvdarshan.verceltics.data.hosting.primaryFiles
 import com.apoorvdarshan.verceltics.data.account.AccountCipher
 import com.apoorvdarshan.verceltics.data.account.AtomicBytesStore
 import com.apoorvdarshan.verceltics.data.account.SealedPayload
@@ -17,7 +18,7 @@ class NetlifyConnectionRepositoryTest {
     @Test
     fun encryptedProviderRecordRoundTripsTokenAndOfflineInventory() {
         val store = MemoryAtomicBytesStore()
-        val repository = NetlifyConnectionRepository(store, TestAccountCipher())
+        val repository = NetlifyConnectionRepository(primaryFiles(NetlifyConnectionRepository.ACCOUNT_PATH, store), TestAccountCipher())
         val connection = connection(token = "sensitive-netlify-token", snapshot = snapshot())
 
         repository.save(connection)
@@ -48,7 +49,7 @@ class NetlifyConnectionRepositoryTest {
     @Test
     fun missingReturnsNullAndCorruptionIsSurfacedWithoutDeletion() {
         val store = MemoryAtomicBytesStore()
-        val repository = NetlifyConnectionRepository(store, TestAccountCipher())
+        val repository = NetlifyConnectionRepository(primaryFiles(NetlifyConnectionRepository.ACCOUNT_PATH, store), TestAccountCipher())
         assertNull(repository.load())
 
         store.bytes = byteArrayOf(1, 2, 3)
@@ -59,7 +60,7 @@ class NetlifyConnectionRepositoryTest {
     @Test
     fun restoreIsOfflineRedactedAndFailedRefreshPreservesLastSnapshot() {
         val store = MemoryAtomicBytesStore()
-        val repository = NetlifyConnectionRepository(store, TestAccountCipher())
+        val repository = NetlifyConnectionRepository(primaryFiles(NetlifyConnectionRepository.ACCOUNT_PATH, store), TestAccountCipher())
         val original = connection(token = "token", snapshot = snapshot(fetchedAt = 100L))
         repository.save(original)
         val connectionStore = NetlifyConnectionStore(repository, nowMillis = { 2_000_000L })
@@ -82,7 +83,7 @@ class NetlifyConnectionRepositoryTest {
     @Test
     fun incompleteRefreshCannotReplaceExistingFullerOfflineInventory() {
         val store = MemoryAtomicBytesStore()
-        val repository = NetlifyConnectionRepository(store, TestAccountCipher())
+        val repository = NetlifyConnectionRepository(primaryFiles(NetlifyConnectionRepository.ACCOUNT_PATH, store), TestAccountCipher())
         val original = connection(token = "token", snapshot = snapshot(siteCount = 2))
         repository.save(original)
         val connectionStore = NetlifyConnectionStore(repository, nowMillis = { 500L })
@@ -104,7 +105,7 @@ class NetlifyConnectionRepositoryTest {
     @Test
     fun persistedCacheIsBoundedAndTruthfullyMarkedIncomplete() {
         val store = MemoryAtomicBytesStore()
-        val repository = NetlifyConnectionRepository(store, TestAccountCipher())
+        val repository = NetlifyConnectionRepository(primaryFiles(NetlifyConnectionRepository.ACCOUNT_PATH, store), TestAccountCipher())
         val connectionStore = NetlifyConnectionStore(repository, nowMillis = { 100L })
         val liveSnapshot = snapshot(siteCount = NetlifyConnectionStore.MAX_CACHED_SITES + 5)
 
@@ -123,7 +124,7 @@ class NetlifyConnectionRepositoryTest {
     @Test
     fun cancelledValidatedSaveIntoEmptySlotDeletesOnlyItsOwnRevision() {
         val store = MemoryAtomicBytesStore()
-        val repository = NetlifyConnectionRepository(store, TestAccountCipher())
+        val repository = NetlifyConnectionRepository(primaryFiles(NetlifyConnectionRepository.ACCOUNT_PATH, store), TestAccountCipher())
         val connectionStore = NetlifyConnectionStore(repository, nowMillis = { 200L })
 
         val commit = connectionStore.saveValidatedConnection(
@@ -140,7 +141,7 @@ class NetlifyConnectionRepositoryTest {
     @Test
     fun cancelledReplacementRestoresExactPriorEncryptedAccountAndCache() {
         val store = MemoryAtomicBytesStore()
-        val repository = NetlifyConnectionRepository(store, TestAccountCipher())
+        val repository = NetlifyConnectionRepository(primaryFiles(NetlifyConnectionRepository.ACCOUNT_PATH, store), TestAccountCipher())
         val prior = connection(token = "prior-token", snapshot = snapshot(siteCount = 2))
         repository.save(prior)
         val exactPriorEnvelope = checkNotNull(store.bytes).copyOf()
@@ -162,7 +163,7 @@ class NetlifyConnectionRepositoryTest {
     @Test
     fun overlappingPendingReplacementsAreRejectedSoRollbackRestoresOriginalRevision() {
         val store = MemoryAtomicBytesStore()
-        val repository = NetlifyConnectionRepository(store, TestAccountCipher())
+        val repository = NetlifyConnectionRepository(primaryFiles(NetlifyConnectionRepository.ACCOUNT_PATH, store), TestAccountCipher())
         repository.save(connection(token = "base-token", snapshot = snapshot()))
         val connectionStore = NetlifyConnectionStore(repository, nowMillis = { 400L })
         val pendingCommit = connectionStore.saveValidatedConnection(
@@ -184,7 +185,7 @@ class NetlifyConnectionRepositoryTest {
 
     @Test
     fun staleRefreshCompareAndSwapCannotResurrectAfterDisconnect() {
-        val repository = NetlifyConnectionRepository(MemoryAtomicBytesStore(), TestAccountCipher())
+        val repository = NetlifyConnectionRepository(primaryFiles(NetlifyConnectionRepository.ACCOUNT_PATH, MemoryAtomicBytesStore()), TestAccountCipher())
         repository.save(connection(token = "base-token", snapshot = snapshot()))
         val stale = checkNotNull(repository.loadWithRevision())
 
@@ -201,7 +202,7 @@ class NetlifyConnectionRepositoryTest {
 
     @Test
     fun staleRefreshCompareAndSwapCannotOverwriteNewerSave() {
-        val repository = NetlifyConnectionRepository(MemoryAtomicBytesStore(), TestAccountCipher())
+        val repository = NetlifyConnectionRepository(primaryFiles(NetlifyConnectionRepository.ACCOUNT_PATH, MemoryAtomicBytesStore()), TestAccountCipher())
         repository.save(connection(token = "base-token", snapshot = snapshot()))
         val stale = checkNotNull(repository.loadWithRevision())
         repository.save(connection(token = "newer-token", snapshot = snapshot(fetchedAt = 700L, siteCount = 3)))
@@ -219,7 +220,7 @@ class NetlifyConnectionRepositoryTest {
     @Test
     fun persistRefreshResultCannotResurrectRecordDisconnectedAfterItsLoad() {
         val store = MemoryAtomicBytesStore()
-        val repository = NetlifyConnectionRepository(store, TestAccountCipher())
+        val repository = NetlifyConnectionRepository(primaryFiles(NetlifyConnectionRepository.ACCOUNT_PATH, store), TestAccountCipher())
         repository.save(connection(token = "base-token", snapshot = snapshot()))
         store.resetReadInterception { readNumber ->
             if (readNumber == 2) store.bytes = null
@@ -238,12 +239,12 @@ class NetlifyConnectionRepositoryTest {
     @Test
     fun persistRefreshResultCannotOverwriteRecordSavedAfterItsLoad() {
         val newerStore = MemoryAtomicBytesStore()
-        NetlifyConnectionRepository(newerStore, TestAccountCipher()).save(
+        NetlifyConnectionRepository(primaryFiles(NetlifyConnectionRepository.ACCOUNT_PATH, newerStore), TestAccountCipher()).save(
             connection(token = "newer-token", snapshot = snapshot(fetchedAt = 760L, siteCount = 3)),
         )
         val newerEnvelope = checkNotNull(newerStore.bytes).copyOf()
         val store = MemoryAtomicBytesStore()
-        val repository = NetlifyConnectionRepository(store, TestAccountCipher())
+        val repository = NetlifyConnectionRepository(primaryFiles(NetlifyConnectionRepository.ACCOUNT_PATH, store), TestAccountCipher())
         repository.save(connection(token = "base-token", snapshot = snapshot()))
         store.resetReadInterception { readNumber ->
             if (readNumber == 2) store.bytes = newerEnvelope.copyOf()
@@ -263,7 +264,7 @@ class NetlifyConnectionRepositoryTest {
 
     @Test
     fun sameAccountPartialReconnectPreservesFullerExistingCache() {
-        val repository = NetlifyConnectionRepository(MemoryAtomicBytesStore(), TestAccountCipher())
+        val repository = NetlifyConnectionRepository(primaryFiles(NetlifyConnectionRepository.ACCOUNT_PATH, MemoryAtomicBytesStore()), TestAccountCipher())
         val fuller = snapshot(fetchedAt = 100L, siteCount = 3)
         repository.save(connection(token = "prior-token", snapshot = fuller))
         val connectionStore = NetlifyConnectionStore(repository, nowMillis = { 800L })
@@ -292,7 +293,7 @@ class NetlifyConnectionRepositoryTest {
     @Test
     fun acceptedCommitMakesLateRollbackANoOp() {
         val store = MemoryAtomicBytesStore()
-        val repository = NetlifyConnectionRepository(store, TestAccountCipher())
+        val repository = NetlifyConnectionRepository(primaryFiles(NetlifyConnectionRepository.ACCOUNT_PATH, store), TestAccountCipher())
         val connectionStore = NetlifyConnectionStore(repository, nowMillis = { 500L })
         val commit = connectionStore.saveValidatedConnection(
             SecretValue.of("accepted-token"),
@@ -312,13 +313,13 @@ class NetlifyConnectionRepositoryTest {
         assertEquals(
             NetlifyRestoreResult.Unavailable(NetlifyRestoreProblem.SAVED_RECORD_UNREADABLE),
             NetlifyConnectionStore(
-                NetlifyConnectionRepository(corruptStore, TestAccountCipher()),
+                NetlifyConnectionRepository(primaryFiles(NetlifyConnectionRepository.ACCOUNT_PATH, corruptStore), TestAccountCipher()),
             ).restore(),
         )
         assertEquals(3, corruptStore.bytes?.size)
 
         val secureStore = MemoryAtomicBytesStore()
-        NetlifyConnectionRepository(secureStore, TestAccountCipher()).save(
+        NetlifyConnectionRepository(primaryFiles(NetlifyConnectionRepository.ACCOUNT_PATH, secureStore), TestAccountCipher()).save(
             connection(token = "token", snapshot = null),
         )
         val securityCipher = object : AccountCipher {
@@ -331,7 +332,7 @@ class NetlifyConnectionRepositoryTest {
         assertEquals(
             NetlifyRestoreResult.Unavailable(NetlifyRestoreProblem.SECURE_STORAGE_UNAVAILABLE),
             NetlifyConnectionStore(
-                NetlifyConnectionRepository(secureStore, securityCipher),
+                NetlifyConnectionRepository(primaryFiles(NetlifyConnectionRepository.ACCOUNT_PATH, secureStore), securityCipher),
             ).restore(),
         )
     }

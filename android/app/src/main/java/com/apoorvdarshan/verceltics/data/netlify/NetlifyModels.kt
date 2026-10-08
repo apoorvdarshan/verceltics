@@ -265,6 +265,14 @@ data class NetlifyStoredConnection(
             "personalToken=<redacted>)"
 }
 
+/** One saved Netlify account for the account menu. Never carries the token. */
+data class NetlifySavedAccount(
+    val accountId: String,
+    /** Null when the record exists but could not be opened (it is kept, never deleted). */
+    val profile: NetlifyProfile?,
+    val isActive: Boolean,
+)
+
 enum class NetlifyRestoreProblem {
     SAVED_RECORD_UNREADABLE,
     SECURE_STORAGE_UNAVAILABLE,
@@ -278,6 +286,8 @@ sealed interface NetlifyRestoreResult {
         val profile: NetlifyProfile,
         val cachedSnapshot: NetlifySnapshot?,
         val cacheIsStale: Boolean,
+        /** The active saved account this restore describes. */
+        val accountId: String = com.apoorvdarshan.verceltics.data.hosting.AccountVaultLayout.PRIMARY_ACCOUNT_ID,
     ) : NetlifyRestoreResult
 
     data class Unavailable(val problem: NetlifyRestoreProblem) : NetlifyRestoreResult
