@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -54,6 +55,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -78,6 +80,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -86,6 +89,7 @@ import kotlinx.coroutines.flow.first
 import com.apoorvdarshan.verceltics.domain.IntegrationCatalog
 import com.apoorvdarshan.verceltics.domain.IntegrationProvider
 import com.apoorvdarshan.verceltics.domain.Workspace
+import com.apoorvdarshan.verceltics.ui.components.AppPullToRefresh
 import com.apoorvdarshan.verceltics.ui.components.OffsetPanel
 import com.apoorvdarshan.verceltics.ui.components.ProviderMark
 import com.apoorvdarshan.verceltics.ui.components.ControlSearchField
@@ -96,6 +100,10 @@ import com.apoorvdarshan.verceltics.ui.components.ThemedGlassControl
  *
  * Connection state stays outside this view. The app shell can supply truthful connected content
  * without coupling the catalog UI to provider storage or network code.
+ *
+ * When [hubSearchQuery] is non-null the connected hub shows a search field above its cards (the
+ * shell filters the cards it supplies), and Search requests focus that field instead of opening
+ * the "Connect an integration" catalog. [onRefresh] enables pull-to-refresh for connected hubs.
  */
 @Composable
 fun WorkspaceScreen(
@@ -107,19 +115,34 @@ fun WorkspaceScreen(
     connectedContent: (@Composable () -> Unit)? = null,
     searchRequestId: Int = 0,
     connectedProviderIds: Set<String> = emptySet(),
+    hubSearchQuery: String? = null,
+    onHubSearchQueryChange: (String) -> Unit = {},
+    hubSearchMatchCount: Int = 0,
+    onRefresh: (() -> Unit)? = null,
+    isRefreshing: Boolean = false,
 ) {
     var showsConnectionCatalog by rememberSaveable(workspace.id) { mutableStateOf(false) }
     var selectedCategoryId by rememberSaveable(workspace.id) { mutableStateOf(workspace.id) }
     var lastHandledSearchRequestId by rememberSaveable(workspace.id) { mutableIntStateOf(0) }
     var catalogFocusRequestId by rememberSaveable(workspace.id) { mutableIntStateOf(0) }
     val selectedCategory = Workspace.entries.firstOrNull { it.id == selectedCategoryId } ?: workspace
+    val showsHubSearch = hubSearchQuery != null && connectedContent != null
+    val activeHubQuery = hubSearchQuery?.takeIf { showsHubSearch }?.trim().orEmpty()
+    val hubSearchFocusRequester = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
 
     LaunchedEffect(searchRequestId) {
         if (searchRequestId > 0 && searchRequestId != lastHandledSearchRequestId) {
             lastHandledSearchRequestId = searchRequestId
-            selectedCategoryId = workspace.id
-            showsConnectionCatalog = true
-            catalogFocusRequestId += 1
+            if (showsHubSearch) {
+                // Search the connected hub like iOS `.searchable`; the catalog is only for adding.
+                withFrameNanos { }
+                if (runCatching { hubSearchFocusRequester.requestFocus() }.isSuccess) keyboard?.show()
+            } else {
+                selectedCategoryId = workspace.id
+                showsConnectionCatalog = true
+                catalogFocusRequestId += 1
+            }
         }
     }
 
@@ -139,72 +162,117 @@ fun WorkspaceScreen(
             },
         )
 
-        LazyColumn(
+        if (showsHubSearch) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 18.dp, top = 4.dp, end = 18.dp),
+                contentAlignment = Alignment.TopCenter,
+            ) {
+                ControlSearchField(
+                    value = hubSearchQuery.orEmpty(),
+                    onValueChange = onHubSearchQueryChange,
+                    placeholder = workspaceHubSearchPlaceholder(workspace),
+                    focusRequester = hubSearchFocusRequester,
+                    onSearch = { keyboard?.hide() },
+                    modifier = Modifier
+                        .widthIn(max = WorkspaceConnectedMaxWidth)
+                        .fillMaxWidth(),
+                    testTag = "workspace.${workspace.id}.hubSearch",
+                )
+            }
+        }
+
+        AppPullToRefresh(
+            isRefreshing = isRefreshing,
+            onRefresh = { onRefresh?.invoke() },
+            enabled = onRefresh != null && connectedContent != null,
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f)
-                .testTag(
-                    if (connectedContent == null) {
-                        "workspace.${workspace.id}.empty"
-                    } else {
-                        "workspace.${workspace.id}.connected"
-                    },
-                ),
-            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 24.dp),
-            verticalArrangement = if (connectedContent == null) {
-                Arrangement.Center
-            } else {
-                Arrangement.spacedBy(16.dp)
-            },
-            horizontalAlignment = Alignment.CenterHorizontally,
+                .weight(1f),
+            testTag = "workspace.${workspace.id}.refresh",
         ) {
-            if (persistenceError != null) {
-                item(key = "persistence-error") {
-                    PersistenceErrorBanner(
-                        workspace = workspace,
-                        message = persistenceError,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .widthIn(max = 560.dp),
-                    )
-                    Spacer(Modifier.height(16.dp))
-                }
-            }
-
-            if (connectedContent == null) {
-                item(key = "empty-state") {
-                    WorkspaceEmptyState(
-                        workspace = workspace,
-                        onConnect = {
-                            selectedCategoryId = workspace.id
-                            showsConnectionCatalog = true
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .testTag(
+                        if (connectedContent == null) {
+                            "workspace.${workspace.id}.empty"
+                        } else {
+                            "workspace.${workspace.id}.connected"
                         },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .widthIn(max = 560.dp),
-                    )
-                }
-            } else {
-                item(key = "connected-content") {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .widthIn(max = 560.dp),
-                    ) {
-                        connectedContent()
+                    ),
+                contentPadding = PaddingValues(horizontal = 18.dp, vertical = 24.dp),
+                verticalArrangement = if (connectedContent == null) {
+                    Arrangement.Center
+                } else {
+                    Arrangement.spacedBy(16.dp)
+                },
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                if (persistenceError != null) {
+                    item(key = "persistence-error") {
+                        PersistenceErrorBanner(
+                            workspace = workspace,
+                            message = persistenceError,
+                            modifier = Modifier
+                                .widthIn(max = if (connectedContent == null) WorkspaceEmptyMaxWidth else WorkspaceConnectedMaxWidth)
+                                .fillMaxWidth(),
+                        )
+                        Spacer(Modifier.height(16.dp))
                     }
                 }
-                item(key = "additional-connection") {
-                    WorkspaceAdditionalConnectionState(
-                        workspace = workspace,
-                        onConnect = {
-                            selectedCategoryId = workspace.id
-                            showsConnectionCatalog = true
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .widthIn(max = 560.dp),
-                    )
+
+                if (connectedContent == null) {
+                    item(key = "empty-state") {
+                        WorkspaceEmptyState(
+                            workspace = workspace,
+                            onConnect = {
+                                selectedCategoryId = workspace.id
+                                showsConnectionCatalog = true
+                            },
+                            modifier = Modifier
+                                .widthIn(max = WorkspaceEmptyMaxWidth)
+                                .fillMaxWidth(),
+                        )
+                    }
+                } else {
+                    if (activeHubQuery.isNotEmpty() && hubSearchMatchCount == 0) {
+                        item(key = "hub-search-empty") {
+                            Text(
+                                text = workspaceHubSearchEmptyMessage(workspace, activeHubQuery),
+                                modifier = Modifier
+                                    .widthIn(max = WorkspaceConnectedMaxWidth)
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 4.dp, vertical = 12.dp)
+                                    .testTag("workspace.${workspace.id}.hubSearchEmpty"),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodyMedium,
+                                textAlign = TextAlign.Center,
+                            )
+                        }
+                    }
+                    item(key = "connected-content") {
+                        Box(
+                            modifier = Modifier
+                                .widthIn(max = WorkspaceConnectedMaxWidth)
+                                .fillMaxWidth(),
+                        ) {
+                            connectedContent()
+                        }
+                    }
+                    item(key = "additional-connection") {
+                        WorkspaceAdditionalConnectionState(
+                            workspace = workspace,
+                            onConnect = {
+                                selectedCategoryId = workspace.id
+                                showsConnectionCatalog = true
+                            },
+                            modifier = Modifier
+                                .widthIn(max = WorkspaceEmptyMaxWidth)
+                                .fillMaxWidth(),
+                        )
+                    }
                 }
             }
         }
@@ -257,14 +325,14 @@ fun WorkspaceScreen(
                 ConnectionCatalog(
                     selectedCategory = selectedCategory,
                     onCategorySelected = { selectedCategoryId = it.id },
-                    onDismiss = { showsConnectionCatalog = false },
-                    headerModifier = dismissGesture,
                     focusRequestId = catalogFocusRequestId,
                     connectedProviderIds = connectedProviderIds,
                     onProviderSelected = { provider ->
                         showsConnectionCatalog = false
                         onConnectProvider(provider)
                     },
+                    onDismiss = { showsConnectionCatalog = false },
+                    headerModifier = dismissGesture,
                 )
             }
         }
@@ -506,15 +574,25 @@ private fun PersistenceErrorBanner(
     }
 }
 
+/**
+ * Hosting / Registrars / Sites provider picker shared by the "Connect an integration" sheet and the
+ * full-screen first-connection flow (iOS `LoginView` welcome catalog). [onDismiss] adds a close
+ * button, [showsDragHandle] the sheet handle, and [footer] optional content pinned below the list.
+ */
 @Composable
-private fun ConnectionCatalog(
+internal fun ConnectionCatalog(
     selectedCategory: Workspace,
     onCategorySelected: (Workspace) -> Unit,
-    onDismiss: () -> Unit,
-    headerModifier: Modifier,
     focusRequestId: Int,
     connectedProviderIds: Set<String>,
     onProviderSelected: (IntegrationProvider) -> Unit,
+    modifier: Modifier = Modifier,
+    title: String = "Connect an integration",
+    subtitle: String? = null,
+    onDismiss: (() -> Unit)? = null,
+    headerModifier: Modifier = Modifier,
+    showsDragHandle: Boolean = true,
+    footer: (@Composable () -> Unit)? = null,
 ) {
     val providers = IntegrationCatalog.providers(selectedCategory)
     var query by rememberSaveable(selectedCategory.id) { mutableStateOf("") }
@@ -550,34 +628,57 @@ private fun ConnectionCatalog(
     }
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .safeDrawingPadding()
-            .imePadding(),
+            .imePadding()
+            // Centered and capped on tablets and wide windows.
+            .wrapContentWidth(Alignment.CenterHorizontally)
+            .widthIn(max = WorkspaceCatalogMaxWidth)
+            .fillMaxWidth(),
     ) {
         Column(
             modifier = headerModifier.fillMaxWidth().testTag("connection.catalog.dragHandle"),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Box(
-                modifier = Modifier
-                    .padding(top = 8.dp, bottom = 4.dp)
-                    .width(44.dp)
-                    .height(5.dp)
-                    .background(MaterialTheme.colorScheme.outline, RoundedCornerShape(50)),
-            )
+            if (showsDragHandle) {
+                Box(
+                    modifier = Modifier
+                        .padding(top = 8.dp, bottom = 4.dp)
+                        .width(44.dp)
+                        .height(5.dp)
+                        .background(MaterialTheme.colorScheme.outline, RoundedCornerShape(50)),
+                )
+            }
             Row(
-                modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 56.dp)
+                    .padding(start = 20.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = "Connect an integration",
-                    modifier = Modifier.weight(1f).semantics { heading() },
-                    color = MaterialTheme.colorScheme.onBackground,
-                    style = MaterialTheme.typography.headlineSmall,
-                )
-                IconButton(onClick = onDismiss, modifier = Modifier.testTag("connection.catalog.close")) {
-                    Icon(Icons.Rounded.Close, contentDescription = "Close integration picker")
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        text = title,
+                        modifier = Modifier.semantics { heading() },
+                        color = MaterialTheme.colorScheme.onBackground,
+                        style = MaterialTheme.typography.headlineSmall,
+                    )
+                    if (subtitle != null) {
+                        Text(
+                            text = subtitle,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
+                if (onDismiss != null) {
+                    IconButton(onClick = onDismiss, modifier = Modifier.testTag("connection.catalog.close")) {
+                        Icon(Icons.Rounded.Close, contentDescription = "Close integration picker")
+                    }
                 }
             }
         }
@@ -645,6 +746,7 @@ private fun ConnectionCatalog(
                 }
             }
         }
+        footer?.invoke()
     }
 }
 
@@ -924,6 +1026,27 @@ private fun workspaceEmptyCopy(workspace: Workspace): WorkspaceEmptyCopy = when 
         message = "View search, analytics, performance, and uptime providers in separate focused dashboards.",
         actionTitle = "Connect a service",
     )
+}
+
+/** Empty states and single-column prompts stay narrow, like the iOS 560pt empty state frame. */
+internal val WorkspaceEmptyMaxWidth: Dp = 560.dp
+
+/** Connected hub cards stay readable on tablets and wide windows instead of stretching. */
+internal val WorkspaceConnectedMaxWidth: Dp = 720.dp
+
+/** Provider picker width cap on tablets and wide windows. */
+internal val WorkspaceCatalogMaxWidth: Dp = 720.dp
+
+internal fun workspaceHubSearchPlaceholder(workspace: Workspace): String = when (workspace) {
+    Workspace.HOSTING -> "Search hosting accounts"
+    Workspace.REGISTRARS -> "Search registrars and domains"
+    Workspace.SITES -> "Search site services"
+}
+
+internal fun workspaceHubSearchEmptyMessage(workspace: Workspace, query: String): String = when (workspace) {
+    Workspace.HOSTING -> "No connected hosting accounts match “$query”."
+    Workspace.REGISTRARS -> "No connected registrars or domains match “$query”."
+    Workspace.SITES -> "No connected site services match “$query”."
 }
 
 private fun persistenceErrorTitle(workspace: Workspace): String = when (workspace) {

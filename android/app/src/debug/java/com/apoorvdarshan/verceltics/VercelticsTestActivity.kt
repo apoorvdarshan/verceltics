@@ -7,6 +7,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.apoorvdarshan.verceltics.ui.DebugVercelGatewayController
@@ -22,6 +23,8 @@ import com.apoorvdarshan.verceltics.ui.netlify.DebugNetlifyGatewayController
 import com.apoorvdarshan.verceltics.ui.netlify.DebugNetlifyScenario
 import com.apoorvdarshan.verceltics.ui.netlify.DebugNetlifyUiGateway
 import com.apoorvdarshan.verceltics.ui.netlify.NetlifyViewModel
+import com.apoorvdarshan.verceltics.ui.onboarding.FirstLaunchExperienceStore
+import com.apoorvdarshan.verceltics.ui.onboarding.FirstLaunchPreferences
 import com.apoorvdarshan.verceltics.ui.pagespeed.DebugPageSpeedGatewayController
 import com.apoorvdarshan.verceltics.ui.pagespeed.DebugPageSpeedScenario
 import com.apoorvdarshan.verceltics.ui.pagespeed.DebugPageSpeedUiGateway
@@ -53,6 +56,7 @@ class VercelticsTestActivity : ComponentActivity() {
     private val searchConsoleViewModel by viewModels<SearchConsoleViewModel> {
         SearchConsoleViewModel.Factory(DebugSearchConsoleUiGateway())
     }
+    private val firstLaunchHolder by viewModels<FirstLaunchHolder>()
     private var ownsProviderSecureFlag = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -95,6 +99,14 @@ class VercelticsTestActivity : ComponentActivity() {
                     }
             }
         }
+        // Shell tests reach the tab shell directly; first-launch tests opt in with an extra.
+        if (intent.getBooleanExtra(EXTRA_FIRST_LAUNCH, false) && firstLaunchHolder.store == null) {
+            firstLaunchHolder.store = FirstLaunchExperienceStore(
+                InMemoryFirstLaunchPreferences(
+                    completed = intent.getBooleanExtra(EXTRA_FIRST_LAUNCH_COMPLETED, false),
+                ),
+            )
+        }
         setContent {
             VercelticsTheme {
                 VercelticsApp(
@@ -103,10 +115,15 @@ class VercelticsTestActivity : ComponentActivity() {
                     netlifyViewModel = netlifyViewModel,
                     cloudflareViewModel = cloudflareViewModel,
                     searchConsoleViewModel = searchConsoleViewModel,
+                    firstLaunchExperience = firstLaunchHolder.store,
                 )
             }
         }
     }
+
+    /** First-launch completion for this test activity, kept across recreation. */
+    val firstLaunchExperience: FirstLaunchExperienceStore?
+        get() = firstLaunchHolder.store
 
     fun configureGateway(
         scenario: DebugVercelScenario,
@@ -164,7 +181,24 @@ class VercelticsTestActivity : ComponentActivity() {
         DebugSearchConsoleGatewayController.releaseConnect()
     }
 
+    class FirstLaunchHolder : ViewModel() {
+        var store: FirstLaunchExperienceStore? = null
+    }
+
+    private class InMemoryFirstLaunchPreferences(private var completed: Boolean) : FirstLaunchPreferences {
+        override fun isWelcomeCompleted(): Boolean = completed
+
+        override fun markWelcomeCompleted() {
+            completed = true
+        }
+    }
+
     companion object {
+        /** Enables the first-launch gate with in-memory completion state. */
+        const val EXTRA_FIRST_LAUNCH = "firstLaunch"
+
+        /** With [EXTRA_FIRST_LAUNCH], starts as if the welcome was already completed. */
+        const val EXTRA_FIRST_LAUNCH_COMPLETED = "firstLaunchCompleted"
         const val EXTRA_VERCEL_SCENARIO = "vercelScenario"
         const val EXTRA_NETLIFY_SCENARIO = "netlifyScenario"
         const val EXTRA_PAGE_SPEED_SCENARIO = "pageSpeedScenario"

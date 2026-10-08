@@ -40,6 +40,7 @@ import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.Lightbulb
 import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.PrivacyTip
+import androidx.compose.material.icons.rounded.RateReview
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.Sync
@@ -83,6 +84,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.apoorvdarshan.verceltics.R
+import com.apoorvdarshan.verceltics.ui.components.AppPullToRefresh
 import com.apoorvdarshan.verceltics.ui.screens.about.AboutAppearance
 import com.apoorvdarshan.verceltics.ui.screens.about.AboutDestination
 import com.apoorvdarshan.verceltics.ui.screens.about.AboutScreenAction
@@ -113,259 +115,273 @@ fun AboutScreen(
                 modifier = Modifier.semantics { heading() },
             )
         }
-        LazyColumn(
-            modifier = Modifier.fillMaxWidth().weight(1f).testTag("about.content"),
-            contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 40.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp),
+        // Pulling About re-checks Google Play for updates, the only live data on this screen. A tap
+        // on the update row keeps showing only the row's own spinner.
+        AppPullToRefresh(
+            isRefreshing = state.update == AboutUpdateState.Checking,
+            onRefresh = { onAction(AboutScreenAction.CheckForUpdates) },
+            enabled = state.update != AboutUpdateState.NotConfigured,
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            testTag = "about.refresh",
         ) {
-            item(key = "updates") {
-                AboutSectionCard(
-                    title = stringResource(R.string.about_section_app),
-                    testTag = "about.section.app",
-                ) {
-                    UpdateRow(
-                        versionName = state.version.name,
-                        state = state.update,
-                        onCheck = { onAction(AboutScreenAction.CheckForUpdates) },
-                        onOpen = { onAction(AboutScreenAction.OpenExternalUri(it)) },
-                    )
-                }
-            }
-
-            if (hasPro != null) {
-                item(key = "pro") {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().testTag("about.content"),
+                contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 40.dp),
+                verticalArrangement = Arrangement.spacedBy(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                item(key = "updates") {
                     AboutSectionCard(
-                        title = stringResource(R.string.about_section_pro),
-                        testTag = "about.section.pro",
+                        title = stringResource(R.string.about_section_app),
+                        testTag = "about.section.app",
                     ) {
-                        if (hasPro) {
-                            AboutActionRow(
-                                icon = Icons.Rounded.Verified,
-                                title = stringResource(R.string.about_pro_active),
-                                subtitle = stringResource(R.string.about_pro_active_subtitle),
-                                testTag = "about.pro.active",
-                                iconTint = MaterialTheme.colorScheme.primary,
-                            )
-                        } else {
-                            AboutActionRow(
-                                icon = Icons.Rounded.Verified,
-                                title = stringResource(R.string.about_pro_unlock),
-                                subtitle = stringResource(R.string.about_pro_unlock_subtitle),
-                                testTag = "about.pro.unlock",
-                                iconTint = MaterialTheme.colorScheme.primary,
-                                onClick = onUnlockPro,
+                        UpdateRow(
+                            versionName = state.version.name,
+                            state = state.update,
+                            onCheck = { onAction(AboutScreenAction.CheckForUpdates) },
+                            onInstall = { onAction(AboutScreenAction.InstallUpdate(it)) },
+                        )
+                    }
+                }
+
+                if (hasPro != null) {
+                    item(key = "pro") {
+                        AboutSectionCard(
+                            title = stringResource(R.string.about_section_pro),
+                            testTag = "about.section.pro",
+                        ) {
+                            if (hasPro) {
+                                AboutActionRow(
+                                    icon = Icons.Rounded.Verified,
+                                    title = stringResource(R.string.about_pro_active),
+                                    subtitle = stringResource(R.string.about_pro_active_subtitle),
+                                    testTag = "about.pro.active",
+                                    iconTint = MaterialTheme.colorScheme.primary,
+                                )
+                            } else {
+                                AboutActionRow(
+                                    icon = Icons.Rounded.Verified,
+                                    title = stringResource(R.string.about_pro_unlock),
+                                    subtitle = stringResource(R.string.about_pro_unlock_subtitle),
+                                    testTag = "about.pro.unlock",
+                                    iconTint = MaterialTheme.colorScheme.primary,
+                                    onClick = onUnlockPro,
+                                )
+                            }
+                            AboutDivider()
+                            DestinationRow(
+                                icon = Icons.Rounded.CreditCard,
+                                title = stringResource(R.string.about_manage_subscription),
+                                subtitle = stringResource(R.string.about_manage_subscription_subtitle),
+                                destination = AboutDestination.MANAGE_SUBSCRIPTION,
+                                onAction = onAction,
                             )
                         }
+                    }
+                }
+
+                if (onToggleSampleData != null) {
+                    item(key = "sample-data") {
+                        AboutSectionCard(title = "Preview", testTag = "about.section.sample") {
+                            AboutActionRow(
+                                icon = Icons.Rounded.Language,
+                                title = if (isSampleData) "Exit sample data" else "Show sample data",
+                                subtitle = "Explore example hosting, domains, and site analytics. Your accounts stay separate.",
+                                testTag = "about.sampleData",
+                                onClick = onToggleSampleData,
+                            )
+                        }
+                    }
+                }
+
+                item(key = "appearance") {
+                    AppearanceSection(
+                        selected = state.appearance,
+                        onSelected = { onAction(AboutScreenAction.SelectAppearance(it)) },
+                    )
+                }
+
+                item(key = "links") {
+                    AboutSectionCard(
+                        title = stringResource(R.string.about_section_links),
+                        testTag = "about.section.links",
+                    ) {
+                        DestinationRow(
+                            icon = Icons.Rounded.Language,
+                            title = stringResource(R.string.about_website),
+                            subtitle = stringResource(R.string.about_website_subtitle),
+                            destination = AboutDestination.WEBSITE,
+                            onAction = onAction,
+                        )
                         AboutDivider()
                         DestinationRow(
-                            icon = Icons.Rounded.CreditCard,
-                            title = stringResource(R.string.about_manage_subscription),
-                            subtitle = stringResource(R.string.about_manage_subscription_subtitle),
-                            destination = AboutDestination.MANAGE_SUBSCRIPTION,
+                            icon = Icons.Rounded.Code,
+                            title = stringResource(R.string.about_source_code),
+                            subtitle = stringResource(R.string.about_source_code_subtitle),
+                            destination = AboutDestination.SOURCE_CODE,
+                            onAction = onAction,
+                        )
+                        AboutDivider()
+                        DestinationRow(
+                            icon = Icons.Rounded.Business,
+                            title = stringResource(R.string.about_linkedin),
+                            subtitle = stringResource(R.string.about_linkedin_subtitle),
+                            destination = AboutDestination.LINKED_IN,
+                            onAction = onAction,
+                        )
+                        AboutDivider()
+                        DestinationRow(
+                            icon = Icons.Rounded.AlternateEmail,
+                            title = stringResource(R.string.about_x),
+                            subtitle = stringResource(R.string.about_x_subtitle),
+                            destination = AboutDestination.X_PROFILE,
+                            onAction = onAction,
+                        )
+                        AboutDivider()
+                        DestinationRow(
+                            icon = Icons.Rounded.PhotoCamera,
+                            title = stringResource(R.string.about_instagram),
+                            subtitle = stringResource(R.string.about_instagram_subtitle),
+                            destination = AboutDestination.INSTAGRAM_PROFILE,
+                            onAction = onAction,
+                        )
+                        AboutDivider()
+                        DestinationRow(
+                            icon = Icons.Rounded.ChatBubbleOutline,
+                            title = stringResource(R.string.about_discord),
+                            subtitle = stringResource(R.string.about_discord_subtitle),
+                            destination = AboutDestination.DISCORD,
                             onAction = onAction,
                         )
                     }
                 }
-            }
 
-            if (onToggleSampleData != null) {
-                item(key = "sample-data") {
-                    AboutSectionCard(title = "Preview", testTag = "about.section.sample") {
+                item(key = "support") {
+                    AboutSectionCard(
+                        title = stringResource(R.string.about_section_support),
+                        testTag = "about.section.support",
+                    ) {
                         AboutActionRow(
-                            icon = Icons.Rounded.Language,
-                            title = if (isSampleData) "Exit sample data" else "Show sample data",
-                            subtitle = "Explore example hosting, domains, and site analytics. Your accounts stay separate.",
-                            testTag = "about.sampleData",
-                            onClick = onToggleSampleData,
+                            icon = Icons.Rounded.RateReview,
+                            title = stringResource(R.string.about_rate_app),
+                            subtitle = stringResource(R.string.about_rate_app_subtitle),
+                            testTag = "about.action.rate",
+                            onClick = { onAction(AboutScreenAction.RateApp) },
+                        )
+                        AboutDivider()
+                        AboutActionRow(
+                            icon = Icons.Rounded.Share,
+                            title = stringResource(R.string.about_share),
+                            subtitle = stringResource(R.string.about_share_subtitle),
+                            testTag = "about.action.share",
+                            onClick = { onAction(AboutScreenAction.ShareApp) },
+                        )
+                        AboutDivider()
+                        DestinationRow(
+                            icon = Icons.Rounded.Star,
+                            title = stringResource(R.string.about_star_github),
+                            subtitle = stringResource(R.string.about_star_github_subtitle),
+                            destination = AboutDestination.SOURCE_CODE,
+                            onAction = onAction,
+                        )
+                        AboutDivider()
+                        DestinationRow(
+                            icon = Icons.Rounded.ThumbUp,
+                            title = stringResource(R.string.about_product_hunt),
+                            subtitle = stringResource(R.string.about_product_hunt_subtitle),
+                            destination = AboutDestination.PRODUCT_HUNT,
+                            onAction = onAction,
                         )
                     }
                 }
-            }
 
-            item(key = "appearance") {
-                AppearanceSection(
-                    selected = state.appearance,
-                    onSelected = { onAction(AboutScreenAction.SelectAppearance(it)) },
-                )
-            }
-
-            item(key = "links") {
-                AboutSectionCard(
-                    title = stringResource(R.string.about_section_links),
-                    testTag = "about.section.links",
-                ) {
-                    DestinationRow(
-                        icon = Icons.Rounded.Language,
-                        title = stringResource(R.string.about_website),
-                        subtitle = stringResource(R.string.about_website_subtitle),
-                        destination = AboutDestination.WEBSITE,
-                        onAction = onAction,
-                    )
-                    AboutDivider()
-                    DestinationRow(
-                        icon = Icons.Rounded.Code,
-                        title = stringResource(R.string.about_source_code),
-                        subtitle = stringResource(R.string.about_source_code_subtitle),
-                        destination = AboutDestination.SOURCE_CODE,
-                        onAction = onAction,
-                    )
-                    AboutDivider()
-                    DestinationRow(
-                        icon = Icons.Rounded.Business,
-                        title = stringResource(R.string.about_linkedin),
-                        subtitle = stringResource(R.string.about_linkedin_subtitle),
-                        destination = AboutDestination.LINKED_IN,
-                        onAction = onAction,
-                    )
-                    AboutDivider()
-                    DestinationRow(
-                        icon = Icons.Rounded.AlternateEmail,
-                        title = stringResource(R.string.about_x),
-                        subtitle = stringResource(R.string.about_x_subtitle),
-                        destination = AboutDestination.X_PROFILE,
-                        onAction = onAction,
-                    )
-                    AboutDivider()
-                    DestinationRow(
-                        icon = Icons.Rounded.PhotoCamera,
-                        title = stringResource(R.string.about_instagram),
-                        subtitle = stringResource(R.string.about_instagram_subtitle),
-                        destination = AboutDestination.INSTAGRAM_PROFILE,
-                        onAction = onAction,
-                    )
-                    AboutDivider()
-                    DestinationRow(
-                        icon = Icons.Rounded.ChatBubbleOutline,
-                        title = stringResource(R.string.about_discord),
-                        subtitle = stringResource(R.string.about_discord_subtitle),
-                        destination = AboutDestination.DISCORD,
-                        onAction = onAction,
-                    )
-                }
-            }
-
-            item(key = "support") {
-                AboutSectionCard(
-                    title = stringResource(R.string.about_section_support),
-                    testTag = "about.section.support",
-                ) {
-                    DestinationRow(
-                        icon = Icons.Rounded.Star,
-                        title = stringResource(R.string.about_rate_app),
-                        subtitle = stringResource(R.string.about_rate_app_subtitle),
-                        destination = AboutDestination.RATE_APP,
-                        onAction = onAction,
-                    )
-                    AboutDivider()
-                    AboutActionRow(
-                        icon = Icons.Rounded.Share,
-                        title = stringResource(R.string.about_share),
-                        subtitle = stringResource(R.string.about_share_subtitle),
-                        testTag = "about.action.share",
-                        onClick = { onAction(AboutScreenAction.ShareApp) },
-                    )
-                    AboutDivider()
-                    DestinationRow(
-                        icon = Icons.Rounded.Star,
-                        title = stringResource(R.string.about_star_github),
-                        subtitle = stringResource(R.string.about_star_github_subtitle),
-                        destination = AboutDestination.SOURCE_CODE,
-                        onAction = onAction,
-                    )
-                    AboutDivider()
-                    DestinationRow(
-                        icon = Icons.Rounded.ThumbUp,
-                        title = stringResource(R.string.about_product_hunt),
-                        subtitle = stringResource(R.string.about_product_hunt_subtitle),
-                        destination = AboutDestination.PRODUCT_HUNT,
-                        onAction = onAction,
-                    )
-                }
-            }
-
-            if (tipJarContent != null) {
-                item(key = "developer-support") {
-                    AboutSectionCard(
-                        title = stringResource(R.string.about_section_developer_support),
-                        testTag = "about.section.developerSupport",
-                    ) {
-                        tipJarContent()
+                if (tipJarContent != null) {
+                    item(key = "developer-support") {
+                        AboutSectionCard(
+                            title = stringResource(R.string.about_section_developer_support),
+                            testTag = "about.section.developerSupport",
+                        ) {
+                            tipJarContent()
+                        }
                     }
                 }
-            }
 
-            item(key = "help") {
-                AboutSectionCard(
-                    title = stringResource(R.string.about_section_help),
-                    testTag = "about.section.help",
-                ) {
-                    DestinationRow(
-                        icon = Icons.Rounded.Email,
-                        title = stringResource(R.string.about_contact),
-                        subtitle = stringResource(R.string.about_contact_subtitle),
-                        destination = AboutDestination.CONTACT,
-                        onAction = onAction,
-                    )
-                    AboutDivider()
-                    FeedbackRow(
-                        icon = Icons.Rounded.BugReport,
-                        title = stringResource(R.string.about_report_issue),
-                        githubSubtitle = stringResource(R.string.about_report_github_subtitle),
-                        discordHint = stringResource(R.string.about_report_discord_hint),
-                        githubDestination = AboutDestination.REPORT_ISSUE,
-                        discordDestination = AboutDestination.DISCORD_BUG_REPORT,
-                        testTag = "about.feedback.bug",
-                        onAction = onAction,
-                    )
-                    AboutDivider()
-                    FeedbackRow(
-                        icon = Icons.Rounded.Lightbulb,
-                        title = stringResource(R.string.about_request_feature),
-                        githubSubtitle = stringResource(R.string.about_request_github_subtitle),
-                        discordHint = stringResource(R.string.about_request_discord_hint),
-                        githubDestination = AboutDestination.REQUEST_FEATURE,
-                        discordDestination = AboutDestination.DISCORD_FEATURE_REQUEST,
-                        testTag = "about.feedback.feature",
-                        onAction = onAction,
-                    )
+                item(key = "help") {
+                    AboutSectionCard(
+                        title = stringResource(R.string.about_section_help),
+                        testTag = "about.section.help",
+                    ) {
+                        DestinationRow(
+                            icon = Icons.Rounded.Email,
+                            title = stringResource(R.string.about_contact),
+                            subtitle = stringResource(R.string.about_contact_subtitle),
+                            destination = AboutDestination.CONTACT,
+                            onAction = onAction,
+                        )
+                        AboutDivider()
+                        FeedbackRow(
+                            icon = Icons.Rounded.BugReport,
+                            title = stringResource(R.string.about_report_issue),
+                            githubSubtitle = stringResource(R.string.about_report_github_subtitle),
+                            discordHint = stringResource(R.string.about_report_discord_hint),
+                            githubDestination = AboutDestination.REPORT_ISSUE,
+                            discordDestination = AboutDestination.DISCORD_BUG_REPORT,
+                            testTag = "about.feedback.bug",
+                            onAction = onAction,
+                        )
+                        AboutDivider()
+                        FeedbackRow(
+                            icon = Icons.Rounded.Lightbulb,
+                            title = stringResource(R.string.about_request_feature),
+                            githubSubtitle = stringResource(R.string.about_request_github_subtitle),
+                            discordHint = stringResource(R.string.about_request_discord_hint),
+                            githubDestination = AboutDestination.REQUEST_FEATURE,
+                            discordDestination = AboutDestination.DISCORD_FEATURE_REQUEST,
+                            testTag = "about.feedback.feature",
+                            onAction = onAction,
+                        )
+                    }
                 }
-            }
 
-            item(key = "legal") {
-                AboutSectionCard(
-                    title = stringResource(R.string.about_section_legal),
-                    testTag = "about.section.legal",
-                ) {
-                    DestinationRow(
-                        icon = Icons.Rounded.PrivacyTip,
-                        title = stringResource(R.string.about_privacy),
-                        subtitle = stringResource(R.string.about_privacy_subtitle),
-                        destination = AboutDestination.PRIVACY_POLICY,
-                        onAction = onAction,
-                    )
-                    AboutDivider()
-                    DestinationRow(
-                        icon = Icons.Rounded.Description,
-                        title = stringResource(R.string.about_terms),
-                        subtitle = stringResource(R.string.about_terms_subtitle),
-                        destination = AboutDestination.TERMS_OF_SERVICE,
-                        onAction = onAction,
-                    )
-                    AboutDivider()
-                    DestinationRow(
-                        icon = Icons.Rounded.Verified,
-                        title = stringResource(R.string.about_license),
-                        subtitle = stringResource(R.string.about_license_subtitle),
-                        destination = AboutDestination.LICENSE,
-                        onAction = onAction,
-                    )
+                item(key = "legal") {
+                    AboutSectionCard(
+                        title = stringResource(R.string.about_section_legal),
+                        testTag = "about.section.legal",
+                    ) {
+                        DestinationRow(
+                            icon = Icons.Rounded.PrivacyTip,
+                            title = stringResource(R.string.about_privacy),
+                            subtitle = stringResource(R.string.about_privacy_subtitle),
+                            destination = AboutDestination.PRIVACY_POLICY,
+                            onAction = onAction,
+                        )
+                        AboutDivider()
+                        DestinationRow(
+                            icon = Icons.Rounded.Description,
+                            title = stringResource(R.string.about_terms),
+                            subtitle = stringResource(R.string.about_terms_subtitle),
+                            destination = AboutDestination.TERMS_OF_SERVICE,
+                            onAction = onAction,
+                        )
+                        AboutDivider()
+                        DestinationRow(
+                            icon = Icons.Rounded.Verified,
+                            title = stringResource(R.string.about_license),
+                            subtitle = stringResource(R.string.about_license_subtitle),
+                            destination = AboutDestination.LICENSE,
+                            onAction = onAction,
+                        )
+                    }
                 }
-            }
 
-            item(key = "footer") { AboutFooter() }
+                item(key = "footer") { AboutFooter() }
+            }
         }
     }
 }
+
+/** About rows stay readable on tablets and wide windows, like the iOS 960pt regular-width cap. */
+internal val AboutContentMaxWidth = 720.dp
 
 @Composable
 private fun AppearanceSection(
@@ -486,7 +502,7 @@ private fun UpdateRow(
     versionName: String,
     state: AboutUpdateState,
     onCheck: () -> Unit,
-    onOpen: (String) -> Unit,
+    onInstall: (String) -> Unit,
 ) {
     when (state) {
         AboutUpdateState.NotConfigured -> AboutActionRow(
@@ -523,10 +539,14 @@ private fun UpdateRow(
         is AboutUpdateState.Available -> AboutActionRow(
             icon = Icons.Rounded.SystemUpdate,
             title = stringResource(R.string.about_update_available),
-            subtitle = stringResource(R.string.about_version_ready, state.latestVersion),
+            subtitle = if (state.latestVersion.isBlank()) {
+                stringResource(R.string.about_update_ready_generic)
+            } else {
+                stringResource(R.string.about_version_ready, state.latestVersion)
+            },
             testTag = "about.update.available",
             iconTint = MaterialTheme.colorScheme.tertiary,
-            onClick = { onOpen(state.destinationUri) },
+            onClick = { onInstall(state.destinationUri) },
         )
 
         is AboutUpdateState.Failed -> AboutActionRow(
@@ -548,6 +568,7 @@ private fun AboutSectionCard(
 ) {
     Column(
         modifier = Modifier
+            .widthIn(max = AboutContentMaxWidth)
             .fillMaxWidth()
             .testTag(testTag),
     ) {
@@ -904,6 +925,7 @@ private fun AboutDivider() {
 private fun AboutFooter() {
     Column(
         modifier = Modifier
+            .widthIn(max = AboutContentMaxWidth)
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 12.dp)
             .testTag("about.footer"),

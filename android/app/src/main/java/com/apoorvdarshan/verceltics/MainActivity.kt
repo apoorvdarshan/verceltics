@@ -35,11 +35,12 @@ import com.apoorvdarshan.verceltics.ui.hosting.SampleHostingProviderUiGateway
 import com.apoorvdarshan.verceltics.ui.cloudflare.CloudflareViewModel
 import com.apoorvdarshan.verceltics.ui.netlify.NetlifyViewModel
 import com.apoorvdarshan.verceltics.ui.pagespeed.PageSpeedViewModel
+import com.apoorvdarshan.verceltics.ui.screens.about.AboutDestination
 import com.apoorvdarshan.verceltics.ui.screens.about.AboutScreenAction
 import com.apoorvdarshan.verceltics.ui.screens.about.AboutScreenController
-import com.apoorvdarshan.verceltics.ui.screens.about.SharedPreferencesAppearancePreferenceStore
-import com.apoorvdarshan.verceltics.ui.screens.about.UnconfiguredAboutUpdateChecker
-import com.apoorvdarshan.verceltics.ui.screens.about.currentAndroidAppVersion
+import com.apoorvdarshan.verceltics.ui.screens.about.PlayInAppReviewLauncher
+import com.apoorvdarshan.verceltics.ui.screens.about.ReviewPrompter
+import com.apoorvdarshan.verceltics.ui.screens.about.SharedPreferencesReviewPromptStore
 import com.apoorvdarshan.verceltics.ui.searchconsole.SearchConsoleViewModel
 import com.apoorvdarshan.verceltics.ui.theme.VercelticsTheme
 import kotlinx.coroutines.CoroutineScope
@@ -116,11 +117,16 @@ class MainActivity : ComponentActivity() {
         ViewModelProvider(this, NetlifyViewModel.Factory(SampleNetlifyGateway))["sample.netlify", NetlifyViewModel::class.java]
     }
     private var ownsProviderSecureFlag = false
-    private val aboutController by lazy(LazyThreadSafetyMode.NONE) {
-        AboutScreenController(
-            appearanceStore = SharedPreferencesAppearancePreferenceStore(this),
-            updateChecker = UnconfiguredAboutUpdateChecker,
-            version = currentAndroidAppVersion(),
+    private val app: VercelticsApplication
+        get() = application as VercelticsApplication
+    private val aboutController: AboutScreenController
+        get() = app.aboutController
+
+    private val reviewPrompter by lazy(LazyThreadSafetyMode.NONE) {
+        ReviewPrompter(
+            store = SharedPreferencesReviewPromptStore(this),
+            launcher = PlayInAppReviewLauncher(this),
+            scope = lifecycleScope,
         )
     }
 
@@ -152,6 +158,11 @@ class MainActivity : ComponentActivity() {
                         registrarViewModel = if (showSampleData) sampleRegistrarViewModel else registrarViewModel,
                         siteServicesViewModel = if (showSampleData) sampleSiteServicesViewModel else siteServicesViewModel,
                         onRequestGoogleSignIn = ::signInToGoogleForFirebase,
+                        firstLaunchExperience = app.firstLaunchExperience,
+                        onProjectsFirstLoaded = {
+                            // Sample projects are fictional; only real accounts earn the prompt.
+                            if (!showSampleData) reviewPrompter.onProjectsFirstLoaded(this@MainActivity)
+                        },
                         isSampleData = showSampleData,
                         onToggleSampleData = {
                             if (!showSampleData) {
@@ -169,6 +180,16 @@ class MainActivity : ComponentActivity() {
                     )
                 }
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        lifecycleScope.launch {
+            // Play requires resuming an immediate update the user started before leaving.
+            app.playUpdateChecker.resumeInterruptedUpdate(this@MainActivity)
+            // Like iOS MainTabView's launch check: automatic and throttled to once an hour.
+            aboutController.checkForUpdates(force = false)
         }
     }
 
@@ -218,13 +239,25 @@ class MainActivity : ComponentActivity() {
             is AboutScreenAction.OpenDestination -> openAboutUri(action.destination.uri)
             is AboutScreenAction.OpenExternalUri -> openAboutUri(action.uri)
             AboutScreenAction.ShareApp -> shareApp()
+            is AboutScreenAction.InstallUpdate -> lifecycleScope.launch {
+                if (!app.playUpdateChecker.startUpdate(this@MainActivity)) openAboutUri(action.fallbackUri)
+            }
+            AboutScreenAction.RateApp -> reviewPrompter.requestReviewNow(this) {
+                openAboutUri(AboutDestination.RATE_APP.uri)
+            }
         }
     }
 
     private fun openAboutUri(uri: String) {
         val parsedUri = Uri.parse(uri)
         if (parsedUri.scheme !in SUPPORTED_ABOUT_URI_SCHEMES) return
-        runCatching { startActivity(Intent(Intent.ACTION_VIEW, parsedUri)) }
+        val opened = runCatching { startActivity(Intent(Intent.ACTION_VIEW, parsedUri)) }.isSuccess
+        // Devices without the Play Store app cannot open market:// links; use the web listing.
+        if (!opened && parsedUri.scheme == "market") {
+            runCatching {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(AboutDestination.PLAY_STORE_LISTING.uri)))
+            }
+        }
     }
 
     private fun shareApp() {
