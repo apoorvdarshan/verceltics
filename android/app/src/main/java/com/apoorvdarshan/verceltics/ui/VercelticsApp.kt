@@ -56,6 +56,16 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.core.content.edit
 import com.apoorvdarshan.verceltics.billing.ProAccessGate
+import com.apoorvdarshan.verceltics.data.hosting.HostingProvider
+import com.apoorvdarshan.verceltics.data.registrar.RegistrarProvider
+import com.apoorvdarshan.verceltics.ui.registrar.RegistrarConnectionCards
+import com.apoorvdarshan.verceltics.ui.registrar.RegistrarRoute
+import com.apoorvdarshan.verceltics.ui.registrar.RegistrarViewModel
+import com.apoorvdarshan.verceltics.ui.hosting.HostingProviderConnectionCards
+import com.apoorvdarshan.verceltics.ui.hosting.HostingProviderRoute
+import com.apoorvdarshan.verceltics.ui.hosting.HostingProvidersViewModel
+import com.apoorvdarshan.verceltics.ui.hosting.connectedProviderIds as connectedHostingIds
+import com.apoorvdarshan.verceltics.ui.registrar.connectedProviderIds as connectedRegistrarIdsOf
 import com.apoorvdarshan.verceltics.billing.ProAccessViewModel
 import com.apoorvdarshan.verceltics.billing.TipJarViewModel
 import com.apoorvdarshan.verceltics.domain.IntegrationCatalog
@@ -153,6 +163,9 @@ fun VercelticsApp(
     proAccessViewModel: ProAccessViewModel? = null,
     tipJarViewModel: TipJarViewModel? = null,
     onOpenExternalUri: (String) -> Unit = {},
+    hostingViewModel: HostingProvidersViewModel? = null,
+    onRequestGoogleSignIn: (Set<String>) -> Unit = {},
+    registrarViewModel: RegistrarViewModel? = null,
 ) {
     val context = LocalContext.current
     val preferences = remember(context) {
@@ -176,11 +189,17 @@ fun VercelticsApp(
     var cloudflareSearchRequestId by rememberSaveable { mutableIntStateOf(0) }
     var searchConsoleSearchRequestId by rememberSaveable { mutableIntStateOf(0) }
     var hostingRefreshRequestId by rememberSaveable { mutableIntStateOf(0) }
+    var hostingProviderSearchRequestId by rememberSaveable { mutableIntStateOf(0) }
+    var registrarRouteSearchRequestId by rememberSaveable { mutableIntStateOf(0) }
     val connectionState by vercelConnectionViewModel.uiState.collectAsStateWithLifecycle()
     val pageSpeedState by pageSpeedViewModel.uiState.collectAsStateWithLifecycle()
     val netlifyState by netlifyViewModel.uiState.collectAsStateWithLifecycle()
     val cloudflareState by cloudflareViewModel.uiState.collectAsStateWithLifecycle()
     val searchConsoleState by searchConsoleViewModel.uiState.collectAsStateWithLifecycle()
+    val hostingState = hostingViewModel?.uiState?.collectAsStateWithLifecycle()?.value
+    val connectedHostingProviderIds = hostingState?.connectedHostingIds.orEmpty()
+    val registrarState = registrarViewModel?.uiState?.collectAsStateWithLifecycle()?.value
+    val connectedRegistrarIds = registrarState?.connectedRegistrarIdsOf.orEmpty()
     val connectedSiteProviderIds = remember(
         pageSpeedState.isConnected,
         searchConsoleState.isConnected,
@@ -243,6 +262,10 @@ fun VercelticsApp(
     }
 
     fun requestSearch() {
+        if (registrarViewModel != null && provider != null && provider.id in RegistrarProvider.ids) {
+            registrarRouteSearchRequestId += 1
+            return
+        }
         if (provider?.id == PAGE_SPEED_PROVIDER_ID) {
             pageSpeedSearchRequestId += 1
             return
@@ -257,6 +280,10 @@ fun VercelticsApp(
         }
         if (provider?.id == SEARCH_CONSOLE_PROVIDER_ID) {
             searchConsoleSearchRequestId += 1
+            return
+        }
+        if (provider != null && provider.id in connectedHostingProviderIds) {
+            hostingProviderSearchRequestId += 1
             return
         }
         if (provider == null &&
@@ -286,12 +313,16 @@ fun VercelticsApp(
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         proAccessViewModel?.onForeground()
         hostingRefreshRequestId += 1
+        hostingViewModel?.onForeground()
+        registrarViewModel?.onForeground()
         netlifyViewModel.onForeground()
         cloudflareViewModel.onForeground()
         searchConsoleViewModel.onForeground()
     }
 
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) {
+        hostingViewModel?.onBackground()
+        registrarViewModel?.onBackground()
         netlifyViewModel.onBackground()
         cloudflareViewModel.onBackground()
         searchConsoleViewModel.onBackground()
@@ -302,7 +333,9 @@ fun VercelticsApp(
             provider.id != PAGE_SPEED_PROVIDER_ID &&
             provider.id != NETLIFY_PROVIDER_ID &&
             provider.id != CLOUDFLARE_PROVIDER_ID &&
-            provider.id != SEARCH_CONSOLE_PROVIDER_ID,
+            provider.id != SEARCH_CONSOLE_PROVIDER_ID &&
+            !(hostingViewModel != null && provider.id in HostingProvider.ids) &&
+            !(registrarViewModel != null && provider.id in RegistrarProvider.ids),
     ) {
         closeProvider()
     }
@@ -377,7 +410,27 @@ fun VercelticsApp(
                                 searchRequestId = searchConsoleSearchRequestId,
                                 modifier = Modifier.fillMaxSize(),
                             )
-                            "nameDotCom", "namecheap" -> if (isSampleData) {
+                            in HostingProvider.ids -> if (hostingViewModel != null) {
+                                HostingProviderRoute(
+                                    viewModel = hostingViewModel,
+                                    providerId = provider.id,
+                                    onBack = ::closeProvider,
+                                    onRequestGoogleSignIn = onRequestGoogleSignIn,
+                                    searchRequestId = hostingProviderSearchRequestId,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            } else {
+                                ProviderDetailScreen(provider = provider, vercelConnectionViewModel = vercelConnectionViewModel, onBack = ::closeProvider, modifier = Modifier.fillMaxSize())
+                            }
+                            in RegistrarProvider.ids -> if (registrarViewModel != null) {
+                                RegistrarRoute(
+                                    viewModel = registrarViewModel,
+                                    providerId = provider.id,
+                                    onBack = ::closeProvider,
+                                    searchRequestId = registrarRouteSearchRequestId,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            } else if (isSampleData) {
                                 SampleRegistrarScreen(initialProviderId = provider.id, onBack = ::closeProvider, modifier = Modifier.fillMaxSize())
                             } else {
                                 ProviderDetailScreen(provider = provider, vercelConnectionViewModel = vercelConnectionViewModel, onBack = ::closeProvider, modifier = Modifier.fillMaxSize())
@@ -400,9 +453,11 @@ fun VercelticsApp(
                                     connectedProviderIds = buildSet {
                                         if (cloudflareState.isConnected) add(CLOUDFLARE_PROVIDER_ID)
                                         if (netlifyState.isConnected) add(NETLIFY_PROVIDER_ID)
+                                        addAll(connectedHostingProviderIds)
                                     },
                                     connectedProviderContent = if (
-                                        netlifyState.isConnected || cloudflareState.isConnected
+                                        netlifyState.isConnected || cloudflareState.isConnected ||
+                                        connectedHostingProviderIds.isNotEmpty()
                                     ) {
                                         {
                                             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -417,6 +472,13 @@ fun VercelticsApp(
                                                     NetlifyConnectionCard(
                                                         state = netlifyState,
                                                         onClick = { providerId = NETLIFY_PROVIDER_ID },
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                    )
+                                                }
+                                                if (hostingState != null && connectedHostingProviderIds.isNotEmpty()) {
+                                                    HostingProviderConnectionCards(
+                                                        state = hostingState,
+                                                        onOpenProvider = { providerId = it },
                                                         modifier = Modifier.fillMaxWidth(),
                                                     )
                                                 }
@@ -454,13 +516,25 @@ fun VercelticsApp(
                                     modifier = Modifier.fillMaxSize(),
                                 )
 
-                                MainDestination.REGISTRARS -> if (isSampleData) {
+                                MainDestination.REGISTRARS -> if (isSampleData && registrarViewModel == null) {
                                     SampleRegistrarScreen(searchRequestId = registrarSearchRequestId, modifier = Modifier.fillMaxSize())
                                 } else WorkspaceScreen(
                                     workspace = Workspace.REGISTRARS,
                                     onConnectProvider = { providerId = it.id },
                                     onAccountAction = {},
                                     searchRequestId = registrarSearchRequestId,
+                                    connectedProviderIds = connectedRegistrarIds,
+                                    connectedContent = if (registrarState != null && connectedRegistrarIds.isNotEmpty()) {
+                                        {
+                                            RegistrarConnectionCards(
+                                                state = registrarState,
+                                                onOpenProvider = { providerId = it },
+                                                modifier = Modifier.fillMaxWidth(),
+                                            )
+                                        }
+                                    } else {
+                                        null
+                                    },
                                     modifier = Modifier.fillMaxSize(),
                                 )
 

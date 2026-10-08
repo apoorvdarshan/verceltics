@@ -3,6 +3,9 @@ package com.apoorvdarshan.verceltics
 import android.app.Application
 import com.apoorvdarshan.verceltics.billing.BillingGateway
 import com.apoorvdarshan.verceltics.billing.RevenueCatBillingGateway
+import com.apoorvdarshan.verceltics.data.hosting.GoogleAccessTokenSource
+import com.apoorvdarshan.verceltics.ui.hosting.NativeHostingProviderUiGateway
+import com.apoorvdarshan.verceltics.ui.registrar.NativeRegistrarUiGateway
 import com.apoorvdarshan.verceltics.ui.NativeVercelUiGateway
 import com.apoorvdarshan.verceltics.ui.cloudflare.NativeCloudflareUiGateway
 import com.apoorvdarshan.verceltics.ui.netlify.NativeNetlifyUiGateway
@@ -28,6 +31,14 @@ class VercelticsApplication : Application() {
 
     val searchConsoleGateway: NativeSearchConsoleUiGateway by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
         NativeSearchConsoleUiGateway.create(this)
+    }
+
+    val hostingGateway: NativeHostingProviderUiGateway by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        NativeHostingProviderUiGateway.create(this, googleAccessTokenSource = GoogleAccessTokenSource.Unavailable)
+    }
+
+    val registrarGateway: NativeRegistrarUiGateway by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        NativeRegistrarUiGateway.create(this)
     }
 
     /** RevenueCat billing, or an unavailable gateway when this build has no RevenueCat key. */

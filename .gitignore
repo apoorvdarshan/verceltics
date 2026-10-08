@@ -39,3 +39,4 @@ android/.gradle/
 android/.kotlin/
 android/**/build/
 android/local.properties
+.claude/worktrees/

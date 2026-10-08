@@ -23,6 +23,12 @@ import com.apoorvdarshan.verceltics.billing.ProAccessViewModel
 import com.apoorvdarshan.verceltics.billing.TipJarViewModel
 import com.apoorvdarshan.verceltics.ui.VercelConnectionViewModel
 import com.apoorvdarshan.verceltics.ui.VercelticsApp
+import com.apoorvdarshan.verceltics.ui.hosting.requiresSecureWindow
+import com.apoorvdarshan.verceltics.ui.registrar.RegistrarViewModel
+import com.apoorvdarshan.verceltics.ui.registrar.SampleRegistrarUiGateway
+import com.apoorvdarshan.verceltics.ui.registrar.requiresSecureWindow as registrarRequiresSecureWindow
+import com.apoorvdarshan.verceltics.ui.hosting.HostingProvidersViewModel
+import com.apoorvdarshan.verceltics.ui.hosting.SampleHostingProviderUiGateway
 import com.apoorvdarshan.verceltics.ui.cloudflare.CloudflareViewModel
 import com.apoorvdarshan.verceltics.ui.netlify.NetlifyViewModel
 import com.apoorvdarshan.verceltics.ui.pagespeed.PageSpeedViewModel
@@ -64,6 +70,18 @@ class MainActivity : ComponentActivity() {
         get() = (application as VercelticsApplication).searchConsoleGateway
     private val searchConsoleViewModel by viewModels<SearchConsoleViewModel> {
         SearchConsoleViewModel.Factory(searchConsoleGateway)
+    }
+    private val hostingViewModel by viewModels<HostingProvidersViewModel> {
+        HostingProvidersViewModel.Factory((application as VercelticsApplication).hostingGateway)
+    }
+    private val sampleHostingViewModel by lazy {
+        ViewModelProvider(this, HostingProvidersViewModel.Factory(SampleHostingProviderUiGateway))["sample.hosting", HostingProvidersViewModel::class.java]
+    }
+    private val registrarViewModel by viewModels<RegistrarViewModel> {
+        RegistrarViewModel.Factory((application as VercelticsApplication).registrarGateway)
+    }
+    private val sampleRegistrarViewModel by lazy {
+        ViewModelProvider(this, RegistrarViewModel.Factory(SampleRegistrarUiGateway))["sample.registrar", RegistrarViewModel::class.java]
     }
     private val billingGateway
         get() = (application as VercelticsApplication).billingGateway
@@ -121,6 +139,8 @@ class MainActivity : ComponentActivity() {
                         proAccessViewModel = proAccessViewModel,
                         tipJarViewModel = tipJarViewModel,
                         onOpenExternalUri = ::openAboutUri,
+                        hostingViewModel = if (showSampleData) sampleHostingViewModel else hostingViewModel,
+                        registrarViewModel = if (showSampleData) sampleRegistrarViewModel else registrarViewModel,
                         isSampleData = showSampleData,
                         onToggleSampleData = {
                             if (!showSampleData) {
@@ -128,6 +148,8 @@ class MainActivity : ComponentActivity() {
                                 sampleCloudflareViewModel.restore()
                                 sampleSearchConsoleViewModel.restore()
                                 samplePageSpeedViewModel.restore()
+                                sampleHostingViewModel.restore()
+                                sampleRegistrarViewModel.restore()
                             }
                             showSampleData = !showSampleData
                             samplePreferences.edit().putBoolean("enabled", showSampleData).apply()
@@ -145,8 +167,10 @@ class MainActivity : ComponentActivity() {
                     netlifyViewModel.uiState.map { it.requiresSecureWindow },
                     cloudflareViewModel.uiState.map { it.requiresSecureWindow },
                     searchConsoleViewModel.uiState.map { it.requiresSecureWindow },
-                ) { netlifyRequired, cloudflareRequired, searchConsoleRequired ->
-                    netlifyRequired || cloudflareRequired || searchConsoleRequired
+                    hostingViewModel.uiState.map { it.requiresSecureWindow },
+                    registrarViewModel.uiState.map { it.registrarRequiresSecureWindow },
+                ) { netlifyRequired, cloudflareRequired, searchConsoleRequired, hostingRequired, registrarRequired ->
+                    netlifyRequired || cloudflareRequired || searchConsoleRequired || hostingRequired || registrarRequired
                 }
                     .distinctUntilChanged()
                     .collect(::setProviderCredentialProtection)
