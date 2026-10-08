@@ -7,6 +7,12 @@ import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.apoorvdarshan.verceltics.data.account.SecretValue
+import com.apoorvdarshan.verceltics.data.apicatalog.ProviderRawRequest
+import com.apoorvdarshan.verceltics.data.apicatalog.ProviderRawResponse
+import com.apoorvdarshan.verceltics.data.hosting.HostingApiDefaults
+import com.apoorvdarshan.verceltics.ui.apiexplorer.ProviderApiBackend
+import com.apoorvdarshan.verceltics.ui.apiexplorer.ProviderApiProfile
+import com.apoorvdarshan.verceltics.ui.apiexplorer.ProviderApiWorkspaceController
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -77,9 +83,32 @@ class NetlifyViewModel(
     private var siteJob: Job? = null
     private var siteGeneration = 0L
 
+    /**
+     * Netlify's Complete API workspace (iOS `ProviderFullAPICatalogView` for the Netlify hosting
+     * account and its raw explorer). It restores an open workspace from saved state.
+     */
+    val apiWorkspace: ProviderApiWorkspaceController = ProviderApiWorkspaceController(
+        profile = ProviderApiProfile.netlify(),
+        scope = viewModelScope,
+        backend = object : ProviderApiBackend {
+            override suspend fun send(request: ProviderRawRequest): Result<ProviderRawResponse> = gateway.sendApiRequest(request)
+        },
+        savedStateHandle = savedStateHandle,
+        keyPrefix = API_WORKSPACE_KEY,
+    )
+
     init {
         restore()
     }
+
+    /** Opens Complete API from the dashboard or (with [siteId]) a site detail. Pro-gated by the route. */
+    fun openApiWorkspace(siteId: String? = null) {
+        if (_uiState.value.status != NetlifyConnectionStatus.CONNECTED) return
+        val site = siteId?.let { id -> _uiState.value.dashboard?.sites?.firstOrNull { it.id == id } }
+        apiWorkspace.open(HostingApiDefaults.netlifyExplorerPath(site?.id))
+    }
+
+    fun closeApiWorkspace() = apiWorkspace.close()
 
     fun setRouteVisible(visible: Boolean) {
         _uiState.update { current ->
@@ -259,6 +288,7 @@ class NetlifyViewModel(
     fun confirmDisconnect() {
         val baseline = _uiState.value
         if (!baseline.isConnected || baseline.isBusy) return
+        closeApiWorkspace()
         closeSite()
         launchRootOperation(NetlifyOperation.DISCONNECTING, baseline) { generation ->
             gateway.disconnect().fold(
@@ -320,6 +350,7 @@ class NetlifyViewModel(
 
     /** Returns true when the route consumed back instead of asking the app shell to close it. */
     fun handleBack(): Boolean = when {
+        apiWorkspace.state.value.isOpen -> apiWorkspace.back()
         _uiState.value.showDisconnectConfirmation -> {
             dismissDisconnectConfirmation()
             true
@@ -505,5 +536,6 @@ class NetlifyViewModel(
 
     companion object {
         internal const val SELECTED_SITE_ID = "netlify.selectedSiteId"
+        internal const val API_WORKSPACE_KEY = "netlify.completeApi"
     }
 }

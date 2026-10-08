@@ -80,6 +80,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.apoorvdarshan.verceltics.data.registrar.RegistrarProvider
 import com.apoorvdarshan.verceltics.data.registrar.registrarDaysUntil
 import com.apoorvdarshan.verceltics.domain.IntegrationProvider
+import com.apoorvdarshan.verceltics.ui.apiexplorer.CompleteApiEntryCard
+import com.apoorvdarshan.verceltics.ui.apiexplorer.DashboardAndCompleteApiActions
+import com.apoorvdarshan.verceltics.ui.apiexplorer.ProviderApiWorkspace
 import com.apoorvdarshan.verceltics.ui.billing.LocalProAccess
 import com.apoorvdarshan.verceltics.ui.components.AppToolbarAction
 import com.apoorvdarshan.verceltics.ui.components.ControlSearchField
@@ -111,15 +114,23 @@ fun RegistrarRoute(
     var lastHandledSearchRequestId by rememberSaveable(providerId) { mutableIntStateOf(searchRequestId) }
     var searchFocusRequestId by rememberSaveable(providerId) { mutableIntStateOf(0) }
     val routeBack = {
-        if (!viewModel.handleBack()) onBack()
+        if (!viewModel.handleBack(providerId)) onBack()
     }
     val openUrl: (String) -> Unit = { url ->
         if (isOpenableRegistrarUrl(url)) runCatching { uriHandler.openUri(url) }
     }
+    val apiWorkspace = remember(viewModel, providerId) { viewModel.apiWorkspace(providerId) }
+    val isApiOpen = apiWorkspace?.state?.collectAsStateWithLifecycle()?.value?.isOpen == true
 
     // Domain details are Pro: close a detail restored from saved state once access is locked.
     LaunchedEffect(proAccess.isConfirmedLocked, state.selectedDomainId) {
         if (proAccess.isConfirmedLocked && state.selectedDomainId != null) viewModel.closeDomain()
+    }
+    // Complete API is Pro too, and needs a live connection.
+    LaunchedEffect(proAccess.isConfirmedLocked, isApiOpen, providerState.status) {
+        if (isApiOpen && (proAccess.isConfirmedLocked || providerState.status == RegistrarConnectionStatus.DISCONNECTED)) {
+            viewModel.closeApiWorkspace(providerId)
+        }
     }
     DisposableEffect(viewModel, providerId) {
         viewModel.setVisibleProvider(providerId)
@@ -137,6 +148,7 @@ fun RegistrarRoute(
     LaunchedEffect(searchRequestId) {
         if (searchRequestId > 0 && searchRequestId != lastHandledSearchRequestId) {
             lastHandledSearchRequestId = searchRequestId
+            viewModel.closeApiWorkspace(providerId)
             if (state.selectedDomainId != null) {
                 viewModel.closeDomain()
                 withFrameNanos { }
@@ -144,6 +156,11 @@ fun RegistrarRoute(
             searchFocusRequestId += 1
         }
     }
+    if (apiWorkspace != null && isApiOpen && providerState.status == RegistrarConnectionStatus.CONNECTED) {
+        ProviderApiWorkspace(controller = apiWorkspace, onOpenLink = openUrl, modifier = modifier)
+        return
+    }
+
     RegistrarScreen(
         state = state,
         providerId = providerId,
@@ -160,6 +177,7 @@ fun RegistrarRoute(
         onDetectPublicIpv4 = { viewModel.detectPublicIpv4(providerId) },
         searchFocusRequestId = searchFocusRequestId,
         modifier = modifier,
+        onOpenCompleteApi = { domainId -> proAccess.requestPro { viewModel.openApiWorkspace(providerId, domainId) } },
     )
 }
 
@@ -181,6 +199,8 @@ fun RegistrarScreen(
     modifier: Modifier = Modifier,
     searchFocusRequestId: Int = 0,
     nowMillis: Long = System.currentTimeMillis(),
+    /** Pro-gated iOS "Complete API": the dashboard passes null, a domain detail its id. */
+    onOpenCompleteApi: (domainId: String?) -> Unit = {},
 ) {
     val haptic = LocalHapticFeedback.current
     val provider = RegistrarProvider.fromId(providerId)
@@ -264,6 +284,7 @@ fun RegistrarScreen(
                 nowMillis = nowMillis,
                 onOpenUrl = onOpenUrl,
                 onOpenDashboard = onOpenDashboard,
+                onOpenCompleteApi = { onOpenCompleteApi(selectedDomain.id) },
                 modifier = Modifier.weight(1f),
             )
             else -> RegistrarDashboard(
@@ -273,6 +294,7 @@ fun RegistrarScreen(
                 nowMillis = nowMillis,
                 onOpenDomain = onOpenDomain,
                 onOpenDashboard = onOpenDashboard,
+                onOpenCompleteApi = { onOpenCompleteApi(null) },
                 onRetry = onRefresh,
                 onDisconnect = onRequestDisconnect,
                 searchFocusRequestId = searchFocusRequestId,
@@ -536,6 +558,7 @@ private fun RegistrarDashboard(
     nowMillis: Long,
     onOpenDomain: (String) -> Unit,
     onOpenDashboard: () -> Unit,
+    onOpenCompleteApi: () -> Unit,
     onRetry: () -> Unit,
     onDisconnect: () -> Unit,
     searchFocusRequestId: Int,
@@ -602,15 +625,11 @@ private fun RegistrarDashboard(
         }
         item("stats") { PortfolioStats(summary, accent) }
         item("actions") {
-            ThemedActionButton(
-                text = "DASHBOARD",
-                onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                    onOpenDashboard()
-                },
-                tone = ThemedActionTone.NEUTRAL,
-                modifier = Modifier.fillMaxWidth(),
-                testTag = "registrar.openDashboard",
+            DashboardAndCompleteApiActions(
+                onOpenDashboard = onOpenDashboard,
+                onOpenCompleteApi = onOpenCompleteApi,
+                dashboardTestTag = "registrar.openDashboard",
+                completeApiTestTag = "registrar.completeApi",
             )
         }
         item("search") {
@@ -927,6 +946,7 @@ private fun RegistrarDomainDetail(
     nowMillis: Long,
     onOpenUrl: (String) -> Unit,
     onOpenDashboard: () -> Unit,
+    onOpenCompleteApi: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val accent = Color(catalogProvider.accentColor)
@@ -1071,6 +1091,15 @@ private fun RegistrarDomainDetail(
                     }
                 }
             }
+        }
+        item("complete-api") {
+            CompleteApiEntryCard(
+                accent = accent,
+                onClick = onOpenCompleteApi,
+                testTag = "registrar.detail.completeApi",
+                title = "Complete registrar API",
+                subtitle = "Search every indexed read and write operation, then inspect the full raw response",
+            )
         }
     }
 }

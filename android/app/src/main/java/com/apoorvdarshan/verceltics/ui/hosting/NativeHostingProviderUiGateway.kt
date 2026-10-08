@@ -1,7 +1,14 @@
 package com.apoorvdarshan.verceltics.ui.hosting
 
 import android.content.Context
+import com.apoorvdarshan.verceltics.data.apicatalog.ProviderApiCatalog
+import com.apoorvdarshan.verceltics.data.apicatalog.ProviderApiCatalogException
+import com.apoorvdarshan.verceltics.data.apicatalog.ProviderApiRequestException
+import com.apoorvdarshan.verceltics.data.apicatalog.ProviderRawRequest
+import com.apoorvdarshan.verceltics.data.apicatalog.ProviderRawResponse
+import com.apoorvdarshan.verceltics.data.apicatalog.RailwayGraphQLTemplateBuilder
 import com.apoorvdarshan.verceltics.data.hosting.GoogleAccessTokenSource
+import com.apoorvdarshan.verceltics.data.hosting.HostingApiDefaults
 import com.apoorvdarshan.verceltics.data.hosting.HostingApiException
 import com.apoorvdarshan.verceltics.data.hosting.HostingConnectionCommit
 import com.apoorvdarshan.verceltics.data.hosting.HostingConnectionRepository
@@ -13,6 +20,7 @@ import com.apoorvdarshan.verceltics.data.hosting.HostingLinkContext
 import com.apoorvdarshan.verceltics.data.hosting.HostingProfile
 import com.apoorvdarshan.verceltics.data.hosting.HostingProvider
 import com.apoorvdarshan.verceltics.data.hosting.HostingProviderApi
+import com.apoorvdarshan.verceltics.data.hosting.HostingRawApi
 import com.apoorvdarshan.verceltics.data.hosting.HostingResource
 import com.apoorvdarshan.verceltics.data.hosting.HostingRestoreProblem
 import com.apoorvdarshan.verceltics.data.hosting.HostingRestoreResult
@@ -29,6 +37,8 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /** Production bridge from the encrypted hosting backend into observable UI models. */
@@ -40,7 +50,14 @@ class NativeHostingProviderUiGateway internal constructor(
     private val nowMillis: () -> Long = System::currentTimeMillis,
     private val beforeAcceptValidatedConnection: suspend () -> Unit = {},
     private val afterAcceptValidatedConnection: suspend () -> Unit = {},
+    /** Complete API raw requests; null disables the explorer (tests that don't exercise it). */
+    private val rawApi: HostingRawApi? = null,
 ) : HostingProviderUiGateway {
+    private class RailwayCatalogEntry(val accountId: String, val catalog: ProviderApiCatalog, val loadedAtMillis: Long)
+
+    private val railwayCatalogMutex = Mutex()
+    private var railwayCatalogEntry: RailwayCatalogEntry? = null
+
     override suspend fun restore(): Result<Map<String, HostingRestoreUi>> = capture(null) {
         executeAwait(storageExecutor, connectionStore::restoreAll).entries.associate { (provider, restored) ->
             provider.id to restored.toUi(provider)
@@ -141,6 +158,51 @@ class NativeHostingProviderUiGateway internal constructor(
         executeAwait(storageExecutor) { connectionStore.disconnect(provider) }
     }
 
+    /**
+     * iOS `ProviderAPICatalogStore.railwayCatalog`: Railway's operations are discovered live (cached
+     * for five minutes per account); if discovery fails the bundled manual request stays usable.
+     */
+    override suspend fun loadApiCatalog(
+        providerId: String,
+        bundled: suspend () -> ProviderApiCatalog,
+        forceRefresh: Boolean,
+    ): Result<ProviderApiCatalog> = capture(HostingProvider.fromId(providerId)) {
+        val provider = provider(providerId)
+        val api = rawApi
+        if (provider != HostingProvider.RAILWAY || api == null) return@capture bundled()
+        val saved = executeAwait(storageExecutor) { connectionStore.loadForRefresh(provider) }
+            ?: throw HostingUiException("Connect ${provider.displayName} first.")
+        val credentials = saved.account.credentials as? HostingCredentials.Railway
+            ?: throw HostingUiException("Connect ${provider.displayName} first.")
+        val accountId = saved.account.profile.id
+        railwayCatalogMutex.withLock {
+            val cached = railwayCatalogEntry?.takeIf { it.accountId == accountId }
+            if (!forceRefresh && cached != null && nowMillis() - cached.loadedAtMillis < RAILWAY_CATALOG_LIFETIME_MILLIS) {
+                return@withLock cached.catalog
+            }
+            val discovered = try {
+                withContext(workDispatcher) { api.railwayLiveCatalog(credentials) }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                if (cached != null) return@withLock cached.catalog
+                val reason = (error as? HostingApiException)?.failure?.message ?: "Railway could not be reached."
+                RailwayGraphQLTemplateBuilder.fallbackCatalog(bundled(), reason)
+            }
+            railwayCatalogEntry = RailwayCatalogEntry(accountId, discovered, nowMillis())
+            discovered
+        }
+    }
+
+    override suspend fun sendApiRequest(providerId: String, request: ProviderRawRequest): Result<ProviderRawResponse> =
+        capture(HostingProvider.fromId(providerId)) {
+            val provider = provider(providerId)
+            val api = rawApi ?: throw HostingUiException("The Complete API is unavailable in this build.")
+            val saved = executeAwait(storageExecutor) { connectionStore.loadForRefresh(provider) }
+                ?: throw HostingUiException("Connect ${provider.displayName} first.")
+            withContext(workDispatcher) { api.send(saved.account.credentials, request) }
+        }
+
     private fun provider(providerId: String): HostingProvider =
         HostingProvider.fromId(providerId) ?: throw HostingUiException("This hosting provider is not supported.")
 
@@ -184,6 +246,7 @@ class NativeHostingProviderUiGateway internal constructor(
                     updatedAtMillis = resource.updatedAtMillis,
                     dashboardUrl = HostingProviderApi.dashboardUrl(link, resource),
                     metadata = resource.metadata,
+                    apiExplorerPath = HostingApiDefaults.explorerPath(link, resource),
                 )
             },
             loadedResourceCount = resources.size,
@@ -192,26 +255,30 @@ class NativeHostingProviderUiGateway internal constructor(
             fetchedAtMillis = fetchedAtMillis,
             cacheState = cacheState,
             dashboardUrl = HostingProviderApi.dashboardUrl(link),
+            apiExplorerPath = HostingApiDefaults.explorerPath(link),
         )
     }
 
     companion object {
         const val MAXIMUM_VISIBLE_RESOURCES: Int = 200
         const val MAXIMUM_VISIBLE_HISTORY_ITEMS: Int = 100
+        internal const val RAILWAY_CATALOG_LIFETIME_MILLIS: Long = 5 * 60 * 1_000L
 
         fun create(context: Context, googleAccessTokenSource: GoogleAccessTokenSource): NativeHostingProviderUiGateway {
             val networkExecutor = Executors.newFixedThreadPool(8) { runnable ->
                 Thread(runnable, "verceltics-hosting").apply { isDaemon = true }
             }
+            val transport = SecureHostingHttpTransport(networkExecutor)
             return NativeHostingProviderUiGateway(
                 connectionStore = HostingConnectionStore(HostingConnectionRepository.create(context.applicationContext)),
                 api = HostingProviderApi(
-                    transport = SecureHostingHttpTransport(networkExecutor),
+                    transport = transport,
                     googleAccessTokenSource = googleAccessTokenSource,
                 ),
                 storageExecutor = Executors.newSingleThreadExecutor { runnable ->
                     Thread(runnable, "verceltics-hosting-storage").apply { isDaemon = true }
                 },
+                rawApi = HostingRawApi(transport, googleAccessTokenSource),
             )
         }
     }
@@ -293,6 +360,10 @@ private suspend inline fun <T> capture(provider: HostingProvider?, crossinline b
     throw error
 } catch (error: HostingUiException) {
     Result.failure(error)
+} catch (error: ProviderApiRequestException) {
+    Result.failure(HostingUiException(error.message ?: "The request is invalid."))
+} catch (error: ProviderApiCatalogException) {
+    Result.failure(HostingUiException(error.message ?: "The complete provider API catalog could not be loaded."))
 } catch (error: HostingApiException) {
     Result.failure(
         HostingUiException(

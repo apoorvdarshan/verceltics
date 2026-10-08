@@ -44,6 +44,9 @@ class HostingEndpoint private constructor(baseUrl: String) {
         val FIREBASE = HostingEndpoint("https://firebasehosting.googleapis.com/")
         val GOOGLE_OPENID = HostingEndpoint("https://openidconnect.googleapis.com/")
 
+        /** Netlify's REST origin, used by the Complete API explorer (`/api/v1` is the base path). */
+        val NETLIFY = HostingEndpoint("https://api.netlify.com/")
+
         /** iOS `awsAmplifyEndpoint`: `amplify.<region>.amazonaws.com` for a validated region only. */
         fun amplify(region: String): HostingEndpoint {
             AwsSigV4Signer.requireStandardRegion(region)
@@ -58,6 +61,21 @@ enum class HostingHttpMethod {
     GET,
     POST,
     DELETE,
+
+    // The remaining methods are only used by the Complete API explorer.
+    PUT,
+    PATCH,
+    HEAD,
+    OPTIONS,
+    ;
+
+    /** Android's HTTP stack turns a GET with a body into a POST and rejects HEAD bodies. */
+    val allowsBody: Boolean
+        get() = this != GET && this != HEAD
+
+    companion object {
+        fun fromName(value: String): HostingHttpMethod? = entries.firstOrNull { it.name == value.trim().uppercase(Locale.ROOT) }
+    }
 }
 
 /** How the transport authenticates a request. Secrets are only materialized while sending. */
@@ -80,29 +98,70 @@ sealed class HostingAuth {
     override fun toString(): String = "HostingAuth.${this::class.simpleName}(<redacted>)"
 }
 
-class HostingHttpRequest(
+class HostingHttpRequest private constructor(
     val endpoint: HostingEndpoint,
     val method: HostingHttpMethod,
     /** Raw, unencoded path segments; every segment is percent-encoded by the transport. */
     val pathSegments: List<String>,
-    val query: List<Pair<String, String>> = emptyList(),
+    val query: List<Pair<String, String>>,
     /** Non-credential headers such as Heroku's `Range` and `Accept`. */
-    val headers: Map<String, String> = emptyMap(),
-    body: ByteArray? = null,
-    val contentType: String? = if (body == null) null else JSON_CONTENT_TYPE,
+    val headers: Map<String, String>,
+    body: ByteArray?,
+    val contentType: String?,
     val auth: HostingAuth,
+    /** Complete API only: the already-encoded path typed into the explorer. */
+    private val rawEncodedPath: String?,
+    /** Complete API only: the query exactly as typed (null means "encode [query] strictly"). */
+    private val rawEncodedQuery: String?,
 ) {
+    constructor(
+        endpoint: HostingEndpoint,
+        method: HostingHttpMethod,
+        pathSegments: List<String>,
+        query: List<Pair<String, String>> = emptyList(),
+        headers: Map<String, String> = emptyMap(),
+        body: ByteArray? = null,
+        contentType: String? = if (body == null) null else JSON_CONTENT_TYPE,
+        auth: HostingAuth,
+    ) : this(endpoint, method, pathSegments, query, headers, body, contentType, auth, null, null)
+
     private val storedBody = body?.copyOf()
 
+    /** True for Complete API explorer requests, which return redirects and HTTP errors as-is. */
+    internal val isRaw: Boolean
+        get() = rawEncodedPath != null
+
     init {
-        require(pathSegments.isNotEmpty() && pathSegments.size <= MAX_PATH_SEGMENTS) { "Invalid provider path." }
-        pathSegments.forEach { segment ->
-            require(segment.isNotEmpty() && segment.length <= MAX_SEGMENT_CHARACTERS) {
-                "Invalid provider path segment."
+        if (rawEncodedPath == null) {
+            require(pathSegments.isNotEmpty() && pathSegments.size <= MAX_PATH_SEGMENTS) { "Invalid provider path." }
+            pathSegments.forEach { segment ->
+                require(segment.isNotEmpty() && segment.length <= MAX_SEGMENT_CHARACTERS) {
+                    "Invalid provider path segment."
+                }
+                require(segment != "." && segment != "..") { "Provider path traversal is not allowed." }
             }
-            require(segment != "." && segment != "..") { "Provider path traversal is not allowed." }
+            require(query.size <= MAX_QUERY_PARAMETERS) { "Too many query parameters." }
+        } else {
+            require(rawEncodedPath.startsWith("/") && !rawEncodedPath.startsWith("//")) { "Invalid provider path." }
+            require(
+                rawEncodedPath.length <= MAX_RAW_TARGET_CHARACTERS &&
+                    rawEncodedPath.all(::isRawUrlCharacter) &&
+                    '?' !in rawEncodedPath,
+            ) {
+                "Invalid provider path."
+            }
+            require(
+                rawEncodedPath.split('/').none { segment ->
+                    segment.replace("%2E", ".", ignoreCase = true).let { it == "." || it == ".." }
+                },
+            ) {
+                "Provider path traversal is not allowed."
+            }
+            require(rawEncodedQuery == null || (rawEncodedQuery.length <= MAX_RAW_TARGET_CHARACTERS && rawEncodedQuery.all(::isRawUrlCharacter))) {
+                "Invalid query parameter."
+            }
+            require(query.size <= MAX_RAW_QUERY_PARAMETERS) { "Too many query parameters." }
         }
-        require(query.size <= MAX_QUERY_PARAMETERS) { "Too many query parameters." }
         query.forEach { (name, value) ->
             require(name.isNotBlank() && name.length <= MAX_QUERY_CHARACTERS && value.length <= MAX_QUERY_CHARACTERS) {
                 "Invalid query parameter."
@@ -117,18 +176,19 @@ class HostingHttpRequest(
                 "Invalid HTTP header value."
             }
         }
-        require(method != HostingHttpMethod.GET || body == null) { "GET requests cannot carry a body." }
-        require(storedBody == null || storedBody.size <= MAX_REQUEST_BODY_BYTES) { "The request body is too large." }
+        require(method.allowsBody || body == null) { "${method.name} requests cannot carry a body." }
+        val bodyLimit = if (rawEncodedPath == null) MAX_REQUEST_BODY_BYTES else MAX_RAW_REQUEST_BODY_BYTES
+        require(storedBody == null || storedBody.size <= bodyLimit) { "The request body is too large." }
         require(contentType == null || contentType.none { it == '\r' || it == '\n' }) { "Invalid content type." }
     }
 
     fun bodyCopy(): ByteArray? = storedBody?.copyOf()
 
     val encodedPath: String
-        get() = pathSegments.joinToString("/", prefix = "/") { AwsSigV4Signer.encode(it) }
+        get() = rawEncodedPath ?: pathSegments.joinToString("/", prefix = "/") { AwsSigV4Signer.encode(it) }
 
     val encodedQuery: String?
-        get() = query.takeIf { it.isNotEmpty() }
+        get() = rawEncodedQuery?.takeIf(String::isNotEmpty) ?: query.takeIf { it.isNotEmpty() }
             ?.joinToString("&") { (name, value) -> "${AwsSigV4Signer.encode(name)}=${AwsSigV4Signer.encode(value)}" }
 
     fun uri(): URI {
@@ -150,7 +210,44 @@ class HostingHttpRequest(
         private const val MAX_QUERY_CHARACTERS = 4_096
         private const val MAX_HEADER_CHARACTERS = 1_024
         private const val MAX_REQUEST_BODY_BYTES = 256 * 1_024
+        private const val MAX_RAW_TARGET_CHARACTERS = 8_192
+        private const val MAX_RAW_QUERY_PARAMETERS = 100
+
+        /** Complete API uploads (iOS allows 25 MB files plus multipart framing). */
+        const val MAX_RAW_REQUEST_BODY_BYTES: Int = 26 * 1_024 * 1_024
         private val HEADER_NAME = Regex("[!#$%&'*+.^_`|~0-9A-Za-z-]{1,64}")
+        private const val RAW_URL_CHARACTERS =
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~!$&'()*+,;=:@/?%"
+
+        private fun isRawUrlCharacter(character: Char): Boolean = character in RAW_URL_CHARACTERS
+
+        /**
+         * A Complete API explorer request. [encodedPath] already includes the provider's base path
+         * and is appended to [endpoint]'s fixed origin, so it can never change the host. When
+         * [encodedQuery] is null the [query] pairs are encoded strictly (required for SigV4).
+         */
+        internal fun raw(
+            endpoint: HostingEndpoint,
+            method: HostingHttpMethod,
+            encodedPath: String,
+            encodedQuery: String?,
+            query: List<Pair<String, String>>,
+            headers: Map<String, String>,
+            body: ByteArray?,
+            contentType: String?,
+            auth: HostingAuth,
+        ): HostingHttpRequest = HostingHttpRequest(
+            endpoint = endpoint,
+            method = method,
+            pathSegments = encodedPath.split('/').drop(1),
+            query = query,
+            headers = headers,
+            body = body,
+            contentType = contentType,
+            auth = auth,
+            rawEncodedPath = encodedPath,
+            rawEncodedQuery = encodedQuery,
+        )
         internal val PROTECTED_HEADERS = setOf(
             "authorization",
             "project-access-token",
@@ -314,18 +411,9 @@ private class BoundedHostingHttpCall(
                     }
                     val status = connection.responseCode
                     throwIfCancelled()
-                    if (status in REDIRECT_CODES) {
-                        if (redirects >= maximumRedirects) {
-                            throw UnsafeRedirectException("The hosting provider returned an unexpected redirect.")
-                        }
-                        val location = connection.getHeaderField("Location")
-                            ?: throw UnsafeRedirectException("The hosting redirect omitted its location.")
-                        val target = try {
-                            policy.resolveRedirect(prepared.uri, location)
-                        } catch (error: Exception) {
-                            throw UnsafeRedirectException("The hosting provider returned an unsafe redirect.", error)
-                        }
-                        prepared = PreparedHostingRequest(target, prepared.method, prepared.headers, null)
+                    val redirectTarget = if (status in REDIRECT_CODES) redirectTarget(connection, prepared, policy, redirects) else null
+                    if (redirectTarget != null) {
+                        prepared = PreparedHostingRequest(redirectTarget, prepared.method, prepared.headers, null)
                         redirects += 1
                         continue
                     }
@@ -359,6 +447,30 @@ private class BoundedHostingHttpCall(
     fun cancel() {
         cancelled.set(true)
         activeConnection.getAndSet(null)?.disconnect()
+    }
+
+    /**
+     * The same-origin URI to follow, or null when a Complete API (raw) request should receive the
+     * redirect itself. Regular adapter requests treat every redirect they cannot follow as unsafe.
+     */
+    private fun redirectTarget(
+        connection: HttpsURLConnection,
+        prepared: PreparedHostingRequest,
+        policy: ProviderEndpointPolicy,
+        redirects: Int,
+    ): URI? {
+        if (redirects >= maximumRedirects) {
+            if (request.isRaw) return null
+            throw UnsafeRedirectException("The hosting provider returned an unexpected redirect.")
+        }
+        val location = connection.getHeaderField("Location")
+            ?: if (request.isRaw) return null else throw UnsafeRedirectException("The hosting redirect omitted its location.")
+        return try {
+            policy.resolveRedirect(prepared.uri, location)
+        } catch (error: Exception) {
+            if (request.isRaw) return null
+            throw UnsafeRedirectException("The hosting provider returned an unsafe redirect.", error)
+        }
     }
 
     private fun open(prepared: PreparedHostingRequest, policy: ProviderEndpointPolicy): HttpsURLConnection {

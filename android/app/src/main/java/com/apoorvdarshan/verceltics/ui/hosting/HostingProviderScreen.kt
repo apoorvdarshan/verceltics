@@ -74,6 +74,9 @@ import com.apoorvdarshan.verceltics.data.hosting.HostingCredentials
 import com.apoorvdarshan.verceltics.data.hosting.HostingProvider
 import com.apoorvdarshan.verceltics.domain.IntegrationCatalog
 import com.apoorvdarshan.verceltics.domain.IntegrationProvider
+import com.apoorvdarshan.verceltics.ui.apiexplorer.CompleteApiEntryCard
+import com.apoorvdarshan.verceltics.ui.apiexplorer.DashboardAndCompleteApiActions
+import com.apoorvdarshan.verceltics.ui.apiexplorer.ProviderApiWorkspace
 import com.apoorvdarshan.verceltics.ui.billing.LocalProAccess
 import com.apoorvdarshan.verceltics.ui.components.AppToolbarAction
 import com.apoorvdarshan.verceltics.ui.components.ControlSearchField
@@ -111,10 +114,18 @@ fun HostingProviderRoute(
         if (!viewModel.handleBack(providerId)) onBack()
     }
     val openLink: (String) -> Unit = { url -> openHttpsLink(url) { uriHandler.openUri(it) } }
+    val apiWorkspace = remember(viewModel, providerId) { viewModel.apiWorkspace(providerId) }
+    val isApiOpen = apiWorkspace?.state?.collectAsStateWithLifecycle()?.value?.isOpen == true
 
     // Resource details are Pro: close one restored from saved state once access is locked.
     LaunchedEffect(proAccess.isConfirmedLocked, state.selectedResourceId) {
         if (proAccess.isConfirmedLocked && state.selectedResourceId != null) viewModel.closeResource(providerId)
+    }
+    // Complete API is Pro too, and needs a live connection.
+    LaunchedEffect(proAccess.isConfirmedLocked, isApiOpen, state.status) {
+        if (isApiOpen && (proAccess.isConfirmedLocked || state.status == HostingConnectionStatus.DISCONNECTED)) {
+            viewModel.closeApiWorkspace(providerId)
+        }
     }
     DisposableEffect(viewModel, providerId) {
         viewModel.setRouteVisible(providerId, true)
@@ -124,6 +135,7 @@ fun HostingProviderRoute(
     LaunchedEffect(searchRequestId) {
         if (searchRequestId > 0 && searchRequestId != lastHandledSearchRequestId) {
             lastHandledSearchRequestId = searchRequestId
+            viewModel.closeApiWorkspace(providerId)
             if (state.selectedResourceId != null) {
                 viewModel.closeResource(providerId)
                 withFrameNanos { }
@@ -137,6 +149,11 @@ fun HostingProviderRoute(
             viewModel.onGoogleSignInRequestHandled(providerId, signInRequest.id)
             onRequestGoogleSignIn(signInRequest.scopes)
         }
+    }
+
+    if (apiWorkspace != null && isApiOpen && state.status == HostingConnectionStatus.CONNECTED) {
+        ProviderApiWorkspace(controller = apiWorkspace, onOpenLink = openLink, modifier = modifier)
+        return
     }
 
     HostingProviderScreen(
@@ -158,6 +175,7 @@ fun HostingProviderRoute(
             onDismissPrimaryAction = { viewModel.dismissPrimaryAction(providerId) },
             onConfirmPrimaryAction = { viewModel.confirmPrimaryAction(providerId) },
             onContinueWithGoogle = { viewModel.requestGoogleSignIn(providerId) },
+            onOpenCompleteApi = { resourceId -> proAccess.requestPro { viewModel.openApiWorkspace(providerId, resourceId) } },
         ),
         searchFocusRequestId = searchFocusRequestId,
         modifier = modifier,
@@ -183,6 +201,8 @@ class HostingProviderScreenCallbacks(
     val onDismissPrimaryAction: () -> Unit = {},
     val onConfirmPrimaryAction: () -> Unit = {},
     val onContinueWithGoogle: () -> Unit = {},
+    /** Pro-gated iOS "Complete API": the dashboard passes null, a resource detail its id. */
+    val onOpenCompleteApi: (resourceId: String?) -> Unit = {},
 )
 
 @Composable
@@ -619,15 +639,11 @@ private fun HostingDashboard(
             item("inventory-warning") { HostingWarningPanel(inventoryDisclosure(dashboard)) }
         }
         item("actions") {
-            ThemedActionButton(
-                "DASHBOARD",
-                onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                    callbacks.onOpenDashboard(dashboard.dashboardUrl)
-                },
-                tone = ThemedActionTone.NEUTRAL,
-                modifier = Modifier.fillMaxWidth(),
-                testTag = "hosting.${provider.id}.openDashboard",
+            DashboardAndCompleteApiActions(
+                onOpenDashboard = { callbacks.onOpenDashboard(dashboard.dashboardUrl) },
+                onOpenCompleteApi = { callbacks.onOpenCompleteApi(null) },
+                dashboardTestTag = "hosting.${provider.id}.openDashboard",
+                completeApiTestTag = "hosting.${provider.id}.completeApi",
             )
         }
         item("search") {
@@ -822,6 +838,13 @@ private fun HostingResourceDetail(
                     }
                 }
             }
+        }
+        item("complete-api") {
+            CompleteApiEntryCard(
+                accent = accent,
+                onClick = { callbacks.onOpenCompleteApi(resource.id) },
+                testTag = "hosting.${provider.id}.resourceCompleteApi",
+            )
         }
         state.actionMessage?.let { item("action-success") { HostingFeedbackPanel("Request accepted", it, isError = false) } }
         state.actionError?.let { item("action-error") { HostingFeedbackPanel("Request failed", it, isError = true) } }

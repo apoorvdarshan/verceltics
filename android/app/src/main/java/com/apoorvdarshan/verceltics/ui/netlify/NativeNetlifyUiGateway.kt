@@ -2,6 +2,12 @@ package com.apoorvdarshan.verceltics.ui.netlify
 
 import android.content.Context
 import com.apoorvdarshan.verceltics.data.account.SecretValue
+import com.apoorvdarshan.verceltics.data.apicatalog.ProviderApiRequestException
+import com.apoorvdarshan.verceltics.data.apicatalog.ProviderRawRequest
+import com.apoorvdarshan.verceltics.data.apicatalog.ProviderRawResponse
+import com.apoorvdarshan.verceltics.data.hosting.HostingApiException
+import com.apoorvdarshan.verceltics.data.hosting.HostingRawApi
+import com.apoorvdarshan.verceltics.data.hosting.SecureHostingHttpTransport
 import com.apoorvdarshan.verceltics.data.netlify.NetlifyBuild
 import com.apoorvdarshan.verceltics.data.netlify.NetlifyBuildControls
 import com.apoorvdarshan.verceltics.data.netlify.NetlifyCollectionResult
@@ -40,6 +46,8 @@ class NativeNetlifyUiGateway internal constructor(
     private val storageExecutor: ExecutorService,
     private val beforeAcceptValidatedConnection: suspend () -> Unit = {},
     private val afterAcceptValidatedConnection: suspend () -> Unit = {},
+    /** Complete API raw requests (Netlify's fixed `api.netlify.com` origin). */
+    private val rawApi: HostingRawApi = HostingRawApi(SecureHostingHttpTransport(networkExecutor)),
 ) : NetlifyUiGateway {
     override suspend fun restore(): Result<NetlifyRestoreUi> = capture {
         when (val restored = executeAwait(storageExecutor, connectionStore::restore)) {
@@ -147,6 +155,12 @@ class NativeNetlifyUiGateway internal constructor(
 
     override suspend fun disconnect(): Result<Unit> = capture {
         executeAwait(storageExecutor, connectionStore::disconnect)
+    }
+
+    override suspend fun sendApiRequest(request: ProviderRawRequest): Result<ProviderRawResponse> = capture {
+        val saved = executeAwait(storageExecutor, connectionStore::loadForRefresh)
+            ?: throw NetlifyUiException("Connect a Netlify account first.")
+        rawApi.sendNetlify(saved.account.personalToken, request)
     }
 
     private fun NetlifyFetchResult.snapshotOrThrow(): NetlifySnapshot = when (this) {
@@ -363,6 +377,10 @@ private suspend inline fun <T> capture(crossinline block: suspend () -> T): Resu
     throw error
 } catch (error: NetlifyUiException) {
     Result.failure(error)
+} catch (error: HostingApiException) {
+    Result.failure(NetlifyUiException(error.failure.message))
+} catch (error: ProviderApiRequestException) {
+    Result.failure(NetlifyUiException(error.message ?: "The request is invalid."))
 } catch (_: SecurityException) {
     Result.failure(NetlifyUiException("Secure storage is unavailable."))
 } catch (_: Exception) {

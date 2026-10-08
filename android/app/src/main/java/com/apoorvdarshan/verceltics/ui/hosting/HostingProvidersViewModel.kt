@@ -6,10 +6,19 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
+import com.apoorvdarshan.verceltics.data.apicatalog.ProviderApiCatalog
+import com.apoorvdarshan.verceltics.data.apicatalog.ProviderRawRequest
+import com.apoorvdarshan.verceltics.data.apicatalog.ProviderRawResponse
 import com.apoorvdarshan.verceltics.data.hosting.GoogleAccessTokenSource
+import com.apoorvdarshan.verceltics.data.hosting.HostingApiDefaults
 import com.apoorvdarshan.verceltics.data.hosting.HostingConnectionStore
 import com.apoorvdarshan.verceltics.data.hosting.HostingCredentials
+import com.apoorvdarshan.verceltics.data.hosting.HostingLinkContext
 import com.apoorvdarshan.verceltics.data.hosting.HostingProvider
+import com.apoorvdarshan.verceltics.data.hosting.HostingResource
+import com.apoorvdarshan.verceltics.ui.apiexplorer.ProviderApiBackend
+import com.apoorvdarshan.verceltics.ui.apiexplorer.ProviderApiProfile
+import com.apoorvdarshan.verceltics.ui.apiexplorer.ProviderApiWorkspaceController
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -125,6 +134,7 @@ class HostingProvidersViewModel(
     private var signInRequestCounter = 0L
     private var pendingGoogleRetry: GoogleRetry? = null
     private var isForeground = false
+    private val apiWorkspaces = mutableMapOf<String, ProviderApiWorkspaceController>()
 
     private sealed interface GoogleRetry {
         data class Connect(val projectId: String) : GoogleRetry
@@ -304,6 +314,7 @@ class HostingProvidersViewModel(
     fun confirmDisconnect(providerId: String) {
         val baseline = provider(providerId)
         if (!baseline.isConnected || baseline.isBusy) return
+        closeApiWorkspace(providerId)
         closeResource(providerId)
         val closed = provider(providerId)
         launchOperation(providerId, HostingOperation.DISCONNECTING, closed.cleared()) { generation ->
@@ -420,9 +431,59 @@ class HostingProvidersViewModel(
 
     // endregion
 
+    // region Complete API
+
+    /**
+     * The provider's Complete API workspace (iOS `ProviderFullAPICatalogView` and the raw
+     * explorer). Created on first use; it restores an open workspace from saved state.
+     */
+    fun apiWorkspace(providerId: String): ProviderApiWorkspaceController? {
+        val provider = HostingProvider.fromId(providerId) ?: return null
+        return apiWorkspaces.getOrPut(providerId) {
+            ProviderApiWorkspaceController(
+                profile = ProviderApiProfile.hosting(provider),
+                scope = viewModelScope,
+                backend = object : ProviderApiBackend {
+                    override suspend fun loadCatalog(
+                        bundled: suspend () -> ProviderApiCatalog,
+                        forceRefresh: Boolean,
+                    ): Result<ProviderApiCatalog> = gateway.loadApiCatalog(providerId, bundled, forceRefresh)
+
+                    override suspend fun send(request: ProviderRawRequest): Result<ProviderRawResponse> =
+                        gateway.sendApiRequest(providerId, request)
+                },
+                savedStateHandle = savedStateHandle,
+                keyPrefix = apiWorkspaceKey(providerId),
+            )
+        }
+    }
+
+    /** Opens Complete API from the dashboard or (with [resourceId]) a resource detail. Pro-gated by the route. */
+    fun openApiWorkspace(providerId: String, resourceId: String? = null) {
+        val provider = HostingProvider.fromId(providerId) ?: return
+        val state = provider(providerId)
+        if (state.status != HostingConnectionStatus.CONNECTED) return
+        val resource = resourceId?.let { id -> state.dashboard?.resources?.firstOrNull { it.id == id } }
+        val path = resource?.apiExplorerPath
+            ?: resource?.let { HostingApiDefaults.explorerPath(HostingLinkContext(provider), it.toApiModel()) }
+            ?: state.dashboard?.apiExplorerPath
+            ?: HostingApiDefaults.explorerPath(HostingLinkContext(provider))
+        apiWorkspace(providerId)?.open(path)
+    }
+
+    fun closeApiWorkspace(providerId: String) {
+        apiWorkspaces[providerId]?.close()
+    }
+
+    // endregion
+
     /** Returns true when the route consumed back instead of asking the app shell to close it. */
     fun handleBack(providerId: String): Boolean {
         val state = provider(providerId)
+        apiWorkspaces[providerId]?.takeIf { it.state.value.isOpen }?.let { workspace ->
+            workspace.back()
+            return true
+        }
         return when {
             state.showActionConfirmation -> {
                 dismissPrimaryAction(providerId)
@@ -722,5 +783,21 @@ class HostingProvidersViewModel(
         internal const val ACTION_REFRESH_DELAY_MILLIS = 1_000L
 
         internal fun selectedResourceKey(providerId: String) = "hosting.$providerId.selectedResourceId"
+
+        internal fun apiWorkspaceKey(providerId: String) = "hosting.$providerId.completeApi"
+
+        private fun HostingResourceUi.toApiModel(): HostingResource? = runCatching {
+            HostingResource(
+                id = id,
+                name = name,
+                subtitle = subtitle,
+                url = url,
+                status = status,
+                region = region,
+                kind = kind,
+                updatedAtMillis = updatedAtMillis,
+                metadata = metadata,
+            )
+        }.getOrNull()
     }
 }

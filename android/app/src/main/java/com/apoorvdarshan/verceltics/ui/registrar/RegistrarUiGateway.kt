@@ -1,6 +1,8 @@
 package com.apoorvdarshan.verceltics.ui.registrar
 
 import com.apoorvdarshan.verceltics.data.account.SecretValue
+import com.apoorvdarshan.verceltics.data.apicatalog.ProviderRawRequest
+import com.apoorvdarshan.verceltics.data.apicatalog.ProviderRawResponse
 
 /**
  * UI-only boundary for all domain registrars. Secrets cross it only inside a
@@ -19,6 +21,18 @@ interface RegistrarUiGateway {
 
     /** Public IPv4 of this network for Namecheap's ClientIp / Name.com's optional allowlist. */
     suspend fun detectPublicIpv4(): Result<String>
+
+    /**
+     * Sends one Complete API raw request with the saved registrar credentials. HTTP errors are
+     * returned as responses; only validation, transport and credential problems fail.
+     */
+    suspend fun sendApiRequest(providerId: String, request: ProviderRawRequest): Result<ProviderRawResponse> =
+        Result.failure(RegistrarUiException(SAMPLE_API_UNAVAILABLE))
+
+    companion object {
+        const val SAMPLE_API_UNAVAILABLE: String =
+            "Sample data can’t send live API requests. Connect an account to use the Complete API."
+    }
 }
 
 /** Credentials typed into the connection form. Deliberately non-printable. */

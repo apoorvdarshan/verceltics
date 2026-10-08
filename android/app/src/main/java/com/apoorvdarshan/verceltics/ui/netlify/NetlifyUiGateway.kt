@@ -1,6 +1,8 @@
 package com.apoorvdarshan.verceltics.ui.netlify
 
 import com.apoorvdarshan.verceltics.data.account.SecretValue
+import com.apoorvdarshan.verceltics.data.apicatalog.ProviderRawRequest
+import com.apoorvdarshan.verceltics.data.apicatalog.ProviderRawResponse
 
 /** UI-only boundary for Netlify. Personal tokens never enter observable screen state. */
 interface NetlifyUiGateway {
@@ -13,6 +15,18 @@ interface NetlifyUiGateway {
     suspend fun loadSite(siteId: String): Result<NetlifySiteWorkspaceUi>
 
     suspend fun disconnect(): Result<Unit>
+
+    /**
+     * Sends one Complete API raw request with the saved personal token. HTTP errors are returned
+     * as responses; only validation, transport and credential problems fail.
+     */
+    suspend fun sendApiRequest(request: ProviderRawRequest): Result<ProviderRawResponse> =
+        Result.failure(NetlifyUiException(SAMPLE_API_UNAVAILABLE))
+
+    companion object {
+        const val SAMPLE_API_UNAVAILABLE: String =
+            "Sample data can’t send live API requests. Connect an account to use the Complete API."
+    }
 }
 
 sealed interface NetlifyRestoreUi {

@@ -6,8 +6,14 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
+import com.apoorvdarshan.verceltics.data.apicatalog.ProviderRawRequest
+import com.apoorvdarshan.verceltics.data.apicatalog.ProviderRawResponse
 import com.apoorvdarshan.verceltics.data.registrar.RegistrarConnectionStore
 import com.apoorvdarshan.verceltics.data.registrar.RegistrarProvider
+import com.apoorvdarshan.verceltics.data.registrar.RegistrarRawApi
+import com.apoorvdarshan.verceltics.ui.apiexplorer.ProviderApiBackend
+import com.apoorvdarshan.verceltics.ui.apiexplorer.ProviderApiProfile
+import com.apoorvdarshan.verceltics.ui.apiexplorer.ProviderApiWorkspaceController
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -127,6 +133,7 @@ class RegistrarViewModel internal constructor(
     private var publicIpv4Job: Job? = null
     private var publicIpv4Generation = 0L
     private var isForeground = false
+    private val apiWorkspaces = HashMap<String, ProviderApiWorkspaceController>()
 
     init {
         restore()
@@ -310,6 +317,7 @@ class RegistrarViewModel internal constructor(
         val baseline = _uiState.value.provider(providerId)
         _uiState.update { it.copy(disconnectConfirmationProviderId = null) }
         if (!baseline.isConnected || baseline.isBusy) return
+        closeApiWorkspace(providerId)
         if (_uiState.value.selectedProviderId == providerId) closeDomain()
         launchProviderOperation(providerId, RegistrarOperation.DISCONNECTING, baseline) { generation ->
             gateway.disconnect(providerId).fold(
@@ -353,8 +361,45 @@ class RegistrarViewModel internal constructor(
         }
     }
 
+    /**
+     * The registrar's Complete API workspace (iOS `ProviderFullAPICatalogView` and
+     * `RegistrarAPIExplorerView`). Created on first use; it restores an open workspace.
+     */
+    fun apiWorkspace(providerId: String): ProviderApiWorkspaceController? {
+        val provider = RegistrarProvider.fromId(providerId) ?: return null
+        return apiWorkspaces.getOrPut(providerId) {
+            ProviderApiWorkspaceController(
+                profile = ProviderApiProfile.registrar(provider),
+                scope = viewModelScope,
+                backend = object : ProviderApiBackend {
+                    override suspend fun send(request: ProviderRawRequest): Result<ProviderRawResponse> =
+                        gateway.sendApiRequest(providerId, request)
+                },
+                savedStateHandle = savedStateHandle,
+                keyPrefix = "registrar.$providerId.completeApi",
+            )
+        }
+    }
+
+    /** Opens Complete API from the dashboard or (with [domainId]) a domain detail. Pro-gated by the route. */
+    fun openApiWorkspace(providerId: String, domainId: String? = null) {
+        val provider = RegistrarProvider.fromId(providerId) ?: return
+        val state = _uiState.value.provider(providerId)
+        if (state.status != RegistrarConnectionStatus.CONNECTED) return
+        val domain = domainId?.let { id -> state.dashboard?.domains?.firstOrNull { it.id == id } }
+        apiWorkspace(providerId)?.open(RegistrarRawApi.suggestedPath(provider, domain?.name))
+    }
+
+    fun closeApiWorkspace(providerId: String) {
+        apiWorkspaces[providerId]?.close()
+    }
+
     /** Returns true when the route consumed back instead of asking the app shell to close it. */
-    fun handleBack(): Boolean = when {
+    fun handleBack(providerId: String? = null): Boolean = when {
+        providerId != null && apiWorkspaces[providerId]?.state?.value?.isOpen == true -> {
+            apiWorkspaces[providerId]?.back()
+            true
+        }
         _uiState.value.disconnectConfirmationProviderId != null -> {
             dismissDisconnectConfirmation()
             true
