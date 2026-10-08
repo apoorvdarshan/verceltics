@@ -101,6 +101,9 @@ import com.apoorvdarshan.verceltics.ui.cloudflare.operations.CloudflareOpsScreen
 import com.apoorvdarshan.verceltics.ui.cloudflare.operations.CloudflareOpsSectionHeader
 import com.apoorvdarshan.verceltics.ui.cloudflare.operations.CloudflareWriteNotice
 import com.apoorvdarshan.verceltics.ui.components.ControlSearchField
+import com.apoorvdarshan.verceltics.ui.hosting.ProviderGridRow
+import com.apoorvdarshan.verceltics.ui.hosting.ProviderLayout
+import com.apoorvdarshan.verceltics.ui.hosting.adaptiveRows
 import kotlinx.coroutines.launch
 
 /** Port of iOS `CloudflareZoneDetailView`. */
@@ -169,7 +172,13 @@ internal fun CloudflareZoneDetailScreen(
     val status = loaded?.status ?: zone.status
     val filtered = state.dnsRecords.filter { it.matches(search) }
 
-    CloudflareOpsScreen("cloudflare.zoneDetail", modifier) {
+    CloudflareOpsScreen(
+        "cloudflare.zoneDetail",
+        modifier,
+        maximumContentWidth = ProviderLayout.CatalogMaxWidth,
+        isRefreshing = state.isZoneLoading || state.isAnalyticsLoading || state.isDnsLoading,
+        onRefresh = { viewModel.load(force = true) },
+    ) { page ->
         item("hero") {
             CloudflareOpsHero(
                 title = name,
@@ -242,7 +251,11 @@ internal fun CloudflareZoneDetailScreen(
             if (breakdowns != null) {
                 breakdownSections(breakdowns).takeIf { it.isNotEmpty() || breakdowns.encryptedBytes > 0 }?.let { sections ->
                     item("breakdowns-header") { BreakdownHeader(breakdowns.encryptedBytes) }
-                    items(sections, key = { "breakdown-${it.title}" }) { section -> BreakdownPanel(section) }
+                    // iOS `breakdownColumns`: adaptiveColumns(regularMinimum: 360, regularMaximum: 520).
+                    val columns = page.columns(minimumCellWidth = 360.dp, spacing = 12.dp, maximumColumns = 3)
+                    items(sections.adaptiveRows(columns), key = { row -> "breakdown-${row.joinToString("+") { it.title }}" }) { row ->
+                        ProviderGridRow(row, columns, spacing = 12.dp) { section -> BreakdownPanel(section) }
+                    }
                 }
             } else {
                 state.breakdownError?.let { error -> item("breakdown-error") { UnavailableCard("Analytics breakdowns unavailable", error) } }

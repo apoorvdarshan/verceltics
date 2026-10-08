@@ -109,7 +109,13 @@ fun CloudflareKVNamespaceScreen(viewModel: CloudflareKVNamespaceViewModel, modif
             (it.metadata != null && cloudflareStorageDisplayValue(it.metadata).contains(query, true))
     }
 
-    CloudflareOpsScreen("cloudflare.storage.kvScreen", modifier) {
+    CloudflareOpsScreen(
+        "cloudflare.storage.kvScreen",
+        modifier,
+        maximumContentWidth = 900.dp,
+        isRefreshing = state.isLoading || state.isRefreshing,
+        onRefresh = viewModel::load,
+    ) {
         item("hero") {
             CloudflareOpsHero(
                 title = state.namespace.title,

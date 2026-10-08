@@ -25,6 +25,8 @@ data class CloudflarePagesProjectDetailState(
     val deployments: List<CloudflarePagesDeployment> = emptyList(),
     val environmentFilter: CloudflarePagesEnvironment? = null,
     val isLoading: Boolean = true,
+    /** A reload over already loaded data (pull-to-refresh / toolbar refresh). */
+    val isRefreshing: Boolean = false,
     val hasLoadedDeployments: Boolean = false,
     val projectError: String? = null,
     val deploymentsError: String? = null,
@@ -61,7 +63,10 @@ class CloudflarePagesProjectDetailViewModel(
     fun load() {
         loadJob?.cancel()
         val filter = _state.value.environmentFilter
-        _state.update { it.copy(isLoading = !it.hasLoadedDeployments && it.project == null, projectError = null, deploymentsError = null) }
+        _state.update {
+            val hasSnapshot = it.hasLoadedDeployments || it.project != null
+            it.copy(isLoading = !hasSnapshot, isRefreshing = hasSnapshot, projectError = null, deploymentsError = null)
+        }
         loadJob = viewModelScope.launch {
             val (projectResult, deploymentsResult) = coroutineScope {
                 val project = async { capture { api.fetchProject(accountId, projectName) } }
@@ -76,6 +81,7 @@ class CloudflarePagesProjectDetailViewModel(
                     deploymentsError = deploymentsResult.exceptionOrNull()?.let(::cloudflareUserMessage),
                     hasLoadedDeployments = current.hasLoadedDeployments || deploymentsResult.isSuccess,
                     isLoading = false,
+                    isRefreshing = false,
                 )
             }
         }

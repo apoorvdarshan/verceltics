@@ -307,6 +307,29 @@ class CloudflarePagesViewModelsTest {
         assertEquals(listOf("DELETE $project/deployments/dep-1"), transport.mutations().map { it.toString() })
     }
 
+    @Test
+    fun pullToRefreshReloadsOverLoadedPagesDataWithoutBlankingIt() = runTest(dispatcher) {
+        scriptProject()
+        val detail = CloudflarePagesProjectDetailViewModel(api(), "acc", "site")
+        val operations = CloudflarePagesOperationsViewModel(api(), "acc", "site")
+        assertTrue("The first load shows the loading state", detail.state.value.isLoading)
+        assertFalse(detail.state.value.isRefreshing)
+        advanceUntilIdle()
+        val requestsBefore = transport.requests.size
+
+        detail.load()
+        operations.load()
+        assertFalse("A refresh keeps the loaded project on screen", detail.state.value.isLoading)
+        assertTrue(detail.state.value.isRefreshing)
+        assertTrue(operations.state.value.isRefreshing)
+        assertEquals("site", operations.state.value.project?.name)
+
+        advanceUntilIdle()
+        assertFalse(detail.state.value.isRefreshing)
+        assertFalse(operations.state.value.isRefreshing)
+        assertTrue("Refreshing sends new requests", transport.requests.size > requestsBefore)
+    }
+
     private fun domain(name: String) = "{\"id\":\"id-$name\",\"name\":\"$name\",\"status\":\"active\"}"
 
     private fun deployment(id: String) =

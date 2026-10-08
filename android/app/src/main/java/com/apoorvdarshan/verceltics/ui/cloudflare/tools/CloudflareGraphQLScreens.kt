@@ -1,5 +1,8 @@
 package com.apoorvdarshan.verceltics.ui.cloudflare.tools
 
+import com.apoorvdarshan.verceltics.ui.hosting.adaptiveRows
+import com.apoorvdarshan.verceltics.ui.hosting.ProviderGridRow
+import com.apoorvdarshan.verceltics.ui.hosting.ProviderLayout
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -57,13 +60,14 @@ internal fun CloudflareGraphQLDatasetScreen(
 ) {
     var query by rememberSaveable { mutableStateOf("") }
     val filtered = remember(state.datasets, query) { state.datasets.filter { it.matches(query) } }
-    LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .testTag("cloudflare.graphql"),
-        contentPadding = PaddingValues(start = 18.dp, top = 6.dp, end = 18.dp, bottom = 40.dp),
-        verticalArrangement = Arrangement.spacedBy(15.dp),
-    ) {
+    CloudflareToolsPage(
+        "cloudflare.graphql",
+        modifier,
+        maximumContentWidth = ProviderLayout.CatalogMaxWidth,
+        spacing = 15.dp,
+        isRefreshing = state.isLoading,
+        onRefresh = onRetry,
+    ) { page ->
         item("scope") {
             ToolPanel(accentAlpha = 0.07f) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
@@ -134,24 +138,31 @@ internal fun CloudflareGraphQLDatasetScreen(
                         }
                     }
                 }
-                items(filtered, key = { "dataset-${it.name}" }) { dataset ->
-                    ToolPanel {
-                        ToolNavigationRow(
-                            title = dataset.name,
-                            subtitle = if (dataset.isLocked) {
-                                "Not enabled on this plan"
-                            } else {
-                                "${dataset.availableFields.size} fields · ${CloudflareGraphQLDatasets.durationLabel(dataset.maxDuration)} max window"
-                            },
-                            icon = if (dataset.isLocked) Icons.Rounded.Lock else Icons.Rounded.MonitorHeart,
-                            tint = if (dataset.isLocked) MaterialTheme.colorScheme.onSurfaceVariant else CloudflareToolsColors.Orange,
-                            onClick = { onOpenDataset(dataset.name) },
-                            testTag = "cloudflare.graphql.dataset.${dataset.name}",
-                        )
-                    }
+                // iOS `datasetColumns`: adaptiveColumns(regularMinimum: 400, regularMaximum: 520, spacing: 10).
+                val columns = page.columns(minimumCellWidth = 400.dp, spacing = 10.dp, maximumColumns = 3)
+                items(filtered.adaptiveRows(columns), key = { row -> "dataset-${row.joinToString("+") { it.name }}" }) { row ->
+                    ProviderGridRow(row, columns, spacing = 10.dp) { dataset -> DatasetPanel(dataset, onOpenDataset) }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun DatasetPanel(dataset: CloudflareGraphQLDataset, onOpenDataset: (String) -> Unit) {
+    ToolPanel {
+        ToolNavigationRow(
+            title = dataset.name,
+            subtitle = if (dataset.isLocked) {
+                "Not enabled on this plan"
+            } else {
+                "${dataset.availableFields.size} fields · ${CloudflareGraphQLDatasets.durationLabel(dataset.maxDuration)} max window"
+            },
+            icon = if (dataset.isLocked) Icons.Rounded.Lock else Icons.Rounded.MonitorHeart,
+            tint = if (dataset.isLocked) MaterialTheme.colorScheme.onSurfaceVariant else CloudflareToolsColors.Orange,
+            onClick = { onOpenDataset(dataset.name) },
+            testTag = "cloudflare.graphql.dataset.${dataset.name}",
+        )
     }
 }
 
@@ -162,13 +173,12 @@ internal fun CloudflareGraphQLDatasetDetailScreen(
     onOpenQuery: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .testTag("cloudflare.graphql.detail"),
-        contentPadding = PaddingValues(start = 18.dp, top = 6.dp, end = 18.dp, bottom = 40.dp),
-        verticalArrangement = Arrangement.spacedBy(15.dp),
-    ) {
+    CloudflareToolsPage(
+        "cloudflare.graphql.detail",
+        modifier,
+        maximumContentWidth = ProviderLayout.DetailMaxWidth,
+        spacing = 15.dp,
+    ) { _ ->
         item("header") {
             ToolPanel(accentAlpha = 0.07f) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {

@@ -51,6 +51,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -78,14 +80,19 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.apoorvdarshan.verceltics.ui.components.AppPullToRefresh
 import com.apoorvdarshan.verceltics.ui.components.OffsetPanel
 import com.apoorvdarshan.verceltics.ui.components.StatusPill
 import com.apoorvdarshan.verceltics.ui.components.ThemedActionTone
 import com.apoorvdarshan.verceltics.ui.components.ThemedAlertDialog
 import com.apoorvdarshan.verceltics.ui.components.ThemedModalBottomSheet
+import com.apoorvdarshan.verceltics.ui.hosting.ProviderAdaptivePage
+import com.apoorvdarshan.verceltics.ui.hosting.ProviderContentMetrics
+import com.apoorvdarshan.verceltics.ui.hosting.ProviderLayout
 import kotlinx.coroutines.launch
 
 /** iOS `CloudflareStyle`. */
@@ -112,23 +119,51 @@ object CloudflareOpsColors {
     }
 }
 
-/** Standard scrolling page for an operations screen. */
+/**
+ * Width context of the operations page being composed, so shared components (metric grids,
+ * two-pane sections) can adapt on wide windows without changing their phone layout.
+ */
+val LocalCloudflareOpsMetrics = staticCompositionLocalOf<ProviderContentMetrics?> { null }
+
+/**
+ * Standard scrolling page for an operations screen.
+ *
+ * Phones keep the 18 dp edge-to-edge page. On windows of 600 dp and wider the content is centered
+ * at [maximumContentWidth] (iOS `appContentWidth` / `.frame(maxWidth:)`) with 24 dp minimum
+ * padding. When [onRefresh] is set the page supports pull-to-refresh like iOS `.refreshable`.
+ */
 @Composable
 fun CloudflareOpsScreen(
     testTag: String,
     modifier: Modifier = Modifier,
     state: LazyListState = rememberLazyListState(),
-    content: LazyListScope.() -> Unit,
+    maximumContentWidth: Dp = ProviderLayout.DetailMaxWidth,
+    isRefreshing: Boolean = false,
+    onRefresh: (() -> Unit)? = null,
+    content: LazyListScope.(ProviderContentMetrics) -> Unit,
 ) {
-    LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .testTag(testTag),
-        state = state,
-        contentPadding = PaddingValues(start = 18.dp, top = 6.dp, end = 18.dp, bottom = 40.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-        content = content,
-    )
+    ProviderAdaptivePage(maximumContentWidth = maximumContentWidth, modifier = modifier.fillMaxSize()) { metrics ->
+        CompositionLocalProvider(LocalCloudflareOpsMetrics provides metrics) {
+            AppPullToRefresh(
+                isRefreshing = isRefreshing,
+                onRefresh = { onRefresh?.invoke() },
+                enabled = onRefresh != null,
+                modifier = Modifier.fillMaxSize(),
+                testTag = if (onRefresh == null) null else "$testTag.pullToRefresh",
+            ) {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .testTag(testTag),
+                    state = state,
+                    contentPadding = metrics.contentPadding(top = 6.dp, bottom = 40.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    content(metrics)
+                }
+            }
+        }
+    }
 }
 
 /** iOS `.cloudflarePanel(accentOpacity:)`. */
@@ -368,20 +403,29 @@ fun CloudflareOpsMetricCard(
 
 data class CloudflareOpsMetric(val title: String, val value: String, val icon: ImageVector, val accent: Color = CloudflareOpsColors.Orange)
 
-/** Two-column grid of metric cards. */
+/**
+ * Grid of metric cards: two columns on phones; on wide windows as many 200 dp columns as fit (iOS
+ * `metricColumns` = `adaptiveColumns(regularMinimum: 200, regularMaximum: 250)`).
+ */
 @Composable
 fun CloudflareOpsMetricGrid(metrics: List<CloudflareOpsMetric>, modifier: Modifier = Modifier) {
+    val page = LocalCloudflareOpsMetrics.current
+    val columns = cloudflareOpsMetricColumns(page)
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        metrics.chunked(2).forEach { row ->
+        metrics.chunked(columns).forEach { row ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 row.forEach { metric ->
                     CloudflareOpsMetricCard(metric.title, metric.value, metric.icon, Modifier.weight(1f), metric.accent)
                 }
-                if (row.size == 1) Spacer(Modifier.weight(1f))
+                repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
     }
 }
+
+/** Metric columns: always two on compact windows (unchanged phone layout). */
+internal fun cloudflareOpsMetricColumns(page: ProviderContentMetrics?): Int =
+    if (page == null || !page.isRegular) 2 else page.columns(minimumCellWidth = 200.dp, spacing = 10.dp, maximumColumns = 6).coerceAtLeast(2)
 
 /** iOS `CloudflareEmptySection`. */
 @Composable

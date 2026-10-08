@@ -89,13 +89,12 @@ internal fun CloudflareApiCatalogScreen(
         if (query.isBlank()) emptyList() else catalog.search(query, filter)
     }
     val tags = remember(catalog, filter) { catalog.visibleTags(filter) }
-    LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .testTag("cloudflare.catalog"),
-        contentPadding = PaddingValues(start = 18.dp, top = 6.dp, end = 18.dp, bottom = 40.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
+    CloudflareToolsPage(
+        "cloudflare.catalog",
+        modifier,
+        maximumContentWidth = 980.dp,
+        spacing = 14.dp,
+    ) { _ ->
         item("header") { CatalogHeader(catalog) }
         item("search") {
             ControlSearchField(
@@ -253,13 +252,12 @@ internal fun CloudflareApiTagScreen(
     var filter by rememberSaveable(tag) { mutableStateOf(CloudflareOperationFilter.ALL) }
     val operations = remember(catalog, tag) { catalog.operationsForTag(tag) }
     val visible = remember(operations, query, filter) { operations.filter { filter.includes(it) && it.matches(query) } }
-    LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .testTag("cloudflare.catalog.tagScreen"),
-        contentPadding = PaddingValues(start = 18.dp, top = 6.dp, end = 18.dp, bottom = 40.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
+    CloudflareToolsPage(
+        "cloudflare.catalog.tagScreen",
+        modifier,
+        maximumContentWidth = 980.dp,
+        spacing = 12.dp,
+    ) { _ ->
         item("search") {
             ControlSearchField(
                 value = query,
@@ -310,13 +308,12 @@ internal fun CloudflareApiOperationScreen(
         ToolLoadingBlock("Preparing request…", modifier.fillMaxSize())
         return
     }
-    LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .testTag("cloudflare.catalog.operationScreen"),
-        contentPadding = PaddingValues(start = 18.dp, top = 6.dp, end = 18.dp, bottom = 40.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
+    CloudflareToolsPage(
+        "cloudflare.catalog.operationScreen",
+        modifier,
+        maximumContentWidth = 980.dp,
+        spacing = 16.dp,
+    ) { _ ->
         item("header") { OperationHeader(operation) }
         if (!operation.supports(authMode)) {
             item("credential") {

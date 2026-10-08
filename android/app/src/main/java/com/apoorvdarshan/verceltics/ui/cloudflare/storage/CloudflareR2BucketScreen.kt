@@ -207,7 +207,13 @@ fun CloudflareR2BucketScreen(viewModel: CloudflareR2BucketViewModel, modifier: M
         }
     }
 
-    CloudflareOpsScreen("cloudflare.storage.r2Screen", modifier) {
+    CloudflareOpsScreen(
+        "cloudflare.storage.r2Screen",
+        modifier,
+        maximumContentWidth = 850.dp,
+        isRefreshing = state.isRefreshing || state.isLoadingObjects,
+        onRefresh = viewModel::load,
+    ) {
         item("hero") {
             CloudflareOpsHero(
                 title = bucket.name,

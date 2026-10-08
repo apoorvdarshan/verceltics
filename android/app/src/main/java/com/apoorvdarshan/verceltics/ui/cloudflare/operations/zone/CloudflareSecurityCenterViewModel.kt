@@ -25,6 +25,8 @@ import kotlinx.coroutines.launch
 data class CloudflareSecurityCenterUiState(
     val snapshot: CloudflareSecuritySnapshot = CloudflareSecuritySnapshot(),
     val isLoading: Boolean = true,
+    /** A forced reload over an existing snapshot (pull-to-refresh / toolbar refresh). */
+    val isRefreshing: Boolean = false,
     val showingAccessRuleEditor: Boolean = false,
     val accessRuleEditorError: String? = null,
     /** Item whose raw configuration sheet is open (iOS `CloudflareSecurityItemDetailView`). */
@@ -58,7 +60,7 @@ class CloudflareSecurityCenterViewModel(
         if (!force && (hasLoaded || loadJob?.isActive == true)) return
         loadJob?.cancel()
         val current = ++generation
-        _state.update { it.copy(isLoading = !hasLoaded) }
+        _state.update { it.copy(isLoading = !hasLoaded, isRefreshing = hasLoaded) }
         loadJob = viewModelScope.launch {
             val (level, categories) = coroutineScope {
                 val level = async { runCatching { api.fetchSecurityLevel(zoneId) } }
@@ -82,7 +84,7 @@ class CloudflareSecurityCenterViewModel(
                     onFailure = { warnings += "${category.label}: ${cloudflareUserMessage(it)}" },
                 )
             }
-            _state.update { it.copy(snapshot = snapshot.copy(warnings = warnings), isLoading = false) }
+            _state.update { it.copy(snapshot = snapshot.copy(warnings = warnings), isLoading = false, isRefreshing = false) }
             hasLoaded = true
         }
     }
@@ -194,6 +196,8 @@ class CloudflareSecurityCenterViewModel(
 data class CloudflareRulesetDetailUiState(
     val rules: List<CloudflareSecurityItem> = emptyList(),
     val isLoading: Boolean = true,
+    /** A forced reload over already loaded rules (pull-to-refresh / toolbar refresh). */
+    val isRefreshing: Boolean = false,
     val error: String? = null,
     val selectedItem: CloudflareSecurityItem? = null,
 )
@@ -221,16 +225,18 @@ class CloudflareRulesetDetailViewModel(
 
     fun load(force: Boolean = false) {
         if (loadJob?.isActive == true || (!force && hasLoaded)) return
-        _state.update { it.copy(isLoading = it.rules.isEmpty(), error = null) }
+        _state.update { it.copy(isLoading = it.rules.isEmpty(), isRefreshing = it.rules.isNotEmpty(), error = null) }
         loadJob = viewModelScope.launch {
             try {
                 val rules = api.fetchRulesetRules(zoneId, rulesetId)
-                _state.update { it.copy(rules = rules, isLoading = false) }
+                _state.update { it.copy(rules = rules, isLoading = false, isRefreshing = false) }
                 hasLoaded = true
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
-                _state.update { it.copy(isLoading = false, error = if (it.rules.isEmpty()) cloudflareUserMessage(error) else null) }
+                _state.update {
+                    it.copy(isLoading = false, isRefreshing = false, error = if (it.rules.isEmpty()) cloudflareUserMessage(error) else null)
+                }
             }
         }
     }

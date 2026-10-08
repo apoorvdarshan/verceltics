@@ -1,5 +1,11 @@
 package com.apoorvdarshan.verceltics.ui.cloudflare.tools
 
+import com.apoorvdarshan.verceltics.ui.hosting.ProviderLayout
+import com.apoorvdarshan.verceltics.ui.hosting.ProviderContentMetrics
+import com.apoorvdarshan.verceltics.ui.hosting.ProviderAdaptivePage
+import com.apoorvdarshan.verceltics.ui.components.AppPullToRefresh
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -634,4 +640,40 @@ internal fun formatBytes(bytes: Int): String = when {
     bytes >= 1_048_576 -> String.format(java.util.Locale.getDefault(), "%.1f MB", bytes / 1_048_576.0)
     bytes >= 1_024 -> String.format(java.util.Locale.getDefault(), "%.1f KB", bytes / 1_024.0)
     else -> "$bytes bytes"
+}
+
+/**
+ * Standard scrolling page for a Cloudflare tool. Phones keep the 18 dp edge-to-edge layout; wide
+ * windows center the content at [maximumContentWidth] (iOS `.frame(maxWidth:)` / `appContentWidth`).
+ * With [onRefresh] the page supports pull-to-refresh like iOS `.refreshable`.
+ */
+@Composable
+internal fun CloudflareToolsPage(
+    testTag: String,
+    modifier: Modifier = Modifier,
+    maximumContentWidth: Dp = ProviderLayout.DetailMaxWidth,
+    spacing: Dp = 16.dp,
+    isRefreshing: Boolean = false,
+    onRefresh: (() -> Unit)? = null,
+    content: LazyListScope.(ProviderContentMetrics) -> Unit,
+) {
+    ProviderAdaptivePage(maximumContentWidth = maximumContentWidth, modifier = modifier.fillMaxSize()) { metrics ->
+        AppPullToRefresh(
+            isRefreshing = isRefreshing,
+            onRefresh = { onRefresh?.invoke() },
+            enabled = onRefresh != null,
+            modifier = Modifier.fillMaxSize(),
+            testTag = if (onRefresh == null) null else "$testTag.pullToRefresh",
+        ) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .testTag(testTag),
+                contentPadding = metrics.contentPadding(top = 6.dp, bottom = 40.dp),
+                verticalArrangement = Arrangement.spacedBy(spacing),
+            ) {
+                content(metrics)
+            }
+        }
+    }
 }

@@ -41,6 +41,8 @@ data class CloudflareZoneOperationsUiState(
     val dnsUsageError: String? = null,
     val dnsAnalyticsError: String? = null,
     val isLoading: Boolean = true,
+    /** A forced reload over an existing snapshot (pull-to-refresh / toolbar refresh). */
+    val isRefreshing: Boolean = false,
     val editingSetting: CloudflareZoneSetting? = null,
     val settingEditorError: String? = null,
     val showingDnsSettingsEditor: Boolean = false,
@@ -77,7 +79,7 @@ class CloudflareZoneOperationsViewModel(
         if (!force && (hasLoaded || loadJob?.isActive == true)) return
         loadJob?.cancel()
         val current = ++generation
-        _state.update { it.copy(isLoading = !hasLoaded) }
+        _state.update { it.copy(isLoading = !hasLoaded, isRefreshing = hasLoaded) }
         loadJob = viewModelScope.launch {
             val until = clock()
             val since = until.minusSeconds(86_400)
@@ -114,6 +116,7 @@ class CloudflareZoneOperationsViewModel(
                     dnsAnalytics = analytics.getOrNull() ?: state.dnsAnalytics,
                     dnsAnalyticsError = analytics.exceptionOrNull()?.let(::cloudflareUserMessage),
                     isLoading = false,
+                    isRefreshing = false,
                 )
             }
             hasLoaded = true

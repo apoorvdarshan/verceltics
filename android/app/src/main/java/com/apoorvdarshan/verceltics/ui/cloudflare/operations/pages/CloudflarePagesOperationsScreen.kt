@@ -164,7 +164,13 @@ fun CloudflarePagesOperationsScreen(
     val project = state.project
     val isWorking = working.isNotEmpty()
 
-    CloudflareOpsScreen("cloudflare.pages.operations", modifier) {
+    CloudflareOpsScreen(
+        "cloudflare.pages.operations",
+        modifier,
+        maximumContentWidth = 880.dp,
+        isRefreshing = state.isLoading || state.isRefreshing,
+        onRefresh = viewModel::load,
+    ) {
         when {
             state.isLoading && project == null -> item("loading") { CloudflareOpsLoading("Loading Pages project…") }
             project == null -> item("error") {
