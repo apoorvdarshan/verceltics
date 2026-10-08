@@ -813,13 +813,17 @@ class HostingProvidersViewModel(
 
     private fun applyDashboard(providerId: String, dashboard: HostingDashboardUi) {
         val current = provider(providerId)
-        val selected = current.selectedResourceId?.takeIf { id -> dashboard.resources.any { it.id == id } }
+        // A different account (an added one, or a rotation that changed identity) never inherits
+        // the previous account's open resource.
+        val switchedAccount = current.dashboard?.account?.savedAccountId != dashboard.account.savedAccountId
+        val selected = current.selectedResourceId
+            ?.takeIf { !switchedAccount || current.dashboard == null }
+            ?.takeIf { id -> dashboard.resources.any { it.id == id } }
         if (selected == null && current.selectedResourceId != null) {
             nextResourceGeneration(providerId)
             resourceJobs.remove(providerId)?.cancel()
             savedStateHandle[selectedResourceKey(providerId)] = null
         }
-        val switchedAccount = current.dashboard?.account?.savedAccountId != dashboard.account.savedAccountId
         savedStateHandle[addingAccountKey(providerId)] = null
         replaceProvider(
             HostingProviderUiState(

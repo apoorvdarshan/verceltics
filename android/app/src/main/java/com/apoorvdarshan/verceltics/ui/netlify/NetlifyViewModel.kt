@@ -617,7 +617,12 @@ class NetlifyViewModel(
 
     private fun applyDashboard(dashboard: NetlifyDashboardUi) {
         val current = _uiState.value
-        val selected = current.selectedSiteId?.takeIf { id -> dashboard.sites.any { it.id == id } }
+        // A different account never inherits the previous account's open site.
+        val switchedAccount = current.dashboard != null &&
+            current.dashboard.account.savedAccountId != dashboard.account.savedAccountId
+        val selected = current.selectedSiteId
+            ?.takeIf { !switchedAccount }
+            ?.takeIf { id -> dashboard.sites.any { it.id == id } }
         if (selected == null && current.selectedSiteId != null) {
             siteGeneration += 1
             siteJob?.cancel()
