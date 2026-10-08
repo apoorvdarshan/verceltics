@@ -7,6 +7,7 @@ import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.apoorvdarshan.verceltics.data.account.SecretValue
+import com.apoorvdarshan.verceltics.ui.cloudflare.tools.CloudflareToolsTokenSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -73,6 +74,12 @@ class CloudflareViewModel(
     init {
         restore()
     }
+
+    /** Cloudflare tools reuse this dashboard's saved token; offline sample gateways have none. */
+    internal val toolsTokenSource: CloudflareToolsTokenSource?
+        get() = (gateway as? NativeCloudflareUiGateway)?.let { native ->
+            CloudflareToolsTokenSource { native.loadSavedApiTokenForTools() }
+        }
 
     fun setRouteVisible(visible: Boolean) {
         _uiState.update { if (it.routeVisible == visible) it else it.copy(routeVisible = visible) }

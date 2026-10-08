@@ -126,6 +126,10 @@ class NativeCloudflareUiGateway internal constructor(
         executeAwait(storageExecutor, connectionStore::disconnect)
     }
 
+    /** Cloudflare tools borrow the saved token through this gateway's serialized encrypted store. */
+    internal suspend fun loadSavedApiTokenForTools(): SecretValue? =
+        executeAwait(storageExecutor) { connectionStore.loadForRefresh()?.connection?.account?.apiToken }
+
     private fun CloudflareFetchResult.snapshotOrThrow(): CloudflareSnapshot = when (this) {
         is CloudflareFetchResult.Complete -> snapshot
         is CloudflareFetchResult.Partial -> snapshot
