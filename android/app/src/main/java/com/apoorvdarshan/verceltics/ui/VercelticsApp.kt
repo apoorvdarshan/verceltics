@@ -598,6 +598,7 @@ fun VercelticsApp(
                             when (destination) {
                                 MainDestination.HOSTING -> VercelWorkspaceScreen(
                                     vercelConnectionViewModel = vercelConnectionViewModel,
+                                    onProjectsFirstLoaded = onProjectsFirstLoaded,
                                     searchRequestId = hostingSearchRequestId,
                                     refreshRequestId = hostingRefreshRequestId,
                                     onConnectProvider = { providerId = it.id },
