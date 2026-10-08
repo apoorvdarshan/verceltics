@@ -47,22 +47,73 @@ interface VercelUiGateway {
     /** A favicon already in memory, so recycled list rows render it without a placeholder. */
     fun cachedFavicon(domain: String): ImageBitmap? = null
 
-    /** Records that a 3- or 12-month analytics request succeeded for the connected account. */
+    /** Records that a 3- or 12-month analytics request succeeded for the active account. */
     suspend fun markLongAnalyticsHistoryAvailable(): Result<Unit> = Result.success(Unit)
 
+    /**
+     * Every saved account, read locally without the network. Sources that only ever hold one
+     * account (fixtures) report none, and callers then treat the dashboard account as the list.
+     */
+    suspend fun loadAccounts(): Result<VercelAccountsUi> = Result.success(VercelAccountsUi.EMPTY)
+
+    /** Persists [accountId] as the active account; the next [refresh] loads its projects. */
+    suspend fun switchAccount(accountId: String): Result<VercelAccountsUi> =
+        Result.failure(UnsupportedOperationException("Only one Vercel account is available here."))
+
+    /**
+     * Removes one saved account. When it was the active account, the first remaining account
+     * becomes active. Single-account sources remove their only account.
+     */
+    suspend fun removeAccount(accountId: String): Result<VercelAccountsUi> =
+        disconnect().map { VercelAccountsUi.EMPTY }
+
+    /** Removes every saved Vercel account from this device. */
+    suspend fun removeAllAccounts(): Result<Unit> = disconnect()
+
+    /**
+     * Re-reads every saved account's Vercel profile (name, email, avatar) and returns the list.
+     * Accounts whose profile cannot be loaded keep what was saved.
+     */
+    suspend fun refreshAccountProfiles(): Result<VercelAccountsUi> = loadAccounts()
+
+    /** A profile avatar from [VercelAccountUi.avatarUrl], fetched without credentials, or null. */
+    suspend fun loadAvatar(url: String): ImageBitmap? = null
+
+    /** An avatar already in memory. */
+    fun cachedAvatar(url: String): ImageBitmap? = null
+
+    /** Removes the active account (the only one, for single-account sources). */
     suspend fun disconnect(): Result<Unit>
 }
 
 sealed interface VercelRestoreUi {
     data object NoSavedAccount : VercelRestoreUi
 
-    data class Available(val dashboard: VercelDashboardUi) : VercelRestoreUi
+    /** [accounts] is null for single-account sources; the dashboard account is then the list. */
+    data class Available(
+        val dashboard: VercelDashboardUi,
+        val accounts: VercelAccountsUi? = null,
+    ) : VercelRestoreUi
 
     /** The encrypted account is intact, but its live dashboard could not be refreshed. */
     data class DashboardUnavailable(
         val account: VercelAccountUi,
         val error: Throwable,
+        val accounts: VercelAccountsUi? = null,
     ) : VercelRestoreUi
+}
+
+/** Every saved Vercel account in connection order, and which one the workspace shows. */
+data class VercelAccountsUi(
+    val accounts: List<VercelAccountUi>,
+    val activeAccountId: String?,
+) {
+    val activeAccount: VercelAccountUi?
+        get() = accounts.firstOrNull { it.id == activeAccountId }
+
+    companion object {
+        val EMPTY = VercelAccountsUi(emptyList(), null)
+    }
 }
 
 data class VercelDashboardUi(
@@ -77,6 +128,10 @@ data class VercelAccountUi(
     /** Personal scope slug used for `vercel.com/{scope}/{project}` links. */
     val username: String? = null,
     val hasLongAnalyticsHistory: Boolean = false,
+    /** The stable Vercel user id. Single-account fixtures may rely on the display-name default. */
+    val id: String = displayName,
+    /** HTTPS profile image, fetched without credentials; null shows the account initial. */
+    val avatarUrl: String? = null,
 )
 
 /** Where a project was listed from; team scopes show their name on the project card. */

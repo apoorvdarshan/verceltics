@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -56,6 +57,7 @@ import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.apoorvdarshan.verceltics.ui.VercelProjectUi
 import com.apoorvdarshan.verceltics.ui.components.rememberReducedMotion
@@ -74,6 +76,8 @@ fun VercelProjectCard(
     onAction: (VercelProjectAction) -> Unit,
     modifier: Modifier = Modifier,
     nowMillis: Long = System.currentTimeMillis(),
+    /** iOS regular width gives grid cards a 184pt minimum so rows line up. */
+    minHeight: Dp = Dp.Unspecified,
 ) {
     val haptic = LocalHapticFeedback.current
     var menuExpanded by rememberSaveable(project.id) { mutableStateOf(false) }
@@ -91,6 +95,7 @@ fun VercelProjectCard(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
+                .heightIn(min = minHeight)
                 .testTag("workspace.hosting.project.${project.id}")
                 .combinedClickable(
                     onClickLabel = "Open ${project.name} analytics",

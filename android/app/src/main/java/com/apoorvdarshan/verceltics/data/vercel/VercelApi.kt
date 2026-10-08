@@ -197,12 +197,13 @@ class VercelApi(
         nowMillis: Long = System.currentTimeMillis(),
     ): VercelAccount = VercelAccount(
         id = user.id,
-        displayName = user.name?.takeIf(String::isNotBlank) ?: user.username,
-        email = user.email,
-        username = user.username,
+        displayName = user.displayName.take(MAX_PROFILE_TEXT_CHARACTERS),
+        email = user.email?.take(MAX_EMAIL_CHARACTERS),
+        username = user.username.take(MAX_PROFILE_TEXT_CHARACTERS),
         token = token,
         createdAtMillis = nowMillis,
         updatedAtMillis = nowMillis,
+        avatar = VercelAvatarPolicy.storableAvatar(user.avatarUrl),
     )
 
     private fun analyticsQuery(
@@ -257,6 +258,8 @@ class VercelApi(
         private const val MAX_RESOURCE_RESPONSE_BYTES = 8 * 1_024 * 1_024
         const val DEFAULT_DEPLOYMENT_LIMIT: Int = 6
         const val DEFAULT_EVENT_LIMIT: Int = 80
+        private const val MAX_PROFILE_TEXT_CHARACTERS = 256
+        private const val MAX_EMAIL_CHARACTERS = 512
         private const val MAX_EVENT_LIMIT = 200
         private val SAFE_PATH_SEGMENT = Regex("[A-Za-z0-9._-]{1,253}")
 

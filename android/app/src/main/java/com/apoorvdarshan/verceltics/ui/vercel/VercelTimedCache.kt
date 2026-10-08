@@ -52,5 +52,10 @@ class VercelTimedCache<K : Any, V : Any>(
     fun put(key: K, value: V, updatedAtMillis: Long = nowMillis()): Entry<V> =
         Entry(value, updatedAtMillis).also { entries[key] = it }
 
+    /** Drops every entry whose key matches, e.g. everything cached for one removed account. */
+    fun removeIf(predicate: (K) -> Boolean) {
+        entries.keys.removeAll(predicate)
+    }
+
     fun clear() = entries.clear()
 }

@@ -64,15 +64,12 @@ import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -110,6 +107,7 @@ import com.apoorvdarshan.verceltics.ui.VercelAnalyticsRange
 import com.apoorvdarshan.verceltics.ui.VercelAnalyticsUiState
 import com.apoorvdarshan.verceltics.ui.VercelDeploymentUi
 import com.apoorvdarshan.verceltics.ui.VercelProjectUi
+import com.apoorvdarshan.verceltics.ui.components.AppPullToRefresh
 import com.apoorvdarshan.verceltics.ui.components.AppToolbarAction
 import com.apoorvdarshan.verceltics.ui.components.OffsetPanel
 import com.apoorvdarshan.verceltics.ui.components.ThemedGlassControl
@@ -120,6 +118,9 @@ import com.apoorvdarshan.verceltics.ui.vercel.VercelDetailRow
 import com.apoorvdarshan.verceltics.ui.vercel.VercelEmptyState
 import com.apoorvdarshan.verceltics.ui.vercel.VercelFeedbackBanner
 import com.apoorvdarshan.verceltics.ui.vercel.VercelInfoPanel
+import com.apoorvdarshan.verceltics.ui.vercel.VercelLayout
+import com.apoorvdarshan.verceltics.ui.vercel.vercelColumnsDescription
+import com.apoorvdarshan.verceltics.ui.vercel.vercelWindowWidthDp
 import com.apoorvdarshan.verceltics.ui.vercel.VercelProjectIcon
 import com.apoorvdarshan.verceltics.ui.vercel.VercelStatusBadge
 import com.apoorvdarshan.verceltics.ui.vercel.VercelStatusDot
@@ -148,8 +149,11 @@ import java.util.Locale
  * Project analytics (iOS `AnalyticsView`): favicon and domain header, range and environment
  * pickers that stay usable while loading, shimmer skeleton, stats with inverted bounce deltas,
  * the interactive chart, project details, recent deployments, domains and breakdowns.
+ *
+ * Like iOS `.refreshable`, pulling down reloads the report and project context. Regular-width
+ * windows (600dp and wider) center the page at 1100dp and lay the panels out in two or three
+ * columns; phones keep one column.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun VercelAnalyticsScreen(
     project: VercelProjectUi,
@@ -163,37 +167,44 @@ internal fun VercelAnalyticsScreen(
     onOpenUrl: (String) -> Unit = {},
     gridState: LazyGridState = rememberLazyGridState(),
 ) {
-    val haptic = LocalHapticFeedback.current
-    var pullRefreshing by remember { mutableStateOf(false) }
-    LaunchedEffect(pullRefreshing, state.isWorking) {
-        if (pullRefreshing && !state.isWorking) pullRefreshing = false
-    }
     Column(
         modifier = modifier
             .fillMaxSize()
             .testTag("workspace.hosting.analytics"),
     ) {
         AnalyticsTopBar(project = project, isWorking = state.isWorking, onBack = onBack, onRefresh = onRefresh)
-        PullToRefreshBox(
-            isRefreshing = pullRefreshing && state.isWorking,
-            onRefresh = {
-                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                pullRefreshing = true
-                onRefresh()
-            },
+        AppPullToRefresh(
+            isRefreshing = state.isWorking,
+            onRefresh = onRefresh,
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
+            testTag = "workspace.hosting.analytics.pullToRefresh",
         ) {
             BoxWithConstraints(Modifier.fillMaxSize()) {
                 val fontScale = LocalDensity.current.fontScale
-                val chartHeight = if (maxWidth >= 600.dp || fontScale >= 1.3f) 340.dp else 260.dp
-                val stackedStats = shouldUseStackedVercelLayout(maxWidth.value, fontScale)
+                val metrics = VercelLayout.page(
+                    availableWidthDp = maxWidth.value,
+                    windowWidthDp = vercelWindowWidthDp(),
+                    compactPaddingDp = 16f,
+                    maxContentWidthDp = VercelLayout.ANALYTICS_MAX_WIDTH_DP,
+                )
+                val chartHeight = if (metrics.isRegular || fontScale >= 1.3f) 340.dp else 260.dp
+                val stackedStats = shouldUseStackedVercelLayout(metrics.contentWidthDp, fontScale)
+                val columns = VercelLayout.analyticsPanelColumns(metrics)
                 LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 320.dp),
+                    columns = GridCells.Fixed(columns),
                     state = gridState,
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = 16.dp, top = 6.dp, end = 16.dp, bottom = 28.dp),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .testTag("workspace.hosting.analytics.grid")
+                        .semantics { stateDescription = vercelColumnsDescription(columns) },
+                    contentPadding = PaddingValues(
+                        start = metrics.horizontalPadding,
+                        top = 6.dp,
+                        end = metrics.horizontalPadding,
+                        bottom = 28.dp,
+                    ),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                 ) {

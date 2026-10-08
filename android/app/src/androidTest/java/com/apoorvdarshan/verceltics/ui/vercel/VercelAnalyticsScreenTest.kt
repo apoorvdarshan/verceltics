@@ -15,6 +15,8 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeDown
 import com.apoorvdarshan.verceltics.ui.VercelAnalyticsEnvironment
 import com.apoorvdarshan.verceltics.ui.VercelAnalyticsRange
 import com.apoorvdarshan.verceltics.ui.VercelAnalyticsUiState
@@ -186,6 +188,15 @@ class VercelAnalyticsScreenTest {
         assertEquals(0, composeRule.onAllNodesWithTag("workspace.hosting.analytics.stats").fetchSemanticsNodes().size)
         scrollTo("workspace.hosting.analytics.overview")
         composeRule.onNodeWithText("acme/web", useUnmergedTree = true).assertExists()
+    }
+
+    @Test
+    fun pullingDownReloadsTheReport() {
+        setScreen(loadedState())
+
+        composeRule.onNodeWithTag("workspace.hosting.analytics.grid").performTouchInput { swipeDown() }
+
+        composeRule.waitUntil(5_000) { refreshes == 1 }
     }
 
     private fun loadedState(data: com.apoorvdarshan.verceltics.ui.VercelAnalyticsDataUi = VercelTestFixtures.analytics()) =

@@ -6,6 +6,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import com.apoorvdarshan.verceltics.data.account.SecretValue
 import com.apoorvdarshan.verceltics.data.account.VercelAccount
 import com.apoorvdarshan.verceltics.data.account.VercelAccountRepository
+import com.apoorvdarshan.verceltics.data.account.VercelAccounts
 import com.apoorvdarshan.verceltics.data.network.CancelableCall
 import com.apoorvdarshan.verceltics.data.vercel.HttpsVercelFaviconTransport
 import com.apoorvdarshan.verceltics.data.vercel.VercelAnalyticsOverview
@@ -13,6 +14,9 @@ import com.apoorvdarshan.verceltics.data.vercel.VercelAnalyticsPoint
 import com.apoorvdarshan.verceltics.data.vercel.VercelAnalyticsTimeseries
 import com.apoorvdarshan.verceltics.data.vercel.VercelApi
 import com.apoorvdarshan.verceltics.data.vercel.VercelApiException
+import com.apoorvdarshan.verceltics.data.vercel.VercelAvatarBitmapDecoder
+import com.apoorvdarshan.verceltics.data.vercel.VercelAvatarLoader
+import com.apoorvdarshan.verceltics.data.vercel.VercelAvatarPolicy
 import com.apoorvdarshan.verceltics.data.vercel.VercelDeployment
 import com.apoorvdarshan.verceltics.data.vercel.VercelDeploymentEvent
 import com.apoorvdarshan.verceltics.data.vercel.VercelFaviconBitmapDecoder
@@ -20,6 +24,7 @@ import com.apoorvdarshan.verceltics.data.vercel.VercelFaviconLoader
 import com.apoorvdarshan.verceltics.data.vercel.VercelProject
 import com.apoorvdarshan.verceltics.data.vercel.VercelProjectScope
 import com.apoorvdarshan.verceltics.data.vercel.VercelTeam
+import com.apoorvdarshan.verceltics.data.vercel.VercelUser
 import java.time.Instant
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -43,14 +48,18 @@ import kotlinx.coroutines.withContext
  *
  * Blocking provider calls run outside the main thread and are explicitly cancelled when the
  * requesting coroutine goes away. Credentials only cross this boundary as [SecretValue] and are
- * persisted by the Android Keystore-backed repository. Every read-modify-write of the saved
- * account happens under [accountMutex] and is dropped if the account was disconnected meanwhile.
+ * persisted by the Android Keystore-backed repository, which holds every saved account and the
+ * active account id. Every read-modify-write of that list happens under [accountMutex], so a
+ * concurrent removal can never be undone by a stale write.
+ *
+ * Project-level calls (analytics, context, events) use the active account at call time.
  */
 class NativeVercelUiGateway private constructor(
     private val applicationContext: Context,
     private val api: VercelApi,
     private val executor: ExecutorService,
     private val favicons: VercelFaviconLoader<ImageBitmap>,
+    private val avatars: VercelAvatarLoader<ImageBitmap>,
 ) : VercelUiGateway {
     private val accountRepository: VercelAccountRepository by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
         VercelAccountRepository.create(applicationContext)
@@ -58,32 +67,84 @@ class NativeVercelUiGateway private constructor(
     private val accountMutex = Mutex()
 
     override suspend fun restore(): Result<VercelRestoreUi> = capture {
-        val account = loadAccount() ?: return@capture VercelRestoreUi.NoSavedAccount
+        val saved = loadSavedAccounts()
+        val account = saved.active ?: return@capture VercelRestoreUi.NoSavedAccount
         try {
-            VercelRestoreUi.Available(dashboard(account))
+            VercelRestoreUi.Available(dashboard(account), saved.toUi())
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {
             VercelRestoreUi.DashboardUnavailable(
                 account = account.toUi(),
                 error = error,
+                accounts = saved.toUi(),
             )
         }
     }
 
+    /**
+     * Validates the token and loads its dashboard, then saves it as the active account. Other
+     * saved accounts stay saved; the same Vercel identity has its token rotated in place.
+     */
     override suspend fun connect(personalToken: String): Result<VercelDashboardUi> = capture {
         val secret = SecretValue.of(personalToken.trim())
         val user = api.newValidatePersonalTokenCall(secret).executeAwait(executor)
-        val account = api.accountForValidatedUser(user = user, token = secret)
-        val connectedDashboard = dashboard(account)
-        withAccountLock { accountRepository.save(account) }
-        favicons.clear()
-        connectedDashboard
+        val candidate = api.accountForValidatedUser(user = user, token = secret)
+        val connectedDashboard = dashboard(candidate)
+        val saved = withAccountLock {
+            accountRepository.loadAll()
+                .connect(candidate, nowMillis = System.currentTimeMillis())
+                .also(accountRepository::saveAll)
+        }
+        // A rotated identity keeps what was saved for it, such as long analytics history.
+        connectedDashboard.copy(account = checkNotNull(saved.active).toUi())
     }
 
     override suspend fun refresh(): Result<VercelDashboardUi> = capture {
-        val account = loadAccount() ?: throw IllegalStateException("Connect a Vercel account first.")
-        dashboard(account)
+        dashboard(requireActiveAccount())
+    }
+
+    override suspend fun loadAccounts(): Result<VercelAccountsUi> = capture { loadSavedAccounts().toUi() }
+
+    override suspend fun switchAccount(accountId: String): Result<VercelAccountsUi> = capture {
+        withAccountLock {
+            val saved = accountRepository.loadAll()
+            val switched = saved.switchTo(accountId)
+            if (switched !== saved) accountRepository.saveAll(switched)
+            switched
+        }.toUi()
+    }
+
+    override suspend fun removeAccount(accountId: String): Result<VercelAccountsUi> = capture {
+        removeSavedAccount { accountId }.toUi()
+    }
+
+    override suspend fun removeAllAccounts(): Result<Unit> = capture {
+        withAccountLock { accountRepository.deleteAll() }
+        favicons.clear()
+        avatars.clear()
+    }
+
+    /** Like iOS `refreshAccountProfiles()`: names and avatars follow changes made on Vercel. */
+    override suspend fun refreshAccountProfiles(): Result<VercelAccountsUi> = capture {
+        val saved = loadSavedAccounts()
+        if (saved.isEmpty) return@capture VercelAccountsUi.EMPTY
+        val profiles = coroutineScope {
+            saved.accounts.map { account ->
+                async {
+                    optional { api.newValidatePersonalTokenCall(account.token).executeAwait(executor) }
+                        ?.let { user -> ProfileUpdate(account.id, account.token, user) }
+                }
+            }.awaitAll().filterNotNull()
+        }
+        if (profiles.isEmpty()) return@capture saved.toUi()
+        withAccountLock {
+            val before = accountRepository.loadAll()
+            var current = before
+            profiles.forEach { update -> current = current.withRefreshedProfile(update) }
+            if (current !== before) accountRepository.saveAll(current)
+            current
+        }.toUi()
     }
 
     override suspend fun loadProjectAnalytics(
@@ -91,7 +152,7 @@ class NativeVercelUiGateway private constructor(
         range: VercelAnalyticsRange,
         environment: VercelAnalyticsEnvironment,
     ): Result<VercelAnalyticsLoadUi> = capture {
-        val account = loadAccount() ?: throw IllegalStateException("Connect a Vercel account first.")
+        val account = requireActiveAccount()
         try {
             VercelAnalyticsLoadUi.Available(
                 analytics(
@@ -116,7 +177,7 @@ class NativeVercelUiGateway private constructor(
     }
 
     override suspend fun loadProjectContext(project: VercelProjectUi): Result<VercelProjectContextUi> = capture {
-        val account = loadAccount() ?: throw IllegalStateException("Connect a Vercel account first.")
+        val account = requireActiveAccount()
         coroutineScope {
             val details = async {
                 optional { api.newProjectCall(account.token, project.id, project.teamId).executeAwait(executor) }
@@ -152,7 +213,7 @@ class NativeVercelUiGateway private constructor(
     ): Result<List<VercelDeploymentEventUi>> = capture {
         val identifier = deployment.eventsIdentifier
             ?: throw IllegalStateException("This deployment does not include an event identifier.")
-        val account = loadAccount() ?: throw IllegalStateException("Connect a Vercel account first.")
+        val account = requireActiveAccount()
         api.newDeploymentEventsCall(account.token, identifier, project.teamId)
             .executeAwait(executor)
             .take(VercelApi.DEFAULT_EVENT_LIMIT)
@@ -163,28 +224,74 @@ class NativeVercelUiGateway private constructor(
 
     override fun cachedFavicon(domain: String): ImageBitmap? = favicons.cached(domain)
 
+    override suspend fun loadAvatar(url: String): ImageBitmap? = avatars.load(url)
+
+    override fun cachedAvatar(url: String): ImageBitmap? = avatars.cached(url)
+
     override suspend fun markLongAnalyticsHistoryAvailable(): Result<Unit> = capture {
         withAccountLock {
-            val current = accountRepository.load() ?: return@withAccountLock
-            if (!current.hasLongAnalyticsHistory) accountRepository.save(current.withLongAnalyticsHistory())
+            val saved = accountRepository.loadAll()
+            val active = saved.active ?: return@withAccountLock
+            if (!active.hasLongAnalyticsHistory) {
+                accountRepository.saveAll(saved.replace(active.withLongAnalyticsHistory()))
+            }
         }
     }
 
+    /** Removes the active account; the first remaining account becomes active. */
     override suspend fun disconnect(): Result<Unit> = capture {
-        withAccountLock { accountRepository.delete() }
-        favicons.clear()
+        removeSavedAccount { saved -> saved.activeAccountId }
+    }
+
+    private suspend fun removeSavedAccount(select: (VercelAccounts) -> String?): VercelAccounts {
+        val remaining = withAccountLock {
+            val saved = accountRepository.loadAll()
+            val accountId = select(saved) ?: return@withAccountLock saved
+            saved.remove(accountId).also { updated ->
+                if (updated !== saved) accountRepository.saveAll(updated)
+            }
+        }
+        // Favicons and avatars are shared by every account; only the last removal drops them.
+        if (remaining.isEmpty) {
+            favicons.clear()
+            avatars.clear()
+        }
+        return remaining
+    }
+
+    /**
+     * Applies a fetched profile unless the account was removed or its token rotated meanwhile
+     * (iOS applies refreshed profiles under the same check).
+     */
+    private fun VercelAccounts.withRefreshedProfile(update: ProfileUpdate): VercelAccounts {
+        val account = find(update.accountId) ?: return this
+        if (account.token != update.token || update.user.id != account.id) return this
+        val refreshed = runCatching {
+            val profile = api.accountForValidatedUser(update.user, account.token)
+            account.withProfile(
+                displayName = profile.displayName,
+                email = profile.email,
+                username = profile.username,
+                avatar = profile.avatar,
+            )
+        }.getOrNull() ?: return this
+        return if (refreshed.hasSameProfile(account)) this else replace(refreshed)
     }
 
     /**
      * Runs a blocking account read-modify-write under [accountMutex]. The section is
      * non-cancellable, so the lock is never released while the executor is still writing (which
-     * could let a disconnect's delete interleave with a save and resurrect the token).
+     * could let a removal interleave with a save and resurrect the token).
      */
-    private suspend fun withAccountLock(operation: () -> Unit) = withContext(NonCancellable) {
+    private suspend fun <T> withAccountLock(operation: () -> T): T = withContext(NonCancellable) {
         accountMutex.withLock { executeAwait(executor, operation) }
     }
 
-    private suspend fun loadAccount(): VercelAccount? = executeAwait(executor) { accountRepository.load() }
+    private suspend fun loadSavedAccounts(): VercelAccounts =
+        executeAwait(executor) { accountRepository.loadAll() }
+
+    private suspend fun requireActiveAccount(): VercelAccount =
+        loadSavedAccounts().active ?: throw IllegalStateException("Connect a Vercel account first.")
 
     private suspend fun dashboard(account: VercelAccount): VercelDashboardUi {
         val loaded = loadAllProjects(account.token)
@@ -201,11 +308,12 @@ class NativeVercelUiGateway private constructor(
         if (account.username != null) return account
         val user = optional { api.newValidatePersonalTokenCall(account.token).executeAwait(executor) }
             ?: return account
-        val updated = account.withUsername(user.username)
+        val updated = runCatching { account.withUsername(user.username) }.getOrNull() ?: return account
         withAccountLock {
-            val saved = accountRepository.load()
-            if (saved != null && saved.id == account.id && saved.token == account.token && saved.username == null) {
-                accountRepository.save(saved.withUsername(user.username))
+            val saved = accountRepository.loadAll()
+            val current = saved.find(account.id) ?: return@withAccountLock
+            if (current.token == account.token && current.username == null) {
+                accountRepository.saveAll(saved.replace(current.withUsername(user.username)))
             }
         }
         return updated
@@ -491,18 +599,30 @@ class NativeVercelUiGateway private constructor(
             val faviconExecutor = Executors.newFixedThreadPool(4) { work ->
                 Thread(work, "verceltics-favicon").apply { isDaemon = true }
             }
+            val publicImageTransport = HttpsVercelFaviconTransport()
             return NativeVercelUiGateway(
                 applicationContext = context.applicationContext,
                 api = VercelApi(),
                 executor = executor,
                 favicons = VercelFaviconLoader(
-                    transport = HttpsVercelFaviconTransport(),
+                    transport = publicImageTransport,
                     executor = faviconExecutor,
                     decode = { bytes -> VercelFaviconBitmapDecoder.decode(bytes)?.asImageBitmap() },
+                ),
+                avatars = VercelAvatarLoader(
+                    transport = publicImageTransport,
+                    executor = faviconExecutor,
+                    decode = { bytes -> VercelAvatarBitmapDecoder.decode(bytes)?.asImageBitmap() },
                 ),
             )
         }
     }
+
+    private class ProfileUpdate(
+        val accountId: String,
+        val token: SecretValue,
+        val user: VercelUser,
+    )
 
     private data class ProjectLoadResult(
         val projects: List<VercelProject>,
@@ -542,11 +662,18 @@ private suspend fun <T> executeAwait(
     }
 }
 
-private fun VercelAccount.toUi(): VercelAccountUi = VercelAccountUi(
+internal fun VercelAccount.toUi(): VercelAccountUi = VercelAccountUi(
     displayName = displayName,
     email = email,
     username = username,
     hasLongAnalyticsHistory = hasLongAnalyticsHistory,
+    id = id,
+    avatarUrl = VercelAvatarPolicy.avatarUrl(avatar),
+)
+
+internal fun VercelAccounts.toUi(): VercelAccountsUi = VercelAccountsUi(
+    accounts = accounts.map(VercelAccount::toUi),
+    activeAccountId = activeAccountId,
 )
 
 internal fun VercelProject.toUi(): VercelProjectUi = VercelProjectUi(

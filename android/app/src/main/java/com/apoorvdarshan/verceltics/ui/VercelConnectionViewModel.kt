@@ -27,6 +27,7 @@ enum class VercelConnectionStatus {
 enum class VercelConnectionMutation {
     CONNECTING,
     DISCONNECTING,
+    SWITCHING,
 }
 
 data class VercelConnectionUiState(
@@ -38,12 +39,31 @@ data class VercelConnectionUiState(
     val mutation: VercelConnectionMutation? = null,
     /** When the visible project list was last loaded successfully. */
     val lastUpdatedMillis: Long? = null,
+    /** Every saved Vercel account in connection order (iOS `AuthManager.accounts`). */
+    val accounts: List<VercelAccountUi> = emptyList(),
+    /** The connect form is open to add an account while the active one stays connected. */
+    val isAddingAccount: Boolean = false,
+    /** Why the last add-account attempt failed; shown on that form only. */
+    val connectError: String? = null,
+    /** A just-activated account whose projects have not loaded yet in this session. */
+    val isLoadingAccount: Boolean = false,
 ) {
     val isBusy: Boolean
         get() = status == VercelConnectionStatus.RESTORING || isRefreshing || mutation != null
 
     val isSearchAvailable: Boolean
         get() = status == VercelConnectionStatus.CONNECTED && dashboard != null
+
+    /** The account the workspace shows, whether or not its dashboard loaded. */
+    val activeAccount: VercelAccountUi?
+        get() = dashboard?.account ?: savedAccount
+
+    val activeAccountId: String?
+        get() = activeAccount?.id
+
+    /** Saved accounts for menus; single-account sources report just the active one. */
+    val savedAccounts: List<VercelAccountUi>
+        get() = accounts.ifEmpty { listOfNotNull(activeAccount) }
 }
 
 data class VercelAnalyticsUiState(
@@ -86,10 +106,13 @@ data class VercelDeploymentDetailUiState(
  *
  * The ViewModel survives navigation and configuration changes. A single mutex serializes gateway
  * work; refresh may be skipped while a credential mutation is active, but it never cancels that
- * mutation. Connect and disconnect may cancel a read-only refresh before taking the mutex.
+ * mutation. Connect, switch and remove may cancel a read-only refresh before taking the mutex.
  *
- * Projects, analytics, project context and build events use stale-while-revalidate memory caches
- * (see [VercelRefreshPolicy]); disconnecting or connecting another token drops all of them.
+ * Several Vercel accounts can be saved (iOS `AuthManager`); one is active. Projects, analytics,
+ * project context and build events use stale-while-revalidate memory caches (see
+ * [VercelRefreshPolicy]) keyed by account, so switching back to an account within the window
+ * shows its projects without a reload, and one account's data is never shown for another.
+ * Favicons are public and shared by every account.
  */
 class VercelConnectionViewModel(
     private val gateway: VercelUiGateway,
@@ -110,11 +133,18 @@ class VercelConnectionViewModel(
     private var contextJob: Job? = null
     private var eventsJob: Job? = null
     private var analyticsProject: VercelProjectUi? = null
+    private var analyticsAccountId: String = ""
     private var selectedDeployment: VercelDeploymentUi? = null
     private var analyticsGeneration = 0L
     private var contextGeneration = 0L
     private var eventsGeneration = 0L
-    private var longHistoryUnlocked = false
+    private var hasRefreshedProfiles = false
+    private val longHistoryUnlockedAccounts = mutableSetOf<String>()
+    private val dashboardCache = VercelTimedCache<String, VercelDashboardUi>(
+        lifetimeMillis = VercelRefreshPolicy.INVENTORY_FRESHNESS_MILLIS,
+        limit = VercelAccountCacheLimit,
+        nowMillis = nowMillis,
+    )
     private val analyticsCache = VercelTimedCache<AnalyticsCacheKey, VercelAnalyticsLoadUi>(
         lifetimeMillis = VercelRefreshPolicy.REPORT_FRESHNESS_MILLIS,
         nowMillis = nowMillis,
@@ -150,6 +180,7 @@ class VercelConnectionViewModel(
                     },
                 )
             }
+            refreshProfilesOnce()
         }
     }
 
@@ -167,28 +198,7 @@ class VercelConnectionViewModel(
             operationMutex.withLock {
                 if (mutationJob?.isActive == true) return@withLock
                 _uiState.update { it.copy(isRefreshing = true, error = null) }
-                gateway.refresh().fold(
-                    onSuccess = { dashboard ->
-                        _uiState.value = connectedState(dashboard)
-                    },
-                    onFailure = { error ->
-                        _uiState.update { current ->
-                            if (current.dashboard != null) {
-                                current.copy(
-                                    status = VercelConnectionStatus.CONNECTED,
-                                    isRefreshing = false,
-                                    error = messageOf(error),
-                                )
-                            } else {
-                                current.copy(
-                                    status = VercelConnectionStatus.SAVED_UNAVAILABLE,
-                                    isRefreshing = false,
-                                    error = messageOf(error),
-                                )
-                            }
-                        }
-                    },
-                )
+                loadActiveDashboard()
             }
         }
     }
@@ -210,45 +220,127 @@ class VercelConnectionViewModel(
         if (!isFresh) refresh()
     }
 
-    fun connect(personalToken: String) {
-        if (personalToken.isBlank()) {
-            _uiState.update { it.copy(error = "Enter a Vercel personal access token.") }
+    /** Opens the connect form for another account; the active account stays connected. */
+    fun startAddingAccount() {
+        val state = _uiState.value
+        if (state.mutation != null) return
+        if (state.status != VercelConnectionStatus.CONNECTED && state.status != VercelConnectionStatus.SAVED_UNAVAILABLE) {
             return
         }
-        launchMutation(VercelConnectionMutation.CONNECTING) {
+        _uiState.update { it.copy(isAddingAccount = true, connectError = null) }
+    }
+
+    fun cancelAddingAccount() {
+        if (_uiState.value.mutation == VercelConnectionMutation.CONNECTING) return
+        _uiState.update { it.copy(isAddingAccount = false, connectError = null) }
+    }
+
+    /**
+     * Validates and saves a token, then shows its account. While another account is connected
+     * this adds it (or rotates the token of the same Vercel identity) without removing anything.
+     */
+    fun connect(personalToken: String) {
+        val adding = _uiState.value.isAddingAccount
+        if (personalToken.isBlank()) {
+            _uiState.update {
+                if (adding) {
+                    it.copy(connectError = BLANK_TOKEN_MESSAGE)
+                } else {
+                    it.copy(error = BLANK_TOKEN_MESSAGE)
+                }
+            }
+            return
+        }
+        launchMutation(VercelConnectionMutation.CONNECTING, clearsError = !adding) {
+            if (adding) _uiState.update { it.copy(connectError = null) }
             gateway.connect(personalToken).fold(
                 onSuccess = { dashboard ->
-                    // A different token may see different projects: never reuse another account's data.
-                    clearProjectCaches()
-                    _uiState.value = connectedState(
+                    val connectedId = dashboard.account.id
+                    if (_uiState.value.activeAccountId != connectedId) closeProjectAnalytics()
+                    // A new or rotated token may see different projects: drop what was cached for it.
+                    dropAccountCaches(connectedId)
+                    val accounts = gateway.loadAccounts().getOrNull()?.accounts.orEmpty()
+                    showDashboard(
                         dashboard = dashboard,
+                        accounts = accounts.ifEmpty { withAccount(_uiState.value.accounts, dashboard.account) },
                         mutation = VercelConnectionMutation.CONNECTING,
+                        closesAddAccount = true,
                     )
                 },
                 onFailure = { error ->
-                    _uiState.update { it.copy(error = messageOf(error)) }
+                    _uiState.update {
+                        if (it.isAddingAccount) it.copy(connectError = messageOf(error)) else it.copy(error = messageOf(error))
+                    }
                 },
             )
         }
     }
 
-    fun disconnect() {
+    /** Shows another saved account: cached projects when fresh, otherwise they load in place. */
+    fun switchAccount(accountId: String) {
+        val state = _uiState.value
+        if (mutationJob?.isActive == true || state.activeAccountId == accountId) return
+        if (state.savedAccounts.none { it.id == accountId }) return
         closeProjectAnalytics()
-        clearProjectCaches()
-        launchMutation(VercelConnectionMutation.DISCONNECTING) {
-            gateway.disconnect().fold(
-                onSuccess = {
-                    _uiState.value = VercelConnectionUiState(
-                        status = VercelConnectionStatus.DISCONNECTED,
-                        mutation = VercelConnectionMutation.DISCONNECTING,
-                    )
-                },
-                onFailure = { error ->
-                    _uiState.update { it.copy(error = messageOf(error)) }
-                },
+        launchMutation(VercelConnectionMutation.SWITCHING) {
+            gateway.switchAccount(accountId).fold(
+                onSuccess = { accounts -> activate(accounts, VercelConnectionMutation.SWITCHING) },
+                onFailure = { error -> _uiState.update { it.copy(error = messageOf(error)) } },
             )
         }
     }
+
+    /** iOS "Remove Current Account". */
+    fun removeCurrentAccount() {
+        val accountId = _uiState.value.activeAccountId
+        if (accountId == null) {
+            removeAllAccounts()
+        } else {
+            removeAccount(accountId)
+        }
+    }
+
+    /**
+     * Removes one saved account from this device. Removing the active account shows the next
+     * saved one (iOS `removeAccount(id:)`); removing the last one disconnects Vercel.
+     */
+    fun removeAccount(accountId: String) {
+        if (mutationJob?.isActive == true) return
+        val wasActive = _uiState.value.activeAccountId == accountId
+        if (wasActive) closeProjectAnalytics()
+        launchMutation(VercelConnectionMutation.DISCONNECTING) {
+            gateway.removeAccount(accountId).fold(
+                onSuccess = { remaining ->
+                    dropAccountCaches(accountId)
+                    val state = _uiState.value
+                    when {
+                        remaining.activeAccount == null -> showDisconnected()
+                        remaining.activeAccountId == state.activeAccountId -> _uiState.update {
+                            it.copy(accounts = remaining.accounts)
+                        }
+                        else -> activate(remaining, VercelConnectionMutation.DISCONNECTING)
+                    }
+                },
+                onFailure = { error -> _uiState.update { it.copy(error = messageOf(error)) } },
+            )
+        }
+    }
+
+    /** iOS "Remove All Accounts": every saved Vercel token leaves this device. */
+    fun removeAllAccounts() {
+        if (mutationJob?.isActive == true) return
+        closeProjectAnalytics()
+        clearAllCaches()
+        launchMutation(VercelConnectionMutation.DISCONNECTING) {
+            gateway.removeAllAccounts().fold(
+                onSuccess = { showDisconnected() },
+                onFailure = { error -> _uiState.update { it.copy(error = messageOf(error)) } },
+            )
+        }
+    }
+
+    /** Removes the active account; kept for single-account callers. */
+    fun disconnect() = removeCurrentAccount()
 
     /** Favicons come only from the project's own origin; fixture gateways return null. */
     suspend fun loadFavicon(domain: String): ImageBitmap? = try {
@@ -265,6 +357,20 @@ class VercelConnectionViewModel(
         null
     }
 
+    suspend fun loadAvatar(url: String): ImageBitmap? = try {
+        gateway.loadAvatar(url)
+    } catch (error: CancellationException) {
+        throw error
+    } catch (_: Exception) {
+        null
+    }
+
+    fun cachedAvatar(url: String): ImageBitmap? = try {
+        gateway.cachedAvatar(url)
+    } catch (_: Exception) {
+        null
+    }
+
     fun openProjectAnalytics(project: VercelProjectUi) {
         val current = _analyticsState.value
         if (
@@ -276,6 +382,7 @@ class VercelConnectionViewModel(
         }
         closeDeployment()
         analyticsProject = project
+        analyticsAccountId = _uiState.value.activeAccountId.orEmpty()
         _analyticsState.value = VercelAnalyticsUiState(
             projectId = project.id,
             selectedRange = current.selectedRange,
@@ -355,7 +462,7 @@ class VercelConnectionViewModel(
             )
             return
         }
-        val key = EventsCacheKey(project.teamId, identifier)
+        val key = EventsCacheKey(analyticsAccountId, project.teamId, identifier)
         val previous = _deploymentState.value.takeIf { it.deploymentId == deployment.id }
         val cached = eventsCache[key]
         val hasLoaded = cached != null || previous?.hasLoaded == true
@@ -388,7 +495,7 @@ class VercelConnectionViewModel(
 
     private fun startContextLoad(forceRefresh: Boolean) {
         val project = analyticsProject ?: return
-        val key = ProjectCacheKey(project.id, project.teamId)
+        val key = ProjectCacheKey(analyticsAccountId, project.id, project.teamId)
         contextJob?.cancel()
         contextJob = null
         contextGeneration += 1
@@ -435,10 +542,11 @@ class VercelConnectionViewModel(
 
     private fun startAnalyticsLoad(forceRefresh: Boolean, debounce: Boolean) {
         val project = analyticsProject ?: return
+        val accountId = analyticsAccountId
         val selection = _analyticsState.value
         val range = selection.selectedRange
         val environment = selection.selectedEnvironment
-        val key = AnalyticsCacheKey(project.id, project.teamId, range, environment)
+        val key = AnalyticsCacheKey(accountId, project.id, project.teamId, range, environment)
         analyticsJob?.cancel()
         analyticsJob = null
         analyticsGeneration += 1
@@ -470,6 +578,7 @@ class VercelConnectionViewModel(
             if (
                 generation != analyticsGeneration ||
                 analyticsProject?.id != project.id ||
+                analyticsAccountId != accountId ||
                 _analyticsState.value.selectedRange != range ||
                 _analyticsState.value.selectedEnvironment != environment
             ) {
@@ -481,7 +590,7 @@ class VercelConnectionViewModel(
                     analyticsCache.put(key, loaded, updatedAt)
                     applyAnalyticsResult(project.id, range, environment, loaded, updatedAt)
                     if (range.requiresLongHistory && loaded is VercelAnalyticsLoadUi.Available) {
-                        unlockLongAnalyticsHistory()
+                        unlockLongAnalyticsHistory(accountId)
                     }
                 },
                 onFailure = { error ->
@@ -496,15 +605,17 @@ class VercelConnectionViewModel(
         }
     }
 
-    private fun unlockLongAnalyticsHistory() {
+    private fun unlockLongAnalyticsHistory(accountId: String) {
         _analyticsState.update { it.copy(hasLongAnalyticsHistory = true) }
         if (hasLongAnalyticsHistory()) return
-        longHistoryUnlocked = true
+        longHistoryUnlockedAccounts += accountId
         viewModelScope.launch { gateway.markLongAnalyticsHistoryAvailable() }
     }
 
-    private fun hasLongAnalyticsHistory(): Boolean =
-        longHistoryUnlocked || _uiState.value.dashboard?.account?.hasLongAnalyticsHistory == true
+    private fun hasLongAnalyticsHistory(): Boolean {
+        val active = _uiState.value.activeAccount ?: return false
+        return active.id in longHistoryUnlockedAccounts || active.hasLongAnalyticsHistory
+    }
 
     private fun applyAnalyticsResult(
         projectId: String,
@@ -538,15 +649,147 @@ class VercelConnectionViewModel(
         }
     }
 
-    private fun clearProjectCaches() {
+    /**
+     * Shows the account [accounts] marks active: its cached projects right away when there are
+     * any, then a reload unless they are younger than the inventory window. Runs inside a
+     * mutation, so a refresh can never overtake it.
+     */
+    private suspend fun activate(accounts: VercelAccountsUi, mutation: VercelConnectionMutation) {
+        val target = accounts.activeAccount ?: return showDisconnected()
+        val cached = dashboardCache[target.id]
+        if (cached != null) {
+            showDashboard(
+                dashboard = cached.value.copy(account = target),
+                accounts = accounts.accounts,
+                mutation = mutation,
+                updatedAtMillis = cached.updatedAtMillis,
+                cache = false,
+            )
+            if (dashboardCache.isFresh(cached)) return
+            _uiState.update { it.copy(isRefreshing = true) }
+        } else {
+            _uiState.value = VercelConnectionUiState(
+                status = VercelConnectionStatus.CONNECTED,
+                dashboard = VercelDashboardUi(account = target, projects = emptyList()),
+                savedAccount = target,
+                isRefreshing = true,
+                mutation = mutation,
+                accounts = accounts.accounts,
+                isLoadingAccount = true,
+            )
+        }
+        loadActiveDashboard()
+    }
+
+    /** Loads the active account's projects, keeping cached ones visible when that fails. */
+    private suspend fun loadActiveDashboard() {
+        val mutation = _uiState.value.mutation
+        gateway.refresh().fold(
+            onSuccess = { dashboard ->
+                showDashboard(dashboard, accounts = _uiState.value.accounts, mutation = mutation)
+            },
+            onFailure = { error ->
+                _uiState.update { current ->
+                    current.copy(
+                        status = if (current.dashboard != null) {
+                            VercelConnectionStatus.CONNECTED
+                        } else {
+                            VercelConnectionStatus.SAVED_UNAVAILABLE
+                        },
+                        isRefreshing = false,
+                        isLoadingAccount = false,
+                        error = messageOf(error),
+                    )
+                }
+            },
+        )
+    }
+
+    /**
+     * Shows [dashboard] as the connected state. An open add-account form stays open (a background
+     * refresh must not dismiss it) unless [closesAddAccount], which a successful connect sets.
+     */
+    private fun showDashboard(
+        dashboard: VercelDashboardUi,
+        accounts: List<VercelAccountUi>,
+        mutation: VercelConnectionMutation? = null,
+        updatedAtMillis: Long? = null,
+        cache: Boolean = true,
+        closesAddAccount: Boolean = false,
+    ) {
+        val updatedAt = updatedAtMillis ?: nowMillis()
+        if (cache) dashboardCache.put(dashboard.account.id, dashboard, updatedAt)
+        val current = _uiState.value
+        _uiState.value = VercelConnectionUiState(
+            status = VercelConnectionStatus.CONNECTED,
+            dashboard = dashboard,
+            savedAccount = dashboard.account,
+            mutation = mutation,
+            lastUpdatedMillis = updatedAt,
+            accounts = withAccount(accounts, dashboard.account),
+            isAddingAccount = current.isAddingAccount && !closesAddAccount,
+            connectError = current.connectError.takeUnless { closesAddAccount },
+        )
+    }
+
+    private fun showDisconnected() {
+        clearAllCaches()
+        _uiState.value = VercelConnectionUiState(
+            status = VercelConnectionStatus.DISCONNECTED,
+            mutation = _uiState.value.mutation,
+        )
+    }
+
+    /**
+     * Applies refreshed profiles once per launch (iOS refreshes them when `AuthManager` starts).
+     * Only accounts still saved are updated, so a removal made meanwhile is never undone.
+     */
+    private fun refreshProfilesOnce() {
+        if (hasRefreshedProfiles) return
+        val status = _uiState.value.status
+        if (status != VercelConnectionStatus.CONNECTED && status != VercelConnectionStatus.SAVED_UNAVAILABLE) return
+        hasRefreshedProfiles = true
+        viewModelScope.launch {
+            val refreshed = gateway.refreshAccountProfiles().getOrNull()?.accounts.orEmpty()
+            if (refreshed.isEmpty()) return@launch
+            operationMutex.withLock { applyProfiles(refreshed) }
+        }
+    }
+
+    private fun applyProfiles(refreshed: List<VercelAccountUi>) {
+        val byId = refreshed.associateBy(VercelAccountUi::id)
+        fun merged(existing: VercelAccountUi): VercelAccountUi {
+            val profile = byId[existing.id] ?: return existing
+            return profile.copy(hasLongAnalyticsHistory = existing.hasLongAnalyticsHistory || profile.hasLongAnalyticsHistory)
+        }
+        _uiState.update { state ->
+            state.copy(
+                accounts = state.accounts.map(::merged),
+                dashboard = state.dashboard?.let { it.copy(account = merged(it.account)) },
+                savedAccount = state.savedAccount?.let(::merged),
+            )
+        }
+    }
+
+    private fun dropAccountCaches(accountId: String) {
+        dashboardCache.removeIf { it == accountId }
+        analyticsCache.removeIf { it.accountId == accountId }
+        contextCache.removeIf { it.accountId == accountId }
+        eventsCache.removeIf { it.accountId == accountId }
+        longHistoryUnlockedAccounts -= accountId
+    }
+
+    private fun clearAllCaches() {
+        dashboardCache.clear()
         analyticsCache.clear()
         contextCache.clear()
         eventsCache.clear()
-        longHistoryUnlocked = false
+        longHistoryUnlockedAccounts.clear()
     }
 
     private fun launchMutation(
         mutation: VercelConnectionMutation,
+        clearsError: Boolean = true,
         operation: suspend () -> Unit,
     ) {
         if (mutationJob?.isActive == true) return
@@ -558,7 +801,7 @@ class VercelConnectionViewModel(
                     it.copy(
                         mutation = mutation,
                         isRefreshing = false,
-                        error = null,
+                        error = if (clearsError) null else it.error,
                     )
                 }
                 try {
@@ -571,30 +814,24 @@ class VercelConnectionViewModel(
     }
 
     private fun applyRestore(restored: VercelRestoreUi) {
-        _uiState.value = when (restored) {
-            VercelRestoreUi.NoSavedAccount -> VercelConnectionUiState(
+        when (restored) {
+            VercelRestoreUi.NoSavedAccount -> _uiState.value = VercelConnectionUiState(
                 status = VercelConnectionStatus.DISCONNECTED,
             )
 
-            is VercelRestoreUi.Available -> connectedState(restored.dashboard)
-            is VercelRestoreUi.DashboardUnavailable -> VercelConnectionUiState(
+            is VercelRestoreUi.Available -> showDashboard(
+                dashboard = restored.dashboard,
+                accounts = restored.accounts?.accounts.orEmpty(),
+            )
+
+            is VercelRestoreUi.DashboardUnavailable -> _uiState.value = VercelConnectionUiState(
                 status = VercelConnectionStatus.SAVED_UNAVAILABLE,
                 savedAccount = restored.account,
                 error = messageOf(restored.error),
+                accounts = withAccount(restored.accounts?.accounts.orEmpty(), restored.account),
             )
         }
     }
-
-    private fun connectedState(
-        dashboard: VercelDashboardUi,
-        mutation: VercelConnectionMutation? = null,
-    ): VercelConnectionUiState = VercelConnectionUiState(
-        status = VercelConnectionStatus.CONNECTED,
-        dashboard = dashboard,
-        savedAccount = dashboard.account,
-        mutation = mutation,
-        lastUpdatedMillis = nowMillis(),
-    )
 
     private fun messageOf(error: Throwable): String =
         error.message?.takeIf(String::isNotBlank) ?: "The Vercel request could not be completed."
@@ -612,6 +849,7 @@ class VercelConnectionViewModel(
     }
 
     private data class AnalyticsCacheKey(
+        val accountId: String,
         val projectId: String,
         val teamId: String?,
         val range: VercelAnalyticsRange,
@@ -619,16 +857,30 @@ class VercelConnectionViewModel(
     )
 
     private data class ProjectCacheKey(
+        val accountId: String,
         val projectId: String,
         val teamId: String?,
     )
 
     private data class EventsCacheKey(
+        val accountId: String,
         val teamId: String?,
         val deploymentIdentifier: String,
     )
 
     private companion object {
         const val ANALYTICS_SELECTION_DEBOUNCE_MILLIS = 250L
+        const val BLANK_TOKEN_MESSAGE = "Enter a Vercel personal access token."
     }
 }
+
+/** [accounts] with [account] replaced in place (by id), or appended when it is not listed yet. */
+internal fun withAccount(accounts: List<VercelAccountUi>, account: VercelAccountUi): List<VercelAccountUi> =
+    if (accounts.any { it.id == account.id }) {
+        accounts.map { if (it.id == account.id) account else it }
+    } else {
+        accounts + account
+    }
+
+/** Dashboards are kept for every saved account, up to the same cap as saved accounts. */
+private const val VercelAccountCacheLimit = 32

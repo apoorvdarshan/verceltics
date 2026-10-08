@@ -9,6 +9,10 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.hasStateDescription
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeDown
 import com.apoorvdarshan.verceltics.ui.VercelDeploymentDetailUiState
 import com.apoorvdarshan.verceltics.ui.VercelDeploymentEventUi
 import com.apoorvdarshan.verceltics.ui.theme.VercelticsTheme
@@ -111,6 +115,24 @@ class VercelDeploymentDetailScreenTest {
         composeRule.onNodeWithTag("workspace.hosting.deployment.refresh").performClick()
 
         assertEquals(1, refreshes)
+    }
+
+    @Test
+    fun pullingDownReloadsBuildEvents() {
+        setScreen(loaded())
+
+        composeRule.onNodeWithTag("workspace.hosting.deployment.list").performTouchInput { swipeDown() }
+
+        composeRule.waitUntil(5_000) { refreshes == 1 }
+    }
+
+    @Test
+    fun phonesStackDetailsAboveEvents() {
+        setScreen(loaded())
+
+        composeRule.onNodeWithTag("workspace.hosting.deployment.list")
+            .assert(hasStateDescription("One column"))
+        assertEquals(0, composeRule.onAllNodesWithTag("workspace.hosting.deployment.columns").fetchSemanticsNodes().size)
     }
 
     private fun loaded() = VercelDeploymentDetailUiState(

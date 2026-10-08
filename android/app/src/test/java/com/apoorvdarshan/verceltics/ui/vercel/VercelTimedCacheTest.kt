@@ -55,6 +55,20 @@ class VercelTimedCacheTest {
     }
 
     @Test
+    fun removeIfDropsOnlyMatchingEntries() {
+        val cache = VercelTimedCache<Pair<String, String>, String>(lifetimeMillis = 1_000L, nowMillis = { 0L })
+        cache.put("user_a" to "prj", "a")
+        cache.put("user_b" to "prj", "b")
+        cache.put("user_a" to "other", "a2")
+
+        cache.removeIf { it.first == "user_a" }
+
+        assertEquals(1, cache.size)
+        assertEquals("b", cache["user_b" to "prj"]?.value)
+        assertNull(cache["user_a" to "prj"])
+    }
+
+    @Test
     fun projectsFirstLoadLatchFiresOncePerProcess() {
         VercelProjectsFirstLoad.resetForTesting()
 

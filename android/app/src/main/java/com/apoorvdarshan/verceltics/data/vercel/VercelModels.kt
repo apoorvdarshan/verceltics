@@ -7,8 +7,13 @@ data class VercelUser(
     val username: String,
     val email: String?,
     val name: String?,
+    /** `/v2/user` `avatar`: usually an avatar hash, see [VercelAvatarPolicy]. */
     val avatarUrl: String?,
-)
+) {
+    /** The profile name, or the username when no name is set (iOS `name ?? username`). */
+    val displayName: String
+        get() = name?.takeIf(String::isNotBlank) ?: username
+}
 
 /** Where a project was listed from: the personal scope or a confirmed team membership. */
 data class VercelProjectScope(
