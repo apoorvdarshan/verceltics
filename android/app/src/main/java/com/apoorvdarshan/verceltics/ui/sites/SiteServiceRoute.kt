@@ -3,6 +3,8 @@ package com.apoorvdarshan.verceltics.ui.sites
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,6 +40,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -470,17 +473,20 @@ private fun ApiKeyConnectionForm(
         actions.onConnect(SiteServiceConnectionInputUi(credential, values))
     }
 
-    LazyColumn(
+    // A plain scrolling column (not a lazy list) keeps the native secret field attached while the
+    // user scrolls, so a typed credential is never wiped by item recycling.
+    Column(
         modifier = modifier
             .fillMaxWidth()
-            .testTag("siteService.connectionForm"),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 120.dp),
+            .verticalScroll(rememberScrollState())
+            .testTag("siteService.connectionForm")
+            .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        item("header") { ConnectionHeader(providerId) }
-        service.error?.let { message -> item("error") { SiteErrorPanel("Connection failed", message, "siteService.connectError") } }
-        service.notice?.let { message -> item("notice") { SiteNoticePanel("Status", message, accent) } }
-        item("instructions") {
+        ConnectionHeader(providerId)
+        service.error?.let { message -> SiteErrorPanel("Connection failed", message, "siteService.connectError") }
+        service.notice?.let { message -> SiteNoticePanel("Status", message, accent) }
+        run {
             OffsetPanel(Modifier.fillMaxWidth(), MaterialTheme.colorScheme.surface, borderColor = accent.copy(alpha = 0.24f)) {
                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("Connect securely", style = MaterialTheme.typography.titleSmall)
@@ -499,7 +505,7 @@ private fun ApiKeyConnectionForm(
                 }
             }
         }
-        item("credentialPage") {
+        run {
             ThemedActionButton(
                 "OPEN ${siteCatalogProvider(providerId).displayName.uppercase()} CREDENTIALS",
                 onClick = { actions.onOpenCredentialPage(SiteServiceCopy.credentialPageUrl(providerId)) },
@@ -509,39 +515,42 @@ private fun ApiKeyConnectionForm(
             )
         }
         if (providerId == "umami") {
-            item("umamiMode") {
+            run {
                 UmamiModePicker(umamiMode, accent) { mode ->
                     umamiMode = mode
                     if (mode == UmamiSiteAdapter.CLOUD) fieldValues.remove(SiteServiceFieldKeys.BASE_URL)
                 }
             }
         }
-        items(fields, key = { "${it.key}-${it.label}" }) { field ->
-            if (field.isSecret) {
-                SiteSecretInput(
-                    controller = controller,
-                    label = field.label,
-                    placeholder = field.placeholder,
-                    accent = accent,
-                    enabled = !connecting,
-                    onPresenceChange = { hasCredential = it },
-                    onDone = ::submit,
-                    testTag = "siteService.credential",
-                )
-            } else {
-                ThemedAuthTextField(
-                    value = fieldValues[field.key].orEmpty(),
-                    onValueChange = { fieldValues[field.key] = it.take(2_048) },
-                    label = field.label,
-                    enabled = !connecting,
-                    keyboardOptions = KeyboardOptions(keyboardType = if (field.isUrl) KeyboardType.Uri else KeyboardType.Text),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("siteService.field.${field.key}"),
-                )
+        fields.forEach { field ->
+            // Keyed so switching Umami modes never recreates the native secret field.
+            key(field.key) {
+                if (field.isSecret) {
+                    SiteSecretInput(
+                        controller = controller,
+                        label = field.label,
+                        placeholder = field.placeholder,
+                        accent = accent,
+                        enabled = !connecting,
+                        onPresenceChange = { hasCredential = it },
+                        onDone = ::submit,
+                        testTag = "siteService.credential",
+                    )
+                } else {
+                    ThemedAuthTextField(
+                        value = fieldValues[field.key].orEmpty(),
+                        onValueChange = { fieldValues[field.key] = it.take(2_048) },
+                        label = field.label,
+                        enabled = !connecting,
+                        keyboardOptions = KeyboardOptions(keyboardType = if (field.isUrl) KeyboardType.Uri else KeyboardType.Text),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("siteService.field.${field.key}"),
+                    )
+                }
             }
         }
-        item("connect") {
+        run {
             if (connecting) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     ThemedActionButton(

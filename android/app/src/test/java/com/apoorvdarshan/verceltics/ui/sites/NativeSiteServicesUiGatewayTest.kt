@@ -191,6 +191,48 @@ class NativeSiteServicesUiGatewayTest {
     }
 
     @Test
+    fun detailResolvesResourcesBeyondTheOfflineCacheAndNeverFallsBackSilently() = runTest {
+        val transport = FakeProviderTransport { request ->
+            val method = request.path.substringAfterLast('/')
+            when {
+                method == "getMonitors" && request.form["monitors"] != null -> ok(
+                    json("stat" to "ok", "monitors" to listOf(mapOf("id" to request.form.getValue("monitors").toInt(), "friendly_name" to "Selected"))),
+                )
+                method == "getMonitors" -> {
+                    val offset = request.form.getValue("offset").toInt()
+                    ok(
+                        json(
+                            "stat" to "ok",
+                            "pagination" to mapOf("offset" to offset, "limit" to 50, "total" to 250),
+                            "monitors" to (offset + 1..minOf(offset + 50, 250)).map { mapOf("id" to it, "friendly_name" to "Monitor $it", "status" to 2) },
+                        ),
+                    )
+                }
+                else -> ok(json("stat" to "ok"))
+            }
+        }
+        val gateway = gateway(transport)
+        val dashboard = gateway.connect("uptimeRobot", SiteServiceConnectionInputUi(SecretValue.of("k"))).getOrThrow()
+        assertEquals(250, dashboard.resources.size)
+        assertEquals(200, connectionStore.loadForRequest(SiteProvider.UPTIME_ROBOT)!!.connection.cachedSnapshot!!.resources.size)
+
+        val detail = gateway.loadDetail(SiteServiceDetailRequestUi("uptimeRobot", "230", SiteServiceDetailQueryUi())).getOrThrow()
+        assertEquals("230", detail.resourceId)
+        assertEquals("230", transport.requests.last { it.form["monitors"] != null }.form["monitors"])
+
+        val missing = gateway.loadDetail(SiteServiceDetailRequestUi("uptimeRobot", "999", SiteServiceDetailQueryUi()))
+        assertEquals(
+            "This monitor is no longer in the saved UptimeRobot data. Refresh the service and try again.",
+            missing.exceptionOrNull()?.message,
+        )
+
+        // After a restart only the bounded offline cache is known; an uncached resource errors.
+        val restarted = gateway(transport)
+        assertTrue(restarted.loadDetail(SiteServiceDetailRequestUi("uptimeRobot", "230", SiteServiceDetailQueryUi())).isFailure)
+        assertEquals("1", restarted.loadDetail(SiteServiceDetailRequestUi("uptimeRobot", null, SiteServiceDetailQueryUi())).getOrThrow().resourceId)
+    }
+
+    @Test
     fun disconnectRemovesTheRecordSignsOutGoogleAndClearsCaches() = runTest {
         val transport = FakeProviderTransport(::analyticsSummaries)
         val gateway = gateway(transport)

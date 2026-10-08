@@ -858,7 +858,9 @@ internal fun SiteRawResponseExplorer(payload: SiteServiceDetailUi, providerId: S
             )
         }
         item("count") { SiteSectionHeader("Fields", leaves.size, accent) }
-        items(leaves, key = { it.path }) { leaf ->
+        // Paths are not guaranteed unique (a key may itself contain "." or "["), so key by position.
+        items(leaves.size, key = { "leaf-$endpoint-$it" }) { index ->
+            val leaf = leaves[index]
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 color = MaterialTheme.colorScheme.surface,

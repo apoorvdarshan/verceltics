@@ -10,6 +10,7 @@ import com.apoorvdarshan.verceltics.data.sites.ClarityDimensionOptions
 import com.apoorvdarshan.verceltics.data.sites.SiteProvider
 import java.time.LocalDate
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,6 +18,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 enum class SiteServiceConnectionStatus {
     RESTORING,
@@ -478,9 +480,13 @@ class SiteServicesViewModel(
         detailJob = viewModelScope.launch {
             if (debounceMillis > 0) delay(debounceMillis)
             val result = gateway.loadDetail(request, forceRefresh) { partial ->
-                if (generation == detailGeneration) {
-                    _uiState.update { state ->
-                        state.copy(detail = state.detail?.copy(payload = partial, isLoading = false, isRefreshing = true))
+                // Partial payloads arrive from the gateway's worker context; apply them on the
+                // main thread so the generation guard cannot race a newer query.
+                withContext(Dispatchers.Main.immediate) {
+                    if (generation == detailGeneration) {
+                        _uiState.update { state ->
+                            state.copy(detail = state.detail?.copy(payload = partial, isLoading = false, isRefreshing = true))
+                        }
                     }
                 }
             }

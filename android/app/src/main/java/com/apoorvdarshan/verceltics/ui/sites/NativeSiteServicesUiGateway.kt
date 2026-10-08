@@ -51,6 +51,12 @@ class NativeSiteServicesUiGateway internal constructor(
 ) : SiteServicesUiGateway {
     private val detailCache = SiteDetailMemoryCache(maximumEntries = 8)
 
+    /**
+     * The latest live inventory per provider. The encrypted offline cache is bounded, so detail
+     * requests resolve resources here first and never silently fall back to another resource.
+     */
+    private val liveSnapshots = java.util.concurrent.ConcurrentHashMap<SiteProvider, SiteSnapshot>()
+
     override val googleOAuthReadiness: SiteGoogleOAuthReadinessUi
         get() = if (googleSessions[SiteProvider.GOOGLE_ANALYTICS]?.isConfigured == true) {
             SiteGoogleOAuthReadinessUi.Ready
@@ -88,6 +94,7 @@ class NativeSiteServicesUiGateway internal constructor(
             }
         }
         detailCache.invalidate(provider)
+        liveSnapshots[provider] = validated.snapshot
         dashboard(provider, stored.name, stored.metadata, validated.snapshot, SiteServiceCacheState.LIVE)
     }
 
@@ -117,6 +124,7 @@ class NativeSiteServicesUiGateway internal constructor(
             }
         }
         detailCache.invalidate(provider)
+        liveSnapshots[provider] = validated.snapshot
         dashboard(provider, stored.name, stored.metadata, validated.snapshot, SiteServiceCacheState.LIVE)
     }
 
@@ -136,6 +144,7 @@ class NativeSiteServicesUiGateway internal constructor(
                 "The saved ${provider.displayName} connection changed while it was refreshing. Try again.",
             )
         }
+        liveSnapshots[provider] = snapshot
         dashboard(provider, name, source.connection.metadata + discovered, snapshot, SiteServiceCacheState.LIVE)
     }
 
@@ -146,8 +155,15 @@ class NativeSiteServicesUiGateway internal constructor(
     ): Result<SiteServiceDetailUi> = capture(request.providerId) {
         val provider = provider(request.providerId)
         val source = loadSource(provider)
-        val resources = source.connection.cachedSnapshot?.resources.orEmpty()
-        val resource = request.resourceId?.let { id -> resources.firstOrNull { it.id == id } } ?: resources.firstOrNull()
+        val resources = (liveSnapshots[provider] ?: source.connection.cachedSnapshot)?.resources.orEmpty()
+        val resource = if (request.resourceId == null) {
+            resources.firstOrNull()
+        } else {
+            resources.firstOrNull { it.id == request.resourceId } ?: throw SiteServicesUiException(
+                "This ${provider.resourceNoun.lowercase()} is no longer in the saved ${provider.displayName} data. " +
+                    "Refresh the service and try again.",
+            )
+        }
         val cacheKey = listOf(provider.id, resource?.id.orEmpty(), request.query.identity).joinToString("|")
         if (!forceRefresh) {
             detailCache.fresh(cacheKey, provider, nowMillis())?.let { return@capture it }
@@ -168,6 +184,7 @@ class NativeSiteServicesUiGateway internal constructor(
             googleSessions[provider]?.signOut()
         }
         detailCache.invalidate(provider)
+        liveSnapshots.remove(provider)
     }
 
     // MARK: Requests

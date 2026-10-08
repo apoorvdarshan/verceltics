@@ -24,6 +24,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -113,6 +115,9 @@ internal fun SiteSecretInput(
     testTag: String,
 ) {
     val colors = MaterialTheme.colorScheme
+    // The native field is created once; always call the latest callbacks (and form values).
+    val currentOnPresenceChange by rememberUpdatedState(onPresenceChange)
+    val currentOnDone by rememberUpdatedState(onDone)
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(
             label.uppercase(),
@@ -152,14 +157,14 @@ internal fun SiteSecretInput(
                                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
 
                                 override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                                    onPresenceChange(!s.isNullOrBlank())
+                                    currentOnPresenceChange(!s.isNullOrBlank())
                                 }
 
                                 override fun afterTextChanged(s: Editable?) = Unit
                             })
                             setOnEditorActionListener { _, actionId, _ ->
                                 if (actionId == EditorInfo.IME_ACTION_DONE) {
-                                    onDone()
+                                    currentOnDone()
                                     true
                                 } else {
                                     false
