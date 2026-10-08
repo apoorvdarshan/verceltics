@@ -37,6 +37,17 @@ if (revenueCatApiKey.isNotEmpty() &&
     throw GradleException("VERCELTICS_REVENUECAT_API_KEY must be a RevenueCat Google Play (goog_) or Test Store (test_) key.")
 }
 
+// Play upload key, kept outside the repository. Builds without these properties stay unsigned.
+val uploadKeystorePath = providers.gradleProperty("VERCELTICS_UPLOAD_KEYSTORE")
+    .orNull
+    ?.trim()
+    ?.takeIf(String::isNotEmpty)
+val uploadKeystorePassword = providers.gradleProperty("VERCELTICS_UPLOAD_KEYSTORE_PASSWORD_FILE")
+    .orNull
+    ?.trim()
+    ?.takeIf(String::isNotEmpty)
+    ?.let { providers.fileContents(layout.projectDirectory.file(it)).asText.get().trim() }
+
 fun String.asBuildConfigString(): String =
     "\"${replace("\\", "\\\\").replace("\"", "\\\"")}\""
 
@@ -71,8 +82,20 @@ android {
         )
     }
 
+    signingConfigs {
+        if (uploadKeystorePath != null && uploadKeystorePassword != null) {
+            create("upload") {
+                storeFile = file(uploadKeystorePath)
+                storePassword = uploadKeystorePassword
+                keyAlias = "upload"
+                keyPassword = uploadKeystorePassword
+            }
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.findByName("upload")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(

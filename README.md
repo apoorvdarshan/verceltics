@@ -217,7 +217,16 @@ Android purchases use the same RevenueCat project, `Verceltics Pro` entitlement,
 VERCELTICS_REVENUECAT_API_KEY=goog_example
 ```
 
-Builds without a key keep Pro locked and show "Plans unavailable" on the paywall. Debug builds may use a RevenueCat Test Store key (`test_...`), but release builds refuse one because the SDK crashes on it, and `bundleRelease` requires a `goog_` key. In RevenueCat, mark the Google Play lifetime product as non-consumable and the four tips as consumable.
+Release builds for Google Play are signed with the upload key named in `~/.gradle/gradle.properties`. The key and its password file stay outside the repository:
+
+```properties
+VERCELTICS_UPLOAD_KEYSTORE=/path/to/verceltics-upload.jks
+VERCELTICS_UPLOAD_KEYSTORE_PASSWORD_FILE=/path/to/password.txt
+```
+
+Without them, release builds are unsigned.
+
+Builds without a RevenueCat key keep Pro locked and show "Plans unavailable" on the paywall. Debug builds may use a RevenueCat Test Store key (`test_...`), but release builds refuse one because the SDK crashes on it, and `bundleRelease` requires a `goog_` key. In RevenueCat, mark the Google Play lifetime product as non-consumable and the four tips as consumable.
 
 ## Run the website
 
