@@ -61,10 +61,12 @@ Verceltics is an independent app and is not affiliated with, endorsed by, or spo
 |---|---|
 | App icon 512×512 | `app-icon-512.png` |
 | Feature graphic 1024×500 | `feature-graphic.jpg` (source: `feature-graphic.html`) |
-| Phone screenshots | Still needed, at least 2 |
+| Phone screenshots | `screenshots/phone/` (6 Android screenshots, 1080×1920, sample data on the FudAI_API_36 emulator) |
 
-## App access (for reviewers)
+## Sign in details (for reviewers)
+
+Submitted as "Is any part of your app restricted? Yes", one entry named "Sample data preview" with no username or password, marked as giving full access.
 
 ```text
-All features can be reviewed without an account. Open About → Show sample data to explore hosting, registrars and site services with fictional accounts, including the Pro detail screens. Real provider connections need the reviewer's own API token for that provider.
+No account, sign in or payment is needed. On the first screen tap Choose what to connect, then Explore sample data. The app opens with fictional hosting, registrar and site service accounts, and every Verceltics Pro screen (project analytics, domain details, site reports and provider dashboards) is unlocked there. Tap Exit preview to leave. Connecting a real provider needs your own API token for that provider.
 ```
