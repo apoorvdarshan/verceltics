@@ -10,6 +10,7 @@ released. Prepared listing copy lives in [APPSTORE.md](../APPSTORE.md).
 
 - `mockups ios/` — iPhone promotional artwork
 - `mockups ipad/` — iPad promotional artwork
+- `mockups android/` — Android twins of the iPhone artwork for Google Play (1080×1920, Codex imagegen; prompts in `prompts.md`, source screens in `android-mockup-sources/`)
 - `ss ios/` — source iPhone screenshots
 - `ss ipad/` — source iPad screenshots
 - `product-hunt/` — earlier Product Hunt 2.0 artwork
