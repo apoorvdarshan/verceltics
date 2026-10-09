@@ -103,21 +103,22 @@ has no store release or publishing action.
 
 ## Android beta film
 
-A 31-second, 1920 × 1080, 30 fps call for Android testers: `VercelticsAndroid`
-([download](Verceltics-Android-Beta.mp4)). It reuses the launch film's style and
-soundtrack with actual Android footage recorded over USB on a Lava phone in
-sample-data mode (fictional accounts), labeled “Actual Android footage · Demo data.”
-Clips live in `public/footage-android/` (normalized to constant 30 fps).
+A 31-second, 1920 × 1080, **60 fps** call for Android testers: `VercelticsAndroid`
+([download](Verceltics-Android-Beta.mp4)). Actual Android footage recorded over USB on a
+Lava phone in sample-data mode (fictional accounts), labeled “Actual Android footage · Demo data.”
+Clips live in `public/footage-android/` (constant 30 fps). Motion is spring-driven (Remotion
+`spring`), with word mask reveals and focus pulls, 3D device moves with a glass glare sweep,
+a focus-blur push on every cut, film grain, and a vignette.
 
 | Time | Scene |
 | --- | --- |
-| 0–3 s | “Your whole stack. Now on Android.” with provider marks |
-| 3–6 s | “Verceltics for Android”, coming soon to Google Play |
-| 6–11 s | Hosting: Vercel sample projects into studio-web analytics |
-| 11–16 s | Domains: registrars into the Name.com portfolio |
-| 16–21 s | Sites: site services into Search Console |
-| 21–25 s | 27 integrations with the connect screen |
-| 25–31 s | Join the beta: tester group, Google Play opt-in, code `VERCELTICSBETA` |
+| 0–3 s | Cold open: “Verceltics is coming to Android.” letter rise and glow line |
+| 3–8 s | Hero: the phone rises in 3D with the hosting recording, orbiting provider marks |
+| 8–12.5 s | Macro: camera push into the real studio-web analytics |
+| 12.5–17.5 s | Trio: domains, Search Console and the connect screen in an orbiting arc |
+| 17.5–21.5 s | 27 integrations: counter and provider marks flying into a grid |
+| 21.5–28 s | Join the beta: tester group, Google Play opt-in, code `VERCELTICSBETA` |
+| 28–31 s | End card: logo draw, verceltics.com |
 
 ```sh
 npm run render:android

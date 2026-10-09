@@ -4,7 +4,7 @@ import {
   registerRoot, staticFile, useCurrentFrame,
 } from 'remotion';
 import {Backdrop, C, Label, Line, Provider, TraceLogo, Wordmark, ease, lerp, markNames} from './shared';
-import {AndroidPromo} from './android';
+import {AndroidPromo, DURATION as ANDROID_DURATION, FPS as ANDROID_FPS} from './android';
 
 const Footer = ({light = false, index}: {light?: boolean; index?: string}) => <>
   <div style={{position: 'absolute', left: 90, bottom: 45, fontSize: 16, color: light ? '#596d88' : '#708199', letterSpacing: .6}}>Actual iOS footage · Demo data</div>
@@ -213,6 +213,6 @@ const Promo = () => <AbsoluteFill style={{fontFamily: '"Space Grotesk",sans-seri
 
 const Root = () => <>
   <Composition id="VercelticsLandscape" component={Promo} width={1920} height={1080} fps={30} durationInFrames={1080} />
-  <Composition id="VercelticsAndroid" component={AndroidPromo} width={1920} height={1080} fps={30} durationInFrames={930} />
+  <Composition id="VercelticsAndroid" component={AndroidPromo} width={1920} height={1080} fps={ANDROID_FPS} durationInFrames={ANDROID_DURATION} />
 </>;
 registerRoot(Root);
