@@ -32,7 +32,9 @@ val googleOAuthRedirectScheme = derivedGoogleOAuthRedirectScheme
 val revenueCatApiKey = providers.gradleProperty("VERCELTICS_REVENUECAT_API_KEY")
     .orNull
     ?.trim()
-    .orEmpty()
+    ?.takeIf(String::isNotEmpty)
+    // Public RevenueCat SDK key for the Verceltics Google Play app (like the iOS appl_ key).
+    ?: "goog_iRFAQKTGxYiTcZHRerZwhPEZCOp"
 if (revenueCatApiKey.isNotEmpty() &&
     !revenueCatApiKey.startsWith("goog_") &&
     !revenueCatApiKey.startsWith("test_")
