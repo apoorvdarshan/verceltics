@@ -12,14 +12,14 @@ export const metadata: Metadata = {
   openGraph: {
     type: "article",
     siteName: "Verceltics",
-    title: "Privacy Policy — Verceltics",
+    title: "Privacy Policy | Verceltics",
     description: "App privacy, direct provider connections, and how Vercie processes Discord questions and public issue reports.",
     url: `${SITE_URL}/privacy`,
     images: [{ url: "/og-verceltics.png", width: 1200, height: 630, alt: "Verceltics mobile operations instrument" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Privacy Policy — Verceltics",
+    title: "Privacy Policy | Verceltics",
     description: "App privacy, direct provider connections, and how Vercie processes Discord questions and public issue reports.",
     images: ["/og-verceltics.png"],
   },

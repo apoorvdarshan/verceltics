@@ -54,7 +54,8 @@ export function SiteFooter() {
           <p id="ownership">Verceltics is developed and operated by Apoorv Darshan under <a href="https://fud-ai.app/#ownership">Fud AI</a>, his sole proprietorship.</p>
           <nav aria-label="Product links" className="footer-local-links">
             <Link href="/integrations">27 integrations</Link>
-            <Link href="/vercel-analytics-ios">Vercel Analytics for iOS</Link>
+            <Link href="/vercel-analytics-ios">Vercel app for iPhone</Link>
+            <Link href="/android">Android app</Link>
             <Link href="/#workflows">Workflows</Link>
             <a href={APP_STORE} rel="noreferrer" target="_blank">App Store <ArrowUpRight /></a>
             <Link href="/#android-beta">Android beta</Link>

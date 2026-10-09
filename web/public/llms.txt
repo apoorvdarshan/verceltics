@@ -1,0 +1,33 @@
+# Verceltics
+
+> Verceltics is an independent, open-source native app for checking the infrastructure behind your websites: hosting platforms, domain registrars and site services, with 27 direct integrations. Available on iPhone and iPad (App Store) and in beta on Android (Google Play closed testing).
+
+## What it does
+
+- Hosting (10): Vercel, Cloudflare, Netlify, Railway, Render, DigitalOcean, Heroku, Fly.io, Firebase Hosting, AWS Amplify. Projects, deployments, logs, DNS and releases.
+- Domain registrars (8): Name.com, Namecheap, Porkbun, Spaceship, Dynadot, NameSilo, Gandi, GoDaddy. Expiry, auto renew, locks, nameservers and DNS.
+- Site services (9): Google Search Console, Google Analytics, PageSpeed and CrUX, Bing Webmaster, Microsoft Clarity, Plausible, Umami, UptimeRobot, Better Stack. Search, traffic, speed and uptime.
+- Sample data mode lets anyone try every screen without an account.
+
+## Privacy model
+
+- API tokens and OAuth tokens stay on the device (iOS Keychain on iPhone and iPad, Android Keystore on Android).
+- Requests go directly from the device to each provider's official API. Verceltics runs no backend or credential proxy.
+- Not affiliated with, endorsed by or sponsored by any supported provider.
+
+## Pricing
+
+- Connecting accounts, lists, search, refresh and account switching are free.
+- Verceltics Pro: $4.99 per month, $34.99 per year (7-day free trial for eligible new subscribers) or $59.99 once. Local prices are shown by the App Store or Google Play.
+
+## Links
+
+- Home: https://verceltics.com/
+- Android beta: https://verceltics.com/android
+- Vercel app for iPhone and iPad: https://verceltics.com/vercel-analytics-ios
+- Integrations: https://verceltics.com/integrations
+- Privacy policy: https://verceltics.com/privacy
+- App Store: https://apps.apple.com/us/app/verceltics/id6761645656
+- Android beta tester group: https://groups.google.com/g/verceltics-testers
+- Google Play test opt-in: https://play.google.com/apps/testing/com.apoorvdarshan.verceltics
+- Source code (MIT): https://github.com/apoorvdarshan/verceltics

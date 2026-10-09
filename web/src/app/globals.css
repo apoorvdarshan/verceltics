@@ -3274,3 +3274,14 @@ main[id] {
   .store-buttons { width: 100%; }
   .store-button { flex: 1 1 200px; }
 }
+
+/* Android landing page */
+.product-screen--android { aspect-ratio: 1080 / 1920; }
+.product-guide a.price-cta { text-decoration: none; }
+.product-guide#join { padding-top: clamp(60px, 8vw, 110px); }
+.product-guide .beta-console { margin-top: 34px; }
+.product-guide .price-console { margin-top: 34px; }
+.product-faq .product-guide-copy a { text-decoration: underline; text-underline-offset: 4px; }
+.product-hero-copy p a,
+.faq-manual p a { text-decoration: underline; text-underline-offset: 3px; font-weight: 600; }
+.android-more { margin-top: 26px; }

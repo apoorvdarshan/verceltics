@@ -14,22 +14,22 @@ const PAGE_URL = `${SITE_URL}/integrations`;
 const APP_STORE = "https://apps.apple.com/us/app/verceltics/id6761645656";
 
 export const metadata: Metadata = {
-  title: "27 Hosting, Domain & Analytics Integrations",
+  title: "27 Integrations for Hosting, Domains and Analytics",
   description:
-    "Explore 27 Verceltics integrations for hosting, domains, DNS, analytics, search, speed and uptime on iPhone and iPad.",
+    "Explore 27 Verceltics integrations for hosting, domains, DNS, analytics, search, speed and uptime on iPhone, iPad and Android.",
   alternates: { canonical: PAGE_URL },
   openGraph: {
     type: "website",
     siteName: "Verceltics",
-    title: "27 Hosting, Domain & Analytics Integrations — Verceltics",
-    description: "Connect 10 hosting platforms, 8 domain registrars and 9 site services in one private native iPhone and iPad workspace.",
+    title: "27 Hosting, Domain and Analytics Integrations | Verceltics",
+    description: "Connect 10 hosting platforms, 8 domain registrars and 9 site services in one private native app for iPhone, iPad and Android.",
     url: PAGE_URL,
     images: [{ url: "/og-verceltics.png", width: 1200, height: 630, alt: "Verceltics integrations on iPhone and iPad" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "27 Hosting, Domain & Analytics Integrations — Verceltics",
-    description: "Hosting, domains, DNS, analytics, search, speed and uptime on iPhone and iPad.",
+    title: "27 Hosting, Domain and Analytics Integrations | Verceltics",
+    description: "Hosting, domains, DNS, analytics, search, speed and uptime on iPhone, iPad and Android.",
     images: ["/og-verceltics.png"],
   },
 };
@@ -71,13 +71,14 @@ export default function IntegrationsPage() {
         <header className="discovery-hero">
           <div className="discovery-hero-copy">
             <p className="instrument-label"><span>INT</span> Connection directory</p>
-            <h1>Hosting, domain and analytics integrations for iPhone and iPad.</h1>
+            <h1>Hosting, domain and analytics integrations for iPhone, iPad and Android.</h1>
             <p>
               Verceltics supports 10 hosting platforms, 8 domain registrars and 9 site services. Each connection keeps its own credentials, API scope, dashboard and supported operations.
             </p>
             <div className="discovery-actions">
               <StoreButtons />
-              <Link className="text-control" href="/vercel-analytics-ios">Explore Vercel Analytics for iOS <span aria-hidden="true">→</span></Link>
+              <Link className="text-control" href="/vercel-analytics-ios">Vercel app for iPhone <span aria-hidden="true">→</span></Link>
+              <Link className="text-control" href="/android">Verceltics for Android <span aria-hidden="true">→</span></Link>
             </div>
           </div>
           <dl className="connection-totals">

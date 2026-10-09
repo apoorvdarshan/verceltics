@@ -10,28 +10,44 @@ const SITE_URL = "https://verceltics.com";
 const PAGE_URL = `${SITE_URL}/vercel-analytics-ios`;
 const APP_STORE = "https://apps.apple.com/us/app/verceltics/id6761645656";
 
+const TITLE = "Vercel iOS App for iPhone and iPad: Analytics and Deployments";
+const DESCRIPTION =
+  "An independent native Vercel app for iPhone and iPad: Web Analytics, projects and deployments. On the App Store, with an Android beta.";
+
 export const metadata: Metadata = {
-  title: "Vercel Analytics iOS App for iPhone & iPad",
-  description:
-    "View Vercel Web Analytics, visitors, page views and deployments on iPhone or iPad with Verceltics. Learn setup, token requirements and plan limits.",
+  title: TITLE,
+  description: DESCRIPTION,
   alternates: { canonical: PAGE_URL },
   openGraph: {
     type: "website",
     siteName: "Verceltics",
-    title: "Vercel Analytics iOS App for iPhone & iPad — Verceltics",
-    description: "Visitors, page views, traffic, projects and deployments in a native iOS workspace with direct Vercel API requests.",
+    title: `${TITLE} | Verceltics`,
+    description: "Visitors, page views, traffic, projects and deployments in a native iPhone and iPad app with direct Vercel API requests.",
     url: PAGE_URL,
     images: [{ url: "/og-verceltics.png", width: 1200, height: 630, alt: "Verceltics Vercel Analytics dashboard on iPhone and iPad" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Vercel Analytics iOS App for iPhone & iPad — Verceltics",
-    description: "A private, open-source native iOS workspace for Vercel Web Analytics, projects and deployments.",
+    title: `${TITLE} | Verceltics`,
+    description: "A private, open-source native iPhone and iPad app for Vercel Web Analytics, projects and deployments.",
     images: ["/og-verceltics.png"],
   },
 };
 
-const questions = [
+const questions: readonly { question: string; answer: string; link?: { href: string; label: string } }[] = [
+  {
+    question: "Is there a Vercel app for iPhone?",
+    answer: "Verceltics is an independent native app for iPhone and iPad that shows Vercel projects, deployments and Web Analytics. It is not made by Vercel. You connect your own Vercel access token and the app talks to Vercel's API directly.",
+  },
+  {
+    question: "Is there a Vercel app for Android?",
+    answer: "Yes, Verceltics for Android is in beta on Google Play with the same Vercel features and 26 other integrations.",
+    link: { href: "/android", label: "Join the Android beta" },
+  },
+  {
+    question: "How does Verceltics read Vercel Analytics?",
+    answer: "You create a Vercel access token and connect it in the app. Verceltics then requests your projects, deployments and Web Analytics straight from Vercel's API on your device. No Verceltics server is involved, and the token never leaves your device except in requests to Vercel.",
+  },
   {
     question: "Can I view Vercel Web Analytics on iPhone and iPad?",
     answer: "Yes. Verceltics displays supported Vercel Web Analytics reports alongside projects and deployments in its native iPhone and iPad interface.",
@@ -60,7 +76,7 @@ const questions = [
     question: "Can I use the Vercel dashboard in Safari on iPhone?",
     answer: "You can open Vercel’s web dashboard in Safari. Verceltics provides a separate native SwiftUI workspace with saved account switching, project context and supported analytics reports. It is an independent client, and some provider settings remain available only through Vercel’s own dashboard.",
   },
-] as const;
+];
 
 const pageJsonLd = {
   "@context": "https://schema.org",
@@ -70,18 +86,26 @@ const pageJsonLd = {
       itemListElement: [
         { "@type": "ListItem", position: 1, name: "Verceltics", item: `${SITE_URL}/` },
         { "@type": "ListItem", position: 2, name: "Integrations", item: `${SITE_URL}/integrations` },
-        { "@type": "ListItem", position: 3, name: "Vercel Analytics for iOS", item: PAGE_URL },
+        { "@type": "ListItem", position: 3, name: "Vercel app for iPhone and iPad", item: PAGE_URL },
       ],
     },
     {
       "@type": "WebPage",
       "@id": `${PAGE_URL}#webpage`,
       url: PAGE_URL,
-      name: "Vercel Analytics iOS App for iPhone & iPad",
-      description: "Setup, supported reports, API resources and connection limits for viewing Vercel Analytics with Verceltics.",
+      name: TITLE,
+      description: DESCRIPTION,
       isPartOf: { "@id": `${SITE_URL}/#website` },
       about: { "@id": `${SITE_URL}/#app` },
-      dateModified: "2026-10-03",
+      dateModified: "2026-10-10",
+    },
+    {
+      "@type": "FAQPage",
+      mainEntity: questions.map((entry) => ({
+        "@type": "Question",
+        name: entry.question,
+        acceptedAnswer: { "@type": "Answer", text: entry.link ? `${entry.answer} ${entry.link.label}: ${SITE_URL}${entry.link.href}` : entry.answer },
+      })),
     },
   ],
 };
@@ -96,16 +120,17 @@ export default function VercelAnalyticsIOSPage() {
         <nav aria-label="Breadcrumb" className="product-breadcrumbs">
           <Link href="/">Verceltics</Link><span aria-hidden="true">/</span>
           <Link href="/integrations">Integrations</Link><span aria-hidden="true">/</span>
-          <span aria-current="page">Vercel Analytics for iOS</span>
+          <span aria-current="page">Vercel app for iPhone and iPad</span>
         </nav>
         <header className="product-hero">
           <div className="product-hero-copy">
-            <p className="instrument-label"><span>VCL</span> Native iOS workspace</p>
-            <h1>Vercel Analytics, in a native iOS app.</h1>
-            <p>View visitors, page views, traffic breakdowns and deployments on iPhone and iPad with Verceltics. Connect your Vercel account and keep project context close while checking your website.</p>
+            <p className="instrument-label"><span>VCL</span> Native Vercel app for iOS</p>
+            <h1>A native Vercel app for iPhone and iPad.</h1>
+            <p>Check Vercel Web Analytics, projects and deployments on iPhone and iPad with Verceltics: visitors, page views, traffic breakdowns and deployment status, with project context close while you check your website. Also <Link href="/android">in beta on Android</Link>.</p>
             <div className="discovery-actions">
               <a className="primary-control" href={APP_STORE} rel="noreferrer" target="_blank">Download on the App Store <ArrowUpRight /></a>
               <Link className="text-control" href="/integrations#vercel">See the Vercel integration <span aria-hidden="true">→</span></Link>
+              <Link className="text-control" href="/android">Vercel on Android (beta) <span aria-hidden="true">→</span></Link>
             </div>
             <p className="independence-note">Independent and open source. Not affiliated with or endorsed by Vercel.</p>
           </div>
@@ -167,7 +192,7 @@ export default function VercelAnalyticsIOSPage() {
             {questions.map((entry, index) => (
               <details key={entry.question}>
                 <summary><span>{String(index + 1).padStart(2, "0")}</span><strong>{entry.question}</strong><i aria-hidden="true">+</i></summary>
-                <p>{entry.answer}</p>
+                <p>{entry.answer}{entry.link ? <> <Link href={entry.link.href}>{entry.link.label}</Link></> : null}</p>
               </details>
             ))}
           </div>

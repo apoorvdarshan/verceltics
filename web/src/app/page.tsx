@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import Link from "next/link";
 
 import { ArrowUpRight } from "@/components/arrow-up-right";
 import { InstrumentHero } from "@/components/instrument-hero";
@@ -22,8 +23,8 @@ const PUBLIC_PROFILES = [
 ] as const;
 
 export const metadata: Metadata = {
-  title: { absolute: "Verceltics — Hosting, Domains & Web Analytics for iPhone" },
-  description: "Manage Vercel projects, Cloudflare DNS, domains and website analytics on iPhone and iPad. 27 integrations, local credentials and open-source SwiftUI.",
+  title: { absolute: "Verceltics: Vercel and Cloudflare App for iPhone and Android" },
+  description: "Manage Vercel, Cloudflare, domains, DNS and website analytics on iPhone, iPad and Android (beta). 27 integrations, tokens on your device, open source.",
   alternates: { canonical: `${SITE_URL}/` },
 };
 
@@ -42,7 +43,7 @@ const plans = [
   { code: "∞", name: "Lifetime", price: "$59.99", detail: "one-time purchase" },
 ] as const;
 
-const faqs = [
+const faqs: readonly { question: string; answer: string; link?: { href: string; label: string } }[] = [
   {
     question: "What is Verceltics?",
     answer: "Verceltics is an independent native workspace for hosting platforms, domain registrars, and site-intelligence services on iPhone and iPad, with a native Android app in beta on Google Play.",
@@ -82,8 +83,9 @@ const faqs = [
   {
     question: "Is there an Android app?",
     answer: `Yes, in beta. Verceltics for Android has all 27 integrations and the same Pro plans. Join the Verceltics Testers Google Group, then become a tester on Google Play and install the app. Testers can redeem ${ANDROID_BETA_CODE} in Google Play for 30 days of Pro on the monthly plan.`,
+    link: { href: "/android", label: "Verceltics for Android" },
   },
-] as const;
+];
 
 const ipadScreens = [
   {
@@ -117,12 +119,12 @@ const applicationJsonLd = {
   "@type": "SoftwareApplication",
   "@id": `${SITE_URL}/#app`,
   name: "Verceltics",
-  alternateName: "Verceltics — Hosting & Domains",
-  operatingSystem: "iOS 18.0 or later; iPadOS 18.0 or later",
+  alternateName: "Verceltics: Hosting & Domains",
+  operatingSystem: "iOS 18.0 or later; iPadOS 18.0 or later; Android 9 or later (beta)",
   applicationCategory: "DeveloperApplication",
   applicationSubCategory: "Infrastructure monitoring and management",
   softwareVersion: IOS_APP_STORE_VERSION,
-  description: "Verceltics is a private native iPhone and iPad app for hosting, domains, analytics, search performance, speed, and uptime.",
+  description: "Verceltics is a private native app for iPhone, iPad and Android (beta) for hosting, domains, analytics, search performance, speed, and uptime.",
   url: `${SITE_URL}/`,
   downloadUrl: APP_STORE,
   image: `${SITE_URL}/og-verceltics.png`,
@@ -145,14 +147,25 @@ const applicationJsonLd = {
     `${SITE_URL}/screens/ipad/registrars.webp`,
     `${SITE_URL}/screens/ipad/sites.webp`,
   ],
-  sameAs: [APP_STORE, ...PUBLIC_PROFILES],
+  sameAs: [APP_STORE, `${SITE_URL}/android`, ...PUBLIC_PROFILES],
   offers: plans.map((plan) => ({ "@type": "Offer", price: plan.price.replace("$", ""), priceCurrency: "USD", description: `${plan.name} access` })),
+};
+
+const faqJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: faqs.map((faq) => ({
+    "@type": "Question",
+    name: faq.question,
+    acceptedAnswer: { "@type": "Answer", text: faq.link ? `${faq.answer} ${faq.link.label}: ${SITE_URL}${faq.link.href}` : faq.answer },
+  })),
 };
 
 export default function Home() {
   return (
     <div className="site-shell">
       <script dangerouslySetInnerHTML={{ __html: JSON.stringify(applicationJsonLd) }} type="application/ld+json" />
+      <script dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} type="application/ld+json" />
       <SiteHeader />
 
       <main id="main-content">
@@ -192,6 +205,7 @@ export default function Home() {
                 <a className="price-cta price-cta--light" href={ANDROID_BETA_OPT_IN} rel="noreferrer" target="_blank">Open the Google Play test <ArrowUpRight /></a>
               </div>
             </div>
+            <p className="android-more"><Link className="text-control" href="/android">More about Verceltics for Android <span aria-hidden="true">→</span></Link></p>
         </section>
 
         <section className="patchbay-section" id="patchbay">
@@ -342,7 +356,7 @@ export default function Home() {
             {faqs.map((faq, index) => (
               <details key={faq.question}>
                 <summary><span>{String(index + 1).padStart(2, "0")}</span><strong>{faq.question}</strong><i aria-hidden="true">+</i></summary>
-                <p>{faq.answer}</p>
+                <p>{faq.answer}{faq.link ? <> <Link href={faq.link.href}>{faq.link.label}</Link></> : null}</p>
               </details>
             ))}
           </div>
