@@ -89,7 +89,8 @@ class CloudflarePagesScreensTest {
     fun deletingTheProjectFromOperationsRequiresConfirmation() {
         val model = CloudflarePagesOperationsViewModel(CloudflarePagesApi(client), "acc", "site")
         compose.setContent { VercelticsTheme { CloudflarePagesOperationsScreen(model, onChooseFolder = {}) } }
-        compose.waitUntil(5_000) { compose.onAllNodesWithTag("cloudflare.pages.maintenance").fetchSemanticsNodes().isNotEmpty() }
+        // The project controls are the last lazy item, so they are only composed once scrolled to.
+        compose.waitUntil(5_000) { model.state.value.project != null }
         compose.onNodeWithTag("cloudflare.pages.operations").performScrollToNode(hasTestTag("cloudflare.pages.deleteProject"))
         compose.onNodeWithTag("cloudflare.pages.deleteProject").performClick()
         compose.onNodeWithText("Delete this Pages project?").assertIsDisplayed()

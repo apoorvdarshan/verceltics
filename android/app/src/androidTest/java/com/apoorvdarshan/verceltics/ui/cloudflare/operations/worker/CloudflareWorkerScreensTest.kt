@@ -137,7 +137,7 @@ class CloudflareWorkerScreensTest {
         compose.onNodeWithText("SAVE SECRET").performClick()
         compose.waitUntil(5_000) { transport.mutations().isNotEmpty() }
         assertEquals(listOf("PUT $script/secrets"), transport.mutations())
-        assertTrue(transport.lastBody()!!.contains("\"text\":\"hunter2\""))
+        assertTrue(transport.lastMutationBody()!!.contains("\"text\":\"hunter2\""))
     }
 
     private fun envelope(result: String) = "{\"success\":true,\"errors\":[],\"messages\":[],\"result\":$result}"
@@ -152,7 +152,9 @@ class CloudflareWorkerScreensTest {
 
         fun mutations(): List<String> = requests.filter { it.method.isMutation }.map { "${it.method} ${it.apiPath}" }
 
-        fun lastBody(): String? = requests.lastOrNull()?.bodyText()
+        // Saving a secret reloads the secret list right after the PUT, so the newest request is a
+        // body-less GET; read the body of the mutation itself.
+        fun lastMutationBody(): String? = requests.lastOrNull { it.method.isMutation }?.bodyText()
 
         override fun newCall(request: CloudflareRestRequest, credential: CloudflareCredential): CancelableCall<CloudflareRestResponse> =
             object : CancelableCall<CloudflareRestResponse> {

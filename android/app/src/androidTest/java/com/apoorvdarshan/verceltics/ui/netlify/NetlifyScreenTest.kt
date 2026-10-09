@@ -18,6 +18,7 @@ import org.junit.Assert.assertTrue
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -112,9 +113,12 @@ class NetlifyScreenTest {
             ),
         )
         composeRule.onNodeWithTag("netlify.dashboard").performScrollToNode(hasTestTag("netlify.site.${SITE.id}"))
-        composeRule.onNodeWithTag("netlify.site.${SITE.id}.status", useUnmergedTree = true)
-            .assertIsDisplayed()
-            .assertTextContains("CURRENT")
+        composeRule.onNodeWithTag("netlify.site.${SITE.id}.status", useUnmergedTree = true).assertIsDisplayed()
+        // The pill's label is a child Text of the tagged badge (the row merges both for accessibility).
+        composeRule.onNode(
+            hasText("CURRENT") and hasAnyAncestor(hasTestTag("netlify.site.${SITE.id}.status")),
+            useUnmergedTree = true,
+        ).assertIsDisplayed()
     }
 
     @Test
@@ -150,7 +154,10 @@ class NetlifyScreenTest {
         // The toolbar and the header both carry the site name (iOS navigationTitle + header).
         assertTrue(composeRule.onAllNodesWithText("Example").fetchSemanticsNodes().size >= 2)
         composeRule.onNodeWithTag("netlify.siteTitle").assertTextContains("Example")
-        composeRule.onNodeWithTag("netlify.siteStatus", useUnmergedTree = true).assertTextContains("CURRENT")
+        composeRule.onNode(
+            hasText("CURRENT") and hasAnyAncestor(hasTestTag("netlify.siteStatus")),
+            useUnmergedTree = true,
+        ).assertIsDisplayed()
         composeRule.onNodeWithTag("netlify.openSite").performClick()
         composeRule.onNodeWithTag("netlify.openSiteDashboard").performClick()
         composeRule.onNodeWithTag("netlify.redeploy").assertTextContains("REDEPLOY").performClick()
@@ -380,7 +387,9 @@ class NetlifyScreenTest {
         }
 
         composeRule.onNodeWithTag("netlify.disconnectDialog").assertIsDisplayed()
-        composeRule.onNodeWithText("Disconnect Netlify?").assertIsDisplayed()
+        // Like iOS, the confirmation names the saved account it removes from this device.
+        composeRule.onNodeWithText("Remove Example Account?").assertIsDisplayed()
+        composeRule.onNodeWithText("REMOVE ACCOUNT").assertIsDisplayed()
     }
 
     @Test

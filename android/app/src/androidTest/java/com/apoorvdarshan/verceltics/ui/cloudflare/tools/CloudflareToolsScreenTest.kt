@@ -148,7 +148,9 @@ class CloudflareToolsScreenTest {
         compose.runOnIdle {
             assertEquals(CloudflareMutationConfirmation("/accounts"), gateway.executions.single().second)
         }
-        compose.onNodeWithTag("cloudflare.explorer.status").performScrollTo().assertIsDisplayed()
+        // The status row merges into one polite live region, so the status text keeps its own tag
+        // only in the unmerged tree.
+        compose.onNodeWithTag("cloudflare.explorer.status", useUnmergedTree = true).performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("HTTP 200").assertIsDisplayed()
         compose.onNodeWithTag("cloudflare.explorer.copy").performClick()
         compose.onNodeWithText("Copied").assertIsDisplayed()
@@ -199,7 +201,8 @@ class CloudflareToolsScreenTest {
         )
         compose.setContent { VercelticsTheme { CloudflareToolsHost(viewModel, context) } }
 
-        compose.onNodeWithText("Global").assertIsDisplayed()
+        // iOS labels the credential pill "GLOBAL" / "SCOPED".
+        compose.onNodeWithText("GLOBAL").assertIsDisplayed()
         compose.onNodeWithTag("cloudflare.productCenter")
             .performScrollToNode(hasTestTag("cloudflare.productCenter.operation.account-tokens"))
         compose.onNodeWithTag("cloudflare.productCenter.operation.account-tokens").assertIsNotEnabled()

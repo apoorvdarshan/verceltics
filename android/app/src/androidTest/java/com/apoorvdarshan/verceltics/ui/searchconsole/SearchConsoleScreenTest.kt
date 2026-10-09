@@ -281,9 +281,12 @@ class SearchConsoleScreenTest {
 
         composeRule.onNodeWithTag("searchConsole.overview.totals").assertIsDisplayed()
         composeRule.onNodeWithText("LAST 28 DAYS").assertIsDisplayed()
-        composeRule.onNodeWithTag("searchConsole.dashboard")
+        // The property row is one clickable (merged) node, so its 28-day summary block keeps its own
+        // tag only in the unmerged tree.
+        composeRule.onNodeWithTag("searchConsole.dashboard", useUnmergedTree = true)
             .performScrollToNode(hasTestTag("searchConsole.property.summary.${property.siteUrl}"))
-        composeRule.onNodeWithTag("searchConsole.property.summary.${property.siteUrl}").assertIsDisplayed()
+        composeRule.onNodeWithTag("searchConsole.property.summary.${property.siteUrl}", useUnmergedTree = true)
+            .assertIsDisplayed()
         composeRule.onNodeWithText("Indexed").assertExists()
         composeRule.onAllNodesWithText("1.2K").assertCountEquals(2)
     }

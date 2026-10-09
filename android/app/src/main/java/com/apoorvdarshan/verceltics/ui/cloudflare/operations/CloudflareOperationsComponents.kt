@@ -28,6 +28,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.CheckCircle
@@ -786,9 +787,13 @@ fun CloudflareOpsEditorSheet(
                 Icon(Icons.Rounded.Close, contentDescription = "Close")
             }
         }
+        // The title row stays pinned; the form scrolls so long editors (presets plus a multi-line
+        // JSON field, for example) keep their submit button reachable on short screens and with
+        // large font scales, like iOS sheets.
         Column(
             Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 18.dp)
                 .padding(bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),

@@ -95,14 +95,17 @@ class ProviderApiWorkspaceScreenTest {
         composeRule.onNodeWithTag("providerApi.totalCount").assertTextContains("4")
 
         val list = composeRule.onNodeWithTag("providerApi.catalog")
-        list.performScrollToNode(hasTestTag("providerApi.operationCount"))
-        composeRule.onNodeWithTag("providerApi.operationCount").assertTextContains("4")
+        // The "Operations" heading merges its count for accessibility, so the count's own tag only
+        // exists in the unmerged tree.
+        val unmergedList = composeRule.onNodeWithTag("providerApi.catalog", useUnmergedTree = true)
+        unmergedList.performScrollToNode(hasTestTag("providerApi.operationCount"))
+        composeRule.onNodeWithTag("providerApi.operationCount", useUnmergedTree = true).assertTextContains("4")
 
         list.performScrollToNode(hasTestTag("providerApi.access.WRITE"))
         composeRule.onNodeWithTag("providerApi.access.WRITE").performClick()
         composeRule.onNodeWithTag("providerApi.access.WRITE").assertIsSelected()
-        list.performScrollToNode(hasTestTag("providerApi.operationCount"))
-        composeRule.onNodeWithTag("providerApi.operationCount").assertTextContains("2")
+        unmergedList.performScrollToNode(hasTestTag("providerApi.operationCount"))
+        composeRule.onNodeWithTag("providerApi.operationCount", useUnmergedTree = true).assertTextContains("2")
 
         list.performScrollToNode(hasTestTag("providerApi.tag.Blueprints"))
         composeRule.onNodeWithTag("providerApi.tag.Blueprints").performScrollTo().performClick()

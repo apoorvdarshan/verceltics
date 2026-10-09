@@ -10,7 +10,6 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsFocused
-import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.click
@@ -234,7 +233,11 @@ class VercelticsNavigationTest {
     fun cloudflareConnectMutationSurvivesRecreationWithoutSavingTokenInUi() {
         configureCloudflareGateway(DebugCloudflareScenario.DISCONNECTED, blockConnect = true)
         openCloudflareDetail()
+        // Like iOS, the form opens on the Global API Key mode; switch to the scoped token field.
+        compose.onNodeWithTag("cloudflare.authMode.apiToken").performClick()
+        compose.onNodeWithTag("cloudflare.connectionForm").performScrollToNode(hasTestTag("cloudflare.token"))
         compose.onNodeWithTag("cloudflare.token").performTextInput("temporary-cloudflare-token")
+        compose.onNodeWithTag("cloudflare.connectionForm").performScrollToNode(hasTestTag("cloudflare.connect"))
         compose.onNodeWithTag("cloudflare.connect").performClick()
         compose.waitUntil(timeoutMillis = TIMEOUT_MILLIS) {
             DebugCloudflareGatewayController.isConnectStarted()
@@ -398,7 +401,7 @@ class VercelticsNavigationTest {
     }
 
     @Test
-    fun sitesCatalogDistinguishesConnectedAndPlannedProviders() {
+    fun sitesCatalogDistinguishesConnectedAndConnectableProviders() {
         configureSearchConsoleGateway(DebugSearchConsoleScenario.CONNECTED)
         compose.onNodeWithTag("mainNavigation.sites").performClick()
 
@@ -422,14 +425,19 @@ class VercelticsNavigationTest {
             "provider.googleSearchConsole.connected",
             useUnmergedTree = true,
         ).assertIsDisplayed()
+        // Every catalog provider is connectable now; a provider without a saved connection offers
+        // to connect instead of carrying the connected state or badge.
         compose.onNodeWithTag("provider.googleAnalytics")
-            .assertIsNotEnabled()
+            .assertIsEnabled()
+            .assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.StateDescription))
             .assert(
                 SemanticsMatcher.expectValue(
                     SemanticsProperties.ContentDescription,
-                    listOf("Google Analytics. Planned integration"),
+                    listOf("Open Google Analytics connection"),
                 ),
             )
+        compose.onNodeWithText("Connect Google Analytics").assertIsDisplayed()
+        compose.onAllNodesWithTag("provider.googleAnalytics.connected", useUnmergedTree = true).assertCountEquals(0)
 
         compose.onNodeWithTag("provider.googleSearchConsole").performClick()
         waitForTag("searchConsole.propertySearch")

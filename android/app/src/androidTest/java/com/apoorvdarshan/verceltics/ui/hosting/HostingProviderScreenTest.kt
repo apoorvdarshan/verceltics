@@ -223,7 +223,9 @@ class HostingProviderScreenTest {
     fun disconnectConfirmationUsesTheThemedDialog() {
         setScreen("render", connected("render").copy(showDisconnectConfirmation = true))
         composeRule.onNodeWithTag("hosting.render.disconnectDialog").assertIsDisplayed()
-        composeRule.onNodeWithText("Disconnect Render?").assertIsDisplayed()
+        // Like iOS, the confirmation names the saved account it removes from this device.
+        composeRule.onNodeWithText("Remove render account?").assertIsDisplayed()
+        composeRule.onNodeWithText("REMOVE ACCOUNT").assertIsDisplayed()
     }
 
     @Test
