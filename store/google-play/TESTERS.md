@@ -14,8 +14,8 @@ Set up in Play Console on October 9, 2026.
 ## How testers join
 
 1. Join the [Verceltics Testers](https://groups.google.com/g/verceltics-testers) Google Group.
-   Anyone can find and join it. Check **Group settings → Who can view members**: set it to
-   Group managers so testers cannot see each other's email addresses.
+   Anyone can find and join it. **Who can view members** is set to Group managers
+   (October 10, 2026), so testers cannot see each other's email addresses.
 2. After Google approves the closed test, opt in at
    https://play.google.com/apps/testing/com.apoorvdarshan.verceltics
    (or on Android through the Play Store listing) and install Verceltics.
