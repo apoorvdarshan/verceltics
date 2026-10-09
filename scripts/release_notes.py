@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Print a reviewed release-note section for an exact iOS tag."""
+"""Print a reviewed release-note section for an exact iOS or Android tag."""
 import argparse
 from pathlib import Path
 import re
@@ -8,8 +8,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def notes_for_tag(tag: str) -> str:
-    if not re.fullmatch(r"ios-v\d+\.\d+(?:\.\d+)?", tag):
-        raise ValueError("expected an iOS tag such as ios-v3.0 or ios-v3.0.1")
+    if not re.fullmatch(r"(?:ios|android)-v\d+\.\d+(?:\.\d+)?", tag):
+        raise ValueError("expected a tag such as ios-v3.0, ios-v3.0.1, or android-v1.0")
     text = (ROOT / "RELEASE_NOTES.md").read_text(encoding="utf-8")
     matches = []
     for section in re.split(r"^## ", text, flags=re.MULTILINE)[1:]:

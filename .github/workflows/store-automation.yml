@@ -1,4 +1,4 @@
-name: Validate iOS store setup
+name: Validate store setup
 
 # Local metadata checks only. No app build, credentials, or store API calls.
 on:
@@ -22,6 +22,7 @@ jobs:
           python3 scripts/store/validate_ios_release.py
           python3 scripts/store/prepare_ios_metadata.py --out "$RUNNER_TEMP/store-meta"
           UPLOAD_LISTING=true python3 scripts/store/asc_release.py --dry-run --metadata-dir "$RUNNER_TEMP/store-meta"
+          python3 scripts/store/validate_android_release.py
       - name: Show configured switches
         env:
           STORE_IOS_RELEASE_ENABLED: ${{ vars.STORE_IOS_RELEASE_ENABLED }}
@@ -29,3 +30,9 @@ jobs:
           STORE_UPLOAD_SCREENSHOTS: ${{ vars.STORE_UPLOAD_SCREENSHOTS }}
           STORE_SUBMIT_IOS_REVIEW: ${{ vars.STORE_SUBMIT_IOS_REVIEW }}
         run: python3 scripts/store/print_gates.py
+      - name: Show configured Android switches
+        env:
+          STORE_ANDROID_RELEASE_ENABLED: ${{ vars.STORE_ANDROID_RELEASE_ENABLED }}
+          STORE_PLAY_TRACK: ${{ vars.STORE_PLAY_TRACK }}
+          STORE_UPLOAD_WHATS_NEW: ${{ vars.STORE_UPLOAD_WHATS_NEW }}
+        run: python3 scripts/store/print_android_gates.py

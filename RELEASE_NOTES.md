@@ -1,7 +1,8 @@
-# Reviewed iOS release notes
+# Reviewed release notes
 
-Release sections match the iOS project's `MARKETING_VERSION`. The same notes
-become the GitHub release body and App Store What's New text.
+`ios-v` sections match the iOS project's `MARKETING_VERSION`, and `android-v` sections
+match the Android `versionName`. The same notes become the GitHub release body and the
+App Store or Google Play What's New text.
 
 ## ios-v2.1
 

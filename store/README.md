@@ -29,7 +29,7 @@ publication after approval separately from the GitHub switches.
 | Xcode Cloud workflow enabled | `false` | Independently allows Xcode Cloud to archive and upload tagged iOS builds. GitHub variables cannot turn it on or off. |
 
 Unset GitHub variables also mean off. The master variable must be exactly `true`.
-No Android release pipeline, Play upload, or RevenueCat catalog sync is included.
+The Android pipeline has its own switches, described below. RevenueCat catalog sync is not included.
 
 ## Local validation without a build
 
@@ -41,7 +41,7 @@ python3 scripts/store/print_gates.py
 ```
 
 These commands do not build, call ASC, grant entitlements, or publish a release.
-The optional `Validate iOS store setup` Actions workflow performs the same local
+The optional `Validate store setup` Actions workflow performs the same local
 checks without credentials. It is manual only and is not started by this setup.
 
 ## Future release procedure
@@ -110,3 +110,46 @@ see [Apple's encryption guidance](https://developer.apple.com/documentation/secu
 Screenshot replacement can leave a mixed set if an upload fails; inspect ASC
 before rerunning. App name, subtitle, privacy details, reviewer notes, pricing,
 and other submission requirements remain managed in App Store Connect.
+
+## Android release setup
+
+`.github/workflows/android-release.yml` is the Play sibling of the iOS workflow, adapted
+from Fud AI. It runs only for `android-v*` tags, such as `android-v1.0`, so iOS and
+Android tags never start each other's pipelines.
+
+| Setting | Initial value | Effect when enabled |
+| --- | --- | --- |
+| `STORE_ANDROID_RELEASE_ENABLED` | `false` | Required for anything to run. Tests and builds the signed AAB and APK, signs them with Sigstore, attests provenance, and creates a GitHub prerelease. |
+| `STORE_PLAY_TRACK` | `none` | `internal` uploads the AAB to Play internal testing, `closed` to closed testing (Play's `alpha` track). `production` is rejected until Google allows a production release (12 testers for 14 days in closed testing). |
+| `STORE_UPLOAD_WHATS_NEW` | `false` | Sends the tag's reviewed notes as Play What's New with the testing upload (500 characters at most). |
+
+Unset GitHub variables also mean off, and the master variable must be exactly `true`.
+Play listing text and screenshots are edited in Play Console; this workflow does not upload them.
+
+Repository secrets (Settings → Secrets and variables → Actions):
+
+| Secret | Contents |
+| --- | --- |
+| `VERCELTICS_UPLOAD_KEYSTORE_BASE64` | `base64` of the upload keystore (alias `upload`) |
+| `VERCELTICS_UPLOAD_KEYSTORE_PASSWORD` | the keystore password, which is also the key password |
+| `PLAY_SERVICE_ACCOUNT_JSON` | the Google Play publisher service account key (`google-play-publisher.json`) |
+
+### Local validation without a build
+
+```bash
+python3 scripts/store/validate_android_release.py
+STORE_ANDROID_RELEASE_ENABLED=true STORE_PLAY_TRACK=internal python3 scripts/store/print_android_gates.py
+```
+
+These commands do not build, sign, or contact Google Play.
+
+### Future Android release procedure
+
+1. Bump `versionCode` in `android/app/build.gradle.kts` for every uploaded build; Play
+   rejects a versionCode it has already seen. The tag must match `versionName`.
+2. Add reviewed `## android-vX.Y` notes to `RELEASE_NOTES.md`. Tag validation rejects
+   absent or empty notes.
+3. Set `STORE_ANDROID_RELEASE_ENABLED` to `true` and `STORE_PLAY_TRACK` to the testing
+   track you want, then push the `android-vX.Y` tag.
+4. A tag can be used once. For another build of the same version, delete the GitHub
+   release and tag or choose the next patch version.
