@@ -48,9 +48,9 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
@@ -90,7 +90,7 @@ fun VercelAnalyticsChart(
     val activeMetric = if (metric in metrics) metric else metrics.first()
     val series = remember(points, activeMetric) { VercelChartModel.series(points, activeMetric) }
     var selectedIndex by remember(series) { mutableStateOf<Int?>(null) }
-    val locale = LocalConfiguration.current.locales[0] ?: Locale.getDefault()
+    val locale = LocalLocale.current.platformLocale
     val formats = remember(locale) { ChartDateFormats(locale) }
     val intraday = remember(series) { VercelChartModel.isIntraday(series) }
     val color = metricColor(activeMetric)

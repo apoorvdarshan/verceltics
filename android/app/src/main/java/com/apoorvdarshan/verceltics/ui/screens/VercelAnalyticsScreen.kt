@@ -85,6 +85,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.Role
@@ -400,6 +401,7 @@ private fun AnalyticsHeader(
     onOpenUrl: (String) -> Unit,
 ) {
     val haptic = LocalHapticFeedback.current
+    val locale = LocalLocale.current.platformLocale
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
             VercelProjectIcon(domain = project.primaryDomain, name = project.name)
@@ -464,7 +466,7 @@ private fun AnalyticsHeader(
                     modifier = Modifier.size(14.dp),
                 )
                 Text(
-                    "Updated ${vercelRelativeTime(updatedAt).replaceFirstChar { it.lowercase(Locale.getDefault()) }}",
+                    "Updated ${vercelRelativeTime(updatedAt).replaceFirstChar { it.lowercase(locale) }}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

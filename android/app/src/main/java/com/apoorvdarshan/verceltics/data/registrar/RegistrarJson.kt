@@ -48,7 +48,7 @@ internal object RegistrarJson {
         private var index = 0
 
         fun parseDocument(): Any? {
-            if (text.startsWith('﻿')) index = 1
+            if (text.startsWith('\uFEFF')) index = 1
             skipWhitespace()
             if (index >= text.length) fail("The response was empty.")
             val value = parseValue(depth = 0)

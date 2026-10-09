@@ -185,7 +185,7 @@ object ProviderJsonParser {
         val atEnd: Boolean get() = index >= text.length
 
         fun skipByteOrderMark() {
-            if (text.startsWith('﻿')) index = 1
+            if (text.startsWith('\uFEFF')) index = 1
         }
 
         fun skipWhitespace() {

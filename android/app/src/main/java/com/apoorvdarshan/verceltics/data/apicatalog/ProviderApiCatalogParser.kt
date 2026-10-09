@@ -153,7 +153,7 @@ object ProviderApiCatalogParser {
             private set
 
         fun skipByteOrderMark() {
-            if (text.startsWith("﻿")) index = 1
+            if (text.startsWith("\uFEFF")) index = 1
         }
 
         fun peek(): Char = if (index < text.length) text[index] else '\u0000'

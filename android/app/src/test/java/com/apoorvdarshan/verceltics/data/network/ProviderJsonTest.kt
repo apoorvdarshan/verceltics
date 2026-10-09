@@ -90,7 +90,7 @@ class ProviderJsonTest {
 
     @Test
     fun byteOrderMarkAndWhitespaceAreAccepted() {
-        assertEquals(3.0, ProviderJsonParser.parse("﻿ \n {\"a\": 3}\t ")["a"]?.numberValue)
+        assertEquals(3.0, ProviderJsonParser.parse("\uFEFF \n {\"a\": 3}\t ")["a"]?.numberValue)
     }
 
     @Test
