@@ -179,7 +179,7 @@ test("fuzz: query strings share only normalized theme cache keys for GET and HEA
         }, { waitUntil: (promise) => pending.push(promise) });
         await Promise.all(pending);
         const expectedTheme = themes[0] === "dark" ? "dark" : "light";
-        const expectedKey = `https://verceltics.app/api/star-history.svg?theme=${expectedTheme}&v=3`;
+        const expectedKey = `https://verceltics.app/api/star-history.svg?theme=${expectedTheme}&v=6`;
         assert.equal(scenario.matches.length, 1);
         assert.equal(scenario.matches[0].url, expectedKey);
         assert.equal(scenario.matches[0].method, "GET");
@@ -197,7 +197,7 @@ test("fuzz: query strings share only normalized theme cache keys for GET and HEA
           assert.equal(scenario.writes[0].key.method, "GET");
           const cachedSvg = await scenario.writes[0].response.text();
           assertSafeSvg(cachedSvg);
-          assert.ok(cachedSvg.includes(expectedTheme === "dark" ? 'fill="#090A0E"' : 'fill="#FBFCFE"'));
+          assert.ok(cachedSvg.includes(expectedTheme === "dark" ? 'fill="#0D1117"' : 'fill="#FFFFFF"'));
           assert.equal(response.headers.get("X-Content-Type-Options"), "nosniff");
           assert.equal(response.headers.get("Content-Security-Policy"), "default-src 'none'; style-src 'unsafe-inline'");
         }

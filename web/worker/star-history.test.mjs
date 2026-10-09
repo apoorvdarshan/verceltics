@@ -11,7 +11,8 @@ import {
 test("niceMaximum creates readable chart ceilings", () => {
   assert.equal(niceMaximum(0), 5);
   assert.equal(niceMaximum(5), 5);
-  assert.equal(niceMaximum(6), 10);
+  assert.equal(niceMaximum(6), 6);
+  assert.equal(niceMaximum(7), 8);
   assert.equal(niceMaximum(22), 25);
   assert.equal(niceMaximum(101), 125);
 });
@@ -26,10 +27,14 @@ test("renderStarHistorySvg creates matching light and dark charts", () => {
   const dark = renderStarHistorySvg(stars, "dark");
 
   assert.match(light, /3 GitHub stars over time/);
-  assert.match(light, /fill="#FBFCFE"/);
-  assert.match(dark, /fill="#090A0E"/);
+  assert.match(light, /rx="16" fill="#FFFFFF"/);
+  assert.match(dark, /rx="16" fill="#0D1117"/);
   assert.match(dark, /linearGradient id="line-gradient"/);
-  assert.match(dark, / C[\d.]+ [\d.]+/);
+  // The cumulative data line steps through each star with straight segments.
+  assert.match(
+    dark,
+    /<path d="M[\d.]+ [\d.]+(?: L[\d.]+ [\d.]+)+" fill="none" stroke="url\(#line-gradient\)"/,
+  );
 });
 
 test("monotoneCurvePath renders a smooth cubic curve without sharp steps", () => {
