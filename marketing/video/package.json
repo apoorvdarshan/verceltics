@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "studio": "remotion studio src/index.tsx",
-    "render:landscape": "remotion render src/index.tsx VercelticsLandscape Verceltics-Landscape.mp4 --codec h264 --crf 18 --concurrency 4"
+    "render:landscape": "remotion render src/index.tsx VercelticsLandscape Verceltics-Landscape.mp4 --codec h264 --crf 18 --concurrency 4",
+    "render:android": "remotion render src/index.tsx VercelticsAndroid Verceltics-Android-Beta.mp4 --codec h264 --crf 18 --concurrency 4"
   },
   "dependencies": {
     "@remotion/cli": "4.0.532",

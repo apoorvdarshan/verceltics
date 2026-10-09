@@ -1,7 +1,7 @@
 # Verceltics landscape promo
 
 A 36-second, 1920 × 1080, 30 fps launch film for Product Hunt, X, and YouTube.
-One landscape composition: `VercelticsLandscape`.
+Two landscape compositions: `VercelticsLandscape` (iOS launch) and `VercelticsAndroid` (Android beta call for testers).
 
 [Download the MP4](Verceltics-Landscape.mp4)
 
@@ -100,3 +100,25 @@ Dependencies: Xcode Simulator, Python 3, FFmpeg.
 
 This marketing project does not change the shipping iOS or Android apps and
 has no store release or publishing action.
+
+## Android beta film
+
+A 31-second, 1920 × 1080, 30 fps call for Android testers: `VercelticsAndroid`
+([download](Verceltics-Android-Beta.mp4)). It reuses the launch film's style and
+soundtrack with actual Android footage recorded over USB on a Lava phone in
+sample-data mode (fictional accounts), labeled “Actual Android footage · Demo data.”
+Clips live in `public/footage-android/` (normalized to constant 30 fps).
+
+| Time | Scene |
+| --- | --- |
+| 0–3 s | “Your whole stack. Now on Android.” with provider marks |
+| 3–6 s | “Verceltics for Android”, coming soon to Google Play |
+| 6–11 s | Hosting: Vercel sample projects into studio-web analytics |
+| 11–16 s | Domains: registrars into the Name.com portfolio |
+| 16–21 s | Sites: site services into Search Console |
+| 21–25 s | 27 integrations with the connect screen |
+| 25–31 s | Join the beta: tester group, Google Play opt-in, code `VERCELTICSBETA` |
+
+```sh
+npm run render:android
+```
