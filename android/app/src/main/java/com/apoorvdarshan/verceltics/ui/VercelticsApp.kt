@@ -771,7 +771,8 @@ fun VercelticsApp(
                                     isSampleData = isSampleData,
                                     onToggleSampleData = onToggleSampleData,
                                     hasPro = proState?.let { it.hasCheckedEntitlements && it.hasPro },
-                                    onUnlockPro = { proAccess.requestPro {} },
+                                    // An explicit tap always shows the plans, even while sample data keeps details open.
+                                    onUnlockPro = { if (proState?.hasPro == false) isPaywallVisible = true },
                                     tipJarContent = if (tipJarViewModel != null && tipJarState != null) {
                                         {
                                             TipJarContent(
