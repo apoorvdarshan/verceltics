@@ -77,7 +77,7 @@ export function InstrumentHero() {
               <span><i aria-hidden="true" /> How Verceltics uses Google data</span>
               <b>Connected features only</b>
             </header>
-            <p>When you connect Google, Verceltics uses read-only Google Search Console and Google Analytics access to display your verified sites, search performance, and GA4 reports. Firebase Hosting access displays hosting resources and performs only actions you initiate. Google user data is used only to provide these app features. OAuth tokens stay in your device&apos;s iOS Keychain, and requests go directly to Google&apos;s official APIs—not through a Verceltics server.</p>
+            <p>When you connect Google, Verceltics uses read-only Google Search Console and Google Analytics access to display your verified sites, search performance, and GA4 reports. Firebase Hosting access displays hosting resources and performs only actions you initiate. Google user data is used only to provide these app features. OAuth tokens stay on your device in the iOS Keychain or Android Keystore, and requests go directly to Google&apos;s official APIs—not through a Verceltics server.</p>
             <a href="/privacy#google-data">How Google data is handled <span aria-hidden="true">→</span></a>
           </aside>
           <div className="hero-actions">
@@ -85,6 +85,7 @@ export function InstrumentHero() {
               Get Verceltics <ArrowUpRight />
             </a>
             <a className="text-control" href="/integrations">Explore all 27 integrations <span aria-hidden="true">→</span></a>
+            <a className="text-control" href="/#android-beta">Join the Android beta <span aria-hidden="true">→</span></a>
           </div>
           <dl className="hero-specs">
             <div><dt>Connections</dt><dd>27</dd></div>

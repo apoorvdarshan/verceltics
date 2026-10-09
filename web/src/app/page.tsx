@@ -6,7 +6,7 @@ import { InstrumentHero } from "@/components/instrument-hero";
 import { ProviderPatchbay } from "@/components/provider-directory";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
-import { DISCORD, INSTAGRAM, IOS_APP_STORE_VERSION, IOS_SOURCE_VERSION, LINKEDIN } from "@/lib/product";
+import { ANDROID_BETA_CODE, ANDROID_BETA_GROUP, ANDROID_BETA_OPT_IN, DISCORD, INSTAGRAM, IOS_APP_STORE_VERSION, LINKEDIN } from "@/lib/product";
 
 const SITE_URL = "https://verceltics.com";
 const APP_STORE = "https://apps.apple.com/us/app/verceltics/id6761645656";
@@ -44,7 +44,7 @@ const plans = [
 const faqs = [
   {
     question: "What is Verceltics?",
-    answer: "Verceltics is an independent native workspace for hosting platforms, domain registrars, and site-intelligence services on iPhone and iPad.",
+    answer: "Verceltics is an independent native workspace for hosting platforms, domain registrars, and site-intelligence services on iPhone and iPad, with a native Android app in beta on Google Play.",
   },
   {
     question: "Does Verceltics merge provider data?",
@@ -52,7 +52,7 @@ const faqs = [
   },
   {
     question: "Where are credentials stored?",
-    answer: "Credentials and OAuth tokens use device-only, when-unlocked iOS Keychain protection. Requests go directly to the provider’s HTTPS API or an explicitly selected HTTPS host for a supported self-hosted service; Verceltics does not run a credential proxy.",
+    answer: "On iPhone and iPad, credentials and OAuth tokens use device-only, when-unlocked iOS Keychain protection. On Android, they are encrypted with Android Keystore in app-private storage. Requests go directly to the provider’s HTTPS API or an explicitly selected HTTPS host for a supported self-hosted service; Verceltics does not run a credential proxy.",
   },
   {
     question: "Does it work on iPad?",
@@ -60,7 +60,7 @@ const faqs = [
   },
   {
     question: "Can I build it myself?",
-    answer: "Yes. The complete SwiftUI app and website are open source under the MIT license. A source build uses your own provider credentials and OAuth configuration.",
+    answer: "Yes. The SwiftUI app, the Kotlin Android app, and the website are open source under the MIT license. A source build uses your own provider credentials and OAuth configuration.",
   },
   {
     question: "Which hosting platforms does Verceltics support?",
@@ -79,8 +79,8 @@ const faqs = [
     answer: `Use Report an issue or Request a feature in the app’s About screen. You can open a GitHub issue template with your GitHub account, or join ${DISCORD} and use /bug or /feature without a GitHub account. Reports become public GitHub issues; never include secrets or private account data.`,
   },
   {
-    question: `Is version ${IOS_SOURCE_VERSION} available on the App Store?`,
-    answer: `Version ${IOS_SOURCE_VERSION} is the prepared source build and is not released yet. The latest App Store release is ${IOS_APP_STORE_VERSION}. The screenshots and feature descriptions show the current source build.`,
+    question: "Is there an Android app?",
+    answer: `Yes, in beta. Verceltics for Android has all 27 integrations and the same Pro plans. Join the Verceltics Testers Google Group, then become a tester on Google Play and install the app. Testers can redeem ${ANDROID_BETA_CODE} in Google Play for 30 days of Pro on the monthly plan.`,
   },
 ] as const;
 
@@ -281,7 +281,7 @@ export default function Home() {
               <p className="instrument-label"><span>06</span> Ownership plate</p>
               <h2>One Pro unlock across every integration.</h2>
             </div>
-            <p>Connections, lists, search, refresh, and account switching stay available. Every paid option unlocks the same Pro details and provider tools across all 27 integrations. US reference prices are shown; Apple displays the current local price and trial eligibility.</p>
+            <p>Connections, lists, search, refresh, and account switching stay available. Every paid option unlocks the same Pro details and provider tools across all 27 integrations. US reference prices are shown; Apple or Google Play displays the current local price and trial eligibility.</p>
           </header>
           <div className="price-console">
             <div className="price-console-head"><span>Verceltics Pro</span><span>Choose access term</span><span>Details + tools</span></div>
@@ -293,6 +293,29 @@ export default function Home() {
               ))}
             </div>
             <a className="price-cta" href={APP_STORE} rel="noreferrer" target="_blank">View in the App Store <ArrowUpRight /></a>
+          </div>
+          <div className="beta-console" id="android-beta">
+            <div className="price-console-head"><span>Android beta</span><span>Google Play closed test</span><span>Testers wanted</span></div>
+            <ol className="beta-steps">
+              <li>
+                <span>1</span>
+                <strong>Join the tester group</strong>
+                <p>Anyone can join the Verceltics Testers Google Group.</p>
+                <a href={ANDROID_BETA_GROUP} rel="noreferrer" target="_blank">groups.google.com/g/verceltics-testers <ArrowUpRight /></a>
+              </li>
+              <li>
+                <span>2</span>
+                <strong>Become a tester</strong>
+                <p>Opt in on Google Play once the test is live, install Verceltics, and keep it for 14 days.</p>
+                <a href={ANDROID_BETA_OPT_IN} rel="noreferrer" target="_blank">Open the Google Play test <ArrowUpRight /></a>
+              </li>
+              <li>
+                <span>3</span>
+                <strong>Get a month of Pro</strong>
+                <p>Redeem <code>{ANDROID_BETA_CODE}</code> in Google Play for 30 days of Pro on the monthly plan. It then renews at $4.99 a month unless you cancel. Valid until December 31, 2026.</p>
+              </li>
+            </ol>
+            <a className="price-cta" href={ANDROID_BETA_GROUP} rel="noreferrer" target="_blank">Join the Android beta <ArrowUpRight /></a>
           </div>
         </section>
 
@@ -313,7 +336,7 @@ export default function Home() {
 
         <section className="closing-section">
           <div className="closing-copy">
-            <p>Verceltics {IOS_SOURCE_VERSION} preview / iPhone + iPad / 27 direct connections</p>
+            <p>Verceltics {IOS_APP_STORE_VERSION} / iPhone + iPad + Android beta / 27 direct connections</p>
             <h2>Production called.<br />You can answer from here.</h2>
           </div>
           <a className="closing-control" href={APP_STORE} rel="noreferrer" target="_blank">Get Verceltics <ArrowUpRight /></a>

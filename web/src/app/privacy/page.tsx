@@ -36,6 +36,7 @@ const sections = [
   { id: "website", label: "Website delivery" },
   { id: "feedback", label: "Support and feedback" },
   { id: "discord", label: "Vercie on Discord" },
+  { id: "android-beta", label: "Android beta testing" },
   { id: "purchases", label: "Purchases" },
   { id: "controls", label: "Your controls" },
   { id: "changes", label: "Policy changes" },
@@ -50,7 +51,7 @@ export default function Privacy() {
       sections={sections}
       summary="The Verceltics app connects directly to providers. Vercie, our optional Discord bot, processes the questions and reports you submit through Cloudflare, Google Gemini, and GitHub as explained below."
       title="Privacy Policy"
-      updated="October 9, 2026"
+      updated="October 10, 2026"
     >
       <section id="overview">
         <h2>Overview</h2>
@@ -134,10 +135,17 @@ export default function Privacy() {
         <p>Replies remain in Discord and issues remain on GitHub until removed under the respective service&apos;s controls and policies. Deleting a Discord message does not remove a GitHub issue. See the <a href="https://discord.com/privacy" rel="noreferrer" target="_blank">Discord Privacy Policy</a> and <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement" rel="noreferrer" target="_blank">GitHub Privacy Statement</a>. To request correction or deletion of bot-generated content, email <a href="mailto:ad13dtu@gmail.com">ad13dtu@gmail.com</a> with the message or issue link. We can address content we control, but cannot guarantee removal of public copies or records independently retained by third parties.</p>
       </section>
 
+      <section id="android-beta">
+        <h2>Android beta testing</h2>
+        <p>The Android app is offered as a beta through Google Play testing. To take part, you join the Verceltics Testers Google Group and then opt in to the test on Google Play. Google Groups and Google Play process your membership and opt in under Google&apos;s own terms and the <a href="https://policies.google.com/privacy" rel="noreferrer" target="_blank">Google Privacy Policy</a>.</p>
+        <p>Group managers can see the email addresses of group members. We use them only to run the beta and to contact testers about it, for example to share builds, collect feedback, or answer a report you send. We do not sell them or use them for advertising. Leaving the group removes your membership, and leaving the test on Google Play removes your access to beta builds. Feedback you email to <a href="mailto:ad13dtu@gmail.com">ad13dtu@gmail.com</a> is handled as described in Support and feedback.</p>
+        <p>The beta app handles credentials, provider data, and purchases the same way as the released apps, as described in the other sections of this policy.</p>
+      </section>
+
       <section id="purchases">
         <h2>Purchases and RevenueCat</h2>
         <p>Subscriptions, lifetime access, and optional tips are processed by Apple through the App Store on iOS and by Google through Google Play Billing on Android. Verceltics uses RevenueCat to manage the Verceltics Pro entitlement, restore purchases, and provide purchase status to the app. RevenueCat may receive an anonymous app-user identifier; device type, operating-system, platform, app-version, and locale context; Apple receipt information or Google Play purchase tokens and order identifiers; product identifiers; purchase history; subscription or entitlement status; and purchase-service timestamps such as first-seen or last-seen app use. RevenueCat uses purchase history for app functionality and purchase analytics.</p>
-        <p>RevenueCat does not receive provider credentials or provider account data from Verceltics. Verceltics does not receive or store payment-card details.</p>
+        <p>RevenueCat does not receive provider credentials or provider account data from Verceltics. Verceltics does not receive or store payment-card details. When you redeem an App Store offer code or a Google Play promo code, Apple or Google processes the redemption, and RevenueCat receives the resulting purchase or subscription status like any other purchase.</p>
         <p>Refund decisions for App Store purchases are made by Apple. If refund-request handling is enabled, RevenueCat may send Apple limited purchase delivery and consumption context in response to a refund request, subject to the consent described in the Terms of Service. Apple retains the final decision. Google Play purchases are refunded under Google Play&apos;s refund policies.</p>
       </section>
 

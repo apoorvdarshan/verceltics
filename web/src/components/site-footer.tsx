@@ -57,6 +57,7 @@ export function SiteFooter() {
             <Link href="/vercel-analytics-ios">Vercel Analytics for iOS</Link>
             <Link href="/#workflows">Workflows</Link>
             <a href={APP_STORE} rel="noreferrer" target="_blank">App Store <ArrowUpRight /></a>
+            <Link href="/#android-beta">Android beta</Link>
           </nav>
         </section>
 

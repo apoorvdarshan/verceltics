@@ -47,7 +47,7 @@ export default function Terms() {
       sections={sections}
       summary="These terms cover the Verceltics app and website, provider operations you control, purchases processed by Apple and Google Play, and the optional Vercie Discord bot."
       title="Terms of Service"
-      updated="October 9, 2026"
+      updated="October 10, 2026"
     >
       <section id="acceptance">
         <h2>Acceptance</h2>
@@ -57,7 +57,7 @@ export default function Terms() {
       <section id="service">
         <h2>The service</h2>
         <p>Verceltics is an independent iPhone, iPad, and Android workspace for supported hosting platforms, domain registrars, and site-intelligence services. It uses credentials or OAuth authorization you provide to communicate directly with the provider, display provider data, and perform supported actions you initiate.</p>
-        <p>Verceltics is developed and operated by Apoorv Darshan. Features described on this website may reflect source builds before they reach the App Store or Google Play. Check the store listing for the version available to download. Provider capabilities depend on permissions, configuration, account plans, and API availability.</p>
+        <p>Verceltics is developed and operated by Apoorv Darshan. Features described on this website may reflect source builds before they reach the App Store or Google Play. Check the store listing for the version available to download. The Android app may be offered as a beta or pre-release build through Google Play testing before it is generally available; beta builds can change, contain bugs, or stop being offered. Provider capabilities depend on permissions, configuration, account plans, and API availability.</p>
         <p>Verceltics is not affiliated with, endorsed by, or sponsored by any supported provider. Provider names, marks, APIs, plans, data, limits, and availability remain controlled by their respective owners.</p>
       </section>
 
@@ -93,6 +93,7 @@ export default function Terms() {
         <p>Prices may vary by country, currency, tax, or future App Store pricing changes. The price shown by Apple at confirmation controls.</p>
         <p>Payment is charged to your Apple Account at confirmation. Auto-renewable subscriptions continue unless cancelled at least 24 hours before the end of the current period. Manage or cancel them in <code>Settings → [your name] → Subscriptions</code>. Any unused trial portion may be forfeited when a subscription is purchased.</p>
         <p>On Android, the same monthly, yearly, and lifetime options are sold through Google Play Billing, and the price, billing period, and any trial shown by Google Play at confirmation control. Payment is charged to your Google account. Subscriptions renew automatically until cancelled, and you can manage or cancel them in Google Play under <code>Payments &amp; subscriptions → Subscriptions</code> or from <code>About → Manage subscription</code> in the app.</p>
+        <p>We may offer promotional codes, such as App Store offer codes or Google Play promo codes, that give a limited free period of Verceltics Pro. Each code has its own eligibility rules, redemption limit, and expiry date, and can end once its limit is reached. An App Store offer code follows the renewal terms Apple shows when you redeem it. On Google Play, a subscription started with a promo code renews at the regular price after the free period unless you cancel in Google Play before the free period ends.</p>
         <p>Optional Coffee, Lunch, Big, and Huge tips are one-time consumable purchases. They support development, unlock no feature or content, and are not subscriptions.</p>
         <p>Apple processes App Store purchases and decides refund requests under its policies. Verceltics uses RevenueCat for entitlement status, restoration, purchase context, and optional refund-request handling. Where that handling is enabled, RevenueCat may send Apple limited purchase delivery and consumption context in response to a refund request. By making an in-app purchase after accepting these terms, you consent to that limited sharing solely for Apple&apos;s refund evaluation. Apple makes the final decision, and Verceltics does not issue App Store refunds directly. Google Play purchases are processed by Google, and refunds follow Google Play&apos;s refund policies.</p>
       </section>

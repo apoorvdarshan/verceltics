@@ -13,8 +13,7 @@ The 2.1 release source is commit `374b2959ab0f901bb172791127e552cc89f1f811`.
 Track the current tagged submission in the
 [iOS Release workflow](https://github.com/apoorvdarshan/verceltics/actions/workflows/ios-release.yml).
 
-The prepared iOS source version is **2.1 (build 43)**; the public App Store
-release remains **2.0** until Apple approves and publishes 2.1. Reviewed notes
+iOS **2.1 (build 43)** was approved and is the current App Store release. Reviewed notes
 for `ios-v2.1` are in `RELEASE_NOTES.md`. App Store Connect controls automatic
 publication after approval separately from the GitHub switches.
 
@@ -110,6 +109,12 @@ see [Apple's encryption guidance](https://developer.apple.com/documentation/secu
 Screenshot replacement can leave a mixed set if an upload fails; inspect ASC
 before rerunning. App name, subtitle, privacy details, reviewer notes, pricing,
 and other submission requirements remain managed in App Store Connect.
+
+## Android closed beta
+
+Android **1.0 (44)** is in Google Play closed testing (Alpha track). The testers,
+countries, review status, and the `VERCELTICSBETA` promo code are recorded in
+[google-play/TESTERS.md](google-play/TESTERS.md) and [google-play/PROMO.md](google-play/PROMO.md).
 
 ## Android release setup
 

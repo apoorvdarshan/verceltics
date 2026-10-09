@@ -28,12 +28,25 @@
 
 Verceltics is an independent, open-source operator workspace for the infrastructure and site services developers already use. Each provider keeps its own dashboard and capabilities; Verceltics supplies the native navigation, secure local credential storage, responsive caching, and iPhone/iPad interface around them. The `main` branch documents the current source build and can be ahead of the latest App Store release.
 
-**Version status:** the prepared iOS source build is **2.1 (43)**. The latest
-public App Store release is **2.0**; 2.1 has not been submitted or released.
+**Version status:** iOS **2.1 (43)** is the current App Store release.
+Android **1.0 (44)** is in a Google Play closed beta; it is not publicly released yet.
 Screenshots and feature descriptions document the current source build.
-The unreleased Android preview is **1.0 (43)**; no Play Store release is planned yet.
 
-The shipping iOS app remains fully native SwiftUI. A separate native Android app is being migrated screen by screen with Kotlin and Jetpack Compose; it does not embed Flutter or share a cross-platform UI runtime. See [Native mobile architecture](docs/native-mobile-architecture.md) for the current parity boundary.
+## Android beta
+
+Verceltics for Android has all 27 integrations and the same Pro plans as iOS.
+To test it:
+
+1. Join the [Verceltics Testers](https://groups.google.com/g/verceltics-testers) Google Group.
+2. Once the closed test is approved, opt in at
+   [Google Play testing](https://play.google.com/apps/testing/com.apoorvdarshan.verceltics),
+   install Verceltics, and keep it installed for 14 days.
+3. Redeem **`VERCELTICSBETA`** in Google Play for 30 days of Pro on the monthly plan.
+   After the free period it renews at the regular price unless you cancel. Valid until December 31, 2026.
+
+Send feedback to [ad13dtu@gmail.com](mailto:ad13dtu@gmail.com) or use the app's About screen.
+
+The iOS app is fully native SwiftUI. The Android app is a separate native Kotlin and Jetpack Compose app; it does not embed Flutter or share a cross-platform UI runtime. See [Native mobile architecture](docs/native-mobile-architecture.md) for the current parity boundary.
 
 ## Screenshots
 
@@ -102,11 +115,11 @@ Verceltics 2.1 includes 27 separate integrations: 10 hosting platforms, 8 regist
 - **iPad layout** — Sidebar-adaptable navigation, adaptive grids, wider detail surfaces, and full-width charts on regular size class.
 - **Appearance** — System, light, and dark modes.
 - **Guarded operations** — Cross-host redirects are blocked; detected writes, purchases, and destructive requests require confirmation.
-- **Open source** — The complete SwiftUI app, native Android migration, and Next.js website are available in this repository.
+- **Open source** — The complete SwiftUI app, native Android app, and Next.js website are available in this repository.
 
 ## Privacy architecture
 
-Provider credentials and Google OAuth tokens are stored with device-only, when-unlocked iOS Keychain protection. Provider-data requests go directly from the app to provider HTTPS APIs or an explicitly selected HTTPS host for supported self-hosted services.
+Provider credentials and Google OAuth tokens are stored with device-only, when-unlocked iOS Keychain protection on iPhone and iPad, and encrypted with Android Keystore in app-private storage on Android. Provider-data requests go directly from the app to provider HTTPS APIs or an explicitly selected HTTPS host for supported self-hosted services.
 
 ```text
 iPhone / iPad
@@ -153,7 +166,7 @@ All paid options unlock the same Verceltics Pro entitlement. App Store pricing c
 - Kotlin with Jetpack Compose and Material 3 native interactions
 - Android Keystore-backed credential protection and app-private, backup-excluded storage
 - A native provider catalog covering all 27 integrations
-- End-to-end native flows for Vercel and PageSpeed/CrUX, plus read-only Netlify, Cloudflare, and Google Search Console workspaces
+- Native flows for all 27 integrations, multiple accounts per provider, and the RevenueCat paywall with Google Play Billing
 
 ### Web
 
@@ -200,7 +213,7 @@ cd android
 ./gradlew assembleDebug
 ```
 
-Open the `android` directory in Android Studio to run the app on an Android emulator. Android provider parity is intentionally incremental; consult [the migration matrix](docs/native-mobile-architecture.md#screen-by-screen-status) before testing a provider workflow.
+Open the `android` directory in Android Studio to run the app on an Android emulator. See [the parity matrix](docs/native-mobile-architecture.md#screen-by-screen-status) for what each provider workflow supports.
 
 Android Google sign-in (Search Console, Google Analytics and Firebase Hosting) uses the same public OAuth client as iOS, with the browser PKCE flow and the client's reverse-ID redirect scheme. A fork can use its own client by adding it to `~/.gradle/gradle.properties`:
 

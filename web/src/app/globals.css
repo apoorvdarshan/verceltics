@@ -581,9 +581,10 @@ main[id] {
 
 .hero-actions {
   display: flex;
+  flex-wrap: wrap;
   margin-top: 32px;
   align-items: center;
-  gap: 25px;
+  gap: 16px 25px;
 }
 
 .primary-control {
@@ -1918,6 +1919,100 @@ main[id] {
 .price-cta:focus-visible {
   outline-offset: -6px;
   box-shadow: inset 0 0 0 3px var(--panel);
+}
+
+/* Android beta */
+.beta-console {
+  margin-top: 34px;
+  background: var(--panel);
+  border: 2px solid var(--ink);
+  border-radius: 14px;
+  box-shadow: 0 7px 0 var(--ink);
+  overflow: hidden;
+  scroll-margin-top: 110px;
+}
+
+.beta-steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  padding: 0;
+  list-style: none;
+}
+
+.beta-steps li {
+  display: grid;
+  min-height: 190px;
+  padding: 24px;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto 1fr auto;
+  gap: 0 16px;
+  border-right: 1px solid var(--rule);
+}
+
+.beta-steps li:last-child { border-right: 0; }
+
+.beta-steps li > span {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  grid-row: 1 / 3;
+  place-items: center;
+  color: var(--ink);
+  background: var(--live);
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.beta-steps strong {
+  align-self: center;
+  font-size: 1.1rem;
+}
+
+.beta-steps p {
+  grid-column: 2;
+  align-self: start;
+  margin-top: 9px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.beta-steps code {
+  padding: 2px 7px;
+  color: var(--white);
+  background: var(--violet);
+  border-radius: 5px;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+}
+
+.beta-steps a {
+  display: inline-flex;
+  grid-column: 2;
+  align-items: center;
+  gap: 8px;
+  margin-top: 18px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+}
+
+.beta-steps a svg {
+  width: 13px;
+  height: 13px;
+  flex: none;
+}
+
+@media (max-width: 780px) {
+  .beta-steps { grid-template-columns: 1fr; }
+  .beta-steps li { min-height: 0; border-right: 0; border-bottom: 1px solid var(--rule); }
+  .beta-steps li:last-child { border-bottom: 0; }
 }
 
 /* FAQ */
