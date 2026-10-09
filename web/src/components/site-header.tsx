@@ -23,13 +23,14 @@ export function SiteHeader() {
             <Link href="/#workflows">Workflows</Link>
             <Link href="/privacy">Privacy</Link>
             <Link href="/#pricing">Pricing</Link>
+            <Link href="/#android-beta">Android beta</Link>
           </nav>
 
           <MobileNavigation githubUrl={GITHUB} />
 
           <div className="header-actions">
             <a className="source-link" href={GITHUB} rel="noreferrer" target="_blank">Open source <ArrowUpRight /></a>
-            <a className="header-store" href={APP_STORE} rel="noreferrer" target="_blank">Get the app <ArrowUpRight /></a>
+            <a className="header-store" href={APP_STORE} rel="noreferrer" target="_blank">App Store <ArrowUpRight /></a>
           </div>
         </div>
       </header>

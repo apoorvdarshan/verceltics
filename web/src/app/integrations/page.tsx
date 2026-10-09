@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { StoreButtons } from "@/components/store-buttons";
 import Image from "next/image";
 import Link from "next/link";
 import type { CSSProperties } from "react";
@@ -75,7 +76,7 @@ export default function IntegrationsPage() {
               Verceltics supports 10 hosting platforms, 8 domain registrars and 9 site services. Each connection keeps its own credentials, API scope, dashboard and supported operations.
             </p>
             <div className="discovery-actions">
-              <a className="primary-control" href={APP_STORE} rel="noreferrer" target="_blank">Get Verceltics <ArrowUpRight /></a>
+              <StoreButtons />
               <Link className="text-control" href="/vercel-analytics-ios">Explore Vercel Analytics for iOS <span aria-hidden="true">→</span></Link>
             </div>
           </div>

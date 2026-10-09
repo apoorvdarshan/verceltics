@@ -131,6 +131,7 @@ main[id] {
 .ipad-section,
 .signals-section,
 .circuit-section,
+.android-section,
 .pricing-section,
 .faq-section,
 .closing-section,
@@ -2635,6 +2636,7 @@ main[id] {
   .ipad-section,
   .signals-section,
   .circuit-section,
+  .android-section,
   .pricing-section,
   .faq-section,
   .closing-section,
@@ -2777,6 +2779,7 @@ main[id] {
   .ipad-section,
   .signals-section,
   .circuit-section,
+  .android-section,
   .pricing-section,
   .faq-section,
   .closing-section,
@@ -3111,6 +3114,7 @@ main[id] {
   .ipad-section,
   .signals-section,
   .circuit-section,
+  .android-section,
   .pricing-section,
   .faq-section,
   .closing-section,
@@ -3170,4 +3174,103 @@ main[id] {
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
+
+/* Store buttons: App Store download and Android beta on Google Play */
+.store-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.store-button {
+  position: relative;
+  display: inline-flex;
+  min-height: 58px;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 22px 8px 16px;
+  border: 2px solid var(--ink);
+  border-radius: 10px;
+  box-shadow: 0 3px 0 #68716c;
+  transition: transform 140ms ease, box-shadow 140ms ease;
+}
+
+.store-button:hover {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #68716c;
+}
+
+.store-button svg {
+  width: 26px;
+  height: 26px;
+  flex: none;
+}
+
+.store-button span {
+  display: grid;
+  line-height: 1.1;
+}
+
+.store-button small {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  opacity: 0.78;
+}
+
+.store-button strong {
+  font-size: 1.12rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.store-button em {
+  position: absolute;
+  top: -10px;
+  right: -8px;
+  padding: 2px 8px;
+  color: var(--ink);
+  background: var(--live);
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.store-button--apple { color: var(--white); background: var(--ink); }
+.store-button--play { color: var(--ink); background: var(--panel); }
+.store-buttons--light .store-button--apple { color: var(--ink); background: var(--white); }
+.store-buttons--light .store-button--play { color: var(--white); background: var(--ink); }
+
+/* Android beta section */
+.android-section {
+  padding-block: 110px 40px;
+  scroll-margin-top: 90px;
+}
+
+.android-section .beta-console { margin-top: 0; }
+
+.beta-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.beta-actions .price-cta + .price-cta { border-left: 2px solid var(--ink); }
+
+.price-cta--light {
+  color: var(--ink);
+  background: var(--live);
+}
+
+@media (max-width: 780px) {
+  .android-section { padding-block: 70px 20px; }
+  .beta-actions { grid-template-columns: 1fr; }
+  .beta-actions .price-cta + .price-cta { border-left: 0; border-top: 2px solid var(--ink); }
+  .store-buttons { width: 100%; }
+  .store-button { flex: 1 1 200px; }
 }

@@ -6,6 +6,7 @@ import { InstrumentHero } from "@/components/instrument-hero";
 import { ProviderPatchbay } from "@/components/provider-directory";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { StoreButtons } from "@/components/store-buttons";
 import { ANDROID_BETA_CODE, ANDROID_BETA_GROUP, ANDROID_BETA_OPT_IN, DISCORD, INSTAGRAM, IOS_APP_STORE_VERSION, LINKEDIN } from "@/lib/product";
 
 const SITE_URL = "https://verceltics.com";
@@ -157,6 +158,42 @@ export default function Home() {
       <main id="main-content">
         <InstrumentHero />
 
+        <section className="android-section" id="android-beta">
+          <header className="section-intro">
+            <div>
+              <p className="instrument-label"><span>A</span> Android beta</p>
+              <h2>Verceltics for Android is in beta.</h2>
+            </div>
+            <p>All 27 integrations, the same Pro plans, and credentials kept in Android Keystore. Google asks new apps to run a closed test with 12 testers for 14 days before launch, so every tester counts. Three steps to join:</p>
+          </header>
+            <div className="beta-console">
+              <div className="price-console-head"><span>Android beta</span><span>Google Play closed test</span><span>Testers wanted</span></div>
+              <ol className="beta-steps">
+                <li>
+                  <span>1</span>
+                  <strong>Join the tester group</strong>
+                  <p>Anyone can join the Verceltics Testers Google Group.</p>
+                  <a href={ANDROID_BETA_GROUP} rel="noreferrer" target="_blank">groups.google.com/g/verceltics-testers <ArrowUpRight /></a>
+                </li>
+                <li>
+                  <span>2</span>
+                  <strong>Become a tester</strong>
+                  <p>Opt in on Google Play with the same Google account, install Verceltics, and keep it for 14 days.</p>
+                  <a href={ANDROID_BETA_OPT_IN} rel="noreferrer" target="_blank">Open the Google Play test <ArrowUpRight /></a>
+                </li>
+                <li>
+                  <span>3</span>
+                  <strong>Get a month of Pro</strong>
+                  <p>Redeem <code>{ANDROID_BETA_CODE}</code> in Google Play for 30 days of Pro on the monthly plan. It then renews at $4.99 a month unless you cancel. Valid until December 31, 2026.</p>
+                </li>
+              </ol>
+              <div className="beta-actions">
+                <a className="price-cta" href={ANDROID_BETA_GROUP} rel="noreferrer" target="_blank">Join the tester group <ArrowUpRight /></a>
+                <a className="price-cta price-cta--light" href={ANDROID_BETA_OPT_IN} rel="noreferrer" target="_blank">Open the Google Play test <ArrowUpRight /></a>
+              </div>
+            </div>
+        </section>
+
         <section className="patchbay-section" id="patchbay">
           <span aria-hidden="true" className="anchor-alias" id="features" />
           <header className="section-intro patchbay-intro">
@@ -294,29 +331,6 @@ export default function Home() {
             </div>
             <a className="price-cta" href={APP_STORE} rel="noreferrer" target="_blank">View in the App Store <ArrowUpRight /></a>
           </div>
-          <div className="beta-console" id="android-beta">
-            <div className="price-console-head"><span>Android beta</span><span>Google Play closed test</span><span>Testers wanted</span></div>
-            <ol className="beta-steps">
-              <li>
-                <span>1</span>
-                <strong>Join the tester group</strong>
-                <p>Anyone can join the Verceltics Testers Google Group.</p>
-                <a href={ANDROID_BETA_GROUP} rel="noreferrer" target="_blank">groups.google.com/g/verceltics-testers <ArrowUpRight /></a>
-              </li>
-              <li>
-                <span>2</span>
-                <strong>Become a tester</strong>
-                <p>Opt in on Google Play once the test is live, install Verceltics, and keep it for 14 days.</p>
-                <a href={ANDROID_BETA_OPT_IN} rel="noreferrer" target="_blank">Open the Google Play test <ArrowUpRight /></a>
-              </li>
-              <li>
-                <span>3</span>
-                <strong>Get a month of Pro</strong>
-                <p>Redeem <code>{ANDROID_BETA_CODE}</code> in Google Play for 30 days of Pro on the monthly plan. It then renews at $4.99 a month unless you cancel. Valid until December 31, 2026.</p>
-              </li>
-            </ol>
-            <a className="price-cta" href={ANDROID_BETA_GROUP} rel="noreferrer" target="_blank">Join the Android beta <ArrowUpRight /></a>
-          </div>
         </section>
 
         <section className="faq-section">
@@ -339,7 +353,7 @@ export default function Home() {
             <p>Verceltics {IOS_APP_STORE_VERSION} / iPhone + iPad + Android beta / 27 direct connections</p>
             <h2>Production called.<br />You can answer from here.</h2>
           </div>
-          <a className="closing-control" href={APP_STORE} rel="noreferrer" target="_blank">Get Verceltics <ArrowUpRight /></a>
+          <StoreButtons tone="light" />
           <span aria-hidden="true" className="closing-lamp"><i /></span>
         </section>
       </main>

@@ -3,9 +3,7 @@
 import Image from "next/image";
 import { useRef, useState } from "react";
 
-import { ArrowUpRight } from "@/components/arrow-up-right";
-
-const APP_STORE = "https://apps.apple.com/us/app/verceltics/id6761645656";
+import { StoreButtons } from "@/components/store-buttons";
 
 const modes = [
   {
@@ -68,7 +66,7 @@ export function InstrumentHero() {
             <span>Mobile operations instrument</span>
           </div>
           <p className="hero-eyebrow"><i /> Check the whole stack. Close the laptop.</p>
-          <h1><span translate="no">Verceltics:</span>{" "}Hosting, domains, DNS, and analytics on iPhone and iPad.</h1>
+          <h1><span translate="no">Verceltics:</span>{" "}Hosting, domains, DNS, and analytics on iPhone, iPad, and Android.</h1>
           <p className="hero-deck">
             A private, open-source native app with 27 direct integrations across hosting platforms, domain registrars, analytics, search performance, speed, and uptime. Providers stay separate, and credentials stay on your device.
           </p>
@@ -81,16 +79,13 @@ export function InstrumentHero() {
             <a href="/privacy#google-data">How Google data is handled <span aria-hidden="true">→</span></a>
           </aside>
           <div className="hero-actions">
-            <a className="primary-control" href={APP_STORE} rel="noreferrer" target="_blank">
-              Get Verceltics <ArrowUpRight />
-            </a>
+            <StoreButtons />
             <a className="text-control" href="/integrations">Explore all 27 integrations <span aria-hidden="true">→</span></a>
-            <a className="text-control" href="/#android-beta">Join the Android beta <span aria-hidden="true">→</span></a>
           </div>
           <dl className="hero-specs">
             <div><dt>Connections</dt><dd>27</dd></div>
             <div><dt>Credential proxy</dt><dd>None</dd></div>
-            <div><dt>Platform</dt><dd>iOS 18+</dd></div>
+            <div><dt>Platforms</dt><dd>iOS + Android</dd></div>
           </dl>
         </div>
 

@@ -1,6 +1,7 @@
 // Keep the prepared source version separate from the publicly available app.
 export const IOS_SOURCE_VERSION = "2.1";
 export const IOS_APP_STORE_VERSION = "2.1";
+export const APP_STORE_URL = "https://apps.apple.com/us/app/verceltics/id6761645656";
 export const DISCORD = "https://discord.gg/qv5nsTmkxA";
 export const GITHUB_BUG_REPORT = "https://github.com/apoorvdarshan/verceltics/issues/new?template=bug_report.yml";
 export const GITHUB_FEATURE_REQUEST = "https://github.com/apoorvdarshan/verceltics/issues/new?template=feature_request.yml";
