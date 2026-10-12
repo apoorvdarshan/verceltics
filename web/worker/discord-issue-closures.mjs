@@ -106,8 +106,8 @@ async function deliverClosure(env            , event         )                {
     const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(REPOSITORY + key));
     const nonce = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("").slice(0, 24);
     const response = await fetch(`https://discord.com/api/v10/channels/${link.channelId}/messages`, {
-      method: "POST", redirect: "error", signal: AbortSignal.timeout(6000),
-      headers: { Authorization: `Bot ${env.DISCORD_BOT_TOKEN}`, "Content-Type": "application/json" },
+      method: "POST", redirect: "manual", signal: AbortSignal.timeout(6000),
+      headers: { Authorization: `Bot ${env.DISCORD_BOT_TOKEN.trim()}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         content: closureMessage(event.number, link.userId, event.reason),
         allowed_mentions: { parse: [], users: [link.userId], replied_user: false },

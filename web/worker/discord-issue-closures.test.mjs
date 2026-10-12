@@ -39,7 +39,7 @@ test('signed closure replies to original report and mentions only its submitter'
   const {env,data}=setup();
   assert.equal(await rememberDiscordIssue(env,42,link),true);
   const calls=[];
-  globalThis.fetch=async(url,init)=>{calls.push([url,JSON.parse(init.body)]);return Response.json({id:'423456789012345678'});};
+  globalThis.fetch=async(url,init)=>{assert.equal(init.redirect,'manual');calls.push([url,JSON.parse(init.body)]);return Response.json({id:'423456789012345678'});};
   assert.equal((await deliver(env)).status,202);
   assert.equal(calls.length,1);
   assert.equal(calls[0][0],`https://discord.com/api/v10/channels/${CHANNEL}/messages`);
