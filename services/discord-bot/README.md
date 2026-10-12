@@ -131,3 +131,16 @@ Without the bot token, announcements channel, or KV binding, announcement postin
 - Gemini's treatment of prompts depends on its service and billing configuration. Do not promise users that their text is excluded from provider retention or model improvement. See [Gemini API terms](https://ai.google.dev/gemini-api/terms).
 
 If a command fails, check the configured server/application IDs, required secrets, KV binding, GitHub Issues permissions, and the selected Gemini model's availability. Avoid repeating a report before checking whether its issue was already created.
+
+## GitHub issue closure replies
+
+New `/bug` and `/feature` submissions privately map the GitHub issue number to the Discord submitter, channel, and original bot response. When that issue closes, the bot replies to that response and mentions only the submitter. It distinguishes completed, not planned, duplicate, and unspecified closure reasons; it never claims an app update has shipped. No mobile update is required.
+
+- Webhook: `https://verceltics.com/api/discord/github-issues`, JSON, GitHub **issues** events only, active, TLS verification enabled.
+- Set a unique random `DISCORD_GITHUB_WEBHOOK_SECRET` in the Worker and the repository webhook's secret field. The handler validates SHA-256 HMAC before parsing, restricts the repository, and ignores pull requests/non-closure events. Bot token and KV must also be configured.
+- Give the bot View Channel, Send Messages, and Read Message History in report channels (and Send Messages in Threads where applicable). If the original response was deleted, delivery falls back to a normal message in the same channel. Missing channel/access leaves the notification queued; it does not DM the user or post elsewhere.
+- The private mapping and closure deduplication markers expire after two years. No interaction tokens, credentials, or report text are stored. Existing unmapped reports do not notify; no public-text inference or automatic historical backfill is performed.
+- Webhooks enqueue before acknowledging. Discord failures retry every five minutes in bounded batches for up to seven days, independently of the hourly release checks. `issue-close:link:NUMBER` holds the private mapping; `issue-close:pending:NUMBER:TIMESTAMP` holds an unsent event; `issue-close:sent:NUMBER:TIMESTAMP` is the completion marker. Remove a mapping to stop future notifications for that report.
+- Persistent completion markers, local in-flight guards, and Discord's deterministic message nonce suppress repeat deliveries. KV is eventually consistent and Discord nonce deduplication has a limited time window: this is best-effort delivery, not an exactly-once guarantee across crashes/outages. Reopened issues can notify on a later distinct closure.
+- If enqueueing fails, the webhook returns 503. Inspect failed GitHub webhook deliveries and redeliver after recovery; GitHub does not automatically redeliver failed deliveries. If mapping persistence fails, a safe operational warning is emitted; issue creation is not retried.
+- Test with a clearly labeled report, close its GitHub issue, and verify the response reference, mention, outcome, and no duplicate on webhook redelivery. Keep test messages/reports free of private data. Use the automated closure tests for invalid signatures, wrong repositories, unmapped issues, replay, retry, and privacy.

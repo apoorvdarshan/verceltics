@@ -1,3 +1,4 @@
+import { rememberDiscordIssue } from "./discord-issue-closures.mjs";
 /** Vercie's signed Discord slash commands. No gateway or bot token is needed here. */
 export const DISCORD_INTERACTIONS_PATH = "/api/discord/interactions";
 
@@ -260,7 +261,7 @@ async function createIssue(env, draft, deadline) {
     body: JSON.stringify(draft),
   }, remainingTimeout(deadline, 8_000));
   if (!Number.isSafeInteger(issue?.number) || issue.number < 1) throw new Error("invalid_issue_response");
-  return `${ISSUES_URL}/${issue.number}`;
+  return { number: issue.number, url: `${ISSUES_URL}/${issue.number}` };
 }
 
 async function editReply(applicationId, interactionToken, content, deadline) {
@@ -268,8 +269,7 @@ async function editReply(applicationId, interactionToken, content, deadline) {
   const body = JSON.stringify({ content: clip(content, MAX_REPLY_CHARS), allowed_mentions: NO_MENTIONS });
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     try {
-      await fetchJSON(url, { method: "PATCH", headers: { "Content-Type": "application/json" }, body }, remainingTimeout(deadline, 3_000));
-      return;
+      return await fetchJSON(url, { method: "PATCH", headers: { "Content-Type": "application/json" }, body }, remainingTimeout(deadline, 3_000));
     } catch (error) {
       logFailure("vercie_reply_attempt_failed", error, attempt);
       const transient = error instanceof UpstreamFailure && (
@@ -346,6 +346,7 @@ async function fulfillInteraction(env, interaction, command, input) {
   const deadline = Date.now() + FULFILLMENT_TIMEOUT_MS;
   const workDeadline = deadline - REPLY_BUDGET_MS;
   let content;
+  let createdIssue;
   try {
     const reservation = await reserveInteraction(env, interaction, command);
     if (reservation === "duplicate") return;
@@ -364,8 +365,8 @@ async function fulfillInteraction(env, interaction, command, input) {
       try {
         // Reserve GitHub's normal request budget even if optional AI organization is slow.
         const draft = await issueDraft(env, command, input, interaction.channel_id || "", workDeadline - 8_000);
-        const issueUrl = await createIssue(env, draft, workDeadline);
-        content = `Your ${command === "bug" ? "bug report" : "feature request"} is now a public GitHub issue: ${issueUrl}`;
+        createdIssue = await createIssue(env, draft, workDeadline);
+        content = `Your ${command === "bug" ? "bug report" : "feature request"} is now a public GitHub issue: ${createdIssue.url}`;
       } catch (error) {
         logFailure("vercie_issue_submission_unconfirmed", error);
         content = `I couldn't confirm the GitHub issue was created. Check ${ISSUES_URL} before submitting again, or open an issue there directly.`;
@@ -376,7 +377,14 @@ async function fulfillInteraction(env, interaction, command, input) {
     content = "I couldn't finish that command just now. Please try again later.";
   }
   try {
-    await editReply(interaction.application_id, interaction.token, content, deadline);
+    const message = await editReply(interaction.application_id, interaction.token, content, deadline);
+    if (createdIssue && message?.channel_id === interaction.channel_id) {
+      const saved = await rememberDiscordIssue(env, createdIssue.number, {
+        userId: interaction.member?.user?.id || interaction.user?.id,
+        channelId: interaction.channel_id, messageId: message.id,
+      });
+      if (!saved) console.warn("discord_issue_closure_tracking_unavailable");
+    }
   } catch (error) {
     // Delivery failures are separate from AI/GitHub failures; never resubmit the command.
     logFailure("vercie_reply_delivery_failed", error);

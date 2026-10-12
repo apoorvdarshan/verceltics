@@ -24,7 +24,7 @@
     }
   ],
   "triggers": {
-    "crons": ["37 * * * *"]
+    "crons": ["37 * * * *", "*/5 * * * *"]
   },
   "assets": {
     "directory": "./out",

@@ -1,3 +1,4 @@
+import { GITHUB_ISSUES_WEBHOOK_PATH, handleGitHubIssueClosure, retryDiscordIssueClosures } from "./discord-issue-closures.mjs";
 import { DISCORD_INTERACTIONS_PATH, handleDiscordInteractionsRequest } from "./discord-interactions.mjs";
 import { announceReleases } from "./discord-announcements.mjs";
 import { canonicalSiteRedirect } from "./site-routing.mjs";
@@ -43,6 +44,10 @@ export default {
     const redirect = canonicalSiteRedirect(request);
     if (redirect) return redirect;
     const url = new URL(request.url);
+
+    if (url.pathname === GITHUB_ISSUES_WEBHOOK_PATH) {
+      return handleGitHubIssueClosure(request, env, context);
+    }
 
     if (url.pathname === DISCORD_INTERACTIONS_PATH) {
       return handleDiscordInteractionsRequest(request, env, context);
@@ -93,7 +98,7 @@ export default {
   },
 
   scheduled(_event, env, context) {
-    context.waitUntil(announceReleases(env));
+    context.waitUntil(_event.cron === "*/5 * * * *" ? retryDiscordIssueClosures(env) : announceReleases(env));
   },
 };
 
