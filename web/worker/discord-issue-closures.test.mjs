@@ -142,8 +142,8 @@ test(`${command} creation captures private routing without exposing user IDs on 
   env.DISCORD_PUBLIC_KEY=[...new Uint8Array(await crypto.subtle.exportKey('raw',pair.publicKey))].map(b=>b.toString(16).padStart(2,'0')).join('');
   let issueBody;
   globalThis.fetch=async(url,init)=>{
-    if(url.includes('api.github.com')){issueBody=JSON.parse(init.body);return Response.json({number:42,html_url:`https://github.com/${REPO}/issues/42`});}
-    if(url.includes('/webhooks/'))return Response.json({id:MESSAGE,channel_id:CHANNEL});
+    if(new URL(url).hostname === 'api.github.com'){issueBody=JSON.parse(init.body);return Response.json({number:42,html_url:`https://github.com/${REPO}/issues/42`});}
+    if(new URL(url).hostname === 'discord.com' && new URL(url).pathname.startsWith('/api/v10/webhooks/'))return Response.json({id:MESSAGE,channel_id:CHANNEL});
     throw Error('unexpected URL');
   };
   const raw=JSON.stringify({type:2,id:command === 'bug' ? '723456789012345678' : '723456789012345679',token:'test-interaction-token',application_id:env.DISCORD_APPLICATION_ID,guild_id:env.DISCORD_GUILD_ID,channel_id:CHANNEL,member:{user:{id:USER,username:'test-reporter'}},data:{name:command,options:[{name:'report',type:3,value:'Test report: app crashes on save.'}]}});
