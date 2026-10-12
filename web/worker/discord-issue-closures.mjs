@@ -115,7 +115,11 @@ async function deliverClosure(env            , event         )                {
         nonce, enforce_nonce: true,
       }),
     });
-    if (!response.ok) { await response.body?.cancel(); throw new Error("discord_send_failed"); }
+    if (!response.ok) {
+      console.warn("discord_closure_http_failure", response.status);
+      await response.body?.cancel();
+      throw new Error("discord_send_failed");
+    }
     await response.body?.cancel();
     await state.put(`issue-close:sent:${key}`, "1", { expirationTtl: RETENTION });
     await state.delete?.(PREFIX + key);
