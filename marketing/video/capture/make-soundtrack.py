@@ -1,15 +1,27 @@
 #!/usr/bin/env python3
-"""Original 36-second launch cue: 120 BPM, cut accents, no third-party samples."""
-import math,random,struct,wave
+"""Original launch cue: 120 BPM, cut accents, no third-party samples.
+
+Defaults reproduce public/launch-soundtrack.wav (36 s). The portrait film uses:
+  make-soundtrack.py --length 35 --accents 4,6.5,11.5,15.5,19.5,23.5,27.5,31.5 \
+    --output public/portrait-soundtrack.wav
+"""
+import argparse,math,random,struct,wave
 from pathlib import Path
-RATE,LENGTH=44100,36
-rng=random.Random(42)
+RATE=44100
 beat=.5
 chords=[(174.614,207.652,261.626),(207.652,261.626,311.127),
         (155.563,195.998,233.082),(138.591,174.614,207.652),
         (174.614,207.652,261.626),(207.652,261.626,311.127)]
-accents=[3,6,12,18,24,30,33]
-output=Path(__file__).resolve().parents[1]/'public/launch-soundtrack.wav'
+root=Path(__file__).resolve().parents[1]
+parser=argparse.ArgumentParser()
+parser.add_argument('--length',type=int,default=36)
+parser.add_argument('--accents',default='3,6,12,18,24,30,33')
+parser.add_argument('--output',default='public/launch-soundtrack.wav')
+args=parser.parse_args()
+LENGTH=args.length
+accents=[float(a) for a in args.accents.split(',')]
+output=root/args.output
+rng=random.Random(42)
 with wave.open(str(output),'wb') as wav:
  wav.setnchannels(2);wav.setsampwidth(2);wav.setframerate(RATE)
  buffer=bytearray();previous_noise=0.0
@@ -37,7 +49,7 @@ with wave.open(str(output),'wb') as wav:
    elif 0 <= d < .5:
     value+=.19*math.sin(2*math.pi*(39*d+5*(1-math.exp(-d*28))))*math.exp(-d*12)
     value+=.037*math.sin(2*math.pi*1046.5*d)*math.exp(-d*8)
-  fade=min(1,t/.35,(36-t)/1.3)
+  fade=min(1,t/.35,(LENGTH-t)/1.3)
   value*=max(0,fade)*1.24
   pan=.11*math.sin(t*.85)
   # Soft saturation leaves headroom for the transition impacts.

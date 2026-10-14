@@ -5,6 +5,7 @@ import {
 } from 'remotion';
 import {Backdrop, C, Label, Line, Provider, TraceLogo, Wordmark, ease, lerp, markNames} from './shared';
 import {AndroidPromo, DURATION as ANDROID_DURATION, FPS as ANDROID_FPS} from './android';
+import {PortraitPromo, DURATION as PORTRAIT_DURATION, FPS as PORTRAIT_FPS} from './portrait';
 
 const Footer = ({light = false, index}: {light?: boolean; index?: string}) => <>
   <div style={{position: 'absolute', left: 90, bottom: 45, fontSize: 16, color: light ? '#596d88' : '#708199', letterSpacing: .6}}>Actual iOS footage · Demo data</div>
@@ -214,5 +215,6 @@ const Promo = () => <AbsoluteFill style={{fontFamily: '"Space Grotesk",sans-seri
 const Root = () => <>
   <Composition id="VercelticsLandscape" component={Promo} width={1920} height={1080} fps={30} durationInFrames={1080} />
   <Composition id="VercelticsAndroid" component={AndroidPromo} width={1920} height={1080} fps={ANDROID_FPS} durationInFrames={ANDROID_DURATION} />
+  <Composition id="VercelticsPortrait" component={PortraitPromo} width={1080} height={1920} fps={PORTRAIT_FPS} durationInFrames={PORTRAIT_DURATION} />
 </>;
 registerRoot(Root);
