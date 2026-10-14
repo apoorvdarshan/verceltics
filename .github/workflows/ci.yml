@@ -176,6 +176,15 @@ jobs:
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.android == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # Every test still runs exactly once: AndroidJUnitRunner splits the ~350 tests across
+    # two emulators (one emulator took about 9 minutes for the suite).
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1]
+    env:
+      TEST_SHARDS: 2
+      TEST_SHARD: ${{ matrix.shard }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -227,11 +236,13 @@ jobs:
           bash "$GITHUB_WORKSPACE/scripts/ci/wait_for_emulator_idle.sh"
           adb logcat -c
           ./gradlew :app:connectedDebugAndroidTest --stacktrace \
+            -Pandroid.testInstrumentationRunnerArguments.numShards="$TEST_SHARDS" \
+            -Pandroid.testInstrumentationRunnerArguments.shardIndex="$TEST_SHARD" \
             2>&1 | tee "$RUNNER_TEMP/android-test-logs/instrumentation.log"
-          # A run that executed nothing would hide a broken test setup; fail instead.
+          # A shard that ran nothing would hide a broken split or setup; fail instead.
           ran=$(find app/build/outputs/androidTest-results/connected -name '*.xml' -exec grep -ho '<testcase ' {} + 2>/dev/null | wc -l | tr -d ' ')
-          echo "instrumentation ran $ran test(s)"
-          [ "$ran" -gt 0 ] || { echo "error: no instrumentation tests ran" >&2; exit 1; }
+          echo "shard $TEST_SHARD of $TEST_SHARDS ran $ran test(s)"
+          [ "$ran" -gt 0 ] || { echo "error: shard $TEST_SHARD ran no tests" >&2; exit 1; }
           SH
 
       # A booted emulator snapshot taken before any app is installed: tests still
@@ -283,7 +294,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: android-instrumentation-reports-${{ github.run_attempt }}
+          name: android-instrumentation-reports-${{ matrix.shard }}-${{ github.run_attempt }}
           path: |
             android/app/build/reports/androidTests/
             android/app/build/outputs/androidTest-results/

@@ -11,6 +11,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
@@ -125,7 +126,7 @@ class VercelAccountMenuTest {
         setWorkspace(gateway)
 
         openMenu()
-        composeRule.onNodeWithTag("workspace.hosting.accountMenu.removeCurrent").performClick()
+        clickMenuItem("workspace.hosting.accountMenu.removeCurrent")
         composeRule.onNodeWithTag("workspace.hosting.removeAccountDialog").assertIsDisplayed()
         composeRule.onNodeWithText("Remove Apoorv?").assertIsDisplayed()
         composeRule.onNodeWithText("CANCEL").performClick()
@@ -134,7 +135,7 @@ class VercelAccountMenuTest {
         assertEquals("Cancelling removes nothing.", 0, gateway.removals.get())
 
         openMenu()
-        composeRule.onNodeWithTag("workspace.hosting.accountMenu.removeCurrent").performClick()
+        clickMenuItem("workspace.hosting.accountMenu.removeCurrent")
         composeRule.onNodeWithText("REMOVE ACCOUNT").performClick()
 
         composeRule.waitUntil(5_000) { gateway.removals.get() == 1 }
@@ -147,7 +148,7 @@ class VercelAccountMenuTest {
         setWorkspace(gateway)
 
         openMenu()
-        composeRule.onNodeWithTag("workspace.hosting.accountMenu.removeAll").performClick()
+        clickMenuItem("workspace.hosting.accountMenu.removeAll")
         composeRule.onNodeWithTag("workspace.hosting.removeAllAccountsDialog").assertIsDisplayed()
         composeRule.onNodeWithText("REMOVE ALL ACCOUNTS").performClick()
 
@@ -194,6 +195,14 @@ class VercelAccountMenuTest {
     private fun openMenu() {
         composeRule.onNodeWithTag("workspace.hosting.account").performClick()
         waitForTag("workspace.hosting.accountMenu")
+    }
+
+    /**
+     * The menu lists every hosting provider before the removal actions, so on a short screen
+     * those actions start below the menu's scroll viewport, where a click would miss them.
+     */
+    private fun clickMenuItem(tag: String) {
+        composeRule.onNodeWithTag(tag).performScrollTo().performClick()
     }
 
     private fun accountTag(id: String) = "workspace.hosting.accountMenu.account.$id"

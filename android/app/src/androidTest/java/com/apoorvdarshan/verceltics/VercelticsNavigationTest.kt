@@ -19,6 +19,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
@@ -262,7 +263,8 @@ class VercelticsNavigationTest {
         )
         openVercelDetail()
         compose.onNodeWithTag("vercel.token").performTextInput("temporary-token")
-        compose.onNodeWithTag("vercel.connect").performClick()
+        // On a short screen the button sits below the instructions, out of the scroll viewport.
+        compose.onNodeWithTag("vercel.connect").performScrollTo().performClick()
         compose.waitUntil(timeoutMillis = TIMEOUT_MILLIS) {
             DebugVercelGatewayController.isConnectStarted()
         }

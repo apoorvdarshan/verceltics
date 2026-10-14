@@ -331,8 +331,9 @@ cd android
 ```
 
 CI runs the same checks only for the files they cover: `ios-tests.yml` on the GitHub-hosted
-`xcode-27` runner, and `ci.yml` for the catalogs, website, Android build, and an API 36 emulator
-restored from a clean snapshot. Unit test results are never restored from the Gradle build cache.
+`xcode-27` runner, and `ci.yml` for the catalogs, website, Android build, and instrumentation tests
+split across two API 36 emulators restored from a clean snapshot. Unit test results are never
+restored from the Gradle build cache.
 
 For purchase testing, use Apple sandbox or TestFlight together with RevenueCat customer history and entitlement tools. The checked-in StoreKit configuration mirrors the monthly, yearly, lifetime, and optional-tip products for local reference.
 
