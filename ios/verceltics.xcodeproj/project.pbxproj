@@ -10,7 +10,25 @@
 		BA7C5F012FAE9A1200B7D0A1 /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = BA7C5F002FAE9A1200B7D0A1 /* RevenueCat */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		0F56ABF7217D010CD9B6A011 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = BA46B9F52F7E8DEA000E67FA /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BA46B9FC2F7E8DEA000E67FA;
+			remoteInfo = verceltics;
+		};
+		BAA100082FC0000000000008 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = BA46B9F52F7E8DEA000E67FA /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BA46B9FC2F7E8DEA000E67FA;
+			remoteInfo = verceltics;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		1A44DA8B01FB0C0062420CD6 /* vercelticsUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = vercelticsUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		BA46B9FD2F7E8DEA000E67FA /* verceltics.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = verceltics.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BAA100012FC0000000000001 /* vercelticsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = vercelticsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -26,9 +44,21 @@
 			path = vercelticsTests;
 			sourceTree = "<group>";
 		};
+		EDF64CBD5D750410CE56AD79 /* vercelticsUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = vercelticsUITests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		3A77A60A44675E1AC0879565 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		BA46B9FA2F7E8DEA000E67FA /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -52,6 +82,7 @@
 			children = (
 				BA46B9FF2F7E8DEA000E67FA /* verceltics */,
 				BAA100022FC0000000000002 /* vercelticsTests */,
+				EDF64CBD5D750410CE56AD79 /* vercelticsUITests */,
 				BA46B9FE2F7E8DEA000E67FA /* Products */,
 			);
 			sourceTree = "<group>";
@@ -61,6 +92,7 @@
 			children = (
 				BA46B9FD2F7E8DEA000E67FA /* verceltics.app */,
 				BAA100012FC0000000000001 /* vercelticsTests.xctest */,
+				1A44DA8B01FB0C0062420CD6 /* vercelticsUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -68,6 +100,27 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		800085CFBA0D2892EC03D556 /* vercelticsUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4F2154E57EE8DBAE2E7FB027 /* Build configuration list for PBXNativeTarget "vercelticsUITests" */;
+			buildPhases = (
+				43FF7BA99555AEA00FE40896 /* Sources */,
+				3A77A60A44675E1AC0879565 /* Frameworks */,
+				02652C547935114236249B92 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				D31EF4988E47DDBDEC71D5A4 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				EDF64CBD5D750410CE56AD79 /* vercelticsUITests */,
+			);
+			name = vercelticsUITests;
+			productName = vercelticsUITests;
+			productReference = 1A44DA8B01FB0C0062420CD6 /* vercelticsUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		BA46B9FC2F7E8DEA000E67FA /* verceltics */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = BA46BA082F7E8DEB000E67FA /* Build configuration list for PBXNativeTarget "verceltics" */;
@@ -114,24 +167,6 @@
 		};
 /* End PBXNativeTarget section */
 
-/* Begin PBXContainerItemProxy section */
-		BAA100082FC0000000000008 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = BA46B9F52F7E8DEA000E67FA /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = BA46B9FC2F7E8DEA000E67FA;
-			remoteInfo = verceltics;
-		};
-/* End PBXContainerItemProxy section */
-
-/* Begin PBXTargetDependency section */
-		BAA100092FC0000000000009 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = BA46B9FC2F7E8DEA000E67FA /* verceltics */;
-			targetProxy = BAA100082FC0000000000008 /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
-
 /* Begin PBXProject section */
 		BA46B9F52F7E8DEA000E67FA /* Project object */ = {
 			isa = PBXProject;
@@ -140,6 +175,10 @@
 				LastSwiftUpdateCheck = 2640;
 				LastUpgradeCheck = 2640;
 				TargetAttributes = {
+					800085CFBA0D2892EC03D556 = {
+						CreatedOnToolsVersion = 26.4;
+						TestTargetID = BA46B9FC2F7E8DEA000E67FA;
+					};
 					BA46B9FC2F7E8DEA000E67FA = {
 						CreatedOnToolsVersion = 26.4;
 					};
@@ -168,11 +207,19 @@
 			targets = (
 				BA46B9FC2F7E8DEA000E67FA /* verceltics */,
 				BAA100042FC0000000000004 /* vercelticsTests */,
+				800085CFBA0D2892EC03D556 /* vercelticsUITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		02652C547935114236249B92 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		BA46B9FB2F7E8DEA000E67FA /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -190,6 +237,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		43FF7BA99555AEA00FE40896 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		BA46B9F92F7E8DEA000E67FA /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -206,7 +260,37 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		BAA100092FC0000000000009 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BA46B9FC2F7E8DEA000E67FA /* verceltics */;
+			targetProxy = BAA100082FC0000000000008 /* PBXContainerItemProxy */;
+		};
+		D31EF4988E47DDBDEC71D5A4 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = verceltics;
+			target = BA46B9FC2F7E8DEA000E67FA /* verceltics */;
+			targetProxy = 0F56ABF7217D010CD9B6A011 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		345A6CC5F711A6631DD92B9A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 23RV7FYH36;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.apoorvdarshan.vercelticsUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = verceltics;
+			};
+			name = Debug;
+		};
 		BA46BA062F7E8DEB000E67FA /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -444,9 +528,34 @@
 			};
 			name = Release;
 		};
+		D88275B84212AC52941AD5C8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 23RV7FYH36;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.apoorvdarshan.vercelticsUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = verceltics;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		4F2154E57EE8DBAE2E7FB027 /* Build configuration list for PBXNativeTarget "vercelticsUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D88275B84212AC52941AD5C8 /* Release */,
+				345A6CC5F711A6631DD92B9A /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		BA46B9F82F7E8DEA000E67FA /* Build configuration list for PBXProject "verceltics" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

@@ -35,6 +35,20 @@
                ReferencedContainer = "container:verceltics.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "800085CFBA0D2892EC03D556"
+               BuildableName = "vercelticsUITests.xctest"
+               BlueprintName = "vercelticsUITests"
+               ReferencedContainer = "container:verceltics.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
@@ -52,6 +66,16 @@
                BlueprintIdentifier = "BAA100042FC0000000000004"
                BuildableName = "vercelticsTests.xctest"
                BlueprintName = "vercelticsTests"
+               ReferencedContainer = "container:verceltics.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "800085CFBA0D2892EC03D556"
+               BuildableName = "vercelticsUITests.xctest"
+               BlueprintName = "vercelticsUITests"
                ReferencedContainer = "container:verceltics.xcodeproj">
             </BuildableReference>
          </TestableReference>

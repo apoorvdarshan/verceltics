@@ -29,6 +29,13 @@ final class TipStore {
     }
 
     func loadProducts() async {
+        // PaywallManager configures RevenueCat at launch; UI-test builds never do.
+        guard Purchases.isConfigured else {
+            products = []
+            loadFailed = true
+            isLoading = false
+            return
+        }
         isLoading = true
         loadFailed = false
         errorMessage = nil
@@ -42,7 +49,7 @@ final class TipStore {
     }
 
     func purchase(_ product: StoreProduct) async {
-        guard purchasingID == nil else { return }
+        guard Purchases.isConfigured, purchasingID == nil else { return }
         purchasingID = product.productIdentifier
         errorMessage = nil
         defer { purchasingID = nil }

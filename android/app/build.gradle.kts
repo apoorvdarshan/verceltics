@@ -125,6 +125,12 @@ android {
     }
 }
 
+// CI restores the Gradle build cache. Test results must never come from it: every
+// run executes the unit tests again, while compiled classes can still be reused.
+tasks.withType<Test>().configureEach {
+    outputs.doNotCacheIf("test results are never restored from the build cache") { true }
+}
+
 dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2026.09.00")
 

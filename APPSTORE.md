@@ -1,25 +1,28 @@
 # App Store Listing
 
-App Store Connect submission details for Verceltics v2.1. Each field is in a code block for easy copy-paste.
+The App Store listing text lives in [`store/metadata/ios/en-US/`](store/metadata/ios/en-US/),
+one file per field, exported from the live App Store listing (iOS 2.1):
 
-Prepared for **iOS 2.1 (build 43)** submission. The public release remains 2.0
-until Apple approves and publishes 2.1. Release automation uses `ios-v2.1`,
-with listing upload and review submission enabled; screenshot replacement is off.
+| File | App Store Connect field | Limit |
+| --- | --- | --- |
+| `name.txt` | App Name | 30 characters |
+| `subtitle.txt` | Subtitle | 30 characters |
+| `promotional_text.txt` | Promotional Text | 170 characters |
+| `keywords.txt` | Keywords | 100 characters |
+| `description.txt` | Description | 4000 characters |
+| `privacy_url.txt` | Privacy Policy URL | HTTPS |
+| `support_url.txt` | Support URL | HTTPS |
+| `marketing_url.txt` | Marketing URL | HTTPS |
 
-## App Name
-```
-Verceltics — Hosting & Domains
-```
+What's New is the tag's `## ios-vX.Y` section in [RELEASE_NOTES.md](RELEASE_NOTES.md).
+Screenshots are the App Store-ready mockups in [`marketing/mockups ios/`](marketing/mockups%20ios/)
+(iPhone 6.7", 1290×2796) and [`marketing/mockups ipad/`](marketing/mockups%20ipad/) (iPad 13", 2048×2732).
+`ios-release.yml` uploads each of these only when its switch is on; see
+[store/README.md](store/README.md). Check them with `python3 scripts/store/ios_metadata.py check`,
+and re-export after editing the listing in App Store Connect with
+`scripts/store/export_ios_listing.py`.
 
-## Subtitle (30 chars max)
-```
-Deployments, Analytics, Uptime
-```
-
-## Promotional Text (170 chars max)
-```
-Check hosting, domains, deployments, analytics, search, speed, and uptime from one private, open-source iPhone and iPad workspace.
-```
+The fields below are managed in App Store Connect by hand.
 
 ## Category
 ```
@@ -27,98 +30,9 @@ Primary: Developer Tools
 Secondary: Utilities
 ```
 
-## Description
-```
-Verceltics puts hosting platforms, domain registrars, and site intelligence in one native iPhone and iPad workspace. Monitor projects and analytics, inspect deployments, manage Cloudflare resources, track domains, and open separate search, analytics, performance, and uptime dashboards without sending credentials through a Verceltics server.
-
-WHAT YOU GET
-• 27 separate integrations: 10 hosting platforms, 8 registrars, and 9 site services
-• Multiple hosting, registrar, and site-service accounts with quick switching
-• Vercel, Cloudflare, Netlify, Railway, Render, DigitalOcean, Heroku, Fly.io, Firebase Hosting, and AWS Amplify
-• Name.com, Namecheap, Porkbun, Spaceship, Dynadot, NameSilo, Gandi, and GoDaddy
-• Guided public IPv4 detection for Namecheap ClientIp setup and optional Name.com IP allowlisting
-• Separate provider dashboards for Google Search Console, Google Analytics, PageSpeed & CrUX, Bing Webmaster, Microsoft Clarity, Plausible, Umami, UptimeRobot, and Better Stack
-• Vercel Web Analytics with interactive Swift Charts; 24-hour, 7-day, 30-day, 3-month, and 12-month ranges; referrers; UTMs; geography; devices; browsers; operating systems; pages; routes; hostnames; events; feature flags; and query parameters; availability depends on the connected Vercel plan and Web Analytics configuration
-• Guarded provider API explorers and operation catalogs for advanced operations
-• Vercel project switching with search and privacy-preserving favicon detection
-• Pull to refresh for current provider data
-• iPad layout — sidebar-adaptable navigation, adaptive grids, wider detail views, and full-width charts
-• System, light, and dark appearances
-• App Store update checks from About
-• About tab — optional tips, rate/share links, contact, legal, updates, and subscription management
-
-PRIVATE BY DESIGN
-• Provider credentials and Google OAuth tokens stay in the device-only, when-unlocked iOS Keychain
-• No advertising, cross-app tracking, Verceltics-operated product analytics, or provider-data telemetry; RevenueCat processes limited purchase history for purchase functionality and purchase analytics, and provider data is not sent to Verceltics infrastructure
-• Requests go directly to provider HTTPS APIs or an explicitly selected HTTPS host for supported self-hosted services; Google Search Console, Google Analytics, and Firebase Hosting use Google OAuth
-• The registrar IP helper calls ipify without provider credentials or provider account data
-• Apple processes purchases; RevenueCat receives purchase and entitlement context but no provider credentials or provider account data
-• Fully open source on GitHub
-
-HOW IT WORKS
-1. Review the welcome screen and tap Choose what to connect
-2. Choose Hosting, Registrars, or Sites
-3. Select a provider and follow its API credential or OAuth connection flow
-4. Add or switch accounts from the account menu in each workspace
-5. Manage provider resources from the native dashboard
-
-PRICING
-• Monthly: $4.99/month, no trial
-• Yearly: $34.99/year with a 7-day introductory trial for eligible first-time subscribers (save 42%)
-• Lifetime: $59.99 one-time purchase
-• Optional tips: Coffee $2.99, Lunch $5.99, Big Tip $9.99, Huge Supporter $19.99 — support development and unlock nothing
-• Monthly and yearly subscriptions auto-renew unless canceled at least 24 hours before renewal; manage them in Apple Account settings
-• Prices can vary by storefront, currency, and tax. The price shown by Apple at purchase confirmation applies.
-
-Built with SwiftUI and Swift Charts, with StoreKit and RevenueCat for subscriptions, lifetime access, optional tips, and restoration.
-
-Website: https://verceltics.com
-GitHub: https://github.com/apoorvdarshan/verceltics
-Privacy Policy: https://verceltics.com/privacy
-Terms of Service: https://verceltics.com/terms
-Discord community: https://discord.gg/qv5nsTmkxA
-Contact: ad13dtu@gmail.com
-
-Not affiliated with any supported hosting platform, registrar, or site-intelligence service.
-```
-
-## What's New (v2.1)
-```
-Verceltics 2.1 brings interface refinements and new ways to get help.
-
-• Refined native Hosting, Registrars, and Sites workspaces with separate provider dashboards.
-• Adaptive iPhone and iPad layouts with System, Light, and Dark appearances.
-• Join the Verceltics Discord community directly from About.
-• Report an issue or request a feature using a GitHub template, or use Vercie on Discord without a GitHub account.
-• Meet the developer in a new 2.1 welcome, with links to X, Instagram, Product Hunt, GitHub, and Discord. Close it once to dismiss it permanently on your device.
-• Updated Instagram, LinkedIn, and Product Hunt links.
-
-Provider data and operations depend on each API, account permissions, and plan.
-```
-
-## Keywords (100 chars max)
-```
-dns,registrar,cloudflare,vercel,monitoring,speed,devops,website,server,traffic,search,performance
-```
-
-## Privacy URL
-```
-https://verceltics.com/privacy
-```
-
 ## Terms URL
 ```
 https://verceltics.com/terms
-```
-
-## Support URL
-```
-https://verceltics.com
-```
-
-## Marketing URL
-```
-https://verceltics.com
 ```
 
 ## Reviewer Notes

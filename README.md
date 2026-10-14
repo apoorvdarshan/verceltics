@@ -184,7 +184,8 @@ verceltics/
 ├── web/                     # Next.js website, privacy, and terms
 ├── docs/screenshots/ios/    # Current iPhone screenshots used by this README
 ├── docs/screenshots/ipad/   # Current iPad screenshot source assets
-├── scripts/                 # Provider catalog generation and updates
+├── scripts/                 # Provider catalogs, test runners, and store release scripts
+├── store/                   # Store listings, product catalog, and release switches
 └── tests/                   # Catalog and request-integrity tests
 ```
 
@@ -234,7 +235,8 @@ VERCELTICS_UPLOAD_KEYSTORE=/path/to/verceltics-upload.jks
 VERCELTICS_UPLOAD_KEYSTORE_PASSWORD_FILE=/path/to/password.txt
 ```
 
-Without them, release builds are unsigned.
+Without them, release builds are unsigned. Release automation signs with the same upload key
+from the `ANDROID_KEYSTORE_*` repository secrets; see [store/README.md](store/README.md).
 
 Builds without a RevenueCat key keep Pro locked and show "Plans unavailable" on the paywall. Debug builds may use a RevenueCat Test Store key (`test_...`), but release builds refuse one because the SDK crashes on it, and `bundleRelease` requires a `goog_` key. In RevenueCat, mark the Google Play lifetime product as non-consumable and the four tips as consumable.
 
@@ -300,18 +302,37 @@ The app validates and scopes credential use to known provider hosts. Advanced op
 
 ## Testing
 
-Run repository tests:
+Run the repository tests (provider catalogs, privacy manifest, and the offline store release scripts):
 
 ```bash
 ./scripts/test.sh
 ```
 
-Run the native Android checks:
+Run the iOS unit (`vercelticsTests`) and UI (`vercelticsUITests`) tests on an iOS Simulator:
+
+```bash
+bash scripts/test-ios.sh
+```
+
+The script creates its own simulator and deletes it afterwards, so existing simulators are never
+reset; it fails if either test bundle runs zero tests. UI tests launch the Debug app with
+`-uiTesting`, a Simulator-only test mode compiled only into Debug builds: accounts stay in memory,
+RevenueCat and App Store update checks are never contacted, and UserDefaults start empty. They
+cover the developer welcome, first-run connection welcome, provider catalog, the Vercel token form,
+the Hosting/Registrars/Sites/About tabs, the soft paywall on Pro details, and persistence of the
+last workspace and appearance across relaunches.
+
+Run the native Android checks, then the instrumentation and Compose UI tests on an emulator:
 
 ```bash
 cd android
-./gradlew testDebugUnitTest lintDebug assembleDebug
+./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleRelease
+./gradlew :app:connectedDebugAndroidTest
 ```
+
+CI runs the same checks only for the files they cover: `ios-tests.yml` on the GitHub-hosted
+`xcode-27` runner, and `ci.yml` for the catalogs, website, Android build, and an API 36 emulator
+restored from a clean snapshot. Unit test results are never restored from the Gradle build cache.
 
 For purchase testing, use Apple sandbox or TestFlight together with RevenueCat customer history and entitlement tools. The checked-in StoreKit configuration mirrors the monthly, yearly, lifetime, and optional-tip products for local reference.
 
@@ -321,8 +342,10 @@ Verceltics is not affiliated with, endorsed by, or sponsored by any supported ho
 
 ## Contributing
 
-iOS tag and store automation is documented in [store/README.md](store/README.md).
-It is configured with every release/store switch disabled until explicitly enabled.
+iOS (`ios-v*`) and Android (`android-v*`) tag and store automation is documented in
+[store/README.md](store/README.md). GitHub Actions builds, signs, and uploads both apps; Xcode
+Cloud is no longer used for Verceltics and must not be re-created. Every store switch is off until
+explicitly enabled, and a manual **Run workflow** only validates a signed build without uploading.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Our [Code of Conduct](CODE_OF_CONDUCT.md) applies to GitHub and the Verceltics Discord community. Report security issues privately using [SECURITY.md](SECURITY.md).
 

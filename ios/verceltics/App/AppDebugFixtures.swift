@@ -50,7 +50,12 @@ enum AppDebugFixtures {
         guard showsMainNavigation else {
             return SiteStore(ephemeralAccounts: [])
         }
+        return sampleSiteStore()
+    }
 
+    /// One in-memory PageSpeed account whose snapshot is fresh, so opening the
+    /// Sites workspace shows it without a network refresh.
+    static func sampleSiteStore() -> SiteStore {
         let accountID = UUID(uuidString: "6E12A0C4-8C46-4261-A21E-32E7F1724E1C")!
         let account = SiteIntegrationAccount(
             id: accountID,

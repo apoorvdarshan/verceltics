@@ -1,24 +1,76 @@
 name: CI
 
+# Python catalog checks, the website and Worker, and the Android app (unit tests,
+# lint, Debug and unsigned Release builds, and instrumentation tests on an
+# emulator). iOS tests run in ios-tests.yml.
 on:
+  # PR branches are checked by pull_request; push covers main only, so a PR's
+  # checks do not run twice.
   pull_request:
   push:
     branches:
       - main
-
-concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  workflow_dispatch:
+  # android-release.yml runs these checks before a tagged release.
+  workflow_call:
 
 permissions:
   contents: read
 
+# A newer push to a pull request supersedes its older run. Pushes to main,
+# manual runs, and release callers each keep their own run.
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  catalog-and-web:
+  # Pull requests run only the jobs their files can affect (a skipped job is not
+  # a failure). Pushes to main, manual runs, and release callers run everything.
+  changes:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      catalog: ${{ steps.filter.outputs.catalog }}
+      web: ${{ steps.filter.outputs.web }}
+      android: ${{ steps.filter.outputs.android }}
+    steps:
+      # Trees only (no file contents): enough for git diff --name-only.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: github.event_name == 'pull_request'
+        with:
+          fetch-depth: 2
+          filter: blob:none
+          sparse-checkout: .github
+          persist-credentials: false
+      - id: filter
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          all() { for job in catalog web android; do echo "$job=true" >> "$GITHUB_OUTPUT"; done; }
+          [ "$EVENT" = "pull_request" ] || { all; exit 0; }
+          # pull_request checks out the PR merged into its base, so parent 1 is the base.
+          # --no-renames: a moved file counts for both its old and new folder.
+          files=$(git -c core.quotePath=false diff --no-renames --name-only HEAD^1 HEAD) || { all; exit 0; }
+          printf '%s\n' "$files"
+          match() { printf '%s\n' "$files" | grep -qE "$1" && echo true || echo false; }
+          {
+            # The catalog tests read the iOS catalogs, privacy manifest, and account code.
+            echo "catalog=$(match '^"?(tests/|scripts/|ios/verceltics/|\.github/workflows/ci\.yml)')"
+            echo "web=$(match '^"?(web/|\.github/workflows/ci\.yml)')"
+            echo "android=$(match '^"?(android/|scripts/ci/wait_for_emulator_idle\.sh|\.github/workflows/ci\.yml)')"
+          } >> "$GITHUB_OUTPUT"
+
+  catalog:
+    needs: changes
+    # Runs if the filter failed, so a broken filter can never skip the check.
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.catalog == 'true') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -27,6 +79,18 @@ jobs:
 
       - name: Verify generated API catalogs
         run: ./scripts/test.sh
+
+  web:
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.web == 'true') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: web
+          persist-credentials: false
 
       - name: Set up Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -55,45 +119,21 @@ jobs:
         working-directory: web
         run: npm run build
 
-  ios-tests:
-    runs-on: macos-26
-    timeout-minutes: 45
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Test iOS app
-        run: |
-          set -o pipefail
-          DESTINATION='platform=iOS Simulator,name=iPhone 17 Pro,OS=latest'
-          # Avoid parallel simulator clones; they often time out on shared CI runners.
-          xcrun simctl boot "iPhone 17 Pro" 2>/dev/null || true
-          xcrun simctl bootstatus "iPhone 17 Pro" -b || true
-          run_tests() {
-            xcodebuild test \
-              -project ios/verceltics.xcodeproj \
-              -scheme verceltics \
-              -destination "$DESTINATION" \
-              -derivedDataPath /tmp/verceltics-ci-derived-data \
-              -parallel-testing-enabled NO \
-              -maximum-concurrent-test-simulator-destinations 1 \
-              CODE_SIGNING_ALLOWED=NO
-          }
-          if ! run_tests; then
-            echo "iOS tests failed; retrying once after resetting the simulator."
-            xcrun simctl shutdown "iPhone 17 Pro" 2>/dev/null || true
-            xcrun simctl erase "iPhone 17 Pro" 2>/dev/null || true
-            xcrun simctl boot "iPhone 17 Pro"
-            xcrun simctl bootstatus "iPhone 17 Pro" -b
-            run_tests
-          fi
-
-  android-tests:
+  android:
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.android == 'true') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: android
+          persist-credentials: false
+
+      # Verifies android/gradle/wrapper/gradle-wrapper.jar against Gradle's
+      # published checksums, so a tampered wrapper binary fails CI.
+      - uses: gradle/actions/wrapper-validation@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
 
       - name: Set up Java
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
@@ -101,19 +141,148 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+      # Default packages include obsolete `tools`, which sdkmanager no longer ships.
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
         with:
-          # Reject modified or unrecognized wrapper JARs before running Gradle.
-          validate-wrappers: true
+          packages: platform-tools platforms;android-37.0
 
-      - name: Test, lint, and build Android app
+      # Caches dependencies and compiled task outputs. Unit test results are never
+      # restored from it (see android/app/build.gradle.kts), so tests always run.
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+
+      # No signing or store credentials are available here. The unsigned,
+      # minified Release APK catches R8 and packaging regressions before tagging.
+      - name: Unit tests, lint, Debug APK, and unsigned Release APK
         working-directory: android
-        env:
-          ANDROID_HOME: /usr/local/lib/android/sdk
+        run: ./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleRelease
+
+      - name: Retain test and lint reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: android-reports-${{ github.run_attempt }}
+          path: |
+            android/app/build/reports/tests/
+            android/app/build/reports/lint-results-debug.*
+          if-no-files-found: warn
+          retention-days: 7
+
+  android-instrumentation:
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.android == 'true') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: |
+            android
+            scripts/ci
+          persist-credentials: false
+
+      - uses: gradle/actions/wrapper-validation@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+
+      - name: Set up Java
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+        with:
+          packages: platform-tools platforms;android-37.0
+
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+
+      - name: Enable emulator acceleration
         run: |
-          yes | "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
-          "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.0" || \
-            "${ANDROID_HOME}/cmdline-tools/16.0/bin/sdkmanager" "platforms;android-37.0" || \
-            true
-          ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Build Debug app and instrumentation APKs
+        working-directory: android
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/android-test-logs"
+          ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest --stacktrace 2>&1 | tee "$RUNNER_TEMP/android-test-logs/build.log"
+
+      - name: Prepare test command and diagnostics
+        run: |
+          cat > "$RUNNER_TEMP/run-android-instrumentation.sh" <<'SH'
+          #!/bin/bash
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/android-test-logs"
+          capture_diagnostics() {
+            adb logcat -d > "$RUNNER_TEMP/android-test-logs/logcat.txt" 2>&1 || true
+            adb shell dumpsys activity activities > "$RUNNER_TEMP/android-test-logs/activities.txt" 2>&1 || true
+          }
+          trap capture_diagnostics EXIT
+          # The restored snapshot catches up on the time it was saved; let that settle.
+          bash "$GITHUB_WORKSPACE/scripts/ci/wait_for_emulator_idle.sh"
+          adb logcat -c
+          ./gradlew :app:connectedDebugAndroidTest --stacktrace \
+            2>&1 | tee "$RUNNER_TEMP/android-test-logs/instrumentation.log"
+          # A run that executed nothing would hide a broken test setup; fail instead.
+          ran=$(find app/build/outputs/androidTest-results/connected -name '*.xml' -exec grep -ho '<testcase ' {} + 2>/dev/null | wc -l | tr -d ' ')
+          echo "instrumentation ran $ran test(s)"
+          [ "$ran" -gt 0 ] || { echo "error: no instrumentation tests ran" >&2; exit 1; }
+          SH
+
+      # A booted emulator snapshot taken before any app is installed: tests still
+      # start from a device with no Verceltics data, without a cold boot each run.
+      # It is saved only once start-up work is done, so restored runs don't resume into it.
+      - name: Restore the clean emulator snapshot
+        id: avd-cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-v1-api36-google_apis-x86_64-pixel_2-4cpu-4g
+
+      - name: Create the emulator and save a clean boot snapshot
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          cores: 4
+          ram-size: 4096M
+          force-avd-creation: false
+          emulator-boot-timeout: 300
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          disable-animations: false
+          script: bash scripts/ci/wait_for_emulator_idle.sh --compile
+
+      - name: Run instrumentation and Compose UI tests
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          cores: 4
+          ram-size: 4096M
+          force-avd-creation: false
+          emulator-boot-timeout: 300
+          # -no-snapshot-save: the clean snapshot is reused, never overwritten by a test run.
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          disable-animations: true
+          working-directory: android
+          script: bash "$RUNNER_TEMP/run-android-instrumentation.sh"
+
+      - name: Retain instrumentation results and emulator logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: android-instrumentation-reports-${{ github.run_attempt }}
+          path: |
+            android/app/build/reports/androidTests/
+            android/app/build/outputs/androidTest-results/
+            ${{ runner.temp }}/android-test-logs/
+          if-no-files-found: warn
+          retention-days: 7

@@ -222,6 +222,7 @@ struct LoginView: View {
         }
         .buttonStyle(PressScaleButtonStyle())
         .hoverEffect(.highlight)
+        .accessibilityIdentifier("connect.hosting.\(provider.rawValue)")
     }
 
     private func siteProviderButton(_ provider: SiteIntegrationProvider) -> some View {
@@ -260,6 +261,7 @@ struct LoginView: View {
         }
         .buttonStyle(PressScaleButtonStyle())
         .hoverEffect(.highlight)
+        .accessibilityIdentifier("connect.site.\(provider.rawValue)")
     }
 
     private func registrarButton(_ provider: RegistrarProvider) -> some View {
@@ -293,6 +295,7 @@ struct LoginView: View {
         }
         .buttonStyle(PressScaleButtonStyle())
         .hoverEffect(.highlight)
+        .accessibilityIdentifier("connect.registrar.\(provider.rawValue)")
     }
 
     // MARK: - Token Field (scrollable)
@@ -370,6 +373,7 @@ struct LoginView: View {
                             .autocorrectionDisabled()
                             .textInputAutocapitalization(.never)
                             .animation(.easeOut(duration: 0.18), value: isTokenFocused)
+                            .accessibilityIdentifier("vercel.token")
                     }
 
                     // Connect
@@ -403,6 +407,7 @@ struct LoginView: View {
                     }
                     .buttonStyle(PressScaleButtonStyle())
                     .disabled(tokenInput.isEmpty || authManager.isLoading)
+                    .accessibilityIdentifier("vercel.connect")
                     .id("connect-button")
                 }
                 .padding(.horizontal, 20)
@@ -619,6 +624,8 @@ struct LoginView: View {
                         .clipShape(Circle())
                 }
                 .foregroundStyle(AppTheme.textPrimary)
+                .accessibilityLabel("Back")
+                .accessibilityIdentifier("connect.back")
                 Spacer()
             }
 

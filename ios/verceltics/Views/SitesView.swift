@@ -203,6 +203,7 @@ struct SitesView: View {
                                 resourceCard(resource)
                             }
                             .buttonStyle(PressScaleButtonStyle())
+                            .accessibilityIdentifier("sites.resource.\(resource.name)")
                         }
                     }
                 }

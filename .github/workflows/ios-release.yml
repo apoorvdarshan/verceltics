@@ -1,79 +1,476 @@
+# iOS release — GitHub Actions builds, signs and uploads the App Store binary.
+#
+# Xcode Cloud no longer builds Verceltics: once this pipeline's validation run
+# passed, its tag-triggered workflow and product were scheduled for removal in
+# App Store Connect. Xcode Cloud triggers live in App Store Connect, not in this
+# repository; never re-create an Xcode Cloud workflow for ios-v* tags, or both
+# pipelines would upload a build for the same tag.
+#
+# Trigger
+#   push tag ios-vX.Y   release run (the tag must equal MARKETING_VERSION)
+#   workflow_dispatch   validation run: archive, sign, export and validate the
+#                       IPA with App Store Connect. Never uploads, never touches
+#                       the App Store listing, review or GitHub Releases. The
+#                       optional marketing_version input validates as a not-yet-
+#                       approved version (Apple refuses already-approved ones).
+#
+# Switches (repository Variables; missing = off, invalid values fail the run).
+# See store/README.md for the full table.
+#   IOS_RELEASE_AUTOMATION   master switch for every iOS store operation below
+#   IOS_UPLOAD_BUILD         build + upload the binary to App Store Connect
+#   IOS_UPLOAD_LISTING       name, subtitle, description, keywords, promo text, URLs
+#   IOS_UPLOAD_WHATS_NEW     What's New text (the tag's RELEASE_NOTES.md section)
+#   IOS_UPLOAD_SCREENSHOTS   iPhone 6.7" and iPad 13" screenshots
+#   IOS_SUBMIT_REVIEW        select THIS run's processed build, submit for review
+#                            (needs IOS_UPLOAD_BUILD; never uses an older build)
+#   IOS_PUBLIC_RELEASE       release automatically after approval (else manual)
+#   IOS_BUILD_POLL_SECONDS   default 30   (10–600)
+#   IOS_BUILD_WAIT_MINUTES   default 120  (10–300), counted from upload start,
+#                            covering upload + App Store Connect processing
+#
+# Secrets
+#   APP_STORE_CONNECT_API_KEY_ID / _ISSUER_ID / _API_KEY_P8
+#       App Store Connect API key: build numbers, cloud-managed distribution
+#       signing, upload, build readiness, listing and review.
+#   IOS_DEV_SIGNING_P12_BASE64 / IOS_DEV_SIGNING_P12_PASSWORD
+#       CI Apple Development identity ("Apple Development: Created via API",
+#       certificate NVNGDQGCKK, expires 2027-10-14) used only to sign the
+#       archive; distribution signing at export is cloud-managed by Apple. The
+#       same identity is shared by the owner's other app repositories.
+
 name: iOS Release
 
-# Setup only until STORE_IOS_RELEASE_ENABLED is explicitly enabled.
-# Xcode Cloud owns archive/upload and has its own independent enable switch.
-# No app builds, TestFlight publishing, or Play operations run in this workflow.
 on:
   push:
     tags:
       - "ios-v*"
+  workflow_dispatch:
+    inputs:
+      marketing_version:
+        description: >-
+          Validation only: version to validate as (e.g. 2.2). Empty = the project
+          version. Apple rejects versions already approved, so use the next one.
+        required: false
+        default: ""
 
 permissions:
   contents: read
 
+# Build numbers come from App Store Connect, so tag release runs never overlap.
+# Manual validation runs get their own group and can never cancel a release run.
 concurrency:
-  group: ios-store-release
+  group: ios-release-${{ github.event_name == 'push' && 'release' || github.run_id }}
   cancel-in-progress: false
 
 jobs:
-  release:
-    if: vars.STORE_IOS_RELEASE_ENABLED == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 150
+  tests:
+    if: github.event_name == 'push'
+    uses: ./.github/workflows/ios-tests.yml
     permissions:
-      contents: write
+      contents: read
+
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      mode: ${{ steps.gates.outputs.mode }}
+      build: ${{ steps.gates.outputs.build }}
+      upload_build: ${{ steps.gates.outputs.upload_build }}
+      listing: ${{ steps.gates.outputs.listing }}
+      whats_new: ${{ steps.gates.outputs.whats_new }}
+      screenshots: ${{ steps.gates.outputs.screenshots }}
+      submit: ${{ steps.gates.outputs.submit }}
+      public_release: ${{ steps.gates.outputs.public_release }}
+      asc: ${{ steps.gates.outputs.asc }}
+      poll_seconds: ${{ steps.gates.outputs.poll_seconds }}
+      wait_minutes: ${{ steps.gates.outputs.wait_minutes }}
+      marketing_version: ${{ steps.gates.outputs.marketing_version }}
+      build_number: ${{ steps.number.outputs.build_number }}
     steps:
-      - name: Checkout tagged source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /scripts/store/
+            /scripts/release_notes.py
+            /store/
+            /ios/verceltics.xcodeproj/
+            /ios/verceltics/Paywall/Products.storekit
+            /android/app/src/main/java/com/apoorvdarshan/verceltics/billing/BillingModels.kt
+            /marketing/mockups ios/
+            /marketing/mockups ipad/
+            /requirements-store.txt
+            /RELEASE_NOTES.md
 
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
 
-      - name: Validate version, products, and reviewed release notes
-        env:
-          TAG: ${{ github.ref_name }}
+      # These checks pass before anything reaches App Store Connect.
+      - name: Test release scripts, listing and IAP catalog (offline)
         run: |
-          python3 scripts/store/validate_ios_release.py --tag "$TAG"
-          python3 scripts/release_notes.py "$TAG" > "$RUNNER_TEMP/release-notes.md"
-          python3 scripts/store/prepare_ios_metadata.py --tag "$TAG" --out "$RUNNER_TEMP/store-meta"
+          python3 -m unittest scripts/store/test_ios_release.py
+          python3 scripts/store/validate_catalog.py --platform ios
+          python3 scripts/store/ios_metadata.py check
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            python3 scripts/release_notes.py --if-present "$GITHUB_REF_NAME" > /dev/null
+          fi
 
-      - name: Print and normalize independent store switches
+      - name: Resolve iOS release switches
         id: gates
         env:
-          STORE_IOS_RELEASE_ENABLED: ${{ vars.STORE_IOS_RELEASE_ENABLED }}
-          STORE_UPLOAD_LISTING: ${{ vars.STORE_UPLOAD_LISTING }}
-          STORE_UPLOAD_SCREENSHOTS: ${{ vars.STORE_UPLOAD_SCREENSHOTS }}
-          STORE_SUBMIT_IOS_REVIEW: ${{ vars.STORE_SUBMIT_IOS_REVIEW }}
-        run: python3 scripts/store/print_gates.py --github-output "$GITHUB_OUTPUT"
+          IOS_RELEASE_AUTOMATION: ${{ vars.IOS_RELEASE_AUTOMATION }}
+          IOS_UPLOAD_BUILD: ${{ vars.IOS_UPLOAD_BUILD }}
+          IOS_UPLOAD_LISTING: ${{ vars.IOS_UPLOAD_LISTING }}
+          IOS_UPLOAD_WHATS_NEW: ${{ vars.IOS_UPLOAD_WHATS_NEW }}
+          IOS_UPLOAD_SCREENSHOTS: ${{ vars.IOS_UPLOAD_SCREENSHOTS }}
+          IOS_SUBMIT_REVIEW: ${{ vars.IOS_SUBMIT_REVIEW }}
+          IOS_PUBLIC_RELEASE: ${{ vars.IOS_PUBLIC_RELEASE }}
+          IOS_BUILD_POLL_SECONDS: ${{ vars.IOS_BUILD_POLL_SECONDS }}
+          IOS_BUILD_WAIT_MINUTES: ${{ vars.IOS_BUILD_WAIT_MINUTES }}
+          VALIDATION_MARKETING_VERSION: ${{ inputs.marketing_version }}
+        run: python3 scripts/store/ios_release.py gates
 
-      - name: Upload metadata or wait for tagged build and submit (explicit switches only)
-        if: >-
-          steps.gates.outputs.upload_listing == 'true' ||
-          steps.gates.outputs.upload_screenshots == 'true' ||
-          steps.gates.outputs.submit_ios_review == 'true'
+      - name: Choose the build number
+        id: number
+        if: steps.gates.outputs.build == 'true'
         env:
-          STORE_IOS_RELEASE_ENABLED: ${{ vars.STORE_IOS_RELEASE_ENABLED }}
-          UPLOAD_LISTING: ${{ steps.gates.outputs.upload_listing }}
-          UPLOAD_SCREENSHOTS: ${{ steps.gates.outputs.upload_screenshots }}
-          SUBMIT_IOS_REVIEW: ${{ steps.gates.outputs.submit_ios_review }}
           APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           APP_STORE_CONNECT_API_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
-          TAG: ${{ github.ref_name }}
         run: |
           python3 -m pip install --disable-pip-version-check --require-hashes -r requirements-store.txt
-          python3 -u scripts/store/asc_release.py --version "${TAG#ios-v}" \
-            --tag "$TAG" --commit "$(git rev-parse HEAD)" \
-            --metadata-dir "$RUNNER_TEMP/store-meta"
+          python3 scripts/store/ios_release.py build-number
+
+  build:
+    needs: [tests, prepare]
+    if: >-
+      !cancelled() && needs.prepare.result == 'success' &&
+      needs.prepare.outputs.build == 'true' &&
+      (needs.tests.result == 'success' ||
+       (github.event_name == 'workflow_dispatch' && needs.tests.result == 'skipped'))
+    runs-on: xcode-27
+    timeout-minutes: 90
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.app/Contents/Developer
+      MODE: ${{ needs.prepare.outputs.mode }}
+      MARKETING_VERSION: ${{ needs.prepare.outputs.marketing_version }}
+      BUILD_NUMBER: ${{ needs.prepare.outputs.build_number }}
+      BUNDLE_ID: com.apoorvdarshan.verceltics
+      TEAM_ID: 23RV7FYH36
+      ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+    outputs:
+      upload_started_at: ${{ steps.upload.outputs.started_at }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: ios
+
+      # Store builds reuse only downloaded package sources, never compiled outputs.
+      - name: Cache pinned Swift packages
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .ios-release-packages
+          key: ios-release-spm-${{ runner.os }}-${{ runner.arch }}-xcode27-${{ hashFiles('ios/**/Package.resolved') }}
+
+      - name: Check toolchain and inputs
+        run: |
+          xcodebuild -version
+          [[ "$BUILD_NUMBER" =~ ^[0-9]+$ ]] || { echo "error: no build number from prepare job" >&2; exit 1; }
+          [[ "$MARKETING_VERSION" =~ ^[0-9]+(\.[0-9]+)*$ ]] || { echo "error: bad marketing version" >&2; exit 1; }
+          case "$DEVELOPER_DIR" in *beta*|*Beta*) echo "error: App Store builds need a released Xcode" >&2; exit 1 ;; esac
+
+      - name: Install signing identity and App Store Connect key
+        env:
+          P12_BASE64: ${{ secrets.IOS_DEV_SIGNING_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.IOS_DEV_SIGNING_P12_PASSWORD }}
+          ASC_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          for name in P12_BASE64 P12_PASSWORD ASC_KEY_P8 ASC_KEY_ID ASC_ISSUER_ID; do
+            [ -n "${!name}" ] || { echo "error: missing signing secret $name" >&2; exit 1; }
+          done
+          umask 077
+          keys="$RUNNER_TEMP/asc-keys"
+          mkdir -p "$keys"
+          python3 -c 'import os,sys; open(sys.argv[1],"w").write(os.environ["ASC_KEY_P8"].replace("\\n","\n").strip()+"\n")' \
+            "$keys/AuthKey_${ASC_KEY_ID}.p8"
+          keychain="$RUNNER_TEMP/verceltics-signing.keychain-db"
+          keychain_password="$(openssl rand -hex 24)"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 7200 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          # Apple's WWDR G3 intermediate completes the development identity's chain.
+          curl -fsSL https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer -o "$RUNNER_TEMP/wwdr-g3.cer"
+          echo "dcf21878c77f4198e4b4614f03d696d89c66c66008d4244e1b99161aac91601f  $RUNNER_TEMP/wwdr-g3.cer" | shasum -a 256 -c -
+          security import "$RUNNER_TEMP/wwdr-g3.cer" -k "$keychain" > /dev/null
+          printf '%s' "$P12_BASE64" | base64 --decode > "$RUNNER_TEMP/signing.p12"
+          security import "$RUNNER_TEMP/signing.p12" -k "$keychain" -P "$P12_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/security
+          rm -f "$RUNNER_TEMP/signing.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$keychain_password" "$keychain" > /dev/null
+          read -r -a existing <<< "$(security list-keychains -d user | tr -d '"' | xargs)"
+          security list-keychains -d user -s "$keychain" "${existing[@]}"
+          security find-identity -v -p codesigning "$keychain" | tee "$RUNNER_TEMP/identities.txt"
+          grep -qE '[1-9][0-9]* valid identit' "$RUNNER_TEMP/identities.txt" || { echo "error: no valid signing identity in the CI keychain" >&2; exit 1; }
+          {
+            echo "ASC_KEY_PATH=$keys/AuthKey_${ASC_KEY_ID}.p8"
+            echo "API_PRIVATE_KEYS_DIR=$keys"
+            echo "SIGNING_KEYCHAIN=$keychain"
+          } >> "$GITHUB_ENV"
+
+      - name: Archive Release
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/logs"
+          log="$RUNNER_TEMP/logs/archive.log"
+          status=0
+          xcodebuild archive \
+            -project ios/verceltics.xcodeproj \
+            -scheme verceltics \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Verceltics.xcarchive" \
+            -derivedDataPath "$RUNNER_TEMP/derived-data" \
+            -clonedSourcePackagesDirPath .ios-release-packages \
+            -onlyUsePackageVersionsFromResolvedFile \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            MARKETING_VERSION="$MARKETING_VERSION" \
+            CURRENT_PROJECT_VERSION="$BUILD_NUMBER" > "$log" 2>&1 || status=$?
+          grep -E '(error|warning): |\*\* ARCHIVE' "$log" || true
+          [ "$status" -eq 0 ] || { tail -n 60 "$log"; echo "error: archive failed (full log in artifact)" >&2; exit "$status"; }
+
+      - name: Verify app identity and version in every bundle
+        run: |
+          set -euo pipefail
+          apps="$RUNNER_TEMP/Verceltics.xcarchive/Products/Applications"
+          main="$(find "$apps" -maxdepth 1 -name '*.app' | head -n1)"
+          [ -n "$main" ] || { echo "error: the archive contains no app" >&2; exit 1; }
+          id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$main/Info.plist")"
+          [ "$id" = "$BUNDLE_ID" ] || { echo "error: archived $id, expected $BUNDLE_ID" >&2; exit 1; }
+          # The app and any extension must carry the same version and build number
+          # (resource and framework bundles excluded).
+          checked=0
+          while IFS= read -r -d '' bundle; do
+            plist="$bundle/Info.plist"
+            short="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plist")"
+            build="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$plist")"
+            if [ "$short" != "$MARKETING_VERSION" ] || [ "$build" != "$BUILD_NUMBER" ]; then
+              echo "error: ${bundle#"$apps"/} is $short ($build), expected $MARKETING_VERSION ($BUILD_NUMBER)" >&2
+              exit 1
+            fi
+            checked=$((checked + 1))
+          done < <(printf '%s\0' "$main"; find "$main" -mindepth 1 -type d \( -name '*.app' -o -name '*.appex' \) -not -path '*/Frameworks/*' -print0)
+          echo "verified $BUNDLE_ID $MARKETING_VERSION ($BUILD_NUMBER) in $checked app/extension bundle(s)"
+
+      - name: Write export options
+        run: |
+          destination="export"
+          [ "$MODE" = release ] && destination="upload"
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>teamID</key><string>${TEAM_ID}</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>destination</key><string>${destination}</string>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+            <key>uploadSymbols</key><true/>
+          </dict>
+          </plist>
+          EOF
+          plutil -lint "$RUNNER_TEMP/ExportOptions.plist"
+
+      - name: Export and validate with App Store Connect (validation run)
+        if: env.MODE == 'validate'
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/logs/export.log"
+          status=0
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/Verceltics.xcarchive" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" > "$log" 2>&1 || status=$?
+          grep -E '(error|warning): |\*\* EXPORT' "$log" || true
+          [ "$status" -eq 0 ] || { tail -n 60 "$log"; echo "error: export failed (full log in artifact)" >&2; exit "$status"; }
+          ipa="$(find "$RUNNER_TEMP/export" -maxdepth 1 -name '*.ipa' | head -n1)"
+          [ -n "$ipa" ] || { echo "error: export produced no IPA" >&2; exit 1; }
+          xcrun altool --validate-app -f "$ipa" -t ios \
+            --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID" 2>&1 | tee "$RUNNER_TEMP/logs/validate.log"
+          echo "validated $MARKETING_VERSION ($BUILD_NUMBER) with App Store Connect — nothing uploaded"
+
+      - name: Upload to App Store Connect (release run)
+        id: upload
+        if: env.MODE == 'release'
+        run: |
+          set -euo pipefail
+          echo "started_at=$(date +%s)" >> "$GITHUB_OUTPUT"
+          log="$RUNNER_TEMP/logs/upload.log"
+          status=0
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/Verceltics.xcarchive" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" > "$log" 2>&1 || status=$?
+          grep -E '(error|warning): |[Uu]pload|\*\* EXPORT' "$log" || true
+          [ "$status" -eq 0 ] || { tail -n 60 "$log"; echo "error: upload failed (full log in artifact)" >&2; exit "$status"; }
+          echo "uploaded $MARKETING_VERSION ($BUILD_NUMBER); App Store Connect processing is checked next"
+
+      - name: Collect logs
+        if: failure()
+        run: |
+          mkdir -p "$RUNNER_TEMP/logs"
+          find "${TMPDIR:-/tmp}" -maxdepth 1 -name '*.xcdistributionlogs' -exec cp -R {} "$RUNNER_TEMP/logs/" \; 2>/dev/null || true
+
+      - name: Keep build logs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ios-release-logs-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/logs
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Remove signing material
+        if: always()
+        run: |
+          [ -n "${SIGNING_KEYCHAIN:-}" ] && security delete-keychain "$SIGNING_KEYCHAIN" 2>/dev/null || true
+          rm -rf "$RUNNER_TEMP/asc-keys" "$RUNNER_TEMP/signing.p12" "$RUNNER_TEMP/export" "$RUNNER_TEMP/wwdr-g3.cer"
+
+  app-store-connect:
+    needs: [tests, prepare, build]
+    if: >-
+      !cancelled() && needs.prepare.result == 'success' &&
+      needs.prepare.outputs.mode == 'release' &&
+      needs.tests.result == 'success' &&
+      (needs.prepare.outputs.upload_build == 'true' || needs.prepare.outputs.asc == 'true') &&
+      (needs.build.result == 'success' ||
+       (needs.build.result == 'skipped' && needs.prepare.outputs.upload_build != 'true'))
+    runs-on: ubuntu-latest
+    # Covers IOS_BUILD_WAIT_MINUTES (max 300) plus listing and submission.
+    timeout-minutes: 345
+    env:
+      MARKETING_VERSION: ${{ needs.prepare.outputs.marketing_version }}
+      APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APP_STORE_CONNECT_API_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /scripts/store/
+            /scripts/release_notes.py
+            /store/
+            /ios/verceltics.xcodeproj/
+            /marketing/mockups ios/
+            /marketing/mockups ipad/
+            /requirements-store.txt
+            /RELEASE_NOTES.md
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
+      - name: Install store tooling
+        run: python3 -m pip install --disable-pip-version-check --require-hashes -r requirements-store.txt
+
+      - name: Wait for App Store Connect to process this build
+        id: wait
+        if: needs.prepare.outputs.upload_build == 'true'
+        run: |
+          python3 scripts/store/ios_release.py wait-build \
+            --version "$MARKETING_VERSION" \
+            --build "${{ needs.prepare.outputs.build_number }}" \
+            --started-at "${{ needs.build.outputs.upload_started_at }}" \
+            --wait-minutes "${{ needs.prepare.outputs.wait_minutes }}" \
+            --poll-seconds "${{ needs.prepare.outputs.poll_seconds }}"
+
+      - name: Prepare listing and What's New (local only)
+        if: needs.prepare.outputs.asc == 'true'
+        run: python3 scripts/store/ios_metadata.py prepare --out "$RUNNER_TEMP/store-meta" --tag "$GITHUB_REF_NAME"
+
+      - name: Listing / What's New / screenshots / review (gated)
+        if: needs.prepare.outputs.asc == 'true'
+        env:
+          UPLOAD_LISTING: ${{ needs.prepare.outputs.listing }}
+          UPLOAD_WHATS_NEW: ${{ needs.prepare.outputs.whats_new }}
+          UPLOAD_SCREENSHOTS: ${{ needs.prepare.outputs.screenshots }}
+          SUBMIT_IOS_REVIEW: ${{ needs.prepare.outputs.submit }}
+          PUBLIC_RELEASE: ${{ needs.prepare.outputs.public_release }}
+          BUILD_ID: ${{ steps.wait.outputs.build_id }}
+          BUILD_NUMBER: ${{ needs.prepare.outputs.build_number }}
+        run: |
+          set -euo pipefail
+          args=(--metadata-dir "$RUNNER_TEMP/store-meta" --version "$MARKETING_VERSION")
+          if [ -n "$BUILD_ID" ]; then
+            args+=(--build-id "$BUILD_ID" --build-number "$BUILD_NUMBER")
+          fi
+          python3 -u scripts/store/asc_release.py "${args[@]}"
+
+  github-release:
+    needs: [tests, prepare, build, app-store-connect]
+    if: >-
+      !cancelled() && github.event_name == 'push' &&
+      needs.tests.result == 'success' && needs.prepare.result == 'success' &&
+      (needs.build.result == 'success' || needs.build.result == 'skipped') &&
+      (needs.app-store-connect.result == 'success' || needs.app-store-connect.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # create the GitHub Release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /scripts/
+            /ios/verceltics.xcodeproj/
+            /RELEASE_NOTES.md
+
+      - name: Print store switches
+        env:
+          IOS_RELEASE_AUTOMATION: ${{ vars.IOS_RELEASE_AUTOMATION }}
+          IOS_UPLOAD_BUILD: ${{ vars.IOS_UPLOAD_BUILD }}
+          IOS_UPLOAD_LISTING: ${{ vars.IOS_UPLOAD_LISTING }}
+          IOS_UPLOAD_WHATS_NEW: ${{ vars.IOS_UPLOAD_WHATS_NEW }}
+          IOS_UPLOAD_SCREENSHOTS: ${{ vars.IOS_UPLOAD_SCREENSHOTS }}
+          IOS_SUBMIT_REVIEW: ${{ vars.IOS_SUBMIT_REVIEW }}
+          IOS_PUBLIC_RELEASE: ${{ vars.IOS_PUBLIC_RELEASE }}
+        run: python3 scripts/store/print_gates.py --platform ios
 
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.prepare.outputs.marketing_version }}
+          UPLOADED_BUILD: ${{ needs.build.result == 'success' && needs.prepare.outputs.build_number || '' }}
         run: |
-          gh release create "$TAG" --verify-tag --title "iOS ${TAG#ios-v}" \
-            --notes-file "$RUNNER_TEMP/release-notes.md" --latest
+          set -euo pipefail
+          BUILD="${UPLOADED_BUILD:-$(grep -m1 'CURRENT_PROJECT_VERSION' ios/verceltics.xcodeproj/project.pbxproj | tr -dc '0-9')}"
+          python3 scripts/release_notes.py --if-present "$GITHUB_REF_NAME" > "$RUNNER_TEMP/release-notes.md"
+          if [ -s "$RUNNER_TEMP/release-notes.md" ]; then
+            notes=(--notes-file "$RUNNER_TEMP/release-notes.md")
+          else
+            notes=(--generate-notes)
+          fi
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --title "iOS ${VERSION} (build ${BUILD})" "${notes[@]}" --latest

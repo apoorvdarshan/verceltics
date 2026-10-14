@@ -11,6 +11,7 @@ final class PaywallManager {
 
     private static let revenueCatAPIKey = "appl_kIbnXTGTOxEEAuvRXUhenQYtzlk"
     private static let entitlementID = "Verceltics Pro"
+    private static let unconfiguredMessage = "Purchases are unavailable in this build."
 
     var packages: [Package] = []
     var purchasedProductIDs: Set<String> = []
@@ -35,7 +36,17 @@ final class PaywallManager {
         package(for: Self.lifetimeProductID, type: .lifetime)
     }
 
-    init() {
+    convenience init() {
+        self.init(configuresRevenueCat: true)
+    }
+
+    private init(configuresRevenueCat: Bool) {
+        guard configuresRevenueCat else {
+            // Entitlements are known to be absent: Pro stays locked.
+            isLoading = false
+            hasCheckedEntitlements = true
+            return
+        }
         configureRevenueCat()
         Task {
             await checkEntitlements()
@@ -43,9 +54,22 @@ final class PaywallManager {
         }
     }
 
+#if DEBUG
+    /// UI tests and hosted unit tests never configure RevenueCat, so no purchase
+    /// or entitlement request leaves the simulator and Pro stays locked.
+    static func withoutRevenueCatForTesting() -> PaywallManager {
+        PaywallManager(configuresRevenueCat: false)
+    }
+#endif
+
     func loadProducts() async {
         if !packages.isEmpty {
             isLoading = false
+            return
+        }
+        guard Purchases.isConfigured else {
+            isLoading = false
+            error = Self.unconfiguredMessage
             return
         }
 
@@ -68,6 +92,10 @@ final class PaywallManager {
     }
 
     func purchase(_ package: Package) async -> Bool {
+        guard Purchases.isConfigured else {
+            error = Self.unconfiguredMessage
+            return false
+        }
         error = nil
 
         do {
@@ -82,6 +110,10 @@ final class PaywallManager {
     }
 
     func restorePurchases() async {
+        guard Purchases.isConfigured else {
+            error = Self.unconfiguredMessage
+            return
+        }
         error = nil
 
         do {
@@ -94,6 +126,10 @@ final class PaywallManager {
     }
 
     func checkEntitlements() async {
+        guard Purchases.isConfigured else {
+            hasCheckedEntitlements = true
+            return
+        }
         do {
             let customerInfo = try await Purchases.shared.customerInfo()
             apply(customerInfo: customerInfo)
@@ -107,7 +143,8 @@ final class PaywallManager {
     }
 
     func isEligibleForTrial(_ package: Package?) async -> Bool {
-        guard let package,
+        guard Purchases.isConfigured,
+              let package,
               package.storeProduct.introductoryDiscount?.paymentMode == .freeTrial else { return false }
         let status = await Purchases.shared.checkTrialOrIntroDiscountEligibility(product: package.storeProduct)
         return status.isEligible

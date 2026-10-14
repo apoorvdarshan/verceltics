@@ -2,9 +2,11 @@
 
 Public-facing Verceltics assets for product listings, social posts, press coverage, and promotional material.
 
-Current source-build copy should use **iOS 2.1 (build 43)**. The public App Store
-release is still **2.0**; describe 2.1 artwork as a preview until the update is
-released. Prepared listing copy lives in [APPSTORE.md](../APPSTORE.md).
+Current copy should use **iOS 2.1**, the current App Store release.
+App Store listing text lives in [store/metadata/ios](../store/metadata/ios/) and the
+Google Play listing in [store/metadata/play](../store/metadata/play/). The iPhone and iPad
+mockups below are the App Store screenshots that `ios-release.yml` uploads when
+`IOS_UPLOAD_SCREENSHOTS` is on.
 
 ## Contents
 
