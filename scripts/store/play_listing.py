@@ -5,10 +5,14 @@ store/metadata/play/<locale>/ holds the Play listing (title, short and full
 description). Phone screenshots come from store/google-play/screenshots/phone/.
 What's New comes from the tag's RELEASE_NOTES.md section, as plain text.
 
-    play_listing.py check                       validate listing text and screenshots
-    play_listing.py prepare --out DIR [--tag android-vX.Y]
+    play_listing.py check [--listing] [--screenshots]
+                                                validate listing text and/or screenshots
+                                                (both when neither flag is given)
+    play_listing.py prepare --out DIR [--tag android-vX.Y] [--no-listing]
                                                 copy the listing to DIR/play/<locale>/ and
                                                 write DIR/play/whatsnew-en-US for the tag
+                                                (exactly the text Play receives: no
+                                                trailing newline)
     play_listing.py upload [--metadata-dir DIR] [--dry-run]
                                                 upload what UPLOAD_LISTING / UPLOAD_SCREENSHOTS
                                                 switch on, in one Play edit (gated in CI)
@@ -21,7 +25,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import shutil
 import struct
 import sys
@@ -29,7 +32,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
-from release_notes import section_for_tag  # noqa: E402
+from release_notes import plain_text, section_for_tag  # noqa: E402
 
 PACKAGE_NAME = "com.apoorvdarshan.verceltics"
 LISTING_DIR = ROOT / "store" / "metadata" / "play"
@@ -92,9 +95,10 @@ def load_locale(locale_dir: Path) -> dict[str, str]:
 
 
 def play_whats_new(notes: str) -> str:
-    """Reviewed release notes as plain Play Store text."""
-    text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", notes)
-    text = re.sub(r"^[-*] ", "• ", text, flags=re.MULTILINE).replace("**", "").replace("`", "")
+    """Reviewed release notes as plain Play Store text, at most WHATS_NEW_LIMIT characters."""
+    text = plain_text(notes)
+    if not text:
+        raise ListingError("the release notes have no text for Play What's New")
     if len(text) > WHATS_NEW_LIMIT:
         raise ListingError(f"Play What's New is limited to {WHATS_NEW_LIMIT} characters (the notes have {len(text)})")
     return text
@@ -130,22 +134,30 @@ def screenshot_files(directory: Path = SCREENSHOTS_DIR) -> list[Path]:
     return files
 
 
-def prepare(out: Path, tag: str | None = None, listing_dir: Path = LISTING_DIR) -> list[Path]:
-    """Copy the validated listing to out/play/<locale>/ and the tag's notes to out/play/whatsnew-en-US."""
+def prepare(
+    out: Path, tag: str | None = None, listing_dir: Path = LISTING_DIR, *, include_listing: bool = True
+) -> list[Path]:
+    """Copy the validated listing to out/play/<locale>/ and the tag's notes to out/play/whatsnew-en-US.
+
+    The What's New file holds exactly the text Play receives (the upload action sends
+    the file as it is), so it has no trailing newline. Without include_listing the
+    listing is neither read nor copied, so an unused listing never blocks a release.
+    """
     written = []
-    for locale in locales(listing_dir):
-        load_locale(listing_dir / locale)
-        target = out / "play" / locale
-        target.mkdir(parents=True, exist_ok=True)
-        for filename in FIELDS:
-            shutil.copyfile(listing_dir / locale / filename, target / filename)
-            written.append(target / filename)
+    if include_listing:
+        for locale in locales(listing_dir):
+            load_locale(listing_dir / locale)
+            target = out / "play" / locale
+            target.mkdir(parents=True, exist_ok=True)
+            for filename in FIELDS:
+                shutil.copyfile(listing_dir / locale / filename, target / filename)
+                written.append(target / filename)
     if tag:
         notes = section_for_tag(tag)
         if notes is not None:
             path = out / "play" / f"whatsnew-{PRIMARY_LOCALE}"
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(play_whats_new(notes) + "\n", encoding="utf-8")
+            path.write_text(play_whats_new(notes), encoding="utf-8")
             written.append(path)
     return written
 
@@ -252,10 +264,14 @@ def cmd_upload(args: argparse.Namespace) -> None:
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
-    sub.add_parser("check")
+    check = sub.add_parser("check")
+    check.add_argument("--listing", action="store_true", help="check the listing text")
+    check.add_argument("--screenshots", action="store_true", help="check the phone screenshots")
     prep = sub.add_parser("prepare")
     prep.add_argument("--out", required=True, type=Path)
     prep.add_argument("--tag", help="add this tag's RELEASE_NOTES.md section as Play What's New")
+    prep.add_argument("--no-listing", action="store_true",
+                      help="skip the listing (only What's New), when the listing is not uploaded")
     upload = sub.add_parser("upload")
     upload.add_argument("--metadata-dir", type=Path, default=ROOT / "store" / "metadata",
                         help="directory holding play/<locale>/ listing files")
@@ -271,12 +287,16 @@ def main(argv: list[str] | None = None) -> None:
         if args.command == "whats-new":
             print(whats_new(args.tag))
         elif args.command == "check":
-            for locale in locales():
-                load_locale(LISTING_DIR / locale)
-                print(f"Play listing {locale}: OK")
-            print(f"Play phone screenshots: {len(screenshot_files())} OK")
+            # Release runs check only what they upload; with no flag, check everything.
+            everything = not (args.listing or args.screenshots)
+            if args.listing or everything:
+                for locale in locales(LISTING_DIR):
+                    load_locale(LISTING_DIR / locale)
+                    print(f"Play listing {locale}: OK")
+            if args.screenshots or everything:
+                print(f"Play phone screenshots: {len(screenshot_files(SCREENSHOTS_DIR))} OK")
         elif args.command == "prepare":
-            written = prepare(args.out, args.tag)
+            written = prepare(args.out, args.tag, include_listing=not args.no_listing)
             has_whats_new = any(path.name.startswith("whatsnew-") for path in written)
             print(f"prepared {len(written)} Play listing files under {args.out / 'play'}"
                   + ("" if has_whats_new else " (no What's New for this run)"))

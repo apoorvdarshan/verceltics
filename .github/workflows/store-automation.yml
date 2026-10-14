@@ -100,6 +100,9 @@ jobs:
       - name: Test Android release switches, artifact checks, Play listing and read-back (offline)
         run: python3 -m unittest -v scripts/store/test_android_release.py
 
+      - name: Check the repository's store listings and screenshots
+        run: python3 -m unittest -v scripts/store/test_store_assets.py
+
       - name: Validate the product catalog, App Store listing and Play listing
         run: |
           python3 scripts/store/validate_catalog.py --platform all

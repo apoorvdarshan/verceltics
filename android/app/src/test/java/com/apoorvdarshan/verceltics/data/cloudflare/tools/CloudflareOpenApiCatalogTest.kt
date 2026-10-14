@@ -3,6 +3,7 @@ package com.apoorvdarshan.verceltics.data.cloudflare.tools
 import com.apoorvdarshan.verceltics.data.network.ProviderJsonValue
 import java.io.ByteArrayInputStream
 import java.io.File
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -44,6 +45,18 @@ class CloudflareOpenApiCatalogTest {
         assertEquals(1_599, realCatalog.operations.count { it.method == CloudflareHttpMethod.GET })
         assertTrue(realCatalog.operations.all { it.tags.isNotEmpty() })
         assertTrue(realCatalog.operations.any { it.isMultipart && it.multipartFields.any(CloudflareMultipartFieldSpec::isFile) })
+    }
+
+    @Test
+    fun bundledAssetsMatchTheIosCopiesByteForByte() {
+        // The update script regenerates the iOS copy and copies it here; an iOS-only
+        // refresh would otherwise leave Android shipping a stale catalog with CI green.
+        listOf(CloudflareOpenApiCatalogStore.ASSET_NAME, CloudflareOpenApiCatalogStore.LICENSE_ASSET_NAME).forEach { name ->
+            val android = assetFile(name).canonicalFile
+            val ios = File(android.parentFile, "../../../../../ios/verceltics/Resources/$name").canonicalFile
+            assertTrue("iOS copy not found at $ios", ios.isFile)
+            assertArrayEquals(name, ios.readBytes(), android.readBytes())
+        }
     }
 
     @Test

@@ -8,9 +8,10 @@ key=value lines to $GITHUB_OUTPUT when it is set):
                 run may do. Missing values mean off; invalid values fail.
   build-number  Next CFBundleVersion: max(project value, highest ASC build + 1).
   wait-build    Poll App Store Connect until the build uploaded by THIS run is
-                processed (VALID, unexpired, matching app/version/build number).
-                Fails on timeout, processing failure, ambiguity or mismatch and
-                never falls back to another build.
+                processed (VALID, unexpired, matching app/version/build number,
+                uploaded after this run's upload started). Fails on timeout,
+                processing failure, ambiguity, mismatch or an unknown upload time
+                and never falls back to another build.
 
 See store/README.md for what each switch controls.
 """
@@ -226,7 +227,16 @@ def evaluate_builds(
     build = matches[0]
     attrs = build.get("attributes") or {}
     uploaded = attrs.get("uploadedDate")
-    if uploaded and parse_asc_date(uploaded) < uploaded_after - UPLOAD_CLOCK_SKEW_SECONDS:
+    uploaded_at = None
+    if uploaded:
+        try:
+            uploaded_at = parse_asc_date(uploaded)
+        except (TypeError, ValueError, AttributeError):
+            raise ReleaseError(
+                f"build {build_number} has an unreadable uploadedDate {uploaded!r}; "
+                "cannot confirm this run uploaded it"
+            ) from None
+    if uploaded_at is not None and uploaded_at < uploaded_after - UPLOAD_CLOCK_SKEW_SECONDS:
         raise ReleaseError(
             f"build {build_number} was uploaded at {uploaded}, before this run's upload; "
             "refusing to use an older build"
@@ -236,6 +246,12 @@ def evaluate_builds(
         raise ReleaseError(f"App Store Connect processing ended in {state} for build {build_number}")
     if state != "VALID":
         return BuildState.WAITING, f"processing state {state or 'unknown'}", None
+    # Fail closed: a build whose upload time is unknown cannot be proven to be this run's.
+    if uploaded_at is None:
+        raise ReleaseError(
+            f"build {build_number} is VALID but App Store Connect reports no uploadedDate; "
+            "cannot confirm this run uploaded it, so it is not used"
+        )
     if attrs.get("expired"):
         raise ReleaseError(f"build {build_number} is expired")
     return BuildState.READY, f"build {build_number} is VALID", build

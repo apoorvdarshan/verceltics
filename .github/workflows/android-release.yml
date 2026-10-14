@@ -1,5 +1,5 @@
 # Android release — GitHub Actions builds, verifies and signs the Android app,
-# publishes it on GitHub Releases and, when switched on, on Google Play.
+# publishes it on Google Play when switched on, and then on GitHub Releases.
 #
 # Trigger
 #   push tag android-vX.Y   release run (the tag must equal versionName in
@@ -7,7 +7,8 @@
 #                           (ios-release.yml), so the two pipelines never collide.
 #   workflow_dispatch       validation run: build the signed AAB and APK and
 #                           verify package, version and upload-key signature.
-#                           Never uploads, signs with Sigstore or releases.
+#                           Never contacts Google Play, uploads, signs with
+#                           Sigstore or releases.
 #
 # Switches (repository Variables; missing = off, invalid values fail the run).
 # See store/README.md for the full table.
@@ -21,16 +22,34 @@
 #                                not granted Verceltics production access yet (12 testers
 #                                in closed testing for 14 days), so Play rejects it until then.
 # Every enabled track receives the same upload in one Play edit; testing tracks
-# never imply production.
+# never imply production, and the upload never runs without a track.
+#
+# Order of a release run (master on):
+#   gates     switches, reviewed notes, and a read-only Play check that versionCode
+#             is higher than every versionCode Google Play has (before CI or build)
+#   quality   ci.yml: catalog and store release tests, Android unit tests, lint,
+#             builds and both emulator test shards (not the website/Worker job, and
+#             only the store assets this run uploads are checked)
+#   release   build, verify (pinned upload certificate), Sigstore + provenance,
+#             Play listing/screenshots, Play upload, read every track back, and
+#             only then the GitHub Release
+# "Re-run failed jobs" is safe: the Play upload is skipped when an earlier attempt
+# already put this versionCode on every selected track, and an existing GitHub
+# Release for the tag is updated instead of failing.
 #
 # Secrets
-#   ANDROID_KEYSTORE_BASE64     base64 of the upload keystore (alias "upload")
+#   ANDROID_KEYSTORE_BASE64     base64 of the upload keystore (alias "upload"); its
+#                               certificate must match EXPECTED_UPLOAD_CERT_SHA256 in
+#                               scripts/store/android_release.py
 #   ANDROID_KEYSTORE_PASSWORD   its password, which is also the key password
 #   PLAY_SERVICE_ACCOUNT_JSON   a Play publisher service-account JSON key with
 #                               access to com.apoorvdarshan.verceltics
+# Key files exist only under $RUNNER_TEMP (umask 077), never in the checkout, and
+# are removed right after use.
 #
 # versionCode discipline stays in the repo: bump it in app/build.gradle.kts
-# BEFORE tagging — Play rejects a versionCode it has already seen.
+# BEFORE tagging — Play rejects a versionCode it has already seen, and gates
+# fails first when Play already has it.
 #
 # Supply-chain: the AAB/APK attached to the GitHub Release are signed keylessly
 # with Sigstore cosign (a *.sigstore.json bundle per artifact) and carry a
@@ -62,7 +81,7 @@ concurrency:
 jobs:
   gates:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     outputs:
       mode: ${{ steps.gates.outputs.mode }}
       build: ${{ steps.gates.outputs.build }}
@@ -82,6 +101,7 @@ jobs:
             /scripts/store/
             /scripts/release_notes.py
             /android/app/build.gradle.kts
+            /requirements-store.txt
             /RELEASE_NOTES.md
 
       - name: Resolve Android release switches
@@ -108,10 +128,32 @@ jobs:
             python3 scripts/store/play_listing.py whats-new --tag "$GITHUB_REF_NAME" > /dev/null
           fi
 
+      - name: Set up Python
+        if: steps.gates.outputs.github_release == 'true'
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
+      - name: Install store tooling
+        if: steps.gates.outputs.github_release == 'true'
+        run: python3 -m pip install --disable-pip-version-check --require-hashes -r requirements-store.txt
+
+      # Read-only (a throwaway Play edit that is deleted, never committed): Play rejects a
+      # versionCode it has seen, and a GitHub Release must never label a different binary
+      # with a versionCode Play already has. Runs once per run: "Re-run failed jobs" does
+      # not repeat it after this run's own upload.
+      - name: Check versionCode is new on Google Play (read-only)
+        if: steps.gates.outputs.github_release == 'true'
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: python3 -u scripts/store/android_release.py check-version-code
+
   quality:
     needs: gates
     if: needs.gates.outputs.mode == 'release' && needs.gates.outputs.build == 'true'
     uses: ./.github/workflows/ci.yml
+    with:
+      android-release: true
     permissions:
       contents: read
 
@@ -125,7 +167,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
-      contents: write # create the GitHub Release
+      contents: write # create or update the GitHub Release
       id-token: write # Sigstore keyless signing + provenance (OIDC token)
       attestations: write # store the build-provenance attestation
     env:
@@ -164,22 +206,43 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
 
-      - name: Validate IAP catalog and Play listing
+      # Store tooling runs in this pinned Python, never the runner's system Python.
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
+      # Only the store assets this run uploads are checked, so an unused listing or
+      # screenshot never blocks a release.
+      - name: Validate the IAP catalog, and the Play listing and screenshots this run uploads
+        env:
+          LISTING: ${{ needs.gates.outputs.listing }}
+          SCREENSHOTS: ${{ needs.gates.outputs.screenshots }}
         run: |
           python3 scripts/store/validate_catalog.py --platform android
-          python3 scripts/store/play_listing.py check
+          flags=()
+          if [ "$LISTING" = true ]; then flags+=(--listing); fi
+          if [ "$SCREENSHOTS" = true ]; then flags+=(--screenshots); fi
+          if [ "${#flags[@]}" -gt 0 ]; then
+            python3 scripts/store/play_listing.py check "${flags[@]}"
+          fi
 
       - name: Prepare reviewed release notes, What's New + listing text (local only)
         if: env.RELEASE_RUN == 'true'
         env:
           WHATS_NEW: ${{ needs.gates.outputs.whats_new }}
+          LISTING: ${{ needs.gates.outputs.listing }}
         run: |
           python3 scripts/release_notes.py --if-present "$GITHUB_REF_NAME" > "$RUNNER_TEMP/release-notes.md"
-          # The notes become Play What's New only when ANDROID_UPLOAD_WHATS_NEW is on.
-          tag=()
-          if [ "$WHATS_NEW" = true ]; then tag=(--tag "$GITHUB_REF_NAME"); fi
-          python3 scripts/store/play_listing.py prepare --out "$RUNNER_TEMP/store-meta" "${tag[@]}"
+          # The notes become Play What's New only when ANDROID_UPLOAD_WHATS_NEW is on,
+          # and the listing is read only when ANDROID_UPLOAD_LISTING is on.
+          args=(--out "$RUNNER_TEMP/store-meta")
+          if [ "$WHATS_NEW" = true ]; then args+=(--tag "$GITHUB_REF_NAME"); fi
+          if [ "$LISTING" != true ]; then args+=(--no-listing); fi
+          python3 scripts/store/play_listing.py prepare "${args[@]}"
 
+      # Signing material lives only under $RUNNER_TEMP, readable by this user alone,
+      # and is removed right after the build is verified.
       - name: Materialize upload keystore
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -197,6 +260,8 @@ jobs:
             -PVERCELTICS_UPLOAD_KEYSTORE="$RUNNER_TEMP/upload.jks" \
             -PVERCELTICS_UPLOAD_KEYSTORE_PASSWORD_FILE="$RUNNER_TEMP/upload-password"
 
+      # The keystore's certificate must be the pinned Play upload certificate, and the
+      # AAB and APK must be signed by it alone.
       - name: Verify package, version and upload-key signature
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -253,46 +318,36 @@ jobs:
             ${{ runner.temp }}/dist/*.aab
             ${{ runner.temp }}/dist/*.apk
 
+      - name: Install store tooling
+        if: >-
+          needs.gates.outputs.listing == 'true' || needs.gates.outputs.screenshots == 'true' ||
+          needs.gates.outputs.play_upload == 'true'
+        run: python3 -m pip install --disable-pip-version-check --require-hashes -r requirements-store.txt
+
       - name: Play listing / screenshots upload
         if: needs.gates.outputs.listing == 'true' || needs.gates.outputs.screenshots == 'true'
         env:
           UPLOAD_LISTING: ${{ needs.gates.outputs.listing }}
           UPLOAD_SCREENSHOTS: ${{ needs.gates.outputs.screenshots }}
           PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-        run: |
-          python3 -m pip install --disable-pip-version-check --require-hashes -r requirements-store.txt
-          python3 scripts/store/play_listing.py upload --metadata-dir "$RUNNER_TEMP/store-meta"
+        run: python3 -u scripts/store/play_listing.py upload --metadata-dir "$RUNNER_TEMP/store-meta"
 
-      - name: Create GitHub Release
-        id: github_release
-        if: needs.gates.outputs.github_release == 'true'
-        continue-on-error: true
+      # Read-only. Fails without a valid track list (the upload action would otherwise
+      # fall back to production) and when Play holds this versionCode on only some of
+      # the selected tracks. uploaded=true means an earlier attempt of this run already
+      # put it on every selected track, so it is not uploaded again.
+      - name: Check this versionCode on the selected Play tracks (read-only)
+        id: play_state
+        if: needs.gates.outputs.play_upload == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
-          NAME: ${{ steps.artifacts.outputs.name }}
-          VERSION: ${{ steps.artifacts.outputs.version }}
-          CODE: ${{ steps.artifacts.outputs.code }}
-          PRODUCTION: ${{ needs.gates.outputs.production }}
-        run: |
-          set -euo pipefail
-          if [ -s "$RUNNER_TEMP/release-notes.md" ]; then
-            notes=(--notes-file "$RUNNER_TEMP/release-notes.md")
-          else
-            notes=(--generate-notes)
-          fi
-          # A prerelease while Android ships only to testing tracks, so the iOS release stays latest.
-          if [ "$PRODUCTION" = true ]; then
-            kind=(--latest)
-          else
-            kind=(--prerelease --latest=false)
-          fi
-          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag "${kind[@]}" \
-            --title "Android ${VERSION} (versionCode ${CODE})" "${notes[@]}" \
-            "$RUNNER_TEMP/dist/${NAME}.aab" "$RUNNER_TEMP/dist/${NAME}.aab.sigstore.json" \
-            "$RUNNER_TEMP/dist/${NAME}.apk" "$RUNNER_TEMP/dist/${NAME}.apk.sigstore.json"
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          PLAY_TRACKS: ${{ needs.gates.outputs.play_tracks }}
+        run: python3 -u scripts/store/android_release.py play-state --tracks "$PLAY_TRACKS"
 
       - name: Keep English What's New only
-        if: needs.gates.outputs.play_upload == 'true' && needs.gates.outputs.whats_new == 'true'
+        if: >-
+          needs.gates.outputs.play_upload == 'true' && needs.gates.outputs.whats_new == 'true' &&
+          steps.play_state.outputs.uploaded == 'false'
         run: |
           NOTES="$RUNNER_TEMP/store-meta/play/whatsnew-en-US"
           if [ ! -s "$NOTES" ]; then
@@ -302,40 +357,95 @@ jobs:
           mkdir -p "$RUNNER_TEMP/whats-new"
           cp "$NOTES" "$RUNNER_TEMP/whats-new/"
 
+      # The upload action reads the key from a file. Given the key as text, it would write
+      # it into the checkout; this file is under $RUNNER_TEMP, readable by this user only,
+      # and removed right after the upload.
+      - name: Materialize the Play service-account key
+        if: >-
+          needs.gates.outputs.play_upload == 'true' && needs.gates.outputs.play_tracks != '' &&
+          steps.play_state.outputs.uploaded == 'false'
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          umask 077
+          printf '%s' "$PLAY_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/play-service-account.json"
+
+      # Never runs without a track: with an empty track list the action uploads to production.
       - name: Upload to Play (${{ needs.gates.outputs.play_tracks }})
-        if: needs.gates.outputs.play_upload == 'true' && needs.gates.outputs.whats_new != 'true'
+        if: >-
+          needs.gates.outputs.play_upload == 'true' && needs.gates.outputs.play_tracks != '' &&
+          steps.play_state.outputs.uploaded == 'false' && needs.gates.outputs.whats_new != 'true'
         uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1.1.5
         with:
-          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          serviceAccountJson: ${{ runner.temp }}/play-service-account.json
           packageName: com.apoorvdarshan.verceltics
           releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
           tracks: ${{ needs.gates.outputs.play_tracks }}
           status: completed
 
       - name: Upload to Play with What's New (${{ needs.gates.outputs.play_tracks }})
-        if: needs.gates.outputs.play_upload == 'true' && needs.gates.outputs.whats_new == 'true'
+        if: >-
+          needs.gates.outputs.play_upload == 'true' && needs.gates.outputs.play_tracks != '' &&
+          steps.play_state.outputs.uploaded == 'false' && needs.gates.outputs.whats_new == 'true'
         uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1.1.5
         with:
-          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          serviceAccountJson: ${{ runner.temp }}/play-service-account.json
           packageName: com.apoorvdarshan.verceltics
           releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
           tracks: ${{ needs.gates.outputs.play_tracks }}
           status: completed
           whatsNewDirectory: ${{ runner.temp }}/whats-new
 
+      - name: Remove the Play service-account key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/play-service-account.json"
+
       - name: Confirm each Play track now carries this build
         if: needs.gates.outputs.play_upload == 'true'
         env:
           PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           PLAY_TRACKS: ${{ needs.gates.outputs.play_tracks }}
-        run: |
-          python3 -m pip install --disable-pip-version-check --require-hashes -r requirements-store.txt
-          python3 scripts/store/android_release.py check-tracks --tracks "$PLAY_TRACKS"
+        run: python3 -u scripts/store/android_release.py check-tracks --tracks "$PLAY_TRACKS"
 
       - name: Play upload (skipped)
         if: needs.gates.outputs.play_upload != 'true'
         run: echo "No Play track selected — nothing was uploaded to Google Play"
 
-      - name: Require the GitHub Release
-        if: always() && steps.github_release.outcome == 'failure'
-        run: exit 1
+      # Last, so a GitHub Release only ever describes a build that reached every
+      # selected Play track. A rerun updates the release this run already created
+      # (title, notes, assets) instead of failing.
+      - name: Create or update the GitHub Release
+        if: needs.gates.outputs.github_release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NAME: ${{ steps.artifacts.outputs.name }}
+          VERSION: ${{ steps.artifacts.outputs.version }}
+          CODE: ${{ steps.artifacts.outputs.code }}
+          PRODUCTION: ${{ needs.gates.outputs.production }}
+        run: |
+          set -euo pipefail
+          title="Android ${VERSION} (versionCode ${CODE})"
+          assets=("$RUNNER_TEMP/dist/${NAME}.aab" "$RUNNER_TEMP/dist/${NAME}.aab.sigstore.json"
+                  "$RUNNER_TEMP/dist/${NAME}.apk" "$RUNNER_TEMP/dist/${NAME}.apk.sigstore.json")
+          # A prerelease while Android ships only to testing tracks, so the iOS release stays latest.
+          if [ "$PRODUCTION" = true ]; then
+            kind=(--prerelease=false --latest)
+          else
+            kind=(--prerelease --latest=false)
+          fi
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            notes=()
+            if [ -s "$RUNNER_TEMP/release-notes.md" ]; then notes=(--notes-file "$RUNNER_TEMP/release-notes.md"); fi
+            gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag "${kind[@]}" \
+              --title "$title" "${notes[@]}"
+            gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber "${assets[@]}"
+            echo "updated the existing GitHub Release $GITHUB_REF_NAME"
+          else
+            if [ -s "$RUNNER_TEMP/release-notes.md" ]; then
+              notes=(--notes-file "$RUNNER_TEMP/release-notes.md")
+            else
+              notes=(--generate-notes)
+            fi
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag "${kind[@]}" \
+              --title "$title" "${notes[@]}" "${assets[@]}"
+          fi

@@ -66,7 +66,7 @@ remember the keyboard can push a sheet's buttons out of view.
 
 Store listing text, release notes, and release switches are described in
 [store/README.md](store/README.md); `./scripts/test.sh` also runs the offline
-store release tests.
+store release tests and checks the store listings and screenshots.
 
 For website and Worker changes, run these checks from `web/`:
 

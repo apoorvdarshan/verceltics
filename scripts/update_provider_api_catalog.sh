@@ -72,3 +72,5 @@ PY
 python3 "$ROOT/scripts/generate_provider_api_catalog.py" \
   "$WORK" \
   "$ROOT/ios/verceltics/Resources/ProviderAPICatalog.json"
+# Android ships the same catalog; ProviderApiCatalogParserTest checks the copies match.
+cp "$ROOT/ios/verceltics/Resources/ProviderAPICatalog.json" "$ROOT/android/app/src/main/assets/"

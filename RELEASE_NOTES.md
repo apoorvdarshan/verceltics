@@ -3,8 +3,10 @@
 `ios-v` sections match the iOS project's `MARKETING_VERSION`, and `android-v` sections
 match the Android `versionName`. The same notes become the GitHub release body and, when
 `IOS_UPLOAD_WHATS_NEW` or `ANDROID_UPLOAD_WHATS_NEW` is on, the App Store or Google Play
-What's New text (Google Play: plain text, 500 characters at most). A tag without a
-section gets generated GitHub release notes, and a What's New upload for it fails.
+What's New text, converted to plain text (links keep their text, list markers become •,
+heading, quote, bold and code markers are dropped; App Store: 4000 characters at most,
+Google Play: 500). A tag without a section gets generated GitHub release notes, and a
+What's New upload for it fails. Each tag may have only one section.
 
 ## ios-v2.1
 

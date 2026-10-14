@@ -3,14 +3,23 @@
 
 Subcommands (`gates` also writes key=value lines to $GITHUB_OUTPUT when it is set):
 
-  gates         Validate the ANDROID_* repository variables and resolve what this
-                run may do. Missing values mean off; invalid values fail. A tag
-                run needs android-v<versionName>; a manual run only validates.
-  verify        Before anything leaves the runner, check the built AAB and APK:
-                package name, versionName/versionCode from build.gradle.kts, and
-                that both are signed only by the upload key.
-  check-tracks  After a Play upload, read every selected track back and confirm
-                it carries this versionCode as a completed release. Never edits.
+  gates               Validate the ANDROID_* repository variables and resolve what
+                      this run may do. Missing values mean off; invalid values fail.
+                      A tag run needs android-v<versionName>; a manual run only
+                      validates.
+  check-version-code  Before building, confirm build.gradle.kts' versionCode is
+                      higher than every versionCode Google Play already has.
+  verify              Before anything leaves the runner, check the built AAB and APK:
+                      package name, versionName/versionCode from build.gradle.kts,
+                      and that both are signed only by the pinned upload key.
+  play-state          Before the Play upload: is this versionCode already on every
+                      selected track (an earlier attempt of this run uploaded it, so
+                      the upload is skipped) or on none of them? Anything in between
+                      fails. Writes uploaded=true|false to $GITHUB_OUTPUT.
+  check-tracks        After a Play upload, read every selected track back and confirm
+                      it carries this versionCode as a completed release.
+
+Every Play read uses a throwaway edit that is deleted, never committed.
 
 Google Play has not granted Verceltics production access yet: it needs 12
 testers opted in to closed testing for 14 consecutive days first. Until then
@@ -22,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import contextlib
 import hashlib
 import json
 import os
@@ -53,6 +63,12 @@ OPERATION_SWITCHES = (
 # Switch key -> Google Play track id. Closed testing is Play's default "alpha" track.
 PLAY_TRACKS = (("internal", "internal"), ("closed", "alpha"), ("production", "production"))
 TRACK_LABELS = {"internal": "internal testing", "alpha": "closed testing", "production": "production"}
+
+# SHA-256 of the Play upload certificate (keystore alias "upload"). The keystore in
+# ANDROID_KEYSTORE_BASE64 must hold exactly this certificate, so a swapped key fails
+# before anything is signed or published. Change it deliberately, and only after a
+# Play upload-key reset (see store/README.md).
+EXPECTED_UPLOAD_CERT_SHA256 = "fe735c7c3e4b92a796da23a2051b7fcbb9e65304864396212512b387df61f1ef"
 
 ANDROID_NS = "{http://schemas.android.com/apk/res/android}"
 PEM_CERT = re.compile(
@@ -248,6 +264,15 @@ def check_identity(
         )
 
 
+def check_upload_cert(found: str, expected: str = EXPECTED_UPLOAD_CERT_SHA256) -> None:
+    if found != expected:
+        raise ReleaseError(
+            f"the keystore's upload certificate is {found}, but the pinned Play upload certificate is "
+            f"{expected}; ANDROID_KEYSTORE_BASE64 holds the wrong key (if the Play upload key was "
+            "reset, update EXPECTED_UPLOAD_CERT_SHA256 in scripts/store/android_release.py)"
+        )
+
+
 def check_signers(kind: str, found: set[str], *, upload_cert: str) -> None:
     if not found:
         raise ReleaseError(f"{kind} is not signed")
@@ -295,6 +320,7 @@ def cmd_verify(args: argparse.Namespace) -> None:
         raise ReleaseError(f"expected one upload certificate in the keystore, found {len(upload_certs)}")
     upload_cert = upload_certs.pop()
     print(f"upload certificate SHA-256: {upload_cert}")
+    check_upload_cert(upload_cert)
 
     badging = run([build_tool("aapt2"), "dump", "badging", str(args.apk)])
     check_identity("APK", badging_identity(badging.stdout), **identity)
@@ -315,16 +341,77 @@ def cmd_verify(args: argparse.Namespace) -> None:
     printed = run(["keytool", "-printcert", "-rfc", "-jarfile", str(args.aab)])
     check_signers("AAB", pem_fingerprints(printed.stdout), upload_cert=upload_cert)
 
-    print(f"verified AAB and APK: {args.package} {version_name} ({version_code}), signed by the upload key")
+    print(f"verified AAB and APK: {args.package} {version_name} ({version_code}), signed by the pinned upload key")
 
 
-# --- Play read-back ----------------------------------------------------------
+# --- Play reads ---------------------------------------------------------------
+
+
+def selected_tracks(raw: str) -> list[str]:
+    """The comma-separated Play tracks to use. Never empty: the upload action would
+    fall back to production without a track."""
+    tracks = [t.strip() for t in raw.split(",") if t.strip()]
+    if not tracks:
+        raise ReleaseError("no Play tracks selected")
+    unknown = [t for t in tracks if t not in TRACK_LABELS]
+    if unknown:
+        raise ReleaseError(f"unexpected Play track(s): {', '.join(unknown)}")
+    return tracks
+
+
+def release_codes(track: dict[str, Any]) -> set[int]:
+    codes: set[int] = set()
+    for release in track.get("releases") or []:
+        for code in release.get("versionCodes") or []:
+            if re.fullmatch(r"[0-9]+", str(code)):
+                codes.add(int(code))
+    return codes
+
+
+def play_version_codes(bundles: dict[str, Any], apks: dict[str, Any], tracks: dict[str, Any]) -> set[int]:
+    """Every versionCode Play holds: uploaded bundles and APKs, and any track's releases."""
+    codes = {int(b["versionCode"]) for b in bundles.get("bundles") or [] if "versionCode" in b}
+    codes |= {int(a["versionCode"]) for a in apks.get("apks") or [] if "versionCode" in a}
+    for track in tracks.get("tracks") or []:
+        codes |= release_codes(track)
+    return codes
+
+
+def check_new_version_code(version_code: int, on_play: set[int]) -> str:
+    """Play rejects a versionCode it has seen, and a lower one cannot update users."""
+    highest = max(on_play, default=0)
+    if version_code <= highest:
+        used = "already uploaded to Google Play" if version_code in on_play else "not above Google Play's"
+        raise ReleaseError(
+            f"versionCode {version_code} is {used} (highest on Play: {highest}); bump versionCode in "
+            "android/app/build.gradle.kts before tagging"
+        )
+    return f"versionCode {version_code} is new on Google Play (highest there: {highest or 'none'})"
+
+
+def upload_state(
+    version_code: int, *, on_play: set[int], fetch_track, tracks: list[str]
+) -> bool:
+    """True when every selected track already carries version_code as a completed
+    release (an earlier attempt of this run uploaded it), False when Play has never
+    seen it. Anything else cannot be fixed by uploading again, so it fails."""
+    states = {track: track_release_state(fetch_track(track), version_code) for track in tracks}
+    if all(state == "completed" for state in states.values()):
+        return True
+    if version_code not in on_play and not any(states.values()):
+        return False
+    found = ", ".join(f"{TRACK_LABELS.get(t, t)}: {s or 'no release'}" for t, s in states.items())
+    raise ReleaseError(
+        f"versionCode {version_code} is already on Google Play but not a completed release on every "
+        f"selected track ({found}); Play rejects a second upload of it, so finish the release in the "
+        "Play Console or bump versionCode"
+    )
 
 
 def track_release_state(track: dict[str, Any], version_code: int) -> str:
     """Status of the release on this track that carries version_code ('' if none)."""
     for release in track.get("releases") or []:
-        if str(version_code) in (release.get("versionCodes") or []):
+        if str(version_code) in [str(code) for code in release.get("versionCodes") or []]:
             return release.get("status") or ""
     return ""
 
@@ -349,33 +436,69 @@ def check_tracks(fetch_track, tracks: list[str], version_code: int) -> list[str]
     return messages
 
 
-def cmd_check_tracks(args: argparse.Namespace) -> None:
-    tracks = [t for t in args.tracks.split(",") if t]
-    if not tracks:
-        raise ReleaseError("no Play tracks to check")
-    unknown = [t for t in tracks if t not in TRACK_LABELS]
-    if unknown:
-        raise ReleaseError(f"unexpected Play track(s): {', '.join(unknown)}")
-    _, version_code = gradle_version(GRADLE.read_text(encoding="utf-8"))
-
+@contextlib.contextmanager
+def play_read_edit():
+    """A throwaway Play edit for reads: it is deleted, never committed."""
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import play_listing  # noqa: PLC0415 - keeps `gates` free of Google API deps
 
     raw = os.environ.get("PLAY_SERVICE_ACCOUNT_JSON", "").strip()
     if not raw:
         raise ReleaseError("PLAY_SERVICE_ACCOUNT_JSON is not set")
-    service = play_listing.build_android_publisher(json.loads(raw))
-    edits = service.edits()
-    # A throwaway edit only reads the committed state; it is deleted, never committed.
+    try:
+        info = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ReleaseError(f"PLAY_SERVICE_ACCOUNT_JSON is not valid JSON: {exc}") from None
+    edits = play_listing.build_android_publisher(info).edits()
     edit_id = edits.insert(packageName=PACKAGE_NAME, body={}).execute()["id"]
     try:
-        messages = check_tracks(
-            lambda track: edits.tracks().get(packageName=PACKAGE_NAME, editId=edit_id, track=track).execute(),
-            tracks,
-            version_code,
-        )
+        yield edits, edit_id
     finally:
         edits.delete(packageName=PACKAGE_NAME, editId=edit_id).execute()
+
+
+def fetch_version_codes(edits, edit_id: str) -> set[int]:
+    return play_version_codes(
+        edits.bundles().list(packageName=PACKAGE_NAME, editId=edit_id).execute(),
+        edits.apks().list(packageName=PACKAGE_NAME, editId=edit_id).execute(),
+        edits.tracks().list(packageName=PACKAGE_NAME, editId=edit_id).execute(),
+    )
+
+
+def track_fetcher(edits, edit_id: str):
+    return lambda track: edits.tracks().get(packageName=PACKAGE_NAME, editId=edit_id, track=track).execute()
+
+
+def cmd_check_version_code(_: argparse.Namespace) -> None:
+    _, version_code = gradle_version(GRADLE.read_text(encoding="utf-8"))
+    with play_read_edit() as (edits, edit_id):
+        on_play = fetch_version_codes(edits, edit_id)
+    print(check_new_version_code(version_code, on_play))
+
+
+def cmd_play_state(args: argparse.Namespace) -> None:
+    tracks = selected_tracks(args.tracks)
+    _, version_code = gradle_version(GRADLE.read_text(encoding="utf-8"))
+    with play_read_edit() as (edits, edit_id):
+        uploaded = upload_state(
+            version_code,
+            on_play=fetch_version_codes(edits, edit_id),
+            fetch_track=track_fetcher(edits, edit_id),
+            tracks=tracks,
+        )
+    if uploaded:
+        print(f"versionCode {version_code} is already a completed release on {', '.join(tracks)} "
+              "(uploaded by an earlier attempt of this run); the upload is skipped")
+    else:
+        print(f"versionCode {version_code} is not on Google Play yet; uploading to {', '.join(tracks)}")
+    write_outputs({"uploaded": uploaded})
+
+
+def cmd_check_tracks(args: argparse.Namespace) -> None:
+    tracks = selected_tracks(args.tracks)
+    _, version_code = gradle_version(GRADLE.read_text(encoding="utf-8"))
+    with play_read_edit() as (edits, edit_id):
+        messages = check_tracks(track_fetcher(edits, edit_id), tracks, version_code)
     for message in messages:
         print(message)
 
@@ -413,6 +536,10 @@ def main(argv: list[str] | None = None) -> None:
     verify.add_argument("--bundletool", required=True, type=Path)
     verify.add_argument("--package", default=PACKAGE_NAME)
     verify.set_defaults(func=cmd_verify)
+    sub.add_parser("check-version-code").set_defaults(func=cmd_check_version_code)
+    state = sub.add_parser("play-state")
+    state.add_argument("--tracks", required=True, help="comma-separated Play track ids")
+    state.set_defaults(func=cmd_play_state)
     tracks = sub.add_parser("check-tracks")
     tracks.add_argument("--tracks", required=True, help="comma-separated Play track ids")
     tracks.set_defaults(func=cmd_check_tracks)

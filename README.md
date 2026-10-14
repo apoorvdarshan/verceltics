@@ -302,7 +302,8 @@ The app validates and scopes credential use to known provider hosts. Advanced op
 
 ## Testing
 
-Run the repository tests (provider catalogs, privacy manifest, and the offline store release scripts):
+Run the repository tests (provider catalogs, privacy manifest, CI helper scripts, the offline store
+release scripts, and the store listings and screenshots):
 
 ```bash
 ./scripts/test.sh
