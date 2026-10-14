@@ -18,6 +18,8 @@ updates:
       interval: weekly
   # Hash-locked store tooling (requirements-store.in → requirements-store.txt) that
   # release jobs install next to the App Store Connect and Google Play credentials.
+  # The store-tooling job in store-automation.yml installs and uses each update
+  # offline before it is merged.
   - package-ecosystem: pip
     directory: /
     schedule:

@@ -9,9 +9,11 @@ Markdown literally). Screenshots come from the marketing mockups.
     ios_metadata.py check [--listing] [--screenshots]
                                           validate listing text and/or screenshots
                                           (both when neither flag is given)
-    ios_metadata.py prepare --out DIR [--tag ios-vX.Y]
+    ios_metadata.py prepare --out DIR [--tag ios-vX.Y] [--no-listing]
                                           copy the listing (and the tag's What's New)
-                                          into DIR/ios/<locale>/ for asc_release.py
+                                          into DIR/ios/<locale>/ for asc_release.py;
+                                          --no-listing writes only What's New and
+                                          never reads the listing
     ios_metadata.py whats-new --tag ios-vX.Y
                                           print the tag's What's New, or fail when the
                                           notes are missing or too long
@@ -182,21 +184,30 @@ def whats_new(tag: str) -> str:
     return app_store_whats_new(notes, tag)
 
 
-def prepare(out: Path, tag: str | None = None, listing_dir: Path = LISTING_DIR) -> list[Path]:
-    """Copy the validated listing to out/ios/<locale>/ and add the tag's What's New."""
+def prepare(
+    out: Path, tag: str | None = None, listing_dir: Path = LISTING_DIR, *, include_listing: bool = True
+) -> list[Path]:
+    """Copy the validated listing to out/ios/<locale>/ and add the tag's What's New.
+
+    Without include_listing (IOS_UPLOAD_LISTING off) the listing is neither read
+    nor copied, so an unused listing never blocks a release: only What's New is
+    written.
+    """
     written = []
-    for locale in locales(listing_dir):
-        load_locale(listing_dir / locale)
-        target = out / "ios" / locale
-        target.mkdir(parents=True, exist_ok=True)
-        for path in sorted((listing_dir / locale).iterdir()):
-            if path.name in LISTING_FILES:
-                shutil.copyfile(path, target / path.name)
-                written.append(target / path.name)
+    if include_listing:
+        for locale in locales(listing_dir):
+            load_locale(listing_dir / locale)
+            target = out / "ios" / locale
+            target.mkdir(parents=True, exist_ok=True)
+            for path in sorted((listing_dir / locale).iterdir()):
+                if path.name in LISTING_FILES:
+                    shutil.copyfile(path, target / path.name)
+                    written.append(target / path.name)
     if tag:
         notes = section_for_tag(tag)
         if notes is not None:
             path = out / "ios" / PRIMARY_LOCALE / WHATS_NEW.filename
+            path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(app_store_whats_new(notes, tag) + "\n", encoding="utf-8")
             written.append(path)
     return written
@@ -211,6 +222,8 @@ def main(argv: list[str] | None = None) -> None:
     prep = sub.add_parser("prepare")
     prep.add_argument("--out", required=True, type=Path)
     prep.add_argument("--tag", help="add this tag's RELEASE_NOTES.md section as What's New")
+    prep.add_argument("--no-listing", action="store_true",
+                      help="skip the listing (only What's New), when the listing is not uploaded")
     notes = sub.add_parser("whats-new")
     notes.add_argument("--tag", required=True)
     args = parser.parse_args(argv)
@@ -228,10 +241,12 @@ def main(argv: list[str] | None = None) -> None:
                 for spec in SCREENSHOT_SETS:
                     print(f"screenshots {spec.label}: {len(screenshot_files(spec))} PNGs OK")
         else:
-            written = prepare(args.out, args.tag)
+            written = prepare(args.out, args.tag, LISTING_DIR, include_listing=not args.no_listing)
             has_whats_new = any(path.name == WHATS_NEW.filename for path in written)
-            print(f"prepared {len(written)} listing files under {args.out / 'ios'}"
-                  + ("" if has_whats_new else " (no What's New for this run)"))
+            remarks = (["listing not included"] if args.no_listing else []) + (
+                [] if has_whats_new else ["no What's New for this run"])
+            print(f"prepared {len(written)} App Store metadata files under {args.out / 'ios'}"
+                  + (f" ({'; '.join(remarks)})" if remarks else ""))
     except (MetadataError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         raise SystemExit(1) from None
