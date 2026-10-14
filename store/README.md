@@ -26,7 +26,8 @@ ios-vX.Y tag ─► iOS unit + UI tests
   └─ IOS_RELEASE_AUTOMATION off ─► GitHub Release only
   └─ on:
        listing / What's New / screenshot / review switch on
-                        ─► check the listing (and screenshots, if uploaded) and What's New
+                        ─► check only what this run uploads: the listing, screenshots and
+                           What's New, each only with its switch on
                         ─► read-only App Store Connect preflight: version X.Y exists in a state
                            that allows the enabled steps, with every locale they touch
        IOS_UPLOAD_BUILD ─► next build number from App Store Connect
@@ -48,6 +49,13 @@ create version X.Y in App Store Connect (it then shows "Prepare for Submission")
 before pushing `ios-vX.Y`; otherwise the read-only preflight in the prepare job
 stops the run before anything is built or uploaded. A build-only release
 (`IOS_UPLOAD_BUILD` alone) needs no App Store version.
+
+**A store asset the run does not upload never blocks it**, on either platform.
+The listing text is read and checked only with `IOS_UPLOAD_LISTING` /
+`ANDROID_UPLOAD_LISTING` on (otherwise `prepare --no-listing` hands the store step
+What's New alone), screenshots only with their screenshot switch, and the tag's
+What's New only with its What's New switch. Pull requests that change store
+files, and every push to main, still check every asset in the repository.
 
 A manual **Run workflow** (`workflow_dispatch`) is a validation run: it archives,
 signs, exports and validates the IPA with App Store Connect, and never uploads,
@@ -244,13 +252,14 @@ Offline checks need none of them.
 |--------|------|
 | [`scripts/store/ios_release.py`](../scripts/store/ios_release.py) | iOS switches, build number, wait for this run's build |
 | [`scripts/store/asc_release.py`](../scripts/store/asc_release.py) | ASC listing, App Info, What's New, screenshots, build selection, export compliance, IAPs, submit for review (`--dry-run` = local checks only, `--preflight` = read-only App Store Connect checks) |
-| [`scripts/store/ios_metadata.py`](../scripts/store/ios_metadata.py) | Check the App Store listing and/or screenshots; prepare them with the tag's What's New as plain text |
+| [`scripts/store/ios_metadata.py`](../scripts/store/ios_metadata.py) | Check the App Store listing and/or screenshots; prepare the listing (unless `--no-listing`) with the tag's What's New as plain text |
 | [`scripts/store/export_ios_listing.py`](../scripts/store/export_ios_listing.py) | Read-only: export the live App Store listing into `store/metadata/ios/` |
 | [`scripts/store/android_release.py`](../scripts/store/android_release.py) | Android switches, versionCode check against Play, AAB/APK identity + pinned signature checks, pre-upload track state, Play track read-back |
 | [`scripts/store/play_listing.py`](../scripts/store/play_listing.py) | Check, prepare and upload the Play listing, phone screenshots and What's New |
 | [`scripts/store/validate_catalog.py`](../scripts/store/validate_catalog.py) | `catalog/products.json` against StoreKit and the Android billing IDs |
 | [`scripts/store/print_gates.py`](../scripts/store/print_gates.py) | Print the configured switches |
-| [`scripts/store/test_ios_release.py`](../scripts/store/test_ios_release.py) | Offline tests: disabled/invalid switches, tag mismatch, validation mode, build wait timeout/failure/ambiguity/mismatch/old build/unknown upload time, selection read-back, purchases only after the recheck, version states and reruns, preflight, token refresh, listing, screenshots, catalog |
+| [`scripts/store/check_store_tooling.py`](../scripts/store/check_store_tooling.py) | Offline check of the installed store tooling: the versions `requirements-store.in` pins, an ES256 App Store Connect token, the Google Play API client (store-automation.yml) |
+| [`scripts/store/test_ios_release.py`](../scripts/store/test_ios_release.py) | Offline tests: disabled/invalid switches, tag mismatch, validation mode, build wait timeout/failure/ambiguity/mismatch/old build/unknown upload time, selection read-back, purchases only after the recheck, version states and reruns, preflight, token refresh, listing (never read with its switch off), screenshots, catalog |
 | [`scripts/store/test_android_release.py`](../scripts/store/test_android_release.py) | Offline tests: switches, track selection, wrong app/version/key, pinned upload certificate, unsigned bundle entries, versionCode and pre-upload checks, Play listing and read-back |
 | [`scripts/store/test_store_assets.py`](../scripts/store/test_store_assets.py) | The repository's App Store and Play listings and screenshots (pull requests and main; a release checks only what it uploads) |
 | [`scripts/ci/redact_ids.py`](../scripts/ci/redact_ids.py) | Removes App Store Connect key/issuer IDs from failure logs before they are kept |
@@ -260,7 +269,12 @@ Release workflows install [`requirements-store.txt`](../requirements-store.txt)
 (PyJWT, Google API client; hash-pinned) into the pinned Python 3.13 from
 `actions/setup-python`, never the runner's system Python, and only for steps
 that call a store. Store steps run unbuffered (`python3 -u`), so the build wait
-and uploads log as they go.
+and uploads log as they go. Nothing else installs it, so whenever the **Store
+automation (dry-run)** workflow runs, including for every change to
+`requirements-store.in`/`.txt` (all that a Dependabot pip update touches), its
+`store-tooling` job installs it the same way and uses it offline with
+[`check_store_tooling.py`](../scripts/store/check_store_tooling.py). A bad update
+fails there, before it is merged, instead of at the next release tag.
 `asc_release.py` reads `UPLOAD_LISTING`, `UPLOAD_WHATS_NEW`, `UPLOAD_SCREENSHOTS`,
 `SUBMIT_IOS_REVIEW` and `PUBLIC_RELEASE`, set by `ios-release.yml` from the
 resolved iOS switches. `play_listing.py upload` reads `UPLOAD_LISTING` and
@@ -340,12 +354,15 @@ python3 scripts/store/play_listing.py check
 python3 scripts/store/ios_metadata.py prepare --out /tmp/store-meta --tag ios-v2.1
 UPLOAD_LISTING=true UPLOAD_WHATS_NEW=true SUBMIT_IOS_REVIEW=true \
   python3 scripts/store/asc_release.py --dry-run --metadata-dir /tmp/store-meta --build-id DRY --build-number 1
+# What a run with IOS_UPLOAD_LISTING off prepares and checks: What's New only
+python3 scripts/store/ios_metadata.py prepare --out /tmp/store-meta-whats-new --tag ios-v2.1 --no-listing
+UPLOAD_WHATS_NEW=true python3 scripts/store/asc_release.py --dry-run --metadata-dir /tmp/store-meta-whats-new
 ```
 
 These never build, sign, or contact a store. The **Store automation (dry-run)**
-workflow runs them for every change to store files, scripts or release workflows,
-and `ci.yml` runs `./scripts/test.sh` on every push to main and on pull requests
-that touch `tests/`, `scripts/` or the iOS app.
+workflow runs them for every change to store files, scripts, release workflows or
+`requirements-store.in`/`.txt`, and `ci.yml` runs `./scripts/test.sh` on every
+push to main and on pull requests that touch `tests/`, `scripts/` or the iOS app.
 
 ## Android closed beta
 

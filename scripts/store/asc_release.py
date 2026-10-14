@@ -3,7 +3,9 @@
 
 Run by ios-release.yml with the resolved iOS switches as environment flags:
 UPLOAD_LISTING, UPLOAD_WHATS_NEW, UPLOAD_SCREENSHOTS, SUBMIT_IOS_REVIEW and
-PUBLIC_RELEASE. Every flag that is off skips its App Store Connect work.
+PUBLIC_RELEASE. Every flag that is off skips its App Store Connect work, and its
+local files are not checked: listing text only with UPLOAD_LISTING, What's New
+only with UPLOAD_WHATS_NEW, screenshots only with UPLOAD_SCREENSHOTS.
 
 Submitting for review covers both the App Store version and any Ready-to-Submit
 subscriptions and in-app purchases from store/catalog/products.json. As of the
@@ -1281,7 +1283,10 @@ def validate_local_inputs(
     upload_whats_new: bool,
     upload_screenshots: bool,
 ) -> None:
-    if upload_listing or upload_whats_new:
+    """Check the local files of the enabled steps only, so an unused listing never
+    blocks What's New, screenshots or review (the release prepares it only with
+    IOS_UPLOAD_LISTING on)."""
+    if upload_listing:
         for locale in metadata_locales(metadata_dir):
             try:
                 ios_metadata.load_locale(metadata_dir / "ios" / locale, prepared=True)

@@ -30,11 +30,13 @@
 #                            covering upload + App Store Connect processing
 #
 # Before anything is built, prepare runs the offline tests (release scripts, API
-# catalogs, privacy manifest) and checks the listing and screenshots this run
-# uploads (assets it does not upload never block it). With any listing, What's
-# New, screenshot or review switch on, a read-only App Store Connect preflight
-# then requires the X.Y App Store version to exist in a state that allows the
-# enabled steps: create the version in App Store Connect before tagging.
+# catalogs, privacy manifest) and checks only the store assets this run uploads:
+# the listing with IOS_UPLOAD_LISTING, screenshots with IOS_UPLOAD_SCREENSHOTS and
+# What's New with IOS_UPLOAD_WHATS_NEW. An asset the run does not upload is never
+# read, so it never blocks a release. With any listing, What's New, screenshot or
+# review switch on, a read-only App Store Connect preflight then requires the X.Y
+# App Store version to exist in a state that allows the enabled steps: create the
+# version in App Store Connect before tagging.
 #
 # Jobs: tests ─► prepare ─► build ─► wait-for-build ─► app-store-connect ─► github-release
 # Waiting for App Store Connect to process the build is its own job and passes
@@ -157,14 +159,17 @@ jobs:
         run: python3 scripts/store/ios_release.py gates
 
       # Only the assets this run uploads are checked, so an unused listing or
-      # screenshot never blocks a release. The store job copies the listing
-      # whenever it runs; screenshots only with IOS_UPLOAD_SCREENSHOTS.
+      # screenshot never blocks a release. Later steps read the listing only with
+      # IOS_UPLOAD_LISTING on (prepare --no-listing otherwise), and screenshots
+      # only with IOS_UPLOAD_SCREENSHOTS on.
       - name: Check the listing and screenshots this run uploads
-        if: steps.gates.outputs.asc == 'true'
+        if: steps.gates.outputs.listing == 'true' || steps.gates.outputs.screenshots == 'true'
         env:
+          LISTING: ${{ steps.gates.outputs.listing }}
           SCREENSHOTS: ${{ steps.gates.outputs.screenshots }}
         run: |
-          flags=(--listing)
+          flags=()
+          if [ "$LISTING" = true ]; then flags+=(--listing); fi
           if [ "$SCREENSHOTS" = true ]; then flags+=(--screenshots); fi
           python3 scripts/store/ios_metadata.py check "${flags[@]}"
 
@@ -195,9 +200,12 @@ jobs:
           MARKETING_VERSION: ${{ steps.gates.outputs.marketing_version }}
         run: |
           set -euo pipefail
-          tag=()
-          if [ "$UPLOAD_WHATS_NEW" = true ]; then tag=(--tag "$GITHUB_REF_NAME"); fi
-          python3 scripts/store/ios_metadata.py prepare --out "$RUNNER_TEMP/store-meta" "${tag[@]}"
+          # Only what the enabled steps send: the listing with IOS_UPLOAD_LISTING,
+          # the tag's What's New with IOS_UPLOAD_WHATS_NEW.
+          args=(--out "$RUNNER_TEMP/store-meta")
+          if [ "$UPLOAD_WHATS_NEW" = true ]; then args+=(--tag "$GITHUB_REF_NAME"); fi
+          if [ "$UPLOAD_LISTING" != true ]; then args+=(--no-listing); fi
+          python3 scripts/store/ios_metadata.py prepare "${args[@]}"
           python3 -u scripts/store/asc_release.py --preflight --version "$MARKETING_VERSION" \
             --metadata-dir "$RUNNER_TEMP/store-meta"
 
@@ -527,12 +535,15 @@ jobs:
 
       - name: Prepare listing and What's New (local only)
         env:
+          LISTING: ${{ needs.prepare.outputs.listing }}
           WHATS_NEW: ${{ needs.prepare.outputs.whats_new }}
         run: |
-          # The tag's notes become What's New only when IOS_UPLOAD_WHATS_NEW is on.
-          tag=()
-          if [ "$WHATS_NEW" = true ]; then tag=(--tag "$GITHUB_REF_NAME"); fi
-          python3 scripts/store/ios_metadata.py prepare --out "$RUNNER_TEMP/store-meta" "${tag[@]}"
+          # The tag's notes become What's New only when IOS_UPLOAD_WHATS_NEW is on,
+          # and the listing is read only when IOS_UPLOAD_LISTING is on.
+          args=(--out "$RUNNER_TEMP/store-meta")
+          if [ "$WHATS_NEW" = true ]; then args+=(--tag "$GITHUB_REF_NAME"); fi
+          if [ "$LISTING" != true ]; then args+=(--no-listing); fi
+          python3 scripts/store/ios_metadata.py prepare "${args[@]}"
 
       - name: Listing / What's New / screenshots / review (gated)
         env:

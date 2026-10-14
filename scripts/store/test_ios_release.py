@@ -547,6 +547,25 @@ class AscCliTests(unittest.TestCase):
             self.assertEqual(code, 1)
             self.assertIn("keywords.txt", output)
 
+    def test_whats_new_alone_never_reads_the_listing(self) -> None:
+        # P-14: prepare --no-listing hands over What's New only, and an unused
+        # listing (missing or invalid) never blocks the run.
+        with tempfile.TemporaryDirectory() as tmp:
+            loc = Path(tmp) / "ios" / "en-US"
+            loc.mkdir(parents=True)
+            (loc / "whats_new.txt").write_text("Fixes\n")
+            code, output = self.run_cli({"UPLOAD_WHATS_NEW": "true"}, "--metadata-dir", tmp)
+            self.assertEqual(code, 0, output)
+            code, output = self.run_cli({"UPLOAD_WHATS_NEW": "true", "UPLOAD_LISTING": "true"},
+                                        "--metadata-dir", tmp)
+            self.assertEqual(code, 1)
+            self.assertIn("description.txt", output)
+        with tempfile.TemporaryDirectory() as tmp:
+            loc = write_listing(Path(tmp), **{"keywords.txt": "k" * 150})
+            (loc / "whats_new.txt").write_text("Fixes\n")
+            code, output = self.run_cli({"UPLOAD_WHATS_NEW": "true"}, "--metadata-dir", tmp)
+            self.assertEqual(code, 0, output)
+
     def test_dry_run_submit_exercises_product_selection(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             write_listing(Path(tmp))
@@ -1026,6 +1045,40 @@ class PreflightTests(unittest.TestCase):
         self.assertIn("no App Info is editable", output)
 
 
+class UnusedListingTests(unittest.TestCase):
+    """P-14: with IOS_UPLOAD_LISTING off, the release prepares no listing
+    (ios_metadata.py prepare --no-listing) and the store steps never need one."""
+
+    def test_whats_new_alone_preflights_and_uploads_only_whats_new(self) -> None:
+        env = {"UPLOAD_WHATS_NEW": "true"}
+        with tempfile.TemporaryDirectory() as tmp:
+            loc = Path(tmp) / "ios" / "en-US"
+            loc.mkdir(parents=True)
+            (loc / "whats_new.txt").write_text("Faster dashboards.\n")
+            preflight = FakeAsc()
+            code, _, output = run_asc(preflight, env, "--preflight", metadata=Path(tmp))
+            self.assertEqual(code, 0, output)
+            self.assertIn("will be updated: whatsNew", output)
+            self.assertFalse(preflight.writes(), "the preflight must never write")
+            fake = FakeAsc()
+            code, _, output = run_asc(fake, env, metadata=Path(tmp))
+        self.assertEqual(code, 0, output)
+        self.assertIn("updated version localization (en-US): whatsNew", output)
+        self.assertEqual(fake.writes(), [("PATCH", "/appStoreVersionLocalizations/LOC")])
+        for calls in (preflight.calls, fake.calls):
+            self.assertFalse([c for c in calls if "appInfo" in c[1]], "App Info belongs to the listing")
+
+    def test_review_alone_needs_no_prepared_metadata(self) -> None:
+        # Without the listing and What's New, prepare --no-listing writes nothing at all.
+        with tempfile.TemporaryDirectory() as tmp:
+            fake = FakeAsc()
+            code, _, output = run_asc(fake, {"SUBMIT_IOS_REVIEW": "true"}, *LiveSubmitFlowTests.BUILD,
+                                      metadata=Path(tmp) / "store-meta")
+        self.assertEqual(code, 0, output)
+        self.assertIn(("PATCH", "/reviewSubmissions/SUB1"), fake.calls)
+        self.assertFalse([c for c in fake.calls if "Localizations" in c[1] or "appInfo" in c[1]])
+
+
 class AppInfoClient:
     """Fake App Info endpoints for name/subtitle/privacy URL uploads."""
 
@@ -1202,6 +1255,36 @@ class ListingMetadataTests(unittest.TestCase):
             with mock.patch.object(release_notes, "ROOT", Path(src)):
                 written = ios_metadata.prepare(Path(out), None, Path(src) / "ios")
             self.assertFalse(any(p.name == "whats_new.txt" for p in written))
+
+    def test_without_the_listing_switch_the_listing_is_not_read(self) -> None:
+        # P-14: with IOS_UPLOAD_LISTING off, an invalid listing never blocks What's New,
+        # screenshots or review: prepare --no-listing does not read it.
+        with tempfile.TemporaryDirectory() as src, tempfile.TemporaryDirectory() as out:
+            write_listing(Path(src), **{"keywords.txt": "k" * 150})  # invalid, but unused
+            (Path(src) / "RELEASE_NOTES.md").write_text("## ios-v2.2\n\nFaster dashboards.\n")
+            with mock.patch.object(release_notes, "ROOT", Path(src)):
+                self.assertEqual(
+                    ios_metadata.prepare(Path(out) / "none", None, Path(src) / "ios", include_listing=False), [])
+                written = ios_metadata.prepare(Path(out), "ios-v2.2", Path(src) / "ios", include_listing=False)
+                self.assertEqual(written, [Path(out) / "ios" / "en-US" / "whats_new.txt"])
+                self.assertEqual(written[0].read_text(), "Faster dashboards.\n")
+                with self.assertRaisesRegex(ios_metadata.MetadataError, "keywords.txt"):
+                    ios_metadata.prepare(Path(out) / "full", "ios-v2.2", Path(src) / "ios")
+
+            def cli(*flags: str) -> int:
+                argv = ["prepare", "--out", str(Path(out) / "cli"), "--tag", "ios-v2.2", *flags]
+                with mock.patch.object(ios_metadata, "LISTING_DIR", Path(src) / "ios"), \
+                        mock.patch.object(release_notes, "ROOT", Path(src)):
+                    try:
+                        quiet(ios_metadata.main, argv)
+                    except SystemExit as exc:
+                        return exc.code if isinstance(exc.code, int) else 1
+                return 0
+
+            self.assertEqual(cli("--no-listing"), 0)
+            self.assertEqual(sorted(p.name for p in (Path(out) / "cli" / "ios" / "en-US").iterdir()),
+                             ["whats_new.txt"])
+            self.assertEqual(cli(), 1, "a run that uploads the listing still fails on it")
 
     def test_screenshot_sets_accept_only_app_store_sizes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
