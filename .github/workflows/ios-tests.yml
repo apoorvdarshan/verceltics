@@ -1,0 +1,69 @@
+name: iOS tests
+
+# Unit (vercelticsTests) and UI (vercelticsUITests) tests on an iOS Simulator.
+# Nothing here signs, archives, uploads, or touches App Store Connect.
+on:
+  pull_request:
+    paths:
+      - "ios/**"
+      - "scripts/test-ios.sh"
+      - "scripts/ci/check_ios_test_counts.py"
+      - ".github/workflows/ios-tests.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ios/**"
+      - "scripts/test-ios.sh"
+      - "scripts/ci/check_ios_test_counts.py"
+      - ".github/workflows/ios-tests.yml"
+  workflow_dispatch:
+  # ios-release.yml runs the same tests before a tagged release.
+  workflow_call:
+
+permissions:
+  contents: read
+
+# A newer push to a pull request supersedes its older run. Pushes to main,
+# manual runs, and release callers each keep their own run.
+concurrency:
+  group: ios-tests-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  ios-tests:
+    runs-on: xcode-27
+    timeout-minutes: 60
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          # The app, its tests and project, and the test scripts; no web or marketing assets.
+          sparse-checkout: |
+            /ios/
+            /scripts/test-ios.sh
+            /scripts/ci/check_ios_test_counts.py
+
+      - name: Cache pinned Swift packages
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .ios-test-packages
+          key: ios-spm-${{ runner.os }}-${{ runner.arch }}-xcode27-${{ hashFiles('ios/**/Package.resolved') }}
+
+      - name: Build and run unit and UI tests
+        env:
+          IOS_TEST_PACKAGES: ${{ github.workspace }}/.ios-test-packages
+          IOS_TEST_DERIVED_DATA: ${{ runner.temp }}/ios-test-build
+          IOS_TEST_RESULTS: ${{ runner.temp }}/ios-test-results
+        run: bash scripts/test-ios.sh
+
+      - name: Retain test results and failure screenshots
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ios-test-results-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ios-test-results
+          if-no-files-found: warn
+          retention-days: 7

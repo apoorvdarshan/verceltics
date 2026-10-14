@@ -16,6 +16,11 @@ final class AppUpdateChecker {
 
     private var lastCheckedAt: Date?
 
+#if DEBUG
+    /// UI tests and hosted unit tests never contact the App Store.
+    var checksAppStore = true
+#endif
+
     var currentVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "3.0"
     }
@@ -26,6 +31,9 @@ final class AppUpdateChecker {
     }
 
     func checkForUpdates(force: Bool = false) async {
+#if DEBUG
+        guard checksAppStore else { return }
+#endif
         guard !isChecking else { return }
 
         if !force, let lastCheckedAt, Date().timeIntervalSince(lastCheckedAt) < 60 * 60 {

@@ -1,120 +1,232 @@
+# Android release — GitHub Actions builds, verifies and signs the Android app,
+# publishes it on GitHub Releases and, when switched on, on Google Play.
+#
+# Trigger
+#   push tag android-vX.Y   release run (the tag must equal versionName in
+#                           android/app/build.gradle.kts). iOS uses ios-v* tags
+#                           (ios-release.yml), so the two pipelines never collide.
+#   workflow_dispatch       validation run: build the signed AAB and APK and
+#                           verify package, version and upload-key signature.
+#                           Never uploads, signs with Sigstore or releases.
+#
+# Switches (repository Variables; missing = off, invalid values fail the run).
+# See store/README.md for the full table.
+#   ANDROID_RELEASE_AUTOMATION   master switch: off = a tag builds and releases nothing
+#   ANDROID_UPLOAD_LISTING       Play title and descriptions (store/metadata/play)
+#   ANDROID_UPLOAD_WHATS_NEW     What's New on this run's Play release (needs a track)
+#   ANDROID_UPLOAD_SCREENSHOTS   Play phone screenshots
+#   ANDROID_INTERNAL_TESTING     upload this build to Play internal testing
+#   ANDROID_CLOSED_TESTING       upload this build to Play closed testing (alpha track)
+#   ANDROID_PRODUCTION_ROLLOUT   upload this build to Play production, live. Google has
+#                                not granted Verceltics production access yet (12 testers
+#                                in closed testing for 14 days), so Play rejects it until then.
+# Every enabled track receives the same upload in one Play edit; testing tracks
+# never imply production.
+#
+# Secrets
+#   ANDROID_KEYSTORE_BASE64     base64 of the upload keystore (alias "upload")
+#   ANDROID_KEYSTORE_PASSWORD   its password, which is also the key password
+#   PLAY_SERVICE_ACCOUNT_JSON   a Play publisher service-account JSON key with
+#                               access to com.apoorvdarshan.verceltics
+#
+# versionCode discipline stays in the repo: bump it in app/build.gradle.kts
+# BEFORE tagging — Play rejects a versionCode it has already seen.
+#
+# Supply-chain: the AAB/APK attached to the GitHub Release are signed keylessly
+# with Sigstore cosign (a *.sigstore.json bundle per artifact) and carry a
+# GitHub build-provenance attestation. Verify a download with:
+#   cosign verify-blob verceltics-android-X.Y-N.apk --bundle verceltics-android-X.Y-N.apk.sigstore.json \
+#     --certificate-identity-regexp '^https://github.com/apoorvdarshan/verceltics/' \
+#     --certificate-oidc-issuer https://token.actions.githubusercontent.com
+#   gh attestation verify verceltics-android-X.Y-N.apk --repo apoorvdarshan/verceltics
+
 name: Android Release
 
-# Setup only until STORE_ANDROID_RELEASE_ENABLED is explicitly enabled.
-# An android-v* tag then tests and builds a signed AAB and APK, signs them with Sigstore,
-# attests their provenance, and creates a GitHub prerelease. Google Play is touched only when
-# STORE_PLAY_TRACK names a testing track (internal or closed). Production is not supported yet.
-# See store/README.md for the switches and the three secrets this job needs.
 on:
   push:
     tags:
       - "android-v*"
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+# Tag release runs never overlap. Manual validation runs get their own group and
+# can never cancel a release run.
 concurrency:
-  group: android-store-release
+  group: android-release-${{ github.event_name == 'push' && 'release' || github.run_id }}
   cancel-in-progress: false
+  # Keep every waiting tag run queued; the default (single) would cancel an older pending run.
+  queue: max
 
 jobs:
+  gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      mode: ${{ steps.gates.outputs.mode }}
+      build: ${{ steps.gates.outputs.build }}
+      github_release: ${{ steps.gates.outputs.github_release }}
+      listing: ${{ steps.gates.outputs.listing }}
+      whats_new: ${{ steps.gates.outputs.whats_new }}
+      screenshots: ${{ steps.gates.outputs.screenshots }}
+      production: ${{ steps.gates.outputs.production }}
+      play_upload: ${{ steps.gates.outputs.play_upload }}
+      play_tracks: ${{ steps.gates.outputs.play_tracks }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /scripts/store/
+            /scripts/release_notes.py
+            /android/app/build.gradle.kts
+            /RELEASE_NOTES.md
+
+      - name: Resolve Android release switches
+        id: gates
+        env:
+          ANDROID_RELEASE_AUTOMATION: ${{ vars.ANDROID_RELEASE_AUTOMATION }}
+          ANDROID_UPLOAD_LISTING: ${{ vars.ANDROID_UPLOAD_LISTING }}
+          ANDROID_UPLOAD_WHATS_NEW: ${{ vars.ANDROID_UPLOAD_WHATS_NEW }}
+          ANDROID_UPLOAD_SCREENSHOTS: ${{ vars.ANDROID_UPLOAD_SCREENSHOTS }}
+          ANDROID_INTERNAL_TESTING: ${{ vars.ANDROID_INTERNAL_TESTING }}
+          ANDROID_CLOSED_TESTING: ${{ vars.ANDROID_CLOSED_TESTING }}
+          ANDROID_PRODUCTION_ROLLOUT: ${{ vars.ANDROID_PRODUCTION_ROLLOUT }}
+        run: python3 scripts/store/android_release.py gates
+
+      # Fail before the long quality run when the notes are malformed, or when What's New
+      # is switched on without notes that fit Google Play.
+      - name: Check reviewed release notes
+        if: steps.gates.outputs.github_release == 'true'
+        env:
+          WHATS_NEW: ${{ steps.gates.outputs.whats_new }}
+        run: |
+          python3 scripts/release_notes.py --if-present "$GITHUB_REF_NAME" > /dev/null
+          if [ "$WHATS_NEW" = true ]; then
+            python3 scripts/store/play_listing.py whats-new --tag "$GITHUB_REF_NAME" > /dev/null
+          fi
+
+  quality:
+    needs: gates
+    if: needs.gates.outputs.mode == 'release' && needs.gates.outputs.build == 'true'
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
   release:
-    if: vars.STORE_ANDROID_RELEASE_ENABLED == 'true'
+    needs: [gates, quality]
+    # Validation runs skip quality; release runs need it to pass.
+    if: >-
+      !cancelled() && needs.gates.result == 'success' && needs.gates.outputs.build == 'true' &&
+      (needs.quality.result == 'success' ||
+       (needs.gates.outputs.mode == 'validate' && needs.quality.result == 'skipped'))
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
-      contents: write # create the GitHub release
-      id-token: write # Sigstore keyless signing and provenance
-      attestations: write # store the build provenance attestation
+      contents: write # create the GitHub Release
+      id-token: write # Sigstore keyless signing + provenance (OIDC token)
+      attestations: write # store the build-provenance attestation
+    env:
+      RELEASE_RUN: ${{ needs.gates.outputs.mode == 'release' }}
     steps:
-      - name: Checkout tagged source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Fail fast and clearly, before any build, when signing is not set up.
+      - name: Check upload keystore secrets
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          missing=()
+          [ -n "$ANDROID_KEYSTORE_BASE64" ] || missing+=(ANDROID_KEYSTORE_BASE64)
+          [ -n "$ANDROID_KEYSTORE_PASSWORD" ] || missing+=(ANDROID_KEYSTORE_PASSWORD)
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "error: upload keystore secrets are not configured: set ${missing[*]} in Settings → Secrets and variables → Actions (see store/README.md)" >&2
+            exit 1
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          sparse-checkout: |
+            android
+            scripts
+            store
 
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: "3.13"
-
-      - name: Validate version, products, and reviewed release notes
-        env:
-          TAG: ${{ github.ref_name }}
-        run: |
-          python3 scripts/store/validate_android_release.py --tag "$TAG" --whats-new-dir "$RUNNER_TEMP/whats-new"
-          python3 scripts/release_notes.py "$TAG" > "$RUNNER_TEMP/release-notes.md"
-
-      - name: Print and normalize Android store switches
-        id: gates
-        env:
-          STORE_ANDROID_RELEASE_ENABLED: ${{ vars.STORE_ANDROID_RELEASE_ENABLED }}
-          STORE_PLAY_TRACK: ${{ vars.STORE_PLAY_TRACK }}
-          STORE_UPLOAD_WHATS_NEW: ${{ vars.STORE_UPLOAD_WHATS_NEW }}
-        run: python3 scripts/store/print_android_gates.py --github-output "$GITHUB_OUTPUT"
-
-      - name: Set up Java
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: temurin
           java-version: "17"
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
         with:
-          # Reject modified or unrecognized wrapper JARs before running Gradle.
-          validate-wrappers: true
+          packages: platform-tools platforms;android-37.0
 
-      - name: Install the Android platform
-        env:
-          ANDROID_HOME: /usr/local/lib/android/sdk
-        run: |
-          yes | "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
-          "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.0" || \
-            "${ANDROID_HOME}/cmdline-tools/16.0/bin/sdkmanager" "platforms;android-37.0" || \
-            true
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
 
-      - name: Materialize the upload keystore
-        env:
-          VERCELTICS_UPLOAD_KEYSTORE_BASE64: ${{ secrets.VERCELTICS_UPLOAD_KEYSTORE_BASE64 }}
-          VERCELTICS_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.VERCELTICS_UPLOAD_KEYSTORE_PASSWORD }}
+      - name: Validate IAP catalog and Play listing
         run: |
-          if [ -z "$VERCELTICS_UPLOAD_KEYSTORE_BASE64" ] || [ -z "$VERCELTICS_UPLOAD_KEYSTORE_PASSWORD" ]; then
-            echo "error: set the VERCELTICS_UPLOAD_KEYSTORE_BASE64 and VERCELTICS_UPLOAD_KEYSTORE_PASSWORD secrets" >&2
-            exit 1
-          fi
+          python3 scripts/store/validate_catalog.py --platform android
+          python3 scripts/store/play_listing.py check
+
+      - name: Prepare reviewed release notes, What's New + listing text (local only)
+        if: env.RELEASE_RUN == 'true'
+        env:
+          WHATS_NEW: ${{ needs.gates.outputs.whats_new }}
+        run: |
+          python3 scripts/release_notes.py --if-present "$GITHUB_REF_NAME" > "$RUNNER_TEMP/release-notes.md"
+          # The notes become Play What's New only when ANDROID_UPLOAD_WHATS_NEW is on.
+          tag=()
+          if [ "$WHATS_NEW" = true ]; then tag=(--tag "$GITHUB_REF_NAME"); fi
+          python3 scripts/store/play_listing.py prepare --out "$RUNNER_TEMP/store-meta" "${tag[@]}"
+
+      - name: Materialize upload keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
           umask 077
-          printf '%s' "$VERCELTICS_UPLOAD_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.jks"
-          printf '%s' "$VERCELTICS_UPLOAD_KEYSTORE_PASSWORD" > "$RUNNER_TEMP/upload-password"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+          printf '%s' "$ANDROID_KEYSTORE_PASSWORD" > "$RUNNER_TEMP/upload-password"
 
-      - name: Test and build the signed AAB and APK
+      - name: Build signed AAB + APK
         working-directory: android
-        env:
-          ANDROID_HOME: /usr/local/lib/android/sdk
+        # Store artifacts are always built fresh, never from cached task outputs.
         run: |
-          ./gradlew --no-daemon testDebugUnitTest :app:bundleRelease :app:assembleRelease \
+          ./gradlew --no-build-cache :app:bundleRelease :app:assembleRelease \
             -PVERCELTICS_UPLOAD_KEYSTORE="$RUNNER_TEMP/upload.jks" \
             -PVERCELTICS_UPLOAD_KEYSTORE_PASSWORD_FILE="$RUNNER_TEMP/upload-password"
 
-      - name: Remove the upload keystore
+      - name: Verify package, version and upload-key signature
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          BUNDLETOOL_VERSION: "1.18.3"
+          BUNDLETOOL_SHA256: a099cfa1543f55593bc2ed16a70a7c67fe54b1747bb7301f37fdfd6d91028e29
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/bundletool.jar" \
+            "https://github.com/google/bundletool/releases/download/${BUNDLETOOL_VERSION}/bundletool-all-${BUNDLETOOL_VERSION}.jar"
+          echo "${BUNDLETOOL_SHA256}  $RUNNER_TEMP/bundletool.jar" | sha256sum -c -
+          python3 scripts/store/android_release.py verify \
+            --aab android/app/build/outputs/bundle/release/app-release.aab \
+            --apk android/app/build/outputs/apk/release/app-release.apk \
+            --keystore "$RUNNER_TEMP/upload.jks" \
+            --alias upload \
+            --bundletool "$RUNNER_TEMP/bundletool.jar"
+
+      - name: Remove upload keystore
         if: always()
         run: rm -f "$RUNNER_TEMP/upload.jks" "$RUNNER_TEMP/upload-password"
 
       - name: Stage release artifacts
         id: artifacts
-        env:
-          TAG: ${{ github.ref_name }}
+        if: env.RELEASE_RUN == 'true'
         run: |
-          VERSION="${TAG#android-v}"
+          VERSION="${GITHUB_REF_NAME#android-v}"
           CODE=$(grep -m1 'versionCode = ' android/app/build.gradle.kts | tr -dc '0-9')
           NAME="verceltics-android-${VERSION}-${CODE}"
           mkdir -p "$RUNNER_TEMP/dist"
           cp android/app/build/outputs/bundle/release/app-release.aab "$RUNNER_TEMP/dist/${NAME}.aab"
           cp android/app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/dist/${NAME}.apk"
-          # Builds without the keystore properties stay unsigned; Play would reject them.
-          jarsigner -verify "$RUNNER_TEMP/dist/${NAME}.aab" | grep -q "jar verified" || {
-            echo "error: the AAB is not signed with the upload key" >&2
-            exit 1
-          }
           {
             echo "name=${NAME}"
             echo "version=${VERSION}"
@@ -122,57 +234,108 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        if: env.RELEASE_RUN == 'true'
 
       - name: Sign release artifacts (Sigstore keyless)
+        if: env.RELEASE_RUN == 'true'
         working-directory: ${{ runner.temp }}/dist
         run: |
           for artifact in *.aab *.apk; do
             cosign sign-blob --yes --bundle "${artifact}.sigstore.json" "$artifact"
           done
+          ls -l
 
       - name: Attest build provenance
+        if: env.RELEASE_RUN == 'true'
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: |
             ${{ runner.temp }}/dist/*.aab
             ${{ runner.temp }}/dist/*.apk
 
-      - name: Upload to a Google Play testing track
-        if: steps.gates.outputs.play_upload == 'true' && steps.gates.outputs.upload_whats_new != 'true'
-        uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1.1.5
-        with:
-          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-          packageName: com.apoorvdarshan.verceltics
-          releaseFiles: ${{ runner.temp }}/dist/${{ steps.artifacts.outputs.name }}.aab
-          tracks: ${{ steps.gates.outputs.play_track }}
-          status: completed
+      - name: Play listing / screenshots upload
+        if: needs.gates.outputs.listing == 'true' || needs.gates.outputs.screenshots == 'true'
+        env:
+          UPLOAD_LISTING: ${{ needs.gates.outputs.listing }}
+          UPLOAD_SCREENSHOTS: ${{ needs.gates.outputs.screenshots }}
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          python3 -m pip install --disable-pip-version-check --require-hashes -r requirements-store.txt
+          python3 scripts/store/play_listing.py upload --metadata-dir "$RUNNER_TEMP/store-meta"
 
-      - name: Upload to a Google Play testing track (with What's New)
-        if: steps.gates.outputs.play_upload == 'true' && steps.gates.outputs.upload_whats_new == 'true'
-        uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1.1.5
-        with:
-          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-          packageName: com.apoorvdarshan.verceltics
-          releaseFiles: ${{ runner.temp }}/dist/${{ steps.artifacts.outputs.name }}.aab
-          tracks: ${{ steps.gates.outputs.play_track }}
-          status: completed
-          whatsNewDirectory: ${{ runner.temp }}/whats-new
-
-      - name: Google Play upload (skipped)
-        if: steps.gates.outputs.play_upload != 'true'
-        run: echo "Google Play upload skipped (STORE_PLAY_TRACK is none)"
-
-      - name: Create GitHub prerelease
+      - name: Create GitHub Release
+        id: github_release
+        if: needs.gates.outputs.github_release == 'true'
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
           NAME: ${{ steps.artifacts.outputs.name }}
           VERSION: ${{ steps.artifacts.outputs.version }}
           CODE: ${{ steps.artifacts.outputs.code }}
+          PRODUCTION: ${{ needs.gates.outputs.production }}
         run: |
+          set -euo pipefail
+          if [ -s "$RUNNER_TEMP/release-notes.md" ]; then
+            notes=(--notes-file "$RUNNER_TEMP/release-notes.md")
+          else
+            notes=(--generate-notes)
+          fi
           # A prerelease while Android ships only to testing tracks, so the iOS release stays latest.
-          gh release create "$TAG" --verify-tag --prerelease --latest=false \
-            --title "Android ${VERSION} (versionCode ${CODE})" \
-            --notes-file "$RUNNER_TEMP/release-notes.md" \
+          if [ "$PRODUCTION" = true ]; then
+            kind=(--latest)
+          else
+            kind=(--prerelease --latest=false)
+          fi
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag "${kind[@]}" \
+            --title "Android ${VERSION} (versionCode ${CODE})" "${notes[@]}" \
             "$RUNNER_TEMP/dist/${NAME}.aab" "$RUNNER_TEMP/dist/${NAME}.aab.sigstore.json" \
             "$RUNNER_TEMP/dist/${NAME}.apk" "$RUNNER_TEMP/dist/${NAME}.apk.sigstore.json"
+
+      - name: Keep English What's New only
+        if: needs.gates.outputs.play_upload == 'true' && needs.gates.outputs.whats_new == 'true'
+        run: |
+          NOTES="$RUNNER_TEMP/store-meta/play/whatsnew-en-US"
+          if [ ! -s "$NOTES" ]; then
+            echo "error: ANDROID_UPLOAD_WHATS_NEW is on, but whatsnew-en-US is missing" >&2
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/whats-new"
+          cp "$NOTES" "$RUNNER_TEMP/whats-new/"
+
+      - name: Upload to Play (${{ needs.gates.outputs.play_tracks }})
+        if: needs.gates.outputs.play_upload == 'true' && needs.gates.outputs.whats_new != 'true'
+        uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1.1.5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.apoorvdarshan.verceltics
+          releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
+          tracks: ${{ needs.gates.outputs.play_tracks }}
+          status: completed
+
+      - name: Upload to Play with What's New (${{ needs.gates.outputs.play_tracks }})
+        if: needs.gates.outputs.play_upload == 'true' && needs.gates.outputs.whats_new == 'true'
+        uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1.1.5
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.apoorvdarshan.verceltics
+          releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
+          tracks: ${{ needs.gates.outputs.play_tracks }}
+          status: completed
+          whatsNewDirectory: ${{ runner.temp }}/whats-new
+
+      - name: Confirm each Play track now carries this build
+        if: needs.gates.outputs.play_upload == 'true'
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          PLAY_TRACKS: ${{ needs.gates.outputs.play_tracks }}
+        run: |
+          python3 -m pip install --disable-pip-version-check --require-hashes -r requirements-store.txt
+          python3 scripts/store/android_release.py check-tracks --tracks "$PLAY_TRACKS"
+
+      - name: Play upload (skipped)
+        if: needs.gates.outputs.play_upload != 'true'
+        run: echo "No Play track selected — nothing was uploaded to Google Play"
+
+      - name: Require the GitHub Release
+        if: always() && steps.github_release.outcome == 'failure'
+        run: exit 1

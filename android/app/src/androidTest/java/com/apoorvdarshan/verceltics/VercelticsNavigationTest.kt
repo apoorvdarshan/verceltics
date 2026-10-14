@@ -14,11 +14,13 @@ import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.isFocused
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
@@ -118,7 +120,7 @@ class VercelticsNavigationTest {
     fun disconnectedCatalogSearchDoesNotReplayAfterVercelConnects() {
         compose.onNodeWithTag("mainNavigation.search").performClick()
         waitForTag("connection.catalog.hosting")
-        compose.onNodeWithTag("connection.catalog.search").assertIsFocused()
+        waitUntilFocused("connection.catalog.search")
 
         configureGateway(DebugVercelScenario.CONNECTED)
 
@@ -262,7 +264,8 @@ class VercelticsNavigationTest {
         )
         openVercelDetail()
         compose.onNodeWithTag("vercel.token").performTextInput("temporary-token")
-        compose.onNodeWithTag("vercel.connect").performClick()
+        // On a short screen the button sits below the instructions, out of the scroll viewport.
+        compose.onNodeWithTag("vercel.connect").performScrollTo().performClick()
         compose.waitUntil(timeoutMillis = TIMEOUT_MILLIS) {
             DebugVercelGatewayController.isConnectStarted()
         }
@@ -314,7 +317,7 @@ class VercelticsNavigationTest {
 
         compose.onNodeWithTag("workspace.sites.empty").assertIsDisplayed()
         waitForTag("connection.catalog.sites")
-        compose.onNodeWithTag("connection.catalog.search").assertIsFocused()
+        waitUntilFocused("connection.catalog.search")
         compose.onNodeWithTag("mainNavigation.sites").assertIsSelected()
         compose.onNodeWithTag("mainNavigation.about").assertIsNotSelected()
         compose.onNodeWithTag("mainNavigation.search").assert(noSelectedState)
@@ -810,6 +813,17 @@ class VercelticsNavigationTest {
     private fun waitForTag(tag: String) {
         compose.waitUntil(timeoutMillis = TIMEOUT_MILLIS) {
             compose.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    /**
+     * The connection catalog focuses its search field only after its full-screen dialog gains
+     * window focus. That event comes from the window manager, outside Compose's idle
+     * synchronization, so the test waits for the focus instead of asserting right away.
+     */
+    private fun waitUntilFocused(tag: String) {
+        compose.waitUntil(timeoutMillis = TIMEOUT_MILLIS) {
+            compose.onAllNodes(hasTestTag(tag) and isFocused()).fetchSemanticsNodes().isNotEmpty()
         }
     }
 

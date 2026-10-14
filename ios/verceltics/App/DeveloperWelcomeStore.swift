@@ -40,4 +40,16 @@ final class DeveloperWelcomeStore {
         defaults.set(Status.closed.rawValue, forKey: Self.storageKey)
         isPresented = false
     }
+
+#if DEBUG
+    static func hasSavedState(in defaults: UserDefaults) -> Bool {
+        defaults.string(forKey: storageKey).flatMap(Status.init(rawValue:)) != nil
+    }
+
+    /// UI tests start with the introduction either pending or already closed,
+    /// independent of the app version under test.
+    static func prepareForUITests(pending: Bool, defaults: UserDefaults) {
+        defaults.set((pending ? Status.pending : Status.closed).rawValue, forKey: storageKey)
+    }
+#endif
 }

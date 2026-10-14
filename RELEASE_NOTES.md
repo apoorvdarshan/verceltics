@@ -1,8 +1,10 @@
 # Reviewed release notes
 
 `ios-v` sections match the iOS project's `MARKETING_VERSION`, and `android-v` sections
-match the Android `versionName`. The same notes become the GitHub release body and the
-App Store or Google Play What's New text.
+match the Android `versionName`. The same notes become the GitHub release body and, when
+`IOS_UPLOAD_WHATS_NEW` or `ANDROID_UPLOAD_WHATS_NEW` is on, the App Store or Google Play
+What's New text (Google Play: plain text, 500 characters at most). A tag without a
+section gets generated GitHub release notes, and a What's New upload for it fails.
 
 ## ios-v2.1
 

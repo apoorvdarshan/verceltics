@@ -1,38 +1,127 @@
-name: Validate store setup
+# Store automation dry-run: tests the release scripts and validates the store
+# metadata, screenshots and product catalog. Uses no credentials and never
+# contacts App Store Connect or Google Play. Safe to run anytime.
+#
+# Live store operations stay behind the repository Variables documented in
+# store/README.md and store/gates.env.example (all off by default).
 
-# Local metadata checks only. No app build, credentials, or store API calls.
+name: Store automation (dry-run)
+
 on:
+  push:
+    branches: [main]
+    paths:
+      - "store/**"
+      - "scripts/store/**"
+      - "scripts/release_notes.py"
+      - "RELEASE_NOTES.md"
+      - "requirements-store.txt"
+      - "marketing/mockups ios/**"
+      - "marketing/mockups ipad/**"
+      - "ios/verceltics.xcodeproj/project.pbxproj"
+      - "ios/verceltics/Paywall/Products.storekit"
+      - "android/app/build.gradle.kts"
+      - "android/app/src/main/java/com/apoorvdarshan/verceltics/billing/BillingModels.kt"
+      - ".github/workflows/store-automation.yml"
+      - ".github/workflows/ios-release.yml"
+      - ".github/workflows/android-release.yml"
+  pull_request:
+    paths:
+      - "store/**"
+      - "scripts/store/**"
+      - "scripts/release_notes.py"
+      - "RELEASE_NOTES.md"
+      - "requirements-store.txt"
+      - "marketing/mockups ios/**"
+      - "marketing/mockups ipad/**"
+      - "ios/verceltics.xcodeproj/project.pbxproj"
+      - "ios/verceltics/Paywall/Products.storekit"
+      - "android/app/build.gradle.kts"
+      - "android/app/src/main/java/com/apoorvdarshan/verceltics/billing/BillingModels.kt"
+      - ".github/workflows/store-automation.yml"
+      - ".github/workflows/ios-release.yml"
+      - ".github/workflows/android-release.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: store-dry-run-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  validate:
+  dry-run:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /scripts/
+            /store/
+            /RELEASE_NOTES.md
+            /requirements-store.txt
+            /ios/verceltics.xcodeproj/
+            /ios/verceltics/Paywall/Products.storekit
+            /android/app/build.gradle.kts
+            /android/app/src/main/java/com/apoorvdarshan/verceltics/billing/BillingModels.kt
+            /marketing/mockups ios/
+            /marketing/mockups ipad/
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
-      - name: Validate local catalog and listing
+
+      - name: Print store switches (must stay safe by default)
+        env:
+          IOS_RELEASE_AUTOMATION: ${{ vars.IOS_RELEASE_AUTOMATION }}
+          IOS_UPLOAD_BUILD: ${{ vars.IOS_UPLOAD_BUILD }}
+          IOS_UPLOAD_LISTING: ${{ vars.IOS_UPLOAD_LISTING }}
+          IOS_UPLOAD_WHATS_NEW: ${{ vars.IOS_UPLOAD_WHATS_NEW }}
+          IOS_UPLOAD_SCREENSHOTS: ${{ vars.IOS_UPLOAD_SCREENSHOTS }}
+          IOS_SUBMIT_REVIEW: ${{ vars.IOS_SUBMIT_REVIEW }}
+          IOS_PUBLIC_RELEASE: ${{ vars.IOS_PUBLIC_RELEASE }}
+          ANDROID_RELEASE_AUTOMATION: ${{ vars.ANDROID_RELEASE_AUTOMATION }}
+          ANDROID_UPLOAD_LISTING: ${{ vars.ANDROID_UPLOAD_LISTING }}
+          ANDROID_UPLOAD_WHATS_NEW: ${{ vars.ANDROID_UPLOAD_WHATS_NEW }}
+          ANDROID_UPLOAD_SCREENSHOTS: ${{ vars.ANDROID_UPLOAD_SCREENSHOTS }}
+          ANDROID_INTERNAL_TESTING: ${{ vars.ANDROID_INTERNAL_TESTING }}
+          ANDROID_CLOSED_TESTING: ${{ vars.ANDROID_CLOSED_TESTING }}
+          ANDROID_PRODUCTION_ROLLOUT: ${{ vars.ANDROID_PRODUCTION_ROLLOUT }}
+        run: python3 scripts/store/print_gates.py --platform all
+
+      - name: Test iOS release switches, build wait, listing and review (offline)
+        run: python3 -m unittest -v scripts/store/test_ios_release.py
+
+      - name: Test Android release switches, artifact checks, Play listing and read-back (offline)
+        run: python3 -m unittest -v scripts/store/test_android_release.py
+
+      - name: Validate the product catalog, App Store listing and Play listing
         run: |
-          python3 scripts/store/validate_ios_release.py
-          python3 scripts/store/prepare_ios_metadata.py --out "$RUNNER_TEMP/store-meta"
-          UPLOAD_LISTING=true python3 scripts/store/asc_release.py --dry-run --metadata-dir "$RUNNER_TEMP/store-meta"
-          python3 scripts/store/validate_android_release.py
-      - name: Show configured switches
-        env:
-          STORE_IOS_RELEASE_ENABLED: ${{ vars.STORE_IOS_RELEASE_ENABLED }}
-          STORE_UPLOAD_LISTING: ${{ vars.STORE_UPLOAD_LISTING }}
-          STORE_UPLOAD_SCREENSHOTS: ${{ vars.STORE_UPLOAD_SCREENSHOTS }}
-          STORE_SUBMIT_IOS_REVIEW: ${{ vars.STORE_SUBMIT_IOS_REVIEW }}
-        run: python3 scripts/store/print_gates.py
-      - name: Show configured Android switches
-        env:
-          STORE_ANDROID_RELEASE_ENABLED: ${{ vars.STORE_ANDROID_RELEASE_ENABLED }}
-          STORE_PLAY_TRACK: ${{ vars.STORE_PLAY_TRACK }}
-          STORE_UPLOAD_WHATS_NEW: ${{ vars.STORE_UPLOAD_WHATS_NEW }}
-        run: python3 scripts/store/print_android_gates.py
+          python3 scripts/store/validate_catalog.py --platform all
+          python3 scripts/store/ios_metadata.py check
+          python3 scripts/store/play_listing.py check
+
+      - name: Prepare store metadata and dry-run the publishers (no store APIs)
+        run: |
+          python3 scripts/store/ios_metadata.py prepare --out "$RUNNER_TEMP/store-meta" --tag ios-v2.1
+          python3 scripts/store/play_listing.py prepare --out "$RUNNER_TEMP/store-meta" --tag android-v1.0
+          UPLOAD_LISTING=true UPLOAD_WHATS_NEW=true UPLOAD_SCREENSHOTS=true SUBMIT_IOS_REVIEW=true \
+            python3 scripts/store/asc_release.py --dry-run --metadata-dir "$RUNNER_TEMP/store-meta" \
+            --build-id DRY-RUN --build-number 1
+          UPLOAD_LISTING=true UPLOAD_SCREENSHOTS=true \
+            python3 scripts/store/play_listing.py upload --dry-run --metadata-dir "$RUNNER_TEMP/store-meta"
+          python3 scripts/store/ios_release.py --help > /dev/null
+          python3 scripts/store/android_release.py --help > /dev/null
+
+      - name: Upload prepared metadata (inspection only)
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: store-metadata-dry-run-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/store-meta
+          if-no-files-found: error
+          retention-days: 7

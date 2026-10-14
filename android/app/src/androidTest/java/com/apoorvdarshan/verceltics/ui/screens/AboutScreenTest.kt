@@ -14,11 +14,13 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.apoorvdarshan.verceltics.ui.screens.about.AboutDestination
@@ -142,8 +144,10 @@ class AboutScreenTest {
             }
         }
 
+        // About is a lazy list: on a short screen the support rows are not composed until
+        // the list scrolls to them, so scroll the list rather than the (absent) row.
+        compose.onNodeWithTag("about.content").performScrollToNode(hasTestTag("about.action.rate"))
         compose.onNodeWithTag("about.action.rate")
-            .performScrollTo()
             .assertIsDisplayed()
             .performClick()
 

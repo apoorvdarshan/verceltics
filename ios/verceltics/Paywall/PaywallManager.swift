@@ -11,6 +11,9 @@ final class PaywallManager {
 
     private static let revenueCatAPIKey = "appl_kIbnXTGTOxEEAuvRXUhenQYtzlk"
     private static let entitlementID = "Verceltics Pro"
+#if DEBUG
+    static let unconfiguredMessage = "Purchases are unavailable in this build."
+#endif
 
     var packages: [Package] = []
     var purchasedProductIDs: Set<String> = []
@@ -43,11 +46,35 @@ final class PaywallManager {
         }
     }
 
+#if DEBUG
+    /// UI tests and hosted unit tests never configure RevenueCat, so no purchase
+    /// or entitlement request leaves the simulator and Pro stays locked.
+    static func withoutRevenueCatForTesting() -> PaywallManager {
+        PaywallManager(revenueCatDisabledForTesting: true)
+    }
+
+    private init(revenueCatDisabledForTesting: Bool) {
+        isLoading = false
+        hasCheckedEntitlements = true
+    }
+
+    /// Debug builds may run without RevenueCat (see `withoutRevenueCatForTesting`);
+    /// Release builds always configure it before any purchase API is used.
+    private static var isRevenueCatUnavailable: Bool { !Purchases.isConfigured }
+#endif
+
     func loadProducts() async {
         if !packages.isEmpty {
             isLoading = false
             return
         }
+#if DEBUG
+        if Self.isRevenueCatUnavailable {
+            isLoading = false
+            error = Self.unconfiguredMessage
+            return
+        }
+#endif
 
         isLoading = true
         error = nil
@@ -68,6 +95,12 @@ final class PaywallManager {
     }
 
     func purchase(_ package: Package) async -> Bool {
+#if DEBUG
+        if Self.isRevenueCatUnavailable {
+            error = Self.unconfiguredMessage
+            return false
+        }
+#endif
         error = nil
 
         do {
@@ -82,6 +115,12 @@ final class PaywallManager {
     }
 
     func restorePurchases() async {
+#if DEBUG
+        if Self.isRevenueCatUnavailable {
+            error = Self.unconfiguredMessage
+            return
+        }
+#endif
         error = nil
 
         do {
@@ -94,6 +133,12 @@ final class PaywallManager {
     }
 
     func checkEntitlements() async {
+#if DEBUG
+        if Self.isRevenueCatUnavailable {
+            hasCheckedEntitlements = true
+            return
+        }
+#endif
         do {
             let customerInfo = try await Purchases.shared.customerInfo()
             apply(customerInfo: customerInfo)
@@ -107,6 +152,9 @@ final class PaywallManager {
     }
 
     func isEligibleForTrial(_ package: Package?) async -> Bool {
+#if DEBUG
+        if Self.isRevenueCatUnavailable { return false }
+#endif
         guard let package,
               package.storeProduct.introductoryDiscount?.paymentMode == .freeTrial else { return false }
         let status = await Purchases.shared.checkTrialOrIntroDiscountEligibility(product: package.storeProduct)

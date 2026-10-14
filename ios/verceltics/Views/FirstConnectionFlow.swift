@@ -222,6 +222,7 @@ struct FirstConnectionWelcomeView: View {
         }
         .buttonStyle(PressScaleButtonStyle())
         .accessibilityHint("Shows the providers you can connect")
+        .accessibilityIdentifier("firstConnection.continue")
     }
 }
 

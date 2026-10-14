@@ -29,6 +29,15 @@ final class TipStore {
     }
 
     func loadProducts() async {
+#if DEBUG
+        // UI tests and hosted unit tests run without RevenueCat (PaywallManager).
+        guard Purchases.isConfigured else {
+            products = []
+            loadFailed = true
+            isLoading = false
+            return
+        }
+#endif
         isLoading = true
         loadFailed = false
         errorMessage = nil
@@ -42,6 +51,9 @@ final class TipStore {
     }
 
     func purchase(_ product: StoreProduct) async {
+#if DEBUG
+        guard Purchases.isConfigured else { return }
+#endif
         guard purchasingID == nil else { return }
         purchasingID = product.productIdentifier
         errorMessage = nil

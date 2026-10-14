@@ -41,13 +41,32 @@ Run the repository's Python checks from the root; CI uses Python 3.13:
 ./scripts/test.sh
 ```
 
-For iOS changes, build and run the `verceltics` scheme and its tests in Xcode on
-an available iOS Simulator. For Android changes, the CI checks are:
+For iOS changes, run the unit and UI tests the way CI does (it creates and later
+deletes its own simulator):
+
+```bash
+bash scripts/test-ios.sh
+```
+
+UI tests drive the real Debug app in its Simulator-only `-uiTesting` mode
+(in-memory accounts, no RevenueCat or App Store requests). Give new screens an
+`accessibilityIdentifier` when a UI test needs one, and keep test-only code inside
+`#if DEBUG`. For Android changes, the CI checks are:
 
 ```bash
 cd android
-./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug
+./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleRelease
+./gradlew :app:connectedDebugAndroidTest   # on an emulator
 ```
+
+CI runs the instrumentation tests on Pixel 2–sized API 36 emulators (411×731 dp),
+so tests must not assume a tall screen: scroll content into view before asserting
+on or tapping it (`performScrollTo`, or `performScrollToNode` on lazy lists), and
+remember the keyboard can push a sheet's buttons out of view.
+
+Store listing text, release notes, and release switches are described in
+[store/README.md](store/README.md); `./scripts/test.sh` also runs the offline
+store release tests.
 
 For website and Worker changes, run these checks from `web/`:
 
