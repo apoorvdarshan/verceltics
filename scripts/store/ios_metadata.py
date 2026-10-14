@@ -9,6 +9,9 @@ tag's RELEASE_NOTES.md section. Screenshots come from the marketing mockups.
     ios_metadata.py prepare --out DIR [--tag ios-vX.Y]
                                           copy the listing (and the tag's What's New)
                                           into DIR/ios/<locale>/ for asc_release.py
+    ios_metadata.py whats-new --tag ios-vX.Y
+                                          print the tag's What's New, or fail when the
+                                          notes are missing or too long
 Never contacts App Store Connect.
 """
 from __future__ import annotations
@@ -159,6 +162,15 @@ def screenshot_files(spec: ScreenshotSet) -> list[Path]:
     return files
 
 
+def whats_new(tag: str) -> str:
+    """The tag's reviewed notes as App Store What's New; fails without usable notes."""
+    notes = section_for_tag(tag)
+    if notes is None:
+        raise MetadataError(f"What's New needs a ## {tag} section in RELEASE_NOTES.md")
+    validate_value(WHATS_NEW, notes, f"{tag} release notes")
+    return notes
+
+
 def prepare(out: Path, tag: str | None = None, listing_dir: Path = LISTING_DIR) -> list[Path]:
     """Copy the validated listing to out/ios/<locale>/ and add the tag's What's New."""
     written = []
@@ -187,9 +199,13 @@ def main(argv: list[str] | None = None) -> None:
     prep = sub.add_parser("prepare")
     prep.add_argument("--out", required=True, type=Path)
     prep.add_argument("--tag", help="add this tag's RELEASE_NOTES.md section as What's New")
+    notes = sub.add_parser("whats-new")
+    notes.add_argument("--tag", required=True)
     args = parser.parse_args(argv)
     try:
-        if args.command == "check":
+        if args.command == "whats-new":
+            print(whats_new(args.tag))
+        elif args.command == "check":
             for locale in locales():
                 values = load_locale(LISTING_DIR / locale)
                 print(f"listing {locale}: {len(values)} fields OK")
@@ -197,9 +213,9 @@ def main(argv: list[str] | None = None) -> None:
                 print(f"screenshots {spec.label}: {len(screenshot_files(spec))} PNGs OK")
         else:
             written = prepare(args.out, args.tag)
-            whats_new = any(path.name == WHATS_NEW.filename for path in written)
+            has_whats_new = any(path.name == WHATS_NEW.filename for path in written)
             print(f"prepared {len(written)} listing files under {args.out / 'ios'}"
-                  + ("" if whats_new else " (no What's New for this run)"))
+                  + ("" if has_whats_new else " (no What's New for this run)"))
     except (MetadataError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         raise SystemExit(1) from None

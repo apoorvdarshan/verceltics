@@ -874,6 +874,25 @@ class ListingMetadataTests(unittest.TestCase):
                 written = ios_metadata.prepare(Path(out) / "next", "ios-v2.3", Path(src) / "ios")
                 self.assertFalse(any(p.name == "whats_new.txt" for p in written))
 
+    def test_whats_new_needs_notes_within_the_app_store_limit(self) -> None:
+        with tempfile.TemporaryDirectory() as src, mock.patch.object(release_notes, "ROOT", Path(src)):
+            notes = Path(src) / "RELEASE_NOTES.md"
+            notes.write_text("## ios-v2.2\n\nFaster dashboards.\n")
+            self.assertEqual(ios_metadata.whats_new("ios-v2.2"), "Faster dashboards.")
+            with self.assertRaisesRegex(ios_metadata.MetadataError, "## ios-v2.3"):
+                ios_metadata.whats_new("ios-v2.3")
+            notes.write_text("## ios-v2.2\n\n" + "x" * 4001 + "\n")
+            with self.assertRaisesRegex(ios_metadata.MetadataError, "limit is 4000"):
+                ios_metadata.whats_new("ios-v2.2")
+
+    def test_prepare_without_a_tag_never_adds_whats_new(self) -> None:
+        with tempfile.TemporaryDirectory() as src, tempfile.TemporaryDirectory() as out:
+            write_listing(Path(src))
+            (Path(src) / "RELEASE_NOTES.md").write_text("## ios-v2.2\n\n" + "x" * 5000 + "\n")
+            with mock.patch.object(release_notes, "ROOT", Path(src)):
+                written = ios_metadata.prepare(Path(out), None, Path(src) / "ios")
+            self.assertFalse(any(p.name == "whats_new.txt" for p in written))
+
     def test_screenshot_sets_accept_only_app_store_sizes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             spec = ios_metadata.ScreenshotSet("APP_IPHONE_67", "iPhone", Path(tmp), frozenset({(1290, 2796)}))

@@ -379,6 +379,25 @@ class PlayListingTests(unittest.TestCase):
                 written = play_listing.prepare(Path(out) / "next", "android-v1.2", Path(src) / "play")
                 self.assertFalse(any(p.name.startswith("whatsnew-") for p in written))
 
+    def test_whats_new_needs_notes_that_fit_google_play(self):
+        with tempfile.TemporaryDirectory() as src, mock.patch.object(release_notes, "ROOT", Path(src)):
+            notes = Path(src) / "RELEASE_NOTES.md"
+            notes.write_text("## android-v1.1\n\n- **Faster** sync\n")
+            self.assertEqual(play_listing.whats_new("android-v1.1"), "• Faster sync")
+            with self.assertRaisesRegex(play_listing.ListingError, "## android-v1.2"):
+                play_listing.whats_new("android-v1.2")
+            notes.write_text("## android-v1.1\n\n" + "x" * 501 + "\n")
+            with self.assertRaisesRegex(play_listing.ListingError, "500"):
+                play_listing.whats_new("android-v1.1")
+
+    def test_long_notes_do_not_block_a_release_without_whats_new(self):
+        with tempfile.TemporaryDirectory() as src, tempfile.TemporaryDirectory() as out:
+            write_play_listing(Path(src))
+            (Path(src) / "RELEASE_NOTES.md").write_text("## android-v1.1\n\n" + "x" * 900 + "\n")
+            with mock.patch.object(release_notes, "ROOT", Path(src)):
+                written = play_listing.prepare(Path(out), None, Path(src) / "play")
+            self.assertFalse(any(p.name.startswith("whatsnew-") for p in written))
+
     def test_screenshots_need_two_to_eight_play_sized_pngs(self):
         with tempfile.TemporaryDirectory() as tmp:
             folder = Path(tmp)

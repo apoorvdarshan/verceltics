@@ -12,6 +12,9 @@ What's New comes from the tag's RELEASE_NOTES.md section, as plain text.
     play_listing.py upload [--metadata-dir DIR] [--dry-run]
                                                 upload what UPLOAD_LISTING / UPLOAD_SCREENSHOTS
                                                 switch on, in one Play edit (gated in CI)
+    play_listing.py whats-new --tag android-vX.Y
+                                                print the tag's Play What's New, or fail when
+                                                the notes are missing or too long
 """
 from __future__ import annotations
 
@@ -95,6 +98,14 @@ def play_whats_new(notes: str) -> str:
     if len(text) > WHATS_NEW_LIMIT:
         raise ListingError(f"Play What's New is limited to {WHATS_NEW_LIMIT} characters (the notes have {len(text)})")
     return text
+
+
+def whats_new(tag: str) -> str:
+    """The tag's reviewed notes as Play What's New; fails without usable notes."""
+    notes = section_for_tag(tag)
+    if notes is None:
+        raise ListingError(f"Play What's New needs a ## {tag} section in RELEASE_NOTES.md")
+    return play_whats_new(notes)
 
 
 def image_size(path: Path) -> tuple[int, int]:
@@ -251,20 +262,24 @@ def main(argv: list[str] | None = None) -> None:
     upload.add_argument("--screenshots-dir", type=Path, default=SCREENSHOTS_DIR)
     upload.add_argument("--package-name", default=PACKAGE_NAME)
     upload.add_argument("--dry-run", action="store_true", help="validate local files only — no Play API calls")
+    notes = sub.add_parser("whats-new")
+    notes.add_argument("--tag", required=True)
     args = parser.parse_args(argv)
     if getattr(args, "package_name", PACKAGE_NAME) != PACKAGE_NAME:
         fail("this publisher only supports the Verceltics Android app")
     try:
-        if args.command == "check":
+        if args.command == "whats-new":
+            print(whats_new(args.tag))
+        elif args.command == "check":
             for locale in locales():
                 load_locale(LISTING_DIR / locale)
                 print(f"Play listing {locale}: OK")
             print(f"Play phone screenshots: {len(screenshot_files())} OK")
         elif args.command == "prepare":
             written = prepare(args.out, args.tag)
-            whats_new = any(path.name.startswith("whatsnew-") for path in written)
+            has_whats_new = any(path.name.startswith("whatsnew-") for path in written)
             print(f"prepared {len(written)} Play listing files under {args.out / 'play'}"
-                  + ("" if whats_new else " (no What's New for this run)"))
+                  + ("" if has_whats_new else " (no What's New for this run)"))
         else:
             cmd_upload(args)
     except (ListingError, ValueError) as exc:

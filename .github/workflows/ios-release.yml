@@ -61,6 +61,8 @@ permissions:
 concurrency:
   group: ios-release-${{ github.event_name == 'push' && 'release' || github.run_id }}
   cancel-in-progress: false
+  # Keep every waiting tag run queued; the default (single) would cancel an older pending run.
+  queue: max
 
 jobs:
   tests:
@@ -132,6 +134,11 @@ jobs:
           IOS_BUILD_WAIT_MINUTES: ${{ vars.IOS_BUILD_WAIT_MINUTES }}
           VALIDATION_MARKETING_VERSION: ${{ inputs.marketing_version }}
         run: python3 scripts/store/ios_release.py gates
+
+      # Fail before building when What's New is switched on without usable notes.
+      - name: Check What's New
+        if: steps.gates.outputs.whats_new == 'true'
+        run: python3 scripts/store/ios_metadata.py whats-new --tag "$GITHUB_REF_NAME" > /dev/null
 
       - name: Choose the build number
         id: number
@@ -337,6 +344,13 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/logs"
           find "${TMPDIR:-/tmp}" -maxdepth 1 -name '*.xcdistributionlogs' -exec cp -R {} "$RUNNER_TEMP/logs/" \; 2>/dev/null || true
+          # xcodebuild and altool echo their command lines into these logs. Artifacts are
+          # not masked like the console, so replace the key and issuer IDs before upload.
+          if [ -n "$ASC_KEY_ID" ] && [ -n "$ASC_ISSUER_ID" ]; then
+            grep -rlIF -e "$ASC_KEY_ID" -e "$ASC_ISSUER_ID" "$RUNNER_TEMP/logs" 2>/dev/null | while IFS= read -r file; do
+              perl -pi -e 's/\Q$ENV{ASC_KEY_ID}\E/<ASC_KEY_ID>/g; s/\Q$ENV{ASC_ISSUER_ID}\E/<ASC_ISSUER_ID>/g' "$file"
+            done
+          fi
 
       - name: Keep build logs
         if: failure()
@@ -406,7 +420,13 @@ jobs:
 
       - name: Prepare listing and What's New (local only)
         if: needs.prepare.outputs.asc == 'true'
-        run: python3 scripts/store/ios_metadata.py prepare --out "$RUNNER_TEMP/store-meta" --tag "$GITHUB_REF_NAME"
+        env:
+          WHATS_NEW: ${{ needs.prepare.outputs.whats_new }}
+        run: |
+          # The tag's notes become What's New only when IOS_UPLOAD_WHATS_NEW is on.
+          tag=()
+          if [ "$WHATS_NEW" = true ]; then tag=(--tag "$GITHUB_REF_NAME"); fi
+          python3 scripts/store/ios_metadata.py prepare --out "$RUNNER_TEMP/store-meta" "${tag[@]}"
 
       - name: Listing / What's New / screenshots / review (gated)
         if: needs.prepare.outputs.asc == 'true'

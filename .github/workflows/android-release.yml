@@ -56,6 +56,8 @@ permissions:
 concurrency:
   group: android-release-${{ github.event_name == 'push' && 'release' || github.run_id }}
   cancel-in-progress: false
+  # Keep every waiting tag run queued; the default (single) would cancel an older pending run.
+  queue: max
 
 jobs:
   gates:
@@ -94,16 +96,16 @@ jobs:
           ANDROID_PRODUCTION_ROLLOUT: ${{ vars.ANDROID_PRODUCTION_ROLLOUT }}
         run: python3 scripts/store/android_release.py gates
 
-      # Fail before the long quality run when What's New has no reviewed notes.
+      # Fail before the long quality run when the notes are malformed, or when What's New
+      # is switched on without notes that fit Google Play.
       - name: Check reviewed release notes
         if: steps.gates.outputs.github_release == 'true'
         env:
           WHATS_NEW: ${{ steps.gates.outputs.whats_new }}
         run: |
+          python3 scripts/release_notes.py --if-present "$GITHUB_REF_NAME" > /dev/null
           if [ "$WHATS_NEW" = true ]; then
-            python3 scripts/release_notes.py "$GITHUB_REF_NAME" > /dev/null
-          else
-            python3 scripts/release_notes.py --if-present "$GITHUB_REF_NAME" > /dev/null
+            python3 scripts/store/play_listing.py whats-new --tag "$GITHUB_REF_NAME" > /dev/null
           fi
 
   quality:
@@ -169,9 +171,14 @@ jobs:
 
       - name: Prepare reviewed release notes, What's New + listing text (local only)
         if: env.RELEASE_RUN == 'true'
+        env:
+          WHATS_NEW: ${{ needs.gates.outputs.whats_new }}
         run: |
           python3 scripts/release_notes.py --if-present "$GITHUB_REF_NAME" > "$RUNNER_TEMP/release-notes.md"
-          python3 scripts/store/play_listing.py prepare --out "$RUNNER_TEMP/store-meta" --tag "$GITHUB_REF_NAME"
+          # The notes become Play What's New only when ANDROID_UPLOAD_WHATS_NEW is on.
+          tag=()
+          if [ "$WHATS_NEW" = true ]; then tag=(--tag "$GITHUB_REF_NAME"); fi
+          python3 scripts/store/play_listing.py prepare --out "$RUNNER_TEMP/store-meta" "${tag[@]}"
 
       - name: Materialize upload keystore
         env:
