@@ -6,6 +6,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import com.apoorvdarshan.verceltics.data.cloudflare.CloudflareCredential
@@ -100,7 +101,8 @@ class CloudflareZoneDetailScreenTest {
         compose.onNodeWithTag("cloudflare.zone.purgeSheet").assertIsDisplayed()
         compose.onNodeWithTag("cloudflare.zone.purgeSheet.kind.EVERYTHING").performClick()
         compose.onNodeWithTag("cloudflare.zone.purgeSheet.confirmation").performTextInput("example.com")
-        compose.onNodeWithTag("cloudflare.zone.purgeSheet.continue").performClick()
+        // Once the keyboard opens, a short screen's sheet scrolls CONTINUE out of view.
+        compose.onNodeWithTag("cloudflare.zone.purgeSheet.continue").performScrollTo().performClick()
 
         compose.onNodeWithText("Purge all cached content?").assertIsDisplayed()
         compose.onNodeWithText("Every cached object for example.com will be removed from Cloudflare’s edge.").assertIsDisplayed()
