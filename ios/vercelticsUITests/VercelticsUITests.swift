@@ -129,6 +129,29 @@ final class VercelticsUITests: XCTestCase {
     }
 
     @MainActor
+    func testSearchTabSearchesTheLastWorkspace() {
+        let app = launch(Argument.sampleSite)
+        XCTAssertTrue(app.staticTexts["No hosting account"].waitForExistence(timeout: launchTimeout))
+        tab("Sites", in: app)
+        let resource = app.buttons["sites.resource.verceltics.com"]
+        XCTAssertTrue(resource.waitForExistence(timeout: stepTimeout))
+
+        // The system Search tab opens the last workspace's own search field.
+        tab("Search", in: app)
+        let search = app.searchFields.firstMatch
+        XCTAssertTrue(search.waitForExistence(timeout: stepTimeout))
+        XCTAssertTrue(resource.exists, "Search stays on Sites instead of opening an empty tab")
+
+        let query = "no-such-site"
+        search.tap()
+        search.typeText(query)
+        waitUntil(resource, is: "exists == false")
+
+        search.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: query.count))
+        XCTAssertTrue(resource.waitForExistence(timeout: stepTimeout))
+    }
+
+    @MainActor
     func testConnectHostingOpensTheHostingCatalog() {
         let app = launch(Argument.sampleSite)
         XCTAssertTrue(app.buttons["Connect hosting"].waitForExistence(timeout: launchTimeout))

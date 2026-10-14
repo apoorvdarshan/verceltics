@@ -16,7 +16,7 @@ import re
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-TAG_PATTERN = re.compile(r"(?:ios|android)-v\d+\.\d+(?:\.\d+)?")
+TAG_PATTERN = re.compile(r"(?:ios|android)-v\d+(?:\.\d+){0,2}")
 
 
 def section_for_tag(tag: str, text: str | None = None) -> str | None:

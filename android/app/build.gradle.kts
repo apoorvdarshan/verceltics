@@ -126,7 +126,10 @@ android {
 }
 
 // CI restores the Gradle build cache. Test results must never come from it: every
-// run executes the unit tests again, while compiled classes can still be reused.
+// run executes the unit tests again, while compiled classes can still be reused. Unit
+// tests also read files that are not task inputs (ProviderApiCatalogParserTest compares
+// the bundled catalog with ios/verceltics/Resources/ProviderAPICatalog.json), so a
+// cached result could hide a change to them.
 tasks.withType<Test>().configureEach {
     outputs.doNotCacheIf("test results are never restored from the build cache") { true }
 }

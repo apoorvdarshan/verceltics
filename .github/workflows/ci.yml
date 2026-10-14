@@ -57,7 +57,7 @@ jobs:
             # The catalog tests read the iOS catalogs, privacy manifest, and account code.
             echo "catalog=$(match '^"?(tests/|scripts/|ios/verceltics/|\.github/workflows/ci\.yml)')"
             echo "web=$(match '^"?(web/|\.github/workflows/ci\.yml)')"
-            echo "android=$(match '^"?(android/|scripts/ci/wait_for_emulator_idle\.sh|\.github/workflows/ci\.yml)')"
+            echo "android=$(match '^"?(android/|ios/verceltics/Resources/ProviderAPICatalog\.json|scripts/ci/wait_for_emulator_idle\.sh|\.github/workflows/ci\.yml)')"
           } >> "$GITHUB_OUTPUT"
 
   catalog:
@@ -128,7 +128,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          sparse-checkout: android
+          sparse-checkout-cone-mode: false
+          # ProviderApiCatalogParserTest compares the Android asset with the iOS catalog.
+          sparse-checkout: |
+            /android/
+            /ios/verceltics/Resources/ProviderAPICatalog.json
           persist-credentials: false
 
       # Verifies android/gradle/wrapper/gradle-wrapper.jar against Gradle's

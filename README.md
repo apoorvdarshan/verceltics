@@ -319,8 +319,8 @@ reset; it fails if either test bundle runs zero tests. UI tests launch the Debug
 `-uiTesting`, a Simulator-only test mode compiled only into Debug builds: accounts stay in memory,
 RevenueCat and App Store update checks are never contacted, and UserDefaults start empty. They
 cover the developer welcome, first-run connection welcome, provider catalog, the Vercel token form,
-the Hosting/Registrars/Sites/About tabs, the soft paywall on Pro details, and persistence of the
-last workspace and appearance across relaunches.
+the Hosting/Registrars/Sites/About tabs, the Search tab, the soft paywall on Pro details, and
+persistence of the welcome, last workspace, and appearance across relaunches.
 
 Run the native Android checks, then the instrumentation and Compose UI tests on an emulator:
 

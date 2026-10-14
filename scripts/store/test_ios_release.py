@@ -977,7 +977,7 @@ class ReleaseNotesTests(unittest.TestCase):
             release_notes.notes_for_tag("ios-v2.2", self.TEXT)
 
     def test_bad_tags_and_sections_fail(self) -> None:
-        for tag in ("v2.1", "ios-2.1", "ios-v2", "ios-v2.1-beta"):
+        for tag in ("v2.1", "ios-2.1", "ios-v2.1.2.3", "ios-v2.1-beta", "macos-v2.1"):
             with self.subTest(tag=tag), self.assertRaises(ValueError):
                 release_notes.section_for_tag(tag, self.TEXT)
         with self.assertRaisesRegex(ValueError, "2 ## ios-v2.1"):
