@@ -51,6 +51,14 @@ uploaded before this run, or is not the build selected on the version. An older
 build is never substituted. The wait covers build readiness only, not Apple's
 review or the public release.
 
+Waiting for the build is its own `wait-for-build` job, which hands the processed
+build's id to the `app-store-connect` job. When a later store step fails (for
+example App Store Connect changed in between), **Re-run failed jobs** reuses that
+processed build instead of waiting again against the original upload deadline;
+the store job re-reads the build (version, build number, VALID, unexpired)
+before selecting it. Tag runs share one concurrency group and queue
+behind each other, so no release run is ever cancelled or dropped.
+
 ## Android release flow (`android-v*` tag)
 
 ```
