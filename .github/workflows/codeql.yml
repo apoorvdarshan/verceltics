@@ -33,7 +33,8 @@ concurrency:
 
 jobs:
   analyze:
-    name: Analyze
+    # The check names stay "Analyze (<language>, <build-mode>)" as before the sparse checkouts.
+    name: Analyze (${{ matrix.language }}, ${{ matrix.build-mode }})
     runs-on: ubuntu-latest
     permissions:
       security-events: write

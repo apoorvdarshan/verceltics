@@ -140,9 +140,9 @@ secrets below exist.
 
 Each track switch is independent: testing tracks never imply production, and
 production never falls back to a testing track. The Play upload never runs
-without a track (the upload action would default to production). **Google has not granted
-Verceltics production access yet**: it needs at least 12 testers opted in to
-closed testing for 14 consecutive days (see
+without a track (the upload action would default to production). **Google has
+not granted Verceltics production access yet**: it needs at least 12 testers
+opted in to closed testing for 14 consecutive days (see
 [google-play/TESTERS.md](google-play/TESTERS.md)). Until then Play rejects a
 production upload, so keep `ANDROID_PRODUCTION_ROLLOUT` off. Uploaded means the
 track carries this versionCode as a completed release; Google may still review
@@ -302,9 +302,9 @@ so they are sent only after the final build and selection recheck, right before
 the version. (Apple marks that endpoint deprecated in favour of review
 submission items; it still works, and every catalog purchase is approved
 today.) Products outside the catalog are never submitted, and the version is
-not submitted if a required product cannot be added. If the version is already `WAITING_FOR_REVIEW`, a late product is
-submitted on its own; a retry never duplicates items or ships an unrelated
-app version.
+not submitted if a required product cannot be added. If the version is already
+`WAITING_FOR_REVIEW`, a late product is submitted on its own; a retry never
+duplicates items or ships an unrelated app version.
 
 ## Release procedure
 
@@ -339,11 +339,13 @@ UPLOAD_LISTING=true UPLOAD_WHATS_NEW=true SUBMIT_IOS_REVIEW=true \
 
 These never build, sign, or contact a store. The **Store automation (dry-run)**
 workflow runs them for every change to store files, scripts or release workflows,
-and `ci.yml` runs `./scripts/test.sh` on pull requests and on every push to main.
+and `ci.yml` runs `./scripts/test.sh` on every push to main and on pull requests
+that touch `tests/`, `scripts/` or the iOS app.
 
 ## Android closed beta
 
 Android **1.0 (44)** is in Google Play closed testing (Alpha track), so the next
-`android-v*` release needs a higher versionCode (the release checks this first). The testers,
-countries, review status, and the `VERCELTICSBETA` promo code are recorded in
-[google-play/TESTERS.md](google-play/TESTERS.md) and [google-play/PROMO.md](google-play/PROMO.md).
+`android-v*` release needs a higher versionCode (the release checks this first).
+The testers, countries, review status, and the `VERCELTICSBETA` promo code are
+recorded in [google-play/TESTERS.md](google-play/TESTERS.md) and
+[google-play/PROMO.md](google-play/PROMO.md).
