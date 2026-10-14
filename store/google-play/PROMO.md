@@ -18,8 +18,7 @@ device. Then open Verceltics; if Pro does not appear right away, use
 
 After the 30 free days the subscription **renews at the regular monthly price**
 unless the tester cancels it in Google Play before the free period ends. This
-differs from the iOS code `VERCELTICSPH`, which does not renew
-(see [the iOS offer](../../marketing/product-hunt-2026-10/PROMO.md)).
+differs from the iOS Product Hunt code `VERCELTICSPH`, which does not renew.
 
 ## Verified configuration
 

@@ -15,13 +15,11 @@ mockups below are the App Store screenshots that `ios-release.yml` uploads when
 - `mockups android/` — Android twins of the iPhone artwork for Google Play (1080×1920, Codex imagegen; prompts in `prompts.md`, source screens in `android-mockup-sources/`)
 - `ss ios/` — source iPhone screenshots
 - `ss ipad/` — source iPad screenshots
-- `product-hunt/` — earlier Product Hunt 2.0 artwork
-- [`product-hunt-2026-10-v2/`](product-hunt-2026-10-v2/README.md) — current three-image relaunch gallery: ivory/cobalt design, large devices, upload order and imagegen prompts
-- [`product-hunt-2026-10/`](product-hunt-2026-10/README.md) — earlier relaunch gallery and [Product Hunt promo details](product-hunt-2026-10/PROMO.md)
-- [`video/`](video/README.md) — 36-second landscape Remotion launch film with real iOS Simulator footage and fictional demo data
-- `Verceltics-Logo*.png` — app logos
-- `Verceltics-LinkedIn-Banner.png` — LinkedIn company banner
-- `mockup.png` — general-purpose promotional composition
-- `paywall.png` and `iap.png` — monetization and in-app purchase screens
+- `Verceltics-Logo*.png` — app logos used in the mockups
+
+This folder holds only app mockups and the images they're made from. Videos, YouTube
+thumbnails, Product Hunt galleries and other launch assets live outside the repository
+(the October 2026 set is in `~/Downloads/Verceltics-Marketing-2026-10-15/` on the
+maintainer's Mac); earlier versions remain in git history.
 
 These assets are intended for public marketing use.

@@ -1,14 +1,13 @@
 # Static analysis (SAST) with GitHub CodeQL.
 #
 # One job per language, each with a sparse checkout of the folders that language
-# lives in, so no job downloads the marketing videos, YouTube or Product Hunt
-# media. Every job also checks out .github, which each language's analysis scans
+# lives in, so no job downloads the marketing mockups. Every job also checks out .github, which each language's analysis scans
 # for workflow issues as well:
 #
 #   actions                .github/workflows/*.yml
 #   javascript-typescript  web/ (site and Cloudflare Worker), services/,
-#                          marketing/video source, store/google-play/*.html
-#   python                 scripts/, tests/, marketing/video/capture/
+#                          store/google-play/*.html
+#   python                 scripts/, tests/
 #
 # A newer push to a pull request cancels that pull request's older run; pushes to
 # main and the weekly scheduled run each keep their own run and are never cancelled.
@@ -54,11 +53,6 @@ jobs:
               /.github/
               /web/
               /services/
-              /marketing/video/src/
-              /marketing/video/package.json
-              /marketing/video/package-lock.json
-              /marketing/video/tsconfig.json
-              /marketing/video/capture/manifest.json
               /store/google-play/*.html
           - language: python
             build-mode: none
@@ -66,7 +60,6 @@ jobs:
               /.github/
               /scripts/
               /tests/
-              /marketing/video/capture/
 
     steps:
       - name: Checkout
