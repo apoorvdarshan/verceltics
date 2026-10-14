@@ -7,6 +7,7 @@ Run: python3 -m unittest scripts/store/test_ios_release.py
 """
 from __future__ import annotations
 
+import contextlib
 import io
 import json
 import os
@@ -175,19 +176,18 @@ def build_row(
     number: str = "40",
     state: str = "VALID",
     expired: bool = False,
-    uploaded: float = STARTED + 60,
+    uploaded: float | str | None = STARTED + 60,
     app: str = APP,
     pre: str = "P1",
 ) -> dict:
+    """A /builds row; uploaded is epoch seconds, a raw uploadedDate string, or None (absent)."""
+    attributes = {"version": number, "processingState": state, "expired": expired}
+    if uploaded is not None:
+        attributes["uploadedDate"] = uploaded if isinstance(uploaded, str) else iso(uploaded)
     return {
         "type": "builds",
         "id": build_id,
-        "attributes": {
-            "version": number,
-            "processingState": state,
-            "expired": expired,
-            "uploadedDate": iso(uploaded),
-        },
+        "attributes": attributes,
         "relationships": {
             "preReleaseVersion": {"data": {"type": "preReleaseVersions", "id": pre}},
             "app": {"data": {"type": "apps", "id": app}},
@@ -297,6 +297,21 @@ class WaitForBuildTests(unittest.TestCase):
         with self.assertRaisesRegex(ReleaseError, "older build"):
             wait(client, FakeClock(STARTED))
 
+    def test_build_without_an_upload_time_is_never_used(self) -> None:
+        # While processing, App Store Connect may not report the time yet: keep waiting.
+        client = SequenceClient([
+            {"data": [build_row(state="PROCESSING", uploaded=None)], "included": [pre_row()]},
+            {"data": [build_row(uploaded=None)], "included": [pre_row()]},
+        ])
+        clock = FakeClock(STARTED)
+        with self.assertRaisesRegex(ReleaseError, "no uploadedDate"):
+            wait(client, clock)
+        self.assertEqual(clock.sleeps, [30], "the processing poll waits; the VALID one fails closed")
+        for raw in ("", "yesterday", "2026-13-45T99:00:00Z"):
+            client = SequenceClient([{"data": [build_row(uploaded=raw)], "included": [pre_row()]}])
+            with self.subTest(raw=raw), self.assertRaisesRegex(ReleaseError, "uploadedDate"):
+                wait(client, FakeClock(STARTED))
+
     def test_other_versions_and_platforms_are_ignored(self) -> None:
         other_version = build_row("BX", pre="P2")
         other_platform = build_row("BY", pre="P3")
@@ -396,6 +411,50 @@ class BuildSelectionTests(unittest.TestCase):
             self.assertEqual(body["data"]["attributes"]["releaseType"], expected)
 
 
+class FindAppTests(unittest.TestCase):
+    def find(self, rows: list[dict]) -> tuple[int, str | None]:
+        client = mock.Mock()
+        client.get.return_value = {"data": rows}
+        try:
+            return 0, quiet(asc_release.find_app, client, asc_release.DEFAULT_BUNDLE_ID)
+        except SystemExit as exc:
+            return exc.code if isinstance(exc.code, int) else 1, None
+
+    def test_exactly_one_app_with_the_bundle_id(self) -> None:
+        bundle = asc_release.DEFAULT_BUNDLE_ID
+        self.assertEqual(self.find([{"id": "A", "attributes": {"bundleId": bundle}},
+                                    {"id": "B", "attributes": {"bundleId": bundle + ".widget"}}]), (0, "A"))
+        self.assertEqual(self.find([]), (1, None))
+        self.assertEqual(self.find([{"id": "A", "attributes": {}}]), (1, None), "no bundle id is no match")
+        self.assertEqual(self.find([{"id": "A", "attributes": {"bundleId": bundle}},
+                                    {"id": "B", "attributes": {"bundleId": bundle}}]), (1, None))
+
+
+class ScreenshotChecksumTests(unittest.TestCase):
+    def test_upload_commits_the_files_md5(self) -> None:
+        client = mock.Mock()
+        client.post.return_value = {"data": {"id": "SHOT", "attributes": {"uploadOperations": [
+            {"url": "https://upload.example/1", "length": 4, "offset": 0, "method": "PUT"}]}}}
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "1.png"
+            path.write_bytes(b"\x89PNG")
+            quiet(asc_release.upload_screenshot_file, client, "SET", path)
+        attrs = client.patch.call_args[0][1]["data"]["attributes"]
+        self.assertEqual(attrs, {"uploaded": True, "sourceFileChecksum": md5(b"\x89PNG")})
+
+
+class AppInfoTargetTests(unittest.TestCase):
+    def test_the_app_info_in_review_is_compared_when_none_is_editable(self) -> None:
+        live, next_ = app_info("LIVE", "READY_FOR_DISTRIBUTION"), app_info("NEXT", "WAITING_FOR_REVIEW")
+        old = app_info("OLD", "REPLACED_WITH_NEW_INFO")
+        self.assertEqual(asc_release.app_info_target([old, live, next_]), (next_, False))
+        self.assertEqual(asc_release.app_info_target([old, live]), (live, False))
+        editable = app_info("EDIT", "PREPARE_FOR_SUBMISSION")
+        self.assertEqual(asc_release.app_info_target([live, editable]), (editable, True))
+        with self.assertRaises(SystemExit):
+            quiet(asc_release.app_info_target, [app_info("A", "IN_REVIEW"), app_info("B", "WAITING_FOR_REVIEW")])
+
+
 class TokenRefreshTests(unittest.TestCase):
     def test_token_is_reminted_during_long_waits(self) -> None:
         minted: list[str] = []
@@ -489,12 +548,19 @@ class AscCliTests(unittest.TestCase):
             self.assertIn("keywords.txt", output)
 
     def test_dry_run_submit_exercises_product_selection(self) -> None:
-        code, output = self.run_cli(
-            {"SUBMIT_IOS_REVIEW": "true", "UPLOAD_LISTING": "true"},
-            "--build-id", "DRY-RUN", "--build-number", "1",
-        )
+        with tempfile.TemporaryDirectory() as tmp:
+            write_listing(Path(tmp))
+            code, output = self.run_cli(
+                {"SUBMIT_IOS_REVIEW": "true", "UPLOAD_LISTING": "true"},
+                "--build-id", "DRY-RUN", "--build-number", "1", "--metadata-dir", tmp,
+            )
         self.assertEqual(code, 0, output)
         self.assertIn("product submission selection OK", output)
+
+    def test_dry_run_and_preflight_are_exclusive(self) -> None:
+        code, output = self.run_cli({"UPLOAD_LISTING": "true"}, "--preflight")
+        self.assertEqual(code, 2)
+        self.assertIn("not allowed with argument", output)
 
     def test_listing_excludes_whats_new_unless_enabled(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -624,21 +690,38 @@ class CmdWaitBuildTests(unittest.TestCase):
 class FakeAsc:
     """App Store Connect stand-in for asc_release.main() (live path, no network)."""
 
+    LIVE_TEXT = {field.attribute: LISTING[field.filename] for field in ios_metadata.VERSION_FIELDS}
+    LIVE_APP_INFO = {"name": LISTING["name.txt"], "subtitle": LISTING["subtitle.txt"],
+                     "privacyPolicyUrl": LISTING["privacy_url.txt"]}
+
     def __init__(self, *, state: str = "PREPARE_FOR_SUBMISSION", attached: str | None = "OLD",
-                 revert_after_select: bool = False, encryption: bool | None = None) -> None:
+                 revert_after_select: bool = False, encryption: bool | None = None,
+                 version_exists: bool = True, localization: dict | None = None,
+                 app_infos: list | None = None, iaps: list | None = None,
+                 screenshots: dict | None = None) -> None:
         self.state = state
         self.attached = attached
         self.revert_after_select = revert_after_select
         self.encryption = encryption
+        self.version_exists = version_exists
+        self.localization = dict(self.LIVE_TEXT if localization is None else localization)
+        self.app_infos = app_infos if app_infos is not None else [app_info("LIVE", "READY_FOR_DISTRIBUTION")]
+        self.iaps = iaps or []
+        # display type -> checksums of the live screenshots, in order
+        self.screenshots = screenshots or {}
         self.build_reads = 0
         self.calls: list[tuple[str, str]] = []
+
+    def writes(self) -> list[tuple[str, str]]:
+        return [c for c in self.calls if c[0] in {"POST", "PATCH", "DELETE"}]
 
     def get(self, path: str) -> dict:
         self.calls.append(("GET", path))
         if path.startswith("/apps?"):
             return {"data": [{"id": APP, "attributes": {"bundleId": asc_release.DEFAULT_BUNDLE_ID}}]}
         if path.startswith(f"/apps/{APP}/appStoreVersions"):
-            return {"data": [{"id": "V1", "attributes": {"versionString": VERSION, "appStoreState": self.state}}]}
+            rows = [{"id": "V1", "attributes": {"versionString": VERSION, "appStoreState": self.state}}]
+            return {"data": rows if self.version_exists else []}
         if path.startswith("/builds/B9"):
             build = build_row("B9")
             build["attributes"]["usesNonExemptEncryption"] = self.encryption
@@ -648,10 +731,29 @@ class FakeAsc:
             if self.revert_after_select and self.build_reads >= 2:
                 return {"data": {"type": "builds", "id": "OLD"}}
             return {"data": {"type": "builds", "id": self.attached} if self.attached else None}
+        if path.startswith("/appStoreVersions/V1/appStoreVersionLocalizations"):
+            if "filter%5Blocale%5D=en-US" not in path:
+                return {"data": []}
+            return {"data": [{"id": "LOC", "attributes": {"locale": "en-US", **self.localization}}]}
+        if path.startswith(f"/apps/{APP}/appInfos"):
+            return {"data": self.app_infos}
+        if "/appInfoLocalizations" in path:
+            return {"data": [{"id": "INFOLOC", "attributes": {"locale": "en-US", **self.LIVE_APP_INFO}}]}
+        if path == "/appStoreVersionLocalizations/LOC/appScreenshotSets":
+            return {"data": [{"id": f"SET-{kind}", "attributes": {"screenshotDisplayType": kind}}
+                             for kind in self.screenshots]}
+        if path.startswith("/appScreenshotSets/SET-") and path.endswith("/appScreenshots"):
+            kind = path[len("/appScreenshotSets/SET-"):-len("/appScreenshots")]
+            return {"data": [{"id": f"{kind}-{i}", "attributes": {"sourceFileChecksum": checksum}}
+                             for i, checksum in enumerate(self.screenshots[kind])]}
         if path.startswith(f"/apps/{APP}/reviewSubmissions"):
             return {"data": [{"id": "SUB1"}]}
         if path.startswith("/reviewSubmissions/SUB1/items"):
             return {"data": []}
+        if path.startswith(f"/apps/{APP}/subscriptionGroups"):
+            return {"data": []}
+        if path.startswith(f"/apps/{APP}/inAppPurchasesV2"):
+            return {"data": self.iaps}
         raise AssertionError(f"unexpected GET {path}")
 
     def post(self, path: str, body: dict) -> dict:
@@ -671,25 +773,48 @@ class FakeAsc:
         return None
 
 
+LIFETIME = {"id": "IAP1", "attributes": {"name": "Lifetime", "state": "READY_TO_SUBMIT",
+                                         "productId": "com.apoorvdarshan.verceltics.lifetime"}}
+
+
+def run_asc(fake: FakeAsc, env: dict[str, str], *args: str, metadata: Path | None = None,
+            products: bool = True) -> tuple[int, dict, str]:
+    """Run asc_release.main() against fake; products=False keeps the real product steps."""
+    argv = ["asc_release.py", "--version", VERSION, *args]
+    if metadata is not None:
+        argv += ["--metadata-dir", str(metadata)]
+    clean = {k: v for k, v in os.environ.items() if k not in {
+        "UPLOAD_LISTING", "UPLOAD_WHATS_NEW", "UPLOAD_SCREENSHOTS", "SUBMIT_IOS_REVIEW", "PUBLIC_RELEASE"}}
+    mocks = {
+        "attach_subscriptions": mock.Mock(return_value=asc_release.ProductSubmitResult("SUB1", 0, False)),
+        "in_app_purchases_to_submit": mock.Mock(return_value=[]),
+        "submit_in_app_purchases": mock.Mock(return_value=asc_release.ProductSubmitResult("SUB1", 0, False)),
+    }
+    out = io.StringIO()
+    code = 0
+    with contextlib.ExitStack() as stack:
+        stack.enter_context(mock.patch.dict(os.environ, {**clean, **env}, clear=True))
+        stack.enter_context(mock.patch.object(sys, "argv", argv))
+        stack.enter_context(mock.patch.object(asc_release, "client_from_environment", return_value=fake))
+        if products:
+            for name, value in mocks.items():
+                stack.enter_context(mock.patch.object(asc_release, name, value))
+        stack.enter_context(redirect_stdout(out))
+        stack.enter_context(redirect_stderr(out))
+        try:
+            asc_release.main()
+        except SystemExit as exc:
+            code = exc.code if isinstance(exc.code, int) else 1
+    return code, mocks, out.getvalue()
+
+
 class LiveSubmitFlowTests(unittest.TestCase):
-    def run_main(self, fake: FakeAsc, *, public: bool = False) -> tuple[int, mock.Mock]:
-        products = mock.Mock(return_value=asc_release.ProductSubmitResult("SUB1", 0, False))
-        argv = ["asc_release.py", "--version", VERSION, "--build-id", "B9", "--build-number", "40"]
-        env = {k: v for k, v in os.environ.items() if k not in {
-            "UPLOAD_LISTING", "UPLOAD_WHATS_NEW", "UPLOAD_SCREENSHOTS", "PUBLIC_RELEASE"}}
-        env["SUBMIT_IOS_REVIEW"] = "true"
-        if public:
-            env["PUBLIC_RELEASE"] = "true"
-        code = 0
-        with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(sys, "argv", argv), \
-                mock.patch.object(asc_release, "client_from_environment", return_value=fake), \
-                mock.patch.object(asc_release, "submit_in_app_purchases", products), \
-                redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
-            try:
-                asc_release.main()
-            except SystemExit as exc:
-                code = exc.code if isinstance(exc.code, int) else 1
-        return code, products
+    BUILD = ("--build-id", "B9", "--build-number", "40")
+
+    def run_main(self, fake: FakeAsc, *, public: bool = False) -> tuple[int, dict]:
+        env = {"SUBMIT_IOS_REVIEW": "true", **({"PUBLIC_RELEASE": "true"} if public else {})}
+        code, mocks, _ = run_asc(fake, env, *self.BUILD)
+        return code, mocks
 
     def test_selects_answers_compliance_rechecks_then_submits(self) -> None:
         fake = FakeAsc()
@@ -706,7 +831,9 @@ class LiveSubmitFlowTests(unittest.TestCase):
         self.assertTrue(build_checks[-1] < reads[1] < submit, "build must be re-verified just before submit")
         self.assertFalse(fake.encryption, "the catalog declares no non-exempt encryption")
         self.assertIn(("PATCH", "/appStoreVersions/V1"), calls)  # release type
-        products.assert_called_once()
+        products["attach_subscriptions"].assert_called_once()
+        products["in_app_purchases_to_submit"].assert_called_once()
+        products["submit_in_app_purchases"].assert_not_called()
 
     def test_answered_compliance_is_not_changed(self) -> None:
         fake = FakeAsc(encryption=False)
@@ -718,7 +845,7 @@ class LiveSubmitFlowTests(unittest.TestCase):
         fake = FakeAsc(encryption=True)
         code, products = self.run_main(fake)
         self.assertEqual(code, 1)
-        products.assert_not_called()
+        products["attach_subscriptions"].assert_not_called()
         self.assertNotIn(("PATCH", "/reviewSubmissions/SUB1"), fake.calls)
 
     def test_selection_changed_before_submit_aborts(self) -> None:
@@ -731,22 +858,172 @@ class LiveSubmitFlowTests(unittest.TestCase):
         fake = FakeAsc(state="WAITING_FOR_REVIEW", attached="OTHER")
         code, products = self.run_main(fake)
         self.assertEqual(code, 1)
-        products.assert_not_called()
+        products["submit_in_app_purchases"].assert_not_called()
         self.assertNotIn(("PATCH", "/reviewSubmissions/SUB1"), fake.calls)
 
     def test_waiting_for_review_with_this_build_is_idempotent(self) -> None:
         fake = FakeAsc(state="WAITING_FOR_REVIEW", attached="B9")
         code, products = self.run_main(fake)
         self.assertEqual(code, 0)
-        products.assert_called_once()
+        products["submit_in_app_purchases"].assert_called_once()
         self.assertNotIn(("PATCH", "/appStoreVersions/V1/relationships/build"), fake.calls)
 
     def test_released_version_is_never_submitted(self) -> None:
         fake = FakeAsc(state="READY_FOR_SALE")
         code, products = self.run_main(fake)
         self.assertEqual(code, 1)
-        products.assert_not_called()
-        self.assertFalse([c for c in fake.calls if c[0] in {"PATCH", "POST"}])
+        products["attach_subscriptions"].assert_not_called()
+        self.assertFalse(fake.writes())
+
+
+class InAppPurchaseOrderTests(unittest.TestCase):
+    """Purchases go to App Review only after the final build and selection recheck."""
+
+    def run_real(self, fake: FakeAsc) -> int:
+        code, _, _ = run_asc(fake, {"SUBMIT_IOS_REVIEW": "true"}, *LiveSubmitFlowTests.BUILD, products=False)
+        return code
+
+    def test_purchases_are_submitted_after_the_recheck(self) -> None:
+        fake = FakeAsc(iaps=[LIFETIME])
+        self.assertEqual(self.run_real(fake), 0)
+        calls = fake.calls
+        recheck = max(i for i, c in enumerate(calls) if c == ("GET", "/appStoreVersions/V1/build"))
+        purchase = calls.index(("POST", "/inAppPurchaseSubmissions"))
+        submit = calls.index(("PATCH", "/reviewSubmissions/SUB1"))
+        self.assertTrue(recheck < purchase < submit)
+
+    def test_a_failed_recheck_sends_nothing_to_review(self) -> None:
+        fake = FakeAsc(iaps=[LIFETIME], revert_after_select=True)
+        self.assertEqual(self.run_real(fake), 1)
+        self.assertNotIn(("POST", "/inAppPurchaseSubmissions"), fake.calls)
+        self.assertNotIn(("PATCH", "/reviewSubmissions/SUB1"), fake.calls)
+
+
+def md5(data: bytes) -> str:
+    import hashlib
+
+    return hashlib.md5(data).hexdigest()
+
+
+@contextlib.contextmanager
+def temp_screenshot_sets():
+    """Small screenshot sets in a temporary folder, in place of the repository's."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        sets = []
+        for spec in ios_metadata.SCREENSHOT_SETS:
+            folder = root / spec.directory.name
+            folder.mkdir()
+            width, height = min(spec.sizes)
+            for i in range(2):
+                (folder / f"{i}.png").write_bytes(png(width, height) + bytes([i]))
+            sets.append(ios_metadata.ScreenshotSet(spec.display_type, spec.label, folder, spec.sizes))
+        with mock.patch.object(ios_metadata, "SCREENSHOT_SETS", tuple(sets)), \
+                mock.patch.object(ios_metadata, "ROOT", root):
+            yield tuple(sets)
+
+
+class VersionStateTests(unittest.TestCase):
+    """Reruns after a partly completed submission (IOS-REL-3), with metadata switches on."""
+
+    LIVE_SWITCHES = {"UPLOAD_LISTING": "true", "UPLOAD_WHATS_NEW": "true", "SUBMIT_IOS_REVIEW": "true"}
+
+    def run_live(self, fake: FakeAsc, env: dict[str, str], *, whats_new: str = "Faster dashboards.") -> tuple[int, str]:
+        with tempfile.TemporaryDirectory() as tmp:
+            loc = write_listing(Path(tmp))
+            (loc / "whats_new.txt").write_text(whats_new + "\n")
+            code, _, output = run_asc(fake, env, *LiveSubmitFlowTests.BUILD, metadata=Path(tmp))
+        return code, output
+
+    def test_ready_for_review_updates_text_and_submits(self) -> None:
+        fake = FakeAsc(state="READY_FOR_REVIEW", app_infos=[app_info("NEXT", "READY_FOR_REVIEW")])
+        code, output = self.run_live(fake, self.LIVE_SWITCHES)
+        self.assertEqual(code, 0, output)
+        self.assertIn(("PATCH", "/appStoreVersionLocalizations/LOC"), fake.calls)  # What's New
+        self.assertIn(("PATCH", "/reviewSubmissions/SUB1"), fake.calls)
+
+    def test_ready_for_review_accepts_screenshots_only_when_unchanged(self) -> None:
+        env = {"UPLOAD_SCREENSHOTS": "true", "SUBMIT_IOS_REVIEW": "true"}
+        with temp_screenshot_sets() as sets:
+            wanted = {spec.display_type: [md5(p.read_bytes()) for p in ios_metadata.screenshot_files(spec)]
+                      for spec in sets}
+            same = FakeAsc(state="READY_FOR_REVIEW", screenshots=wanted)
+            code, output = self.run_live(same, env)
+            self.assertEqual(code, 0, output)
+            self.assertFalse([c for c in same.writes() if "Screenshot" in c[1]])
+            self.assertIn(("PATCH", "/reviewSubmissions/SUB1"), same.calls)
+            for live in ({k: v[:-1] for k, v in wanted.items()}, {k: [None, None] for k in wanted}):
+                changed = FakeAsc(state="READY_FOR_REVIEW", screenshots=live)
+                code, output = self.run_live(changed, env)
+                self.assertEqual(code, 1)
+                self.assertIn("cannot change", output)
+                self.assertFalse(changed.writes())
+
+    def test_waiting_for_review_rerun_with_matching_metadata_changes_nothing(self) -> None:
+        fake = FakeAsc(state="WAITING_FOR_REVIEW", attached="B9",
+                       localization={**FakeAsc.LIVE_TEXT, "whatsNew": "Faster dashboards."},
+                       app_infos=[app_info("LIVE", "READY_FOR_DISTRIBUTION"), app_info("NEXT", "WAITING_FOR_REVIEW")])
+        code, output = self.run_live(fake, self.LIVE_SWITCHES)
+        self.assertEqual(code, 0, output)
+        self.assertFalse(fake.writes(), "a rerun of a submitted version must not write anything")
+        self.assertIn("idempotent", output)
+
+    def test_waiting_for_review_rerun_that_needs_a_change_fails(self) -> None:
+        fake = FakeAsc(state="WAITING_FOR_REVIEW", attached="B9",
+                       localization={**FakeAsc.LIVE_TEXT, "whatsNew": "Older notes."})
+        code, output = self.run_live(fake, self.LIVE_SWITCHES)
+        self.assertEqual(code, 1)
+        self.assertIn("whatsNew", output)
+        self.assertFalse(fake.writes())
+
+
+class PreflightTests(unittest.TestCase):
+    """--preflight: read-only checks before the build is uploaded (IOS-REL-2)."""
+
+    def run_preflight(self, fake: FakeAsc, env: dict[str, str], **listing: str | None) -> tuple[int, str]:
+        with tempfile.TemporaryDirectory() as tmp:
+            loc = write_listing(Path(tmp), **listing)
+            (loc / "whats_new.txt").write_text("Faster dashboards.\n")
+            code, _, output = run_asc(fake, env, "--preflight", metadata=Path(tmp))
+        self.assertFalse(fake.writes(), "the preflight must never write")
+        return code, output
+
+    def test_an_editable_version_passes_without_a_build(self) -> None:
+        code, output = self.run_preflight(FakeAsc(), VersionStateTests.LIVE_SWITCHES)
+        self.assertEqual(code, 0, output)
+        self.assertIn("preflight passed", output)
+        self.assertIn("will be updated: whatsNew", output)
+
+    def test_a_missing_version_fails_with_the_fix(self) -> None:
+        code, output = self.run_preflight(FakeAsc(version_exists=False), VersionStateTests.LIVE_SWITCHES)
+        self.assertEqual(code, 1)
+        self.assertIn("create the version in App Store Connect first", output)
+
+    def test_states_that_rule_out_the_enabled_steps_fail(self) -> None:
+        for state, env in (
+            ("READY_FOR_SALE", {"UPLOAD_LISTING": "true"}),
+            ("READY_FOR_SALE", {"SUBMIT_IOS_REVIEW": "true"}),
+            ("IN_REVIEW", {"UPLOAD_WHATS_NEW": "true"}),
+            ("WAITING_FOR_REVIEW", {"SUBMIT_IOS_REVIEW": "true"}),
+        ):
+            with self.subTest(state=state, env=env):
+                code, _ = self.run_preflight(FakeAsc(state=state), env)
+                self.assertEqual(code, 1)
+
+    def test_a_missing_locale_fails(self) -> None:
+        fake = FakeAsc()
+        with tempfile.TemporaryDirectory() as tmp:
+            write_listing(Path(tmp))
+            write_listing(Path(tmp), locale="fr-FR")
+            code, _, output = run_asc(fake, {"UPLOAD_LISTING": "true"}, "--preflight", metadata=Path(tmp))
+        self.assertEqual(code, 1)
+        self.assertIn("fr-FR", output)
+
+    def test_an_app_info_change_without_an_editable_app_info_fails(self) -> None:
+        fake = FakeAsc(state="READY_FOR_REVIEW")  # only the live App Info exists
+        code, output = self.run_preflight(fake, {"UPLOAD_LISTING": "true"}, **{"name.txt": "Verceltics"})
+        self.assertEqual(code, 1)
+        self.assertIn("no App Info is editable", output)
 
 
 class AppInfoClient:
@@ -818,11 +1095,7 @@ def png(width: int, height: int) -> bytes:
 
 
 class ListingMetadataTests(unittest.TestCase):
-    def test_repository_listing_is_valid(self) -> None:
-        for locale in ios_metadata.locales():
-            values = ios_metadata.load_locale(ios_metadata.LISTING_DIR / locale)
-            self.assertIn("description.txt", values)
-            self.assertIn("name.txt", values)
+    # The repository's own listing and screenshots are checked in test_store_assets.py.
 
     def test_limits_urls_and_required_fields(self) -> None:
         cases = {
@@ -885,6 +1158,43 @@ class ListingMetadataTests(unittest.TestCase):
             with self.assertRaisesRegex(ios_metadata.MetadataError, "limit is 4000"):
                 ios_metadata.whats_new("ios-v2.2")
 
+    def test_whats_new_is_plain_text_for_the_app_store(self) -> None:
+        notes = ("## ios-v2.2\n\n### Highlights\n\n- **Faster** [deploys](https://example.com)\n"
+                 "  * nested `logs`\n> Quoted\n![chart](https://example.com/a.png)\n```\ncode\n```\n")
+        with tempfile.TemporaryDirectory() as src, mock.patch.object(release_notes, "ROOT", Path(src)):
+            (Path(src) / "RELEASE_NOTES.md").write_text(notes)
+            self.assertEqual(
+                ios_metadata.whats_new("ios-v2.2"),
+                "Highlights\n\n• Faster deploys\n  • nested logs\nQuoted\nchart\ncode",
+            )
+            # The limit applies to the text App Store Connect receives.
+            (Path(src) / "RELEASE_NOTES.md").write_text("## ios-v2.2\n\n**" + "x" * 3998 + "**\n")
+            self.assertEqual(len(ios_metadata.whats_new("ios-v2.2")), 3998)
+            (Path(src) / "RELEASE_NOTES.md").write_text("## ios-v2.2\n\n```\n```\n")
+            with self.assertRaisesRegex(ios_metadata.MetadataError, "no text"):
+                ios_metadata.whats_new("ios-v2.2")
+
+    def test_check_covers_only_the_assets_asked_for(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            empty = tuple(ios_metadata.ScreenshotSet(spec.display_type, spec.label, Path(tmp) / "none", spec.sizes)
+                          for spec in ios_metadata.SCREENSHOT_SETS)
+            listing = Path(tmp) / "listing"
+            write_listing(listing)
+
+            def check(*flags: str) -> int:
+                with mock.patch.object(ios_metadata, "SCREENSHOT_SETS", empty), \
+                        mock.patch.object(ios_metadata, "LISTING_DIR", listing / "ios"), \
+                        mock.patch.object(ios_metadata, "ROOT", Path(tmp)):
+                    try:
+                        quiet(ios_metadata.main, ["check", *flags])
+                    except SystemExit as exc:
+                        return exc.code if isinstance(exc.code, int) else 1
+                return 0
+
+            self.assertEqual(check("--listing"), 0, "unused screenshots never block a listing check")
+            self.assertEqual(check("--screenshots"), 1)
+            self.assertEqual(check(), 1, "no flag checks everything")
+
     def test_prepare_without_a_tag_never_adds_whats_new(self) -> None:
         with tempfile.TemporaryDirectory() as src, tempfile.TemporaryDirectory() as out:
             write_listing(Path(src))
@@ -914,10 +1224,6 @@ class ListingMetadataTests(unittest.TestCase):
                 with self.assertRaisesRegex(ios_metadata.MetadataError, "accepts 10"):
                     ios_metadata.screenshot_files(spec)
 
-    def test_repository_screenshots_are_app_store_ready(self) -> None:
-        for spec in ios_metadata.SCREENSHOT_SETS:
-            with self.subTest(spec.label):
-                self.assertGreaterEqual(len(ios_metadata.screenshot_files(spec)), 1)
 
 
 class ScreenshotUploadTests(unittest.TestCase):
@@ -1003,6 +1309,35 @@ class ReleaseNotesTests(unittest.TestCase):
             release_notes.section_for_tag("ios-v2.1", self.TEXT + "## ios-v2.1\n\nAgain.\n")
         with self.assertRaisesRegex(ValueError, "empty"):
             release_notes.section_for_tag("ios-v2.3", self.TEXT + "## ios-v2.3\n\n")
+
+    def run_cli(self, *args: str) -> tuple[int, str, str]:
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            try:
+                release_notes.main(list(args))
+            except SystemExit as exc:
+                return (exc.code if isinstance(exc.code, int) else 1), out.getvalue(), err.getvalue()
+        return 0, out.getvalue(), err.getvalue()
+
+    def test_a_missing_notes_file_is_missing_notes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(release_notes, "ROOT", Path(tmp)):
+            self.assertIsNone(release_notes.section_for_tag("ios-v2.2"))
+            # --if-present (what the workflows run) prints nothing and succeeds.
+            code, out, err = self.run_cli("--if-present", "ios-v2.2")
+            self.assertEqual((code, out), (0, ""))
+            self.assertIn("no ## ios-v2.2 section", err)
+            code, out, err = self.run_cli("ios-v2.2")
+            self.assertEqual((code, out), (2, ""))
+            self.assertIn("add exactly one", err)
+
+    def test_cli_prints_the_section_and_rejects_duplicates(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(release_notes, "ROOT", Path(tmp)):
+            (Path(tmp) / "RELEASE_NOTES.md").write_text(self.TEXT)
+            self.assertEqual(self.run_cli("--if-present", "ios-v2.1")[:2], (0, "Shipped.\n"))
+            (Path(tmp) / "RELEASE_NOTES.md").write_text(self.TEXT + "## ios-v2.1\n\nAgain.\n")
+            code, _, err = self.run_cli("--if-present", "ios-v2.1")
+            self.assertEqual(code, 2)
+            self.assertIn("keep exactly one", err)
 
 
 if __name__ == "__main__":

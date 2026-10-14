@@ -1,3 +1,18 @@
+# Static analysis (SAST) with GitHub CodeQL.
+#
+# One job per language, each with a sparse checkout of the folders that language
+# lives in, so no job downloads the marketing videos, YouTube or Product Hunt
+# media. Every job also checks out .github, which each language's analysis scans
+# for workflow issues as well:
+#
+#   actions                .github/workflows/*.yml
+#   javascript-typescript  web/ (site and Cloudflare Worker), services/,
+#                          marketing/video source, store/google-play/*.html
+#   python                 scripts/, tests/, marketing/video/capture/
+#
+# A newer push to a pull request cancels that pull request's older run; pushes to
+# main and the weekly scheduled run each keep their own run and are never cancelled.
+
 name: CodeQL
 
 on:
@@ -11,6 +26,10 @@ on:
     - cron: "18 7 * * 2"
 
 permissions: read-all
+
+concurrency:
+  group: codeql-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   analyze:
@@ -26,14 +45,35 @@ jobs:
         include:
           - language: actions
             build-mode: none
+            sparse-checkout: |
+              /.github/
           - language: javascript-typescript
             build-mode: none
+            sparse-checkout: |
+              /.github/
+              /web/
+              /services/
+              /marketing/video/src/
+              /marketing/video/package.json
+              /marketing/video/package-lock.json
+              /marketing/video/tsconfig.json
+              /marketing/video/capture/manifest.json
+              /store/google-play/*.html
           - language: python
             build-mode: none
+            sparse-checkout: |
+              /.github/
+              /scripts/
+              /tests/
+              /marketing/video/capture/
 
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: ${{ matrix.sparse-checkout }}
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2

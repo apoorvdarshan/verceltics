@@ -48,8 +48,17 @@ The matrix describes source parity, not store availability. It should be updated
 
 ## Continuous integration
 
-CI keeps the native projects independent:
+CI keeps the native projects independent, and pull requests run only the jobs their
+files can affect:
 
-- iOS tests run with `xcodebuild` against an iOS simulator.
-- Android runs JVM tests, Android Lint, and a debug assembly through the Gradle wrapper.
+- `ios-tests.yml` builds the app and runs the unit (`vercelticsTests`) and UI
+  (`vercelticsUITests`) tests with `xcodebuild` on an iOS simulator, and fails if either
+  bundle runs zero tests.
+- `ci.yml` runs the Android JVM tests, Android Lint, a Debug build, and an unsigned,
+  minified Release build through the Gradle wrapper, then the instrumentation and Compose UI
+  tests split across two API 36 emulators that start from a clean snapshot (each shard
+  fails if it runs zero tests). It also runs the Python checks (API catalogs, privacy
+  manifest, store release scripts and store assets) and the website and Worker checks.
+- Releases rerun them before anything is uploaded: `ios-release.yml` calls `ios-tests.yml`,
+  and `android-release.yml` calls `ci.yml` without the website and Worker job.
 - No Flutter bootstrap, analysis, test, or framework-generation step is required.

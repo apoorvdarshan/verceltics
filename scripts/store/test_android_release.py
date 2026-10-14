@@ -228,6 +228,12 @@ class ArtifactTests(unittest.TestCase):
             with self.subTest(found=found), self.assertRaises(ar.ReleaseError):
                 ar.check_signers("APK", found, upload_cert=UPLOAD)
 
+    def test_the_keystore_must_hold_the_pinned_upload_certificate(self):
+        self.assertRegex(ar.EXPECTED_UPLOAD_CERT_SHA256, r"^[0-9a-f]{64}$")
+        ar.check_upload_cert(ar.EXPECTED_UPLOAD_CERT_SHA256)
+        with self.assertRaisesRegex(ar.ReleaseError, "wrong key"):
+            ar.check_upload_cert(DEBUG)
+
 
 class SignatureCoverageTests(unittest.TestCase):
     LONG = "base/root/" + "x" * 80 + ".properties"
@@ -300,6 +306,101 @@ class TrackReadBackTests(unittest.TestCase):
                 ar.check_tracks(self.fetcher({"production": release}), ["production"], 42)
 
 
+class PlayReadTests(unittest.TestCase):
+    TRACKS = {"tracks": [
+        {"track": "alpha", "releases": [{"versionCodes": ["44"], "status": "completed"}]},
+        {"track": "internal", "releases": [{"versionCodes": ["41"], "status": "completed"}]},
+    ]}
+
+    def test_selected_tracks_are_never_empty_or_unknown(self):
+        self.assertEqual(ar.selected_tracks("internal,alpha"), ["internal", "alpha"])
+        for raw in ("", ",", " "):
+            with self.subTest(raw=raw), self.assertRaisesRegex(ar.ReleaseError, "no Play tracks"):
+                ar.selected_tracks(raw)
+        with self.assertRaisesRegex(ar.ReleaseError, "beta"):
+            ar.selected_tracks("internal,beta")
+
+    def test_every_version_code_on_play_counts(self):
+        codes = ar.play_version_codes({"bundles": [{"versionCode": 45}]}, {"apks": [{"versionCode": 3}]}, self.TRACKS)
+        self.assertEqual(codes, {3, 41, 44, 45})
+        self.assertEqual(ar.play_version_codes({}, {}, {}), set())
+
+    def test_version_code_must_be_higher_than_play(self):
+        self.assertIn("new", ar.check_new_version_code(46, {44, 45}))
+        self.assertIn("none", ar.check_new_version_code(1, set()))
+        with self.assertRaisesRegex(ar.ReleaseError, "already uploaded"):
+            ar.check_new_version_code(44, {44})
+        with self.assertRaisesRegex(ar.ReleaseError, "not above"):
+            ar.check_new_version_code(43, {44})
+
+    def fetch(self, tracks):
+        return lambda name: tracks.get(name, {})
+
+    def test_upload_state_skips_only_a_completed_earlier_upload(self):
+        done = {"releases": [{"versionCodes": ["46"], "status": "completed"}]}
+        self.assertFalse(ar.upload_state(46, on_play={44}, fetch_track=self.fetch({}), tracks=["internal"]))
+        self.assertTrue(ar.upload_state(46, on_play={44, 46}, fetch_track=self.fetch(
+            {"internal": done, "alpha": done}), tracks=["internal", "alpha"]))
+        for tracks, on_play in (
+            ({"internal": done}, {46}),  # alpha is missing it
+            ({}, {46}),  # uploaded but on no selected track
+            ({"internal": {"releases": [{"versionCodes": ["46"], "status": "draft"}]}, "alpha": done}, {46}),
+        ):
+            with self.subTest(tracks=tracks), self.assertRaisesRegex(ar.ReleaseError, "Play rejects a second upload"):
+                ar.upload_state(46, on_play=on_play, fetch_track=self.fetch(tracks), tracks=["internal", "alpha"])
+
+    def run_command(self, service, *args):
+        out, outputs = io.StringIO(), tempfile.NamedTemporaryFile("r", suffix=".out")
+        self.addCleanup(outputs.close)
+        env = {"PLAY_SERVICE_ACCOUNT_JSON": "{}", "GITHUB_OUTPUT": outputs.name}
+        fake_listing = mock.Mock(build_android_publisher=mock.Mock(return_value=service))
+        with mock.patch.dict(os.environ, env), mock.patch.dict(sys.modules, {"play_listing": fake_listing}), \
+                redirect_stdout(out), redirect_stderr(out):
+            try:
+                ar.main(list(args))
+                code = 0
+            except SystemExit as exc:
+                code = exc.code if isinstance(exc.code, int) else 1
+        return code, out.getvalue(), Path(outputs.name).read_text()
+
+    def service(self, *, bundles=(), tracks=None):
+        service = mock.MagicMock()
+        edits = service.edits.return_value
+        edits.insert.return_value.execute.return_value = {"id": "EDIT"}
+        edits.bundles.return_value.list.return_value.execute.return_value = {
+            "bundles": [{"versionCode": code} for code in bundles]}
+        edits.apks.return_value.list.return_value.execute.return_value = {}
+        edits.tracks.return_value.list.return_value.execute.return_value = {
+            "tracks": [{"track": name, **track} for name, track in (tracks or {}).items()]}
+        edits.tracks.return_value.get.side_effect = lambda **kw: mock.Mock(
+            execute=mock.Mock(return_value=(tracks or {}).get(kw["track"], {})))
+        return service, edits
+
+    def test_commands_read_through_a_deleted_throwaway_edit(self):
+        _, code = ar.gradle_version(ar.GRADLE.read_text(encoding="utf-8"))
+        done = {"releases": [{"versionCodes": [str(code)], "status": "completed"}]}
+        service, edits = self.service(bundles=[code - 1])
+        status, output, _ = self.run_command(service, "check-version-code")
+        self.assertEqual(status, 0, output)
+        service, edits = self.service(bundles=[code])
+        status, output, _ = self.run_command(service, "check-version-code")
+        self.assertEqual(status, 1)
+        self.assertIn("already uploaded", output)
+        service, edits = self.service(bundles=[code - 1])
+        status, output, outputs = self.run_command(service, "play-state", "--tracks", "internal")
+        self.assertEqual((status, outputs.strip()), (0, "uploaded=false"), output)
+        service, edits = self.service(bundles=[code], tracks={"internal": done})
+        status, output, outputs = self.run_command(service, "play-state", "--tracks", "internal")
+        self.assertEqual((status, outputs.strip()), (0, "uploaded=true"), output)
+        status, output, _ = self.run_command(service, "check-tracks", "--tracks", "internal")
+        self.assertEqual(status, 0, output)
+        status, output, _ = self.run_command(service, "check-tracks", "--tracks", "")
+        self.assertEqual(status, 1)
+        for call in edits.mock_calls:
+            self.assertNotIn("commit", str(call), "reads never commit an edit")
+        self.assertTrue(edits.delete.called)
+
+
 class ProductionAccessTests(unittest.TestCase):
     def test_production_switch_exists_and_warns_about_missing_access(self):
         result = gates({ar.MASTER: "true", "ANDROID_PRODUCTION_ROLLOUT": "true"})
@@ -340,11 +441,7 @@ def png(width: int, height: int) -> bytes:
 
 
 class PlayListingTests(unittest.TestCase):
-    def test_repository_listing_and_screenshots_are_valid(self):
-        for locale in play_listing.locales():
-            values = play_listing.load_locale(play_listing.LISTING_DIR / locale)
-            self.assertEqual(set(values), set(play_listing.FIELDS))
-        self.assertGreaterEqual(len(play_listing.screenshot_files()), 2)
+    # The repository's own Play listing and screenshots are checked in test_store_assets.py.
 
     def test_limits_and_missing_fields_fail(self):
         for name, limit in (("title.txt", 30), ("short_description.txt", 80), ("full_description.txt", 4000)):
@@ -364,8 +461,47 @@ class PlayListingTests(unittest.TestCase):
     def test_whats_new_is_plain_text_within_the_play_limit(self):
         text = play_listing.play_whats_new("- **Faster** [deploys](https://example.com)\n- `Logs`")
         self.assertEqual(text, "• Faster deploys\n• Logs")
+        self.assertEqual(play_listing.play_whats_new("### New\n+ Item"), "New\n• Item")
+        self.assertEqual(len(play_listing.play_whats_new("**" + "x" * 500 + "**")), 500)
         with self.assertRaisesRegex(play_listing.ListingError, "500"):
             play_listing.play_whats_new("x" * 501)
+
+    def test_whats_new_file_is_exactly_what_play_receives(self):
+        # 500 characters pass the check, and the file Play gets holds exactly those 500.
+        with tempfile.TemporaryDirectory() as src, tempfile.TemporaryDirectory() as out:
+            (Path(src) / "RELEASE_NOTES.md").write_text("## android-v1.1\n\n" + "x" * 500 + "\n")
+            with mock.patch.object(release_notes, "ROOT", Path(src)):
+                play_listing.whats_new("android-v1.1")
+                written = play_listing.prepare(Path(out), "android-v1.1", Path(src) / "play", include_listing=False)
+            self.assertEqual([p.name for p in written], ["whatsnew-en-US"])
+            self.assertEqual(len((Path(out) / "play" / "whatsnew-en-US").read_text()), 500)
+
+    def test_without_the_listing_switch_the_listing_is_not_read(self):
+        with tempfile.TemporaryDirectory() as src, tempfile.TemporaryDirectory() as out:
+            write_play_listing(Path(src), **{"title.txt": "t" * 31})  # invalid, but unused
+            with mock.patch.object(release_notes, "ROOT", Path(src)):
+                self.assertEqual(play_listing.prepare(Path(out), None, Path(src) / "play", include_listing=False), [])
+                with self.assertRaises(play_listing.ListingError):
+                    play_listing.prepare(Path(out), None, Path(src) / "play")
+
+    def test_check_covers_only_the_assets_asked_for(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            write_play_listing(Path(tmp))
+
+            def check(*flags):
+                out = io.StringIO()
+                with mock.patch.object(play_listing, "LISTING_DIR", Path(tmp) / "play"), \
+                        mock.patch.object(play_listing, "SCREENSHOTS_DIR", Path(tmp) / "none"), \
+                        redirect_stdout(out), redirect_stderr(out):
+                    try:
+                        play_listing.main(["check", *flags])
+                    except SystemExit as exc:
+                        return exc.code if isinstance(exc.code, int) else 1
+                return 0
+
+            self.assertEqual(check("--listing"), 0, "unused screenshots never block a listing check")
+            self.assertEqual(check("--screenshots"), 1)
+            self.assertEqual(check(), 1, "no flag checks everything")
 
     def test_prepare_writes_listing_and_the_tags_whats_new(self):
         notes = "## android-v1.1\n\n- **Faster** dashboards\n"
@@ -374,7 +510,7 @@ class PlayListingTests(unittest.TestCase):
             (Path(src) / "RELEASE_NOTES.md").write_text(notes)
             with mock.patch.object(release_notes, "ROOT", Path(src)):
                 written = play_listing.prepare(Path(out), "android-v1.1", Path(src) / "play")
-                self.assertEqual((Path(out) / "play" / "whatsnew-en-US").read_text(), "• Faster dashboards\n")
+                self.assertEqual((Path(out) / "play" / "whatsnew-en-US").read_text(), "• Faster dashboards")
                 self.assertEqual(len(written), 4)
                 written = play_listing.prepare(Path(out) / "next", "android-v1.2", Path(src) / "play")
                 self.assertFalse(any(p.name.startswith("whatsnew-") for p in written))
@@ -432,9 +568,16 @@ class PlayListingTests(unittest.TestCase):
         code, output = self.run_upload({})
         self.assertEqual(code, 0)
         self.assertIn("skipped", output)
-        code, output = self.run_upload({"UPLOAD_LISTING": "true", "UPLOAD_SCREENSHOTS": "true"})
-        self.assertEqual(code, 0, output)
-        self.assertIn("screenshots=6", output)
+        with tempfile.TemporaryDirectory() as tmp:
+            write_play_listing(Path(tmp))
+            shots = Path(tmp) / "shots"
+            shots.mkdir()
+            for i in range(3):
+                (shots / f"{i}.png").write_bytes(png(1080, 1920))
+            code, output = self.run_upload({"UPLOAD_LISTING": "true", "UPLOAD_SCREENSHOTS": "true"},
+                                           "--metadata-dir", tmp, "--screenshots-dir", str(shots))
+            self.assertEqual(code, 0, output)
+            self.assertIn("screenshots=3", output)
         with tempfile.TemporaryDirectory() as tmp:
             write_play_listing(Path(tmp), **{"title.txt": "t" * 31})
             code, output = self.run_upload({"UPLOAD_LISTING": "true"}, "--metadata-dir", tmp)

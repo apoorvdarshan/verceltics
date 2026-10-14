@@ -1,7 +1,8 @@
 name: CI
 
-# Python catalog checks, the website and Worker, and the Android app (unit tests,
-# lint, Debug and unsigned Release builds, and instrumentation tests on an
+# Python checks (API catalogs, privacy manifest, CI helper scripts, store release
+# scripts and store assets), the website and Worker, and the Android app (unit
+# tests, lint, Debug and unsigned Release builds, and instrumentation tests on an
 # emulator). iOS tests run in ios-tests.yml.
 on:
   # PR branches are checked by pull_request; push covers main only, so a PR's
@@ -13,6 +14,17 @@ on:
   workflow_dispatch:
   # android-release.yml runs these checks before a tagged release.
   workflow_call:
+    inputs:
+      android-release:
+        description: >-
+          Set by android-release.yml. Runs every check that covers the Android app
+          (catalog and store release tests, Android unit tests, lint, builds and
+          emulator tests) but not the website/Worker job or the repository's store
+          listing and screenshot checks: the release checks the store assets it
+          uploads itself, and a website dependency advisory never blocks it.
+          Pull requests and main always run everything.
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -25,7 +37,8 @@ concurrency:
 
 jobs:
   # Pull requests run only the jobs their files can affect (a skipped job is not
-  # a failure). Pushes to main, manual runs, and release callers run everything.
+  # a failure). Pushes to main, manual runs, and release callers run everything
+  # (android-release.yml leaves out the web job; see the input above).
   changes:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -57,7 +70,8 @@ jobs:
             # The catalog tests read the iOS catalogs, privacy manifest, and account code.
             echo "catalog=$(match '^"?(tests/|scripts/|ios/verceltics/|\.github/workflows/ci\.yml)')"
             echo "web=$(match '^"?(web/|\.github/workflows/ci\.yml)')"
-            echo "android=$(match '^"?(android/|ios/verceltics/Resources/ProviderAPICatalog\.json|scripts/ci/wait_for_emulator_idle\.sh|\.github/workflows/ci\.yml)')"
+            # Android unit tests compare the bundled API catalogs with the iOS copies.
+            echo "android=$(match '^"?(android/|ios/verceltics/Resources/|scripts/ci/wait_for_emulator_idle\.sh|\.github/workflows/ci\.yml)')"
           } >> "$GITHUB_OUTPUT"
 
   catalog:
@@ -71,18 +85,43 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          sparse-checkout-cone-mode: false
+          # Only what scripts/test.sh reads; no marketing video, YouTube or Product Hunt media.
+          sparse-checkout: |
+            /tests/
+            /scripts/
+            /store/
+            /RELEASE_NOTES.md
+            /requirements-store.txt
+            /ios/verceltics/Resources/
+            /ios/verceltics/PrivacyInfo.xcprivacy
+            /ios/verceltics/Auth/AuthManager.swift
+            /ios/verceltics/Paywall/Products.storekit
+            /ios/verceltics.xcodeproj/
+            /android/app/build.gradle.kts
+            /android/app/src/main/java/com/apoorvdarshan/verceltics/billing/BillingModels.kt
+            /marketing/mockups ios/
+            /marketing/mockups ipad/
 
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
 
-      - name: Verify generated API catalogs
-        run: ./scripts/test.sh
+      - name: Catalog integrity, CI script and store release tests
+        env:
+          RELEASE_GATE: ${{ inputs.android-release }}
+        run: |
+          if [ "$RELEASE_GATE" = true ]; then
+            ./scripts/test.sh --release-gate
+          else
+            ./scripts/test.sh
+          fi
 
   web:
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.web == 'true') }}
+    # Never part of an Android release gate: the website and Worker are not in the app.
+    if: ${{ !cancelled() && !inputs.android-release && (needs.changes.result != 'success' || needs.changes.outputs.web == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -129,10 +168,11 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           sparse-checkout-cone-mode: false
-          # ProviderApiCatalogParserTest compares the Android asset with the iOS catalog.
+          # ProviderApiCatalogParserTest and CloudflareOpenApiCatalogTest compare the
+          # Android assets with the iOS catalogs.
           sparse-checkout: |
             /android/
-            /ios/verceltics/Resources/ProviderAPICatalog.json
+            /ios/verceltics/Resources/
           persist-credentials: false
 
       # Verifies android/gradle/wrapper/gradle-wrapper.jar against Gradle's
@@ -176,7 +216,7 @@ jobs:
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.android == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    # Every test still runs exactly once: AndroidJUnitRunner splits the ~350 tests across
+    # Every test still runs exactly once: AndroidJUnitRunner splits the ~310 tests across
     # two emulators (one emulator took about 9 minutes for the suite).
     strategy:
       fail-fast: false
@@ -245,17 +285,36 @@ jobs:
           [ "$ran" -gt 0 ] || { echo "error: shard $TEST_SHARD ran no tests" >&2; exit 1; }
           SH
 
+      # The snapshot only loads with the emulator, system image and runner OS it was
+      # made with. Install both first and put their versions in the cache key, so an
+      # update makes a new snapshot instead of silently cold-booting an old one.
+      - name: Install the emulator and system image, and key the snapshot on them
+        id: avd-key
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager --install emulator 'system-images;android-36;google_apis;x86_64' > /dev/null
+          revision() { sed -n 's/^Pkg\.Revision=//p' "$1/source.properties"; }
+          emulator_version="$(revision "$ANDROID_HOME/emulator")"
+          image_version="$(revision "$ANDROID_HOME/system-images/android-36/google_apis/x86_64")"
+          if [ -z "$emulator_version" ] || [ -z "$image_version" ] || [ -z "${ImageOS:-}" ]; then
+            echo "error: could not read the emulator, system image or runner image version" >&2
+            exit 1
+          fi
+          key="avd-v2-api36-google_apis-x86_64-pixel_2-4cpu-4g-${ImageOS}-emulator-${emulator_version}-image-${image_version}"
+          echo "snapshot cache key: $key"
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+
       # A booted emulator snapshot taken before any app is installed: tests still
       # start from a device with no Verceltics data, without a cold boot each run.
-      # It is saved only once start-up work is done, so restored runs don't resume into it.
       - name: Restore the clean emulator snapshot
         id: avd-cache
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          key: avd-v1-api36-google_apis-x86_64-pixel_2-4cpu-4g
+          key: ${{ steps.avd-key.outputs.key }}
 
       - name: Create the emulator and save a clean boot snapshot
         if: steps.avd-cache.outputs.cache-hit != 'true'
@@ -272,6 +331,18 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
           disable-animations: false
           script: bash scripts/ci/wait_for_emulator_idle.sh --compile
+
+      # Cached right after it is made, before any app is installed or any test runs.
+      # Only main saves it: pull requests and release runs reuse main's snapshot and
+      # never write a second 4 GB copy.
+      - name: Cache the clean emulator snapshot (main only)
+        if: steps.avd-cache.outputs.cache-hit != 'true' && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: ${{ steps.avd-key.outputs.key }}
 
       - name: Run instrumentation and Compose UI tests
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0

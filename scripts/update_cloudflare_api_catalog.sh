@@ -11,3 +11,7 @@ python3 "$ROOT/scripts/generate_cloudflare_api_catalog.py" \
   "$TEMP_DIR/api-schemas/openapi.json" \
   "$ROOT/ios/verceltics/Resources/CloudflareAPICatalog.json" \
   --source-commit "$COMMIT"
+# Android ships the same catalog and license; CloudflareOpenApiCatalogTest checks the copies match.
+cp "$ROOT/ios/verceltics/Resources/CloudflareAPICatalog.json" \
+  "$ROOT/ios/verceltics/Resources/CloudflareAPISchemaLicense.txt" \
+  "$ROOT/android/app/src/main/assets/"

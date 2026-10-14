@@ -16,3 +16,9 @@ updates:
     directory: /android
     schedule:
       interval: weekly
+  # Hash-locked store tooling (requirements-store.in → requirements-store.txt) that
+  # release jobs install next to the App Store Connect and Google Play credentials.
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly

@@ -3,9 +3,12 @@
 
 store/metadata/ios/<locale>/ holds one text file per field, exported from the
 live App Store listing with export_ios_listing.py. What's New comes from the
-tag's RELEASE_NOTES.md section. Screenshots come from the marketing mockups.
+tag's RELEASE_NOTES.md section, converted to plain text (App Store Connect shows
+Markdown literally). Screenshots come from the marketing mockups.
 
-    ios_metadata.py check                 validate listing text and screenshots
+    ios_metadata.py check [--listing] [--screenshots]
+                                          validate listing text and/or screenshots
+                                          (both when neither flag is given)
     ios_metadata.py prepare --out DIR [--tag ios-vX.Y]
                                           copy the listing (and the tag's What's New)
                                           into DIR/ios/<locale>/ for asc_release.py
@@ -25,7 +28,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
-from release_notes import section_for_tag  # noqa: E402
+from release_notes import plain_text, section_for_tag  # noqa: E402
 
 LISTING_DIR = ROOT / "store" / "metadata" / "ios"
 PRIMARY_LOCALE = "en-US"
@@ -162,13 +165,21 @@ def screenshot_files(spec: ScreenshotSet) -> list[Path]:
     return files
 
 
+def app_store_whats_new(notes: str, tag: str) -> str:
+    """Reviewed notes as plain App Store text, within the What's New limit."""
+    text = plain_text(notes)
+    if not text:
+        raise MetadataError(f"the ## {tag} section in RELEASE_NOTES.md has no text for What's New")
+    validate_value(WHATS_NEW, text, f"{tag} release notes")
+    return text
+
+
 def whats_new(tag: str) -> str:
     """The tag's reviewed notes as App Store What's New; fails without usable notes."""
     notes = section_for_tag(tag)
     if notes is None:
         raise MetadataError(f"What's New needs a ## {tag} section in RELEASE_NOTES.md")
-    validate_value(WHATS_NEW, notes, f"{tag} release notes")
-    return notes
+    return app_store_whats_new(notes, tag)
 
 
 def prepare(out: Path, tag: str | None = None, listing_dir: Path = LISTING_DIR) -> list[Path]:
@@ -185,9 +196,8 @@ def prepare(out: Path, tag: str | None = None, listing_dir: Path = LISTING_DIR) 
     if tag:
         notes = section_for_tag(tag)
         if notes is not None:
-            validate_value(WHATS_NEW, notes, f"{tag} release notes")
             path = out / "ios" / PRIMARY_LOCALE / WHATS_NEW.filename
-            path.write_text(notes + "\n", encoding="utf-8")
+            path.write_text(app_store_whats_new(notes, tag) + "\n", encoding="utf-8")
             written.append(path)
     return written
 
@@ -195,7 +205,9 @@ def prepare(out: Path, tag: str | None = None, listing_dir: Path = LISTING_DIR) 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
-    sub.add_parser("check")
+    check = sub.add_parser("check")
+    check.add_argument("--listing", action="store_true", help="check the listing text")
+    check.add_argument("--screenshots", action="store_true", help="check the screenshot sets")
     prep = sub.add_parser("prepare")
     prep.add_argument("--out", required=True, type=Path)
     prep.add_argument("--tag", help="add this tag's RELEASE_NOTES.md section as What's New")
@@ -206,11 +218,15 @@ def main(argv: list[str] | None = None) -> None:
         if args.command == "whats-new":
             print(whats_new(args.tag))
         elif args.command == "check":
-            for locale in locales():
-                values = load_locale(LISTING_DIR / locale)
-                print(f"listing {locale}: {len(values)} fields OK")
-            for spec in SCREENSHOT_SETS:
-                print(f"screenshots {spec.label}: {len(screenshot_files(spec))} PNGs OK")
+            # Release runs check only what they upload; with no flag, check everything.
+            everything = not (args.listing or args.screenshots)
+            if args.listing or everything:
+                for locale in locales(LISTING_DIR):
+                    values = load_locale(LISTING_DIR / locale)
+                    print(f"listing {locale}: {len(values)} fields OK")
+            if args.screenshots or everything:
+                for spec in SCREENSHOT_SETS:
+                    print(f"screenshots {spec.label}: {len(screenshot_files(spec))} PNGs OK")
         else:
             written = prepare(args.out, args.tag)
             has_whats_new = any(path.name == WHATS_NEW.filename for path in written)

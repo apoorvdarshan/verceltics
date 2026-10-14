@@ -10,29 +10,44 @@ signs and uploads the iOS binary. An `android-v*` tag runs
 builds, verifies and signs the Android app, and uploads it to the Play tracks you
 switch on. The two tag prefixes never start each other's pipeline.
 
-**Xcode Cloud is being removed for Verceltics.** Its tag-triggered workflow
-(`2245A813-CA9D-45A4-8ACA-CF30494D2575`) and product are deleted in App Store
-Connect once this pipeline's validation run has passed. Xcode Cloud triggers live
-in App Store Connect, not in this repository, so a GitHub switch cannot stop
-them: never re-create an Xcode Cloud workflow for `ios-v*` tags, or both
-pipelines would upload a build for the same tag.
+**Xcode Cloud was removed for Verceltics on 2026-10-14**, after this pipeline's
+validation run passed: its tag-triggered workflow
+(`2245A813-CA9D-45A4-8ACA-CF30494D2575`) and its product were deleted in App Store
+Connect. Xcode Cloud triggers live in App Store Connect, not in this repository,
+so a GitHub switch cannot stop them: never re-create an Xcode Cloud workflow for
+`ios-v*` tags, or both pipelines would upload a build for the same tag.
 
 ## iOS release flow (`ios-v*` tag)
 
 ```
-ios-vX.Y tag ─► iOS unit + UI tests ─► resolve switches (tag must equal MARKETING_VERSION)
+ios-vX.Y tag ─► iOS unit + UI tests
+             ─► offline checks: release-script tests, API catalogs, privacy manifest, IAP catalog
+             ─► resolve switches (tag must equal MARKETING_VERSION)
   └─ IOS_RELEASE_AUTOMATION off ─► GitHub Release only
   └─ on:
+       listing / What's New / screenshot / review switch on
+                        ─► check the listing (and screenshots, if uploaded) and What's New
+                        ─► read-only App Store Connect preflight: version X.Y exists in a state
+                           that allows the enabled steps, with every locale they touch
        IOS_UPLOAD_BUILD ─► next build number from App Store Connect
                         ─► archive Release ─► verify app id/version/build in every bundle
                         ─► cloud-signed export + upload
                         ─► wait until THIS build is VALID (poll 30 s, up to 120 min from upload start)
        IOS_UPLOAD_LISTING / IOS_UPLOAD_WHATS_NEW / IOS_UPLOAD_SCREENSHOTS ─► version metadata
        IOS_SUBMIT_REVIEW ─► select this run's build, read it back, answer export compliance,
-                            set release type ─► recheck build + selection
-                         ─► submit version and catalog IAPs/subscriptions
+                            set release type, attach catalog subscriptions to the draft
+                         ─► recheck build + selection
+                         ─► submit catalog in-app purchases, then the version (+ subscriptions)
   └─ GitHub Release (only if every enabled step succeeded)
 ```
+
+**Create the App Store version first.** App Store Connect only accepts listing,
+What's New, screenshots and review submission on an App Store version that
+already exists, and nothing here creates one. With any of those switches on,
+create version X.Y in App Store Connect (it then shows "Prepare for Submission")
+before pushing `ios-vX.Y`; otherwise the read-only preflight in the prepare job
+stops the run before anything is built or uploaded. A build-only release
+(`IOS_UPLOAD_BUILD` alone) needs no App Store version.
 
 A manual **Run workflow** (`workflow_dispatch`) is a validation run: it archives,
 signs, exports and validates the IPA with App Store Connect, and never uploads,
@@ -59,31 +74,73 @@ the store job re-reads the build (version, build number, VALID, unexpired)
 before selecting it. Tag runs share one concurrency group and queue
 behind each other, so no release run is ever cancelled or dropped.
 
+A rerun also works after a submission went partly through. If the version is
+already in a draft review submission (`READY_FOR_REVIEW`, for example after App
+Store Connect rejected the submit), the listing and What's New text are updated
+where they differ and the version is submitted; screenshots must already match,
+because they cannot change in that state. If the version was already submitted
+(`WAITING_FOR_REVIEW`), the rerun changes nothing: it passes only when App Store
+Connect already holds this run's build and the repository's text and
+screenshots, and then the GitHub Release is created.
+
+What's New is the tag's `RELEASE_NOTES.md` section converted to plain text, as
+App Store Connect and Google Play show text literally: links and images keep
+their text, list markers become `•`, and heading, quote, bold and code markers
+are dropped. The App Store limit (4000) and the Play limit (500) apply to that
+converted text, and Play receives exactly those characters.
+
+When the build job fails, its logs are kept for 7 days as the
+`ios-release-logs-<run>-<attempt>` artifact. This repository is public, so
+[`scripts/ci/redact_ids.py`](../scripts/ci/redact_ids.py) first replaces the App
+Store Connect key and issuer IDs in text logs, leaves out binary or UTF-16 files
+that hold one, and renames files named after one; if any ID were left, nothing
+would be uploaded.
+
 ## Android release flow (`android-v*` tag)
 
 ```
 android-vX.Y tag ─► resolve switches (tag must equal versionName)
   └─ ANDROID_RELEASE_AUTOMATION off ─► nothing is built or released
   └─ on:
-       CI checks (unit, lint, Release packaging, emulator tests) ─► build signed AAB + APK
-                      ─► verify package, versionName/versionCode, upload-key signature
-                      ─► Sigstore signatures + build provenance
+       reviewed notes (and What's New if on) ─► read-only Play check: versionCode is higher
+                                                than every versionCode Google Play has
+       ci.yml as the release gate: catalog and store-release tests (Python), Android
+                      unit tests, lint, Debug + unsigned Release builds, both emulator test
+                      shards (not the website/Worker job, which cannot affect the app)
+       ─► check the IAP catalog, and the Play listing/screenshots this run uploads
+       ─► build signed AAB + APK
+       ─► verify package, versionName/versionCode, and the pinned upload-key signature
+       ─► Sigstore signatures + build provenance
        ANDROID_UPLOAD_LISTING / ANDROID_UPLOAD_SCREENSHOTS ─► Play listing
-       GitHub Release (AAB + APK; a prerelease unless production is on)
        ANDROID_INTERNAL_TESTING / ANDROID_CLOSED_TESTING / ANDROID_PRODUCTION_ROLLOUT
                       ─► one Play upload to every selected track (+ What's New if on)
                       ─► read each track back: this versionCode, status completed
+       GitHub Release (AAB + APK; a prerelease unless production is on), only after
+                      every enabled Play step succeeded
 ```
+
+**Re-run failed jobs** is safe on a release run. The versionCode check runs once,
+in `gates`, so it does not object to this run's own upload. Before uploading, the
+release job reads the selected tracks: if an earlier attempt already put this
+versionCode on every one of them, the upload is skipped and the tracks are read
+back again; if only some of them carry it, the run stops (Play rejects a second
+upload of a versionCode). An existing GitHub Release for the tag is updated
+(title, notes, assets) instead of failing. A rerun rebuilds the AAB and APK from
+the same commit and attaches those, with fresh Sigstore signatures and
+provenance. **Re-run all jobs** repeats the versionCode check, which fails once
+Play has the build.
 
 A manual **Run workflow** (`workflow_dispatch`) is a validation run: it builds
 the signed AAB and APK and verifies them (bundletool pinned by SHA-256,
 `apksigner`, `jarsigner` plus a check that the signature covers every bundle
-entry), and never uploads, signs with Sigstore or creates a GitHub Release. It
-fails first, with "upload keystore secrets are not configured", until the two
-keystore secrets below exist.
+entry, all against the pinned upload certificate), and never contacts Google
+Play, uploads, signs with Sigstore or creates a GitHub Release. It fails first,
+with "upload keystore secrets are not configured", until the two keystore
+secrets below exist.
 
 Each track switch is independent: testing tracks never imply production, and
-production never falls back to a testing track. **Google has not granted
+production never falls back to a testing track. The Play upload never runs
+without a track (the upload action would default to production). **Google has not granted
 Verceltics production access yet**: it needs at least 12 testers opted in to
 closed testing for 14 consecutive days (see
 [google-play/TESTERS.md](google-play/TESTERS.md)). Until then Play rejects a
@@ -105,7 +162,7 @@ run, even when the platform's master switch is off. Copy names from
 | `IOS_RELEASE_AUTOMATION` | Master switch. When off, every iOS store operation below is skipped (the tag still creates a GitHub Release) |
 | `IOS_UPLOAD_BUILD` | Build, sign and upload the binary to App Store Connect, then wait for processing |
 | `IOS_UPLOAD_LISTING` | App name, subtitle, description, keywords, promotional text, privacy/marketing/support URLs from [`metadata/ios/`](metadata/ios/) |
-| `IOS_UPLOAD_WHATS_NEW` | What's New: the tag's `## ios-vX.Y` section in [RELEASE_NOTES.md](../RELEASE_NOTES.md) (fails without one) |
+| `IOS_UPLOAD_WHATS_NEW` | What's New: the tag's `## ios-vX.Y` section in [RELEASE_NOTES.md](../RELEASE_NOTES.md) as plain text (4000 characters at most; fails without one) |
 | `IOS_UPLOAD_SCREENSHOTS` | Replace the iPhone 6.7" and iPad 13" screenshots (see below) |
 | `IOS_SUBMIT_REVIEW` | Select this run's build and submit the version **and** Ready-to-Submit catalog IAPs / subscriptions for review. Requires `IOS_UPLOAD_BUILD` |
 | `IOS_PUBLIC_RELEASE` | Release automatically after approval. Off = manual release. Requires `IOS_SUBMIT_REVIEW` |
@@ -165,7 +222,13 @@ Android:
 |--------|----------|
 | `ANDROID_KEYSTORE_BASE64` | `base64` of the Play upload keystore (`verceltics-upload.jks`, alias `upload`) |
 | `ANDROID_KEYSTORE_PASSWORD` | the keystore password, which is also the key password |
-| `PLAY_SERVICE_ACCOUNT_JSON` | a Google Play publisher service-account key with release access to `com.apoorvdarshan.verceltics` |
+| `PLAY_SERVICE_ACCOUNT_JSON` | a Google Play publisher service-account key with release access to `com.apoorvdarshan.verceltics`. Every release run uses it read-only to confirm the versionCode is new; uploads and listing changes use it only with their switches on |
+
+The upload certificate is pinned: `EXPECTED_UPLOAD_CERT_SHA256` in
+[`scripts/store/android_release.py`](../scripts/store/android_release.py)
+(`fe735c7c…61f1ef`) must match the keystore in `ANDROID_KEYSTORE_BASE64`, so a
+replaced keystore fails verification before anything is signed or published.
+After a Play upload-key reset, update that constant together with the secret.
 
 Keys are encrypted in GitHub Secrets and never belong in this repository.
 Offline checks need none of them.
@@ -175,19 +238,24 @@ Offline checks need none of them.
 | Script | Role |
 |--------|------|
 | [`scripts/store/ios_release.py`](../scripts/store/ios_release.py) | iOS switches, build number, wait for this run's build |
-| [`scripts/store/asc_release.py`](../scripts/store/asc_release.py) | ASC listing, App Info, What's New, screenshots, build selection, export compliance, IAPs, submit for review |
-| [`scripts/store/ios_metadata.py`](../scripts/store/ios_metadata.py) | Check the App Store listing and screenshots; prepare them with the tag's What's New |
+| [`scripts/store/asc_release.py`](../scripts/store/asc_release.py) | ASC listing, App Info, What's New, screenshots, build selection, export compliance, IAPs, submit for review (`--dry-run` = local checks only, `--preflight` = read-only App Store Connect checks) |
+| [`scripts/store/ios_metadata.py`](../scripts/store/ios_metadata.py) | Check the App Store listing and/or screenshots; prepare them with the tag's What's New as plain text |
 | [`scripts/store/export_ios_listing.py`](../scripts/store/export_ios_listing.py) | Read-only: export the live App Store listing into `store/metadata/ios/` |
-| [`scripts/store/android_release.py`](../scripts/store/android_release.py) | Android switches, AAB/APK identity + signature checks, Play track read-back |
+| [`scripts/store/android_release.py`](../scripts/store/android_release.py) | Android switches, versionCode check against Play, AAB/APK identity + pinned signature checks, pre-upload track state, Play track read-back |
 | [`scripts/store/play_listing.py`](../scripts/store/play_listing.py) | Check, prepare and upload the Play listing, phone screenshots and What's New |
 | [`scripts/store/validate_catalog.py`](../scripts/store/validate_catalog.py) | `catalog/products.json` against StoreKit and the Android billing IDs |
 | [`scripts/store/print_gates.py`](../scripts/store/print_gates.py) | Print the configured switches |
-| [`scripts/store/test_ios_release.py`](../scripts/store/test_ios_release.py) | Offline tests: disabled/invalid switches, tag mismatch, validation mode, build wait timeout/failure/ambiguity/mismatch/old build, selection read-back, token refresh, listing, screenshots, catalog |
-| [`scripts/store/test_android_release.py`](../scripts/store/test_android_release.py) | Offline tests: switches, track selection, wrong app/version/key, unsigned bundle entries, Play listing and read-back |
-| [`scripts/release_notes.py`](../scripts/release_notes.py) | The tag's reviewed notes: GitHub Release body and What's New |
+| [`scripts/store/test_ios_release.py`](../scripts/store/test_ios_release.py) | Offline tests: disabled/invalid switches, tag mismatch, validation mode, build wait timeout/failure/ambiguity/mismatch/old build/unknown upload time, selection read-back, purchases only after the recheck, version states and reruns, preflight, token refresh, listing, screenshots, catalog |
+| [`scripts/store/test_android_release.py`](../scripts/store/test_android_release.py) | Offline tests: switches, track selection, wrong app/version/key, pinned upload certificate, unsigned bundle entries, versionCode and pre-upload checks, Play listing and read-back |
+| [`scripts/store/test_store_assets.py`](../scripts/store/test_store_assets.py) | The repository's App Store and Play listings and screenshots (pull requests and main; a release checks only what it uploads) |
+| [`scripts/ci/redact_ids.py`](../scripts/ci/redact_ids.py) | Removes App Store Connect key/issuer IDs from failure logs before they are kept |
+| [`scripts/release_notes.py`](../scripts/release_notes.py) | The tag's reviewed notes: GitHub Release body and (as plain text) What's New |
 
 Release workflows install [`requirements-store.txt`](../requirements-store.txt)
-(PyJWT, Google API client; hash-pinned) only for steps that call a store.
+(PyJWT, Google API client; hash-pinned) into the pinned Python 3.13 from
+`actions/setup-python`, never the runner's system Python, and only for steps
+that call a store. Store steps run unbuffered (`python3 -u`), so the build wait
+and uploads log as they go.
 `asc_release.py` reads `UPLOAD_LISTING`, `UPLOAD_WHATS_NEW`, `UPLOAD_SCREENSHOTS`,
 `SUBMIT_IOS_REVIEW` and `PUBLIC_RELEASE`, set by `ios-release.yml` from the
 resolved iOS switches. `play_listing.py upload` reads `UPLOAD_LISTING` and
@@ -229,28 +297,37 @@ declares otherwise. Reassess before adding other cryptography; see
 Store Connect workflow, subscriptions attach to the review submission through
 the `subscriptionVersion` relationship on Review Submission Items, so a
 first-time subscription must ship with the version. The lifetime purchase and
-tips go through `inAppPurchaseSubmissions`. Products outside the catalog are
-never submitted, and the version is not submitted if a required product cannot
-be added. If the version is already `WAITING_FOR_REVIEW`, a late product is
+tips go through `inAppPurchaseSubmissions`, which submits each one immediately,
+so they are sent only after the final build and selection recheck, right before
+the version. (Apple marks that endpoint deprecated in favour of review
+submission items; it still works, and every catalog purchase is approved
+today.) Products outside the catalog are never submitted, and the version is
+not submitted if a required product cannot be added. If the version is already `WAITING_FOR_REVIEW`, a late product is
 submitted on its own; a retry never duplicates items or ships an unrelated
 app version.
 
 ## Release procedure
 
 1. Bump the version (`MARKETING_VERSION` in Xcode / `versionName` and `versionCode`
-   in `android/app/build.gradle.kts`). iOS build numbers come from App Store Connect.
+   in `android/app/build.gradle.kts`). iOS build numbers come from App Store Connect;
+   the Android versionCode must be higher than every versionCode on Google Play
+   (the release checks this before building).
 2. Add reviewed `## ios-vX.Y` / `## android-vX.Y` notes to `RELEASE_NOTES.md`
    (required for What's New; otherwise the GitHub Release uses generated notes).
-3. Run the validation run (**Run workflow**) to prove signing still works.
-4. Turn on only the switches you want; try Android on `ANDROID_INTERNAL_TESTING`
+3. iOS, with any listing, What's New, screenshot or review switch on: **create the
+   X.Y App Store version in App Store Connect** (Prepare for Submission). The
+   preflight stops the run before building when it is missing.
+4. Run the validation run (**Run workflow**) to prove signing still works.
+5. Turn on only the switches you want; try Android on `ANDROID_INTERNAL_TESTING`
    first, and leave `IOS_SUBMIT_REVIEW`, `IOS_PUBLIC_RELEASE` and
    `ANDROID_PRODUCTION_ROLLOUT` off until you intend that release.
-5. Push the `ios-vX.Y` / `android-vX.Y` tag. A tag can be used once.
+6. Push the `ios-vX.Y` / `android-vX.Y` tag. A tag can be used once.
 
 ## Offline checks
 
 ```bash
-./scripts/test.sh                                   # includes both release test suites
+./scripts/test.sh                                   # both release suites and the store assets
+./scripts/test.sh --release-gate                    # what an Android release gate runs
 python3 scripts/store/print_gates.py
 python3 scripts/store/validate_catalog.py
 python3 scripts/store/ios_metadata.py check
@@ -261,10 +338,12 @@ UPLOAD_LISTING=true UPLOAD_WHATS_NEW=true SUBMIT_IOS_REVIEW=true \
 ```
 
 These never build, sign, or contact a store. The **Store automation (dry-run)**
-workflow runs them for every change to store files, scripts or release workflows.
+workflow runs them for every change to store files, scripts or release workflows,
+and `ci.yml` runs `./scripts/test.sh` on pull requests and on every push to main.
 
 ## Android closed beta
 
-Android **1.0 (44)** is in Google Play closed testing (Alpha track). The testers,
+Android **1.0 (44)** is in Google Play closed testing (Alpha track), so the next
+`android-v*` release needs a higher versionCode (the release checks this first). The testers,
 countries, review status, and the `VERCELTICSBETA` promo code are recorded in
 [google-play/TESTERS.md](google-play/TESTERS.md) and [google-play/PROMO.md](google-play/PROMO.md).
