@@ -1,4 +1,4 @@
 # Release tooling only: App Store Connect JWTs and the Google Play API.
-PyJWT[crypto]==2.15.0
+PyJWT[crypto]==2.15.1
 google-api-python-client==2.201.0
 google-auth==2.61.0
