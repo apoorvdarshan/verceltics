@@ -13,27 +13,33 @@ nothing that holds an ID may be uploaded:
   - symbolic links are deleted, so nothing outside DIR is uploaded
 
 Afterwards every remaining file is searched again; the script fails (exit 1) if an
-ID is still found, and the workflow then uploads nothing.
+ID is still found, and the workflow then uploads nothing. Messages only ever show
+redacted names.
 """
 from __future__ import annotations
 
 import os
-import re
 import sys
 from pathlib import Path
 
 PLACEHOLDERS = (("ASC_KEY_ID", "<ASC_KEY_ID>"), ("ASC_ISSUER_ID", "<ASC_ISSUER_ID>"))
 ENCODINGS = ("utf-8", "utf-16-le", "utf-16-be")
+# Lowercases ASCII letters only, so a string keeps its length and indices line up.
+ASCII_LOWER = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
 
 
-def secrets_from(env: dict[str, str]) -> list[tuple[str, str]]:
-    """(value, placeholder) for every ID that is set."""
-    return [(env[name].strip(), placeholder) for name, placeholder in PLACEHOLDERS if env.get(name, "").strip()]
+def ids_from(env: dict[str, str]) -> list[tuple[str, str]]:
+    """(lowercased ID, placeholder) for every ID that is set."""
+    return [
+        (env[name].strip().translate(ASCII_LOWER), placeholder)
+        for name, placeholder in PLACEHOLDERS
+        if env.get(name, "").strip()
+    ]
 
 
-def holds(data: bytes, value: str) -> bool:
+def holds(data: bytes, needle: str) -> bool:
     lowered = data.lower()
-    return any(value.lower().encode(encoding) in lowered for encoding in ENCODINGS)
+    return any(needle.encode(encoding) in lowered for encoding in ENCODINGS)
 
 
 def is_text(data: bytes) -> bool:
@@ -46,56 +52,69 @@ def is_text(data: bytes) -> bool:
     return True
 
 
-def redact_name(name: str, secrets: list[tuple[str, str]]) -> str:
-    for value, placeholder in secrets:
-        name = re.sub(re.escape(value), placeholder, name, flags=re.IGNORECASE)
-    return name
+def scrub(text: str, ids: list[tuple[str, str]]) -> str:
+    """text with every ID (any ASCII letter case) replaced by its placeholder.
+
+    Only slices of text and the placeholders are kept, never the IDs themselves.
+    """
+    for needle, placeholder in ids:
+        lowered = text.translate(ASCII_LOWER)
+        parts: list[str] = []
+        start = 0
+        found = lowered.find(needle)
+        while found != -1:
+            parts.append(text[start:found])
+            parts.append(placeholder)
+            start = found + len(needle)
+            found = lowered.find(needle, start)
+        parts.append(text[start:])
+        text = "".join(parts)
+    return text
 
 
-def redact(root: Path, secrets: list[tuple[str, str]]) -> list[str]:
+def redact(root: Path, ids: list[tuple[str, str]]) -> list[str]:
     """Clean root in place; returns what was done, one line per change."""
     report: list[str] = []
-    if not secrets or not root.is_dir():
+    if not ids or not root.is_dir():
         return report
     # Deepest paths first, so renaming a folder never invalidates a path still to visit.
     for directory, folders, files in os.walk(root, topdown=False):
         base = Path(directory)
         for name in files + folders:
             path = base / name
-            shown = path.relative_to(root)
+            shown = scrub(str(path.relative_to(root)), ids)
             if path.is_symlink():
                 path.unlink()
                 report.append(f"removed link {shown}")
                 continue
             if path.is_file():
                 data = path.read_bytes()
-                if any(holds(data, value) for value, _ in secrets):
+                if any(holds(data, needle) for needle, _ in ids):
                     if is_text(data):
-                        text = data.decode("utf-8")
-                        for value, placeholder in secrets:
-                            text = re.sub(re.escape(value), placeholder, text, flags=re.IGNORECASE)
-                        path.write_text(text, encoding="utf-8")
+                        path.write_text(scrub(data.decode("utf-8"), ids), encoding="utf-8")
                         report.append(f"redacted {shown}")
                     else:
                         path.unlink()
                         report.append(f"removed {shown} (binary file holding an ID)")
                         continue
-            renamed = redact_name(name, secrets)
+            renamed = scrub(name, ids)
             if renamed != name:
                 path.rename(base / renamed)
                 report.append(f"renamed {shown}")
     return report
 
 
-def leftovers(root: Path, secrets: list[tuple[str, str]]) -> list[str]:
+def leftovers(root: Path, ids: list[tuple[str, str]]) -> list[str]:
+    """Redacted names of everything that still holds an ID, in its name or content."""
     found = []
     for path in sorted(root.rglob("*")):
-        shown = str(path.relative_to(root))
-        if any(value.lower() in shown.lower() for value, _ in secrets):
-            found.append(shown)
-        elif path.is_file() and not path.is_symlink():
-            if any(holds(path.read_bytes(), value) for value, _ in secrets):
-                found.append(shown)
+        name = str(path.relative_to(root))
+        in_name = any(needle in name.translate(ASCII_LOWER) for needle, _ in ids)
+        in_data = path.is_file() and not path.is_symlink() and any(
+            holds(path.read_bytes(), needle) for needle, _ in ids
+        )
+        if in_name or in_data:
+            found.append(scrub(name, ids))
     return found
 
 
@@ -104,13 +123,13 @@ def main(argv: list[str]) -> int:
         print(__doc__, file=sys.stderr)
         return 2
     root = Path(argv[1])
-    secrets = secrets_from(dict(os.environ))
-    if not secrets:
+    ids = ids_from(dict(os.environ))
+    if not ids:
         print("no App Store Connect IDs to redact")
         return 0
-    for line in redact(root, secrets):
+    for line in redact(root, ids):
         print(line)
-    remaining = leftovers(root, secrets) if root.is_dir() else []
+    remaining = leftovers(root, ids) if root.is_dir() else []
     if remaining:
         print(f"error: an App Store Connect ID is still in {', '.join(remaining)}; not uploading", file=sys.stderr)
         return 1

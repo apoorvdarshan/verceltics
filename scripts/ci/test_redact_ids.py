@@ -38,13 +38,17 @@ class RedactTests(unittest.TestCase):
 
     def test_text_logs_keep_their_content_without_the_ids(self) -> None:
         log = self.root / "upload.log"
-        log.write_text(f"-authenticationKeyID {KEY} -authenticationKeyIssuerID {ISSUER.upper()}\nAuthKey_{KEY}.p8\n")
+        log.write_text(f"-authenticationKeyID {KEY} -authenticationKeyIssuerID {ISSUER.upper()}\nAuthKey_{KEY}.p8\n"
+                       f"İstanbul ß {KEY.lower()}{KEY}\n", encoding="utf-8")
         code, output = run(self.root)
         self.assertEqual(code, 0, output)
         self.assertEqual(
-            log.read_text(),
-            "-authenticationKeyID <ASC_KEY_ID> -authenticationKeyIssuerID <ASC_ISSUER_ID>\nAuthKey_<ASC_KEY_ID>.p8\n",
+            log.read_text(encoding="utf-8"),
+            "-authenticationKeyID <ASC_KEY_ID> -authenticationKeyIssuerID <ASC_ISSUER_ID>\nAuthKey_<ASC_KEY_ID>.p8\n"
+            "İstanbul ß <ASC_KEY_ID><ASC_KEY_ID>\n",
         )
+        self.assertNotIn(KEY, output)
+        self.assertNotIn(KEY.lower(), output.lower())
 
     def test_binary_and_utf16_files_holding_an_id_are_removed(self) -> None:
         nested = self.root / "Verceltics.xcdistributionlogs"
@@ -69,6 +73,7 @@ class RedactTests(unittest.TestCase):
         self.assertEqual([p.relative_to(self.root).as_posix() for p in sorted(self.root.rglob("*"))],
                          ["keys-<ASC_KEY_ID>", "keys-<ASC_KEY_ID>/AuthKey_<ASC_KEY_ID>.txt"])
         self.assertEqual(outside.read_text(), f"{KEY}\n", "files outside the folder are never touched")
+        self.assertNotIn(KEY, output, "messages only show redacted names")
 
     def test_nothing_to_do_without_ids_or_matches(self) -> None:
         log = self.root / "archive.log"
@@ -79,11 +84,13 @@ class RedactTests(unittest.TestCase):
         self.assertEqual(run(Path(self.tmp.name) / "missing")[0], 0)
 
     def test_an_id_that_survives_fails_the_step(self) -> None:
-        (self.root / "upload.log").write_text(f"{KEY}\n")
+        (self.root / f"upload-{KEY}.log").write_text(f"{KEY}\n")
         with mock.patch.object(redact_ids, "redact", return_value=[]):
             code, output = run(self.root)
         self.assertEqual(code, 1)
+        self.assertIn("upload-<ASC_KEY_ID>.log", output)
         self.assertIn("not uploading", output)
+        self.assertNotIn(KEY, output)
 
 
 if __name__ == "__main__":
