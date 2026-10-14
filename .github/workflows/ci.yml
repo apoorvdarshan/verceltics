@@ -225,6 +225,15 @@ jobs:
     env:
       TEST_SHARDS: 2
       TEST_SHARD: ${{ matrix.shard }}
+      # The emulator, defined once: both emulator steps use it, and so does the snapshot
+      # cache key, so changing any of it makes a new snapshot.
+      EMULATOR_API: 36
+      EMULATOR_TARGET: google_apis
+      EMULATOR_ARCH: x86_64
+      EMULATOR_PROFILE: pixel_2
+      EMULATOR_CORES: 4
+      EMULATOR_RAM: 4096M
+      EMULATOR_OPTIONS: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -285,24 +294,29 @@ jobs:
           [ "$ran" -gt 0 ] || { echo "error: shard $TEST_SHARD ran no tests" >&2; exit 1; }
           SH
 
-      # The snapshot only loads with the emulator, system image and runner OS it was
-      # made with. Install both first and put their versions in the cache key, so an
-      # update makes a new snapshot instead of silently cold-booting an old one.
+      # The snapshot only loads with the emulator, system image, runner OS and settings
+      # it was made with. Install the emulator and image first and put their versions,
+      # the runner image and a hash of the settings in the cache key, so any change makes
+      # a new snapshot instead of silently cold-booting an old one.
       - name: Install the emulator and system image, and key the snapshot on them
         id: avd-key
         run: |
           set -euo pipefail
+          image="system-images;android-${EMULATOR_API};${EMULATOR_TARGET};${EMULATOR_ARCH}"
           yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager --install emulator 'system-images;android-36;google_apis;x86_64' > /dev/null
+          sdkmanager --install emulator "$image" > /dev/null
           revision() { sed -n 's/^Pkg\.Revision=//p' "$1/source.properties"; }
           emulator_version="$(revision "$ANDROID_HOME/emulator")"
-          image_version="$(revision "$ANDROID_HOME/system-images/android-36/google_apis/x86_64")"
+          image_version="$(revision "$ANDROID_HOME/system-images/android-${EMULATOR_API}/${EMULATOR_TARGET}/${EMULATOR_ARCH}")"
           if [ -z "$emulator_version" ] || [ -z "$image_version" ] || [ -z "${ImageOS:-}" ]; then
             echo "error: could not read the emulator, system image or runner image version" >&2
             exit 1
           fi
-          key="avd-v2-api36-google_apis-x86_64-pixel_2-4cpu-4g-${ImageOS}-emulator-${emulator_version}-image-${image_version}"
-          echo "snapshot cache key: $key"
+          settings="$EMULATOR_PROFILE $EMULATOR_CORES $EMULATOR_RAM $EMULATOR_OPTIONS"
+          settings_hash="$(printf '%s' "$settings" | sha256sum | cut -c1-12)"
+          key="avd-v2-api${EMULATOR_API}-${EMULATOR_TARGET}-${EMULATOR_ARCH}-${ImageOS}"
+          key="${key}-emulator-${emulator_version}-image-${image_version}-settings-${settings_hash}"
+          echo "snapshot cache key: $key (settings: $settings)"
           echo "key=$key" >> "$GITHUB_OUTPUT"
 
       # A booted emulator snapshot taken before any app is installed: tests still
@@ -320,15 +334,15 @@ jobs:
         if: steps.avd-cache.outputs.cache-hit != 'true'
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
-          api-level: 36
-          target: google_apis
-          arch: x86_64
-          profile: pixel_2
-          cores: 4
-          ram-size: 4096M
+          api-level: ${{ env.EMULATOR_API }}
+          target: ${{ env.EMULATOR_TARGET }}
+          arch: ${{ env.EMULATOR_ARCH }}
+          profile: ${{ env.EMULATOR_PROFILE }}
+          cores: ${{ env.EMULATOR_CORES }}
+          ram-size: ${{ env.EMULATOR_RAM }}
           force-avd-creation: false
           emulator-boot-timeout: 300
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          emulator-options: ${{ env.EMULATOR_OPTIONS }}
           disable-animations: false
           script: bash scripts/ci/wait_for_emulator_idle.sh --compile
 
@@ -347,16 +361,16 @@ jobs:
       - name: Run instrumentation and Compose UI tests
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
-          api-level: 36
-          target: google_apis
-          arch: x86_64
-          profile: pixel_2
-          cores: 4
-          ram-size: 4096M
+          api-level: ${{ env.EMULATOR_API }}
+          target: ${{ env.EMULATOR_TARGET }}
+          arch: ${{ env.EMULATOR_ARCH }}
+          profile: ${{ env.EMULATOR_PROFILE }}
+          cores: ${{ env.EMULATOR_CORES }}
+          ram-size: ${{ env.EMULATOR_RAM }}
           force-avd-creation: false
           emulator-boot-timeout: 300
           # -no-snapshot-save: the clean snapshot is reused, never overwritten by a test run.
-          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          emulator-options: -no-snapshot-save ${{ env.EMULATOR_OPTIONS }}
           disable-animations: true
           working-directory: android
           script: bash "$RUNNER_TEMP/run-android-instrumentation.sh"
