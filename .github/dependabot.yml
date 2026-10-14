@@ -22,3 +22,9 @@ updates:
     directory: /
     schedule:
       interval: weekly
+  # Swift packages resolved by the Xcode project
+  # (ios/verceltics.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved).
+  - package-ecosystem: swift
+    directory: /ios
+    schedule:
+      interval: weekly

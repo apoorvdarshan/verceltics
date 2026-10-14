@@ -44,6 +44,8 @@
 #   ANDROID_KEYSTORE_PASSWORD   its password, which is also the key password
 #   PLAY_SERVICE_ACCOUNT_JSON   a Play publisher service-account JSON key with
 #                               access to com.apoorvdarshan.verceltics
+# Key files exist only under $RUNNER_TEMP (umask 077), never in the checkout, and
+# are removed right after use.
 #
 # versionCode discipline stays in the repo: bump it in app/build.gradle.kts
 # BEFORE tagging — Play rejects a versionCode it has already seen, and gates
@@ -355,6 +357,19 @@ jobs:
           mkdir -p "$RUNNER_TEMP/whats-new"
           cp "$NOTES" "$RUNNER_TEMP/whats-new/"
 
+      # The upload action reads the key from a file. Given the key as text, it would write
+      # it into the checkout; this file is under $RUNNER_TEMP, readable by this user only,
+      # and removed right after the upload.
+      - name: Materialize the Play service-account key
+        if: >-
+          needs.gates.outputs.play_upload == 'true' && needs.gates.outputs.play_tracks != '' &&
+          steps.play_state.outputs.uploaded == 'false'
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          umask 077
+          printf '%s' "$PLAY_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/play-service-account.json"
+
       # Never runs without a track: with an empty track list the action uploads to production.
       - name: Upload to Play (${{ needs.gates.outputs.play_tracks }})
         if: >-
@@ -362,7 +377,7 @@ jobs:
           steps.play_state.outputs.uploaded == 'false' && needs.gates.outputs.whats_new != 'true'
         uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1.1.5
         with:
-          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          serviceAccountJson: ${{ runner.temp }}/play-service-account.json
           packageName: com.apoorvdarshan.verceltics
           releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
           tracks: ${{ needs.gates.outputs.play_tracks }}
@@ -374,12 +389,16 @@ jobs:
           steps.play_state.outputs.uploaded == 'false' && needs.gates.outputs.whats_new == 'true'
         uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1.1.5
         with:
-          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          serviceAccountJson: ${{ runner.temp }}/play-service-account.json
           packageName: com.apoorvdarshan.verceltics
           releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
           tracks: ${{ needs.gates.outputs.play_tracks }}
           status: completed
           whatsNewDirectory: ${{ runner.temp }}/whats-new
+
+      - name: Remove the Play service-account key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/play-service-account.json"
 
       - name: Confirm each Play track now carries this build
         if: needs.gates.outputs.play_upload == 'true'

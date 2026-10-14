@@ -224,6 +224,11 @@ Android:
 | `ANDROID_KEYSTORE_PASSWORD` | the keystore password, which is also the key password |
 | `PLAY_SERVICE_ACCOUNT_JSON` | a Google Play publisher service-account key with release access to `com.apoorvdarshan.verceltics`. Every release run uses it read-only to confirm the versionCode is new; uploads and listing changes use it only with their switches on |
 
+Signing and Play credentials only ever reach the disk under `$RUNNER_TEMP`, readable
+by the job's user alone (`umask 077`), never in the checkout, and are removed right
+after use: the upload keystore and its password file after verification, and the
+Play key file the upload action reads right after the upload.
+
 The upload certificate is pinned: `EXPECTED_UPLOAD_CERT_SHA256` in
 [`scripts/store/android_release.py`](../scripts/store/android_release.py)
 (`fe735c7c…61f1ef`) must match the keystore in `ANDROID_KEYSTORE_BASE64`, so a
