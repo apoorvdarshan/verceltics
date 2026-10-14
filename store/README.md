@@ -286,8 +286,8 @@ resolved iOS switches. `play_listing.py upload` reads `UPLOAD_LISTING` and
 store/metadata/
   ios/en-US/        name, subtitle, description, keywords, promotional_text, *_url (.txt)
   play/en-US/       title, short_description, full_description (.txt)
-marketing/mockups ios/      App Store iPhone 6.7" screenshots (1290×2796), upload order = file name
-marketing/mockups ipad/     App Store iPad 13" screenshots (2048×2732)
+store/app-store/screenshots/iphone/   App Store iPhone 6.7" screenshots (1290×2796), upload order = file name
+store/app-store/screenshots/ipad/     App Store iPad 13" screenshots (2048×2732)
 store/google-play/screenshots/phone/   Play phone screenshots (1080×1920)
 RELEASE_NOTES.md            ## ios-vX.Y / ## android-vX.Y → GitHub Release + What's New
 ```

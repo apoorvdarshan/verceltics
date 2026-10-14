@@ -121,8 +121,6 @@ jobs:
             /ios/verceltics/Auth/AuthManager.swift
             /ios/verceltics/Paywall/Products.storekit
             /android/app/src/main/java/com/apoorvdarshan/verceltics/billing/BillingModels.kt
-            /marketing/mockups ios/
-            /marketing/mockups ipad/
             /requirements-store.txt
             /RELEASE_NOTES.md
 
@@ -520,8 +518,6 @@ jobs:
             /scripts/release_notes.py
             /store/
             /ios/verceltics.xcodeproj/
-            /marketing/mockups ios/
-            /marketing/mockups ipad/
             /requirements-store.txt
             /RELEASE_NOTES.md
 

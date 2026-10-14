@@ -27,8 +27,6 @@ on:
       - "RELEASE_NOTES.md"
       - "requirements-store.in"
       - "requirements-store.txt"
-      - "marketing/mockups ios/**"
-      - "marketing/mockups ipad/**"
       - "ios/verceltics.xcodeproj/project.pbxproj"
       - "ios/verceltics/Paywall/Products.storekit"
       - "android/app/build.gradle.kts"
@@ -44,8 +42,6 @@ on:
       - "RELEASE_NOTES.md"
       - "requirements-store.in"
       - "requirements-store.txt"
-      - "marketing/mockups ios/**"
-      - "marketing/mockups ipad/**"
       - "ios/verceltics.xcodeproj/project.pbxproj"
       - "ios/verceltics/Paywall/Products.storekit"
       - "android/app/build.gradle.kts"
@@ -80,8 +76,6 @@ jobs:
             /ios/verceltics/Paywall/Products.storekit
             /android/app/build.gradle.kts
             /android/app/src/main/java/com/apoorvdarshan/verceltics/billing/BillingModels.kt
-            /marketing/mockups ios/
-            /marketing/mockups ipad/
 
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0

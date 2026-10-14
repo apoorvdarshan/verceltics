@@ -15,8 +15,8 @@ one file per field, exported from the live App Store listing (iOS 2.1):
 | `marketing_url.txt` | Marketing URL | HTTPS |
 
 What's New is the tag's `## ios-vX.Y` section in [RELEASE_NOTES.md](RELEASE_NOTES.md).
-Screenshots are the App Store-ready mockups in [`marketing/mockups ios/`](marketing/mockups%20ios/)
-(iPhone 6.7", 1290×2796) and [`marketing/mockups ipad/`](marketing/mockups%20ipad/) (iPad 13", 2048×2732).
+Screenshots are the App Store-ready mockups in [`store/app-store/screenshots/iphone/`](store/app-store/screenshots/iphone/)
+(iPhone 6.7", 1290×2796) and [`store/app-store/screenshots/ipad/`](store/app-store/screenshots/ipad/) (iPad 13", 2048×2732).
 `ios-release.yml` uploads each of these only when its switch is on; see
 [store/README.md](store/README.md). Check them with `python3 scripts/store/ios_metadata.py check`,
 and re-export after editing the listing in App Store Connect with

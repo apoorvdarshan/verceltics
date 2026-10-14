@@ -4,7 +4,7 @@
 store/metadata/ios/<locale>/ holds one text file per field, exported from the
 live App Store listing with export_ios_listing.py. What's New comes from the
 tag's RELEASE_NOTES.md section, converted to plain text (App Store Connect shows
-Markdown literally). Screenshots come from the marketing mockups.
+Markdown literally). Screenshots come from store/app-store/screenshots/.
 
     ios_metadata.py check [--listing] [--screenshots]
                                           validate listing text and/or screenshots
@@ -75,13 +75,13 @@ SCREENSHOT_SETS = (
     ScreenshotSet(
         "APP_IPHONE_67",
         'iPhone 6.7"',
-        ROOT / "marketing" / "mockups ios",
+        ROOT / "store" / "app-store" / "screenshots" / "iphone",
         frozenset({(1290, 2796), (2796, 1290), (1284, 2778), (2778, 1284)}),
     ),
     ScreenshotSet(
         "APP_IPAD_PRO_3GEN_129",
         'iPad 13"',
-        ROOT / "marketing" / "mockups ipad",
+        ROOT / "store" / "app-store" / "screenshots" / "ipad",
         frozenset({(2048, 2732), (2732, 2048), (2064, 2752), (2752, 2064)}),
     ),
 )

@@ -86,7 +86,7 @@ jobs:
         with:
           persist-credentials: false
           sparse-checkout-cone-mode: false
-          # Only what scripts/test.sh reads; no marketing video, YouTube or Product Hunt media.
+          # Only what scripts/test.sh reads.
           sparse-checkout: |
             /tests/
             /scripts/
@@ -100,8 +100,6 @@ jobs:
             /ios/verceltics.xcodeproj/
             /android/app/build.gradle.kts
             /android/app/src/main/java/com/apoorvdarshan/verceltics/billing/BillingModels.kt
-            /marketing/mockups ios/
-            /marketing/mockups ipad/
 
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0

@@ -1,7 +1,7 @@
 # Static analysis (SAST) with GitHub CodeQL.
 #
 # One job per language, each with a sparse checkout of the folders that language
-# lives in, so no job downloads the marketing mockups. Every job also checks out .github, which each language's analysis scans
+# lives in, so no job downloads the store screenshots. Every job also checks out .github, which each language's analysis scans
 # for workflow issues as well:
 #
 #   actions                .github/workflows/*.yml
