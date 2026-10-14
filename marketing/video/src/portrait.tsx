@@ -497,3 +497,47 @@ export const PortraitPromo = () => {
     <Grain />
   </AbsoluteFill>;
 };
+
+// Static 9:16 thumbnail for the Short: one frame, no motion, same brand system as the film.
+const StaticChip = ({x, y, accent, value, label, delta, rotate = 0}: {x: number; y: number; accent: string; value: string; label: string; delta?: string; rotate?: number}) =>
+  <div style={{position: 'absolute', left: x, top: y, transform: `rotate(${rotate}deg)`, padding: '24px 32px', borderRadius: 32, color: WHITE,
+    background: 'linear-gradient(140deg,#182236f5,#0a0f1af5)', border: `2px solid ${accent}88`, boxShadow: `0 36px 80px #000000b0, 0 0 60px ${accent}33`}}>
+    <div style={{display: 'flex', alignItems: 'baseline', gap: 14}}>
+      <span style={{fontSize: 64, fontWeight: 700, letterSpacing: -2.5}}>{value}</span>
+      {delta && <span style={{fontSize: 30, fontWeight: 600, color: accent}}>{delta}</span>}
+    </div>
+    <div style={{fontSize: 24, letterSpacing: 3.5, fontWeight: 600, color: '#a7b6cb', marginTop: 4}}>{label}</div>
+  </div>;
+
+const THUMB_TILES: [string, number, number, number, number][] = [
+  // mark, x, y, size, blur
+  ['VercelMark', 70, 860, 118, 0], ['CloudflareMark', 880, 800, 128, 0], ['GoogleSearchConsoleMark', 902, 1110, 104, 0],
+  ['NamecheapMark', 52, 1350, 108, 0], ['GoogleAnalyticsMark', 900, 1740, 108, 0], ['NetlifyMark', 150, 1130, 78, 3], ['RailwayMark', 800, 1000, 70, 4],
+];
+
+export const PortraitThumbnail = () => <AbsoluteFill style={{fontFamily: '"Space Grotesk",sans-serif', background: INK, color: WHITE, overflow: 'hidden'}}>
+  <style>{`@font-face{font-family:'Space Grotesk';src:url('${staticFile('space-grotesk.woff2')}') format('woff2');font-weight:300 700;}*{box-sizing:border-box;}`}</style>
+  <Field accent={GREEN} second={BLUE} cy={1350} />
+  <Glow x={540} y={520} size={1300} color={GREEN} opacity={.55} />
+  <div style={{position: 'absolute', top: 120, width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 22}}>
+    <Img src={staticFile('logo.png')} style={{width: 92, height: 92, objectFit: 'contain'}} />
+    <span style={{fontSize: 58, fontWeight: 700, letterSpacing: -2.5}}>Verceltics</span>
+  </div>
+  <div style={{position: 'absolute', top: 268, width: '100%', textAlign: 'center'}}>
+    <div style={{fontSize: 128, fontWeight: 700, letterSpacing: -6, lineHeight: 1}}>Now on</div>
+    <div style={{fontSize: 262, fontWeight: 700, letterSpacing: -13, lineHeight: .95, marginTop: 6,
+      background: `linear-gradient(180deg,#ffffff 0%,#c9ffe0 50%,${GREEN} 100%)`, WebkitBackgroundClip: 'text', color: 'transparent',
+      filter: `drop-shadow(0 0 40px ${GREEN}55)`}}>Android<span style={{color: GREEN, WebkitTextFillColor: GREEN}}>.</span></div>
+    <div style={{fontSize: 40, fontWeight: 500, color: '#c3cee0', marginTop: 26, letterSpacing: .5}}>Hosting · Domains · Analytics</div>
+  </div>
+  {THUMB_TILES.map(([mark, x, y, size, blur]) => <div key={mark} style={{position: 'absolute', left: x, top: y, filter: blur ? `blur(${blur}px)` : undefined,
+    opacity: blur ? .7 : 1, transform: `rotate(${(x % 7) - 3}deg)`}}><Provider name={mark} size={size} light /></div>)}
+  <div style={{position: 'absolute', left: 540 - 310, top: 790, perspective: 2400}}>
+    <div style={{transform: 'rotateY(-12deg) rotateX(8deg) rotateZ(-5deg)'}}>
+      <Android clip="hosting" start={6.6} width={620} glare={.35} />
+    </div>
+  </div>
+  <StaticChip x={34} y={1560} accent={GREEN} value="Beta" label="NOW OPEN" rotate={-4} />
+  <StaticChip x={640} y={1430} accent={BLUE} value="27" label="INTEGRATIONS" rotate={4} />
+  <Vignette />
+</AbsoluteFill>;
