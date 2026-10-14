@@ -80,6 +80,8 @@ android {
             googleOAuthRedirectScheme.asBuildConfigString(),
         )
         manifestPlaceholders["googleOAuthRedirectScheme"] = googleOAuthRedirectScheme
+        // Release uses @string/app_name; debug overrides it to "Verceltics Debug".
+        manifestPlaceholders["launcherAppName"] = "@string/app_name"
         buildConfigField(
             "String",
             "REVENUECAT_API_KEY",
@@ -99,6 +101,12 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Installs side by side with the Play app, so test builds never replace it
+            // or its data. Launcher label matches the other apps: "Verceltics Debug".
+            applicationIdSuffix = ".debug"
+            manifestPlaceholders["launcherAppName"] = "Verceltics Debug"
+        }
         release {
             signingConfig = signingConfigs.findByName("upload")
             isMinifyEnabled = true
