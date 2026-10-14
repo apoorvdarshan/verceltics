@@ -59,6 +59,11 @@ cd android
 ./gradlew :app:connectedDebugAndroidTest   # on an emulator
 ```
 
+CI runs the instrumentation tests on Pixel 2–sized API 36 emulators (411×731 dp),
+so tests must not assume a tall screen: scroll content into view before asserting
+on or tapping it (`performScrollTo`, or `performScrollToNode` on lazy lists), and
+remember the keyboard can push a sheet's buttons out of view.
+
 Store listing text, release notes, and release switches are described in
 [store/README.md](store/README.md); `./scripts/test.sh` also runs the offline
 store release tests.
