@@ -39,7 +39,10 @@
 # New, screenshot or review switch on, a read-only App Store Connect preflight
 # then requires the X.Y App Store version to exist in a state that allows the
 # enabled steps: turn on IOS_CREATE_VERSION or create the version in App Store
-# Connect before tagging.
+# Connect before tagging. Every run that builds (release or validation) also needs
+# the app's export compliance declaration (ITSAppUsesNonExemptEncryption):
+# gates checks the project before the build, and the build job checks the
+# archived app's Info.plist.
 #
 # Jobs: tests ─► prepare ─► build ─► wait-for-build ─► app-store-connect ─► github-release
 # Waiting for App Store Connect to process the build is its own job and passes
@@ -347,7 +350,7 @@ jobs:
           grep -E '(error|warning): |\*\* ARCHIVE' "$log" || true
           [ "$status" -eq 0 ] || { tail -n 60 "$log"; echo "error: archive failed (full log in artifact)" >&2; exit "$status"; }
 
-      - name: Verify app identity and version in every bundle
+      - name: Verify app identity, version and export compliance in every bundle
         run: |
           set -euo pipefail
           apps="$RUNNER_TEMP/Verceltics.xcarchive/Products/Applications"
@@ -369,6 +372,18 @@ jobs:
             checked=$((checked + 1))
           done < <(printf '%s\0' "$main"; find "$main" -mindepth 1 -type d \( -name '*.app' -o -name '*.appex' \) -not -path '*/Frameworks/*' -print0)
           echo "verified $BUNDLE_ID $MARKETING_VERSION ($BUILD_NUMBER) in $checked app/extension bundle(s)"
+          # Export compliance, as built. Without ITSAppUsesNonExemptEncryption, App Store
+          # Connect asks about every build by hand; YES also needs the compliance code.
+          plist_value() { /usr/libexec/PlistBuddy -c "Print :$2" "$1" 2>/dev/null || true; }
+          encryption="$(plist_value "$main/Info.plist" ITSAppUsesNonExemptEncryption)"
+          case "$encryption" in
+            false) echo "export compliance: no non-exempt encryption (ITSAppUsesNonExemptEncryption = NO)" ;;
+            true)
+              [ -n "$(plist_value "$main/Info.plist" ITSEncryptionExportComplianceCode)" ] || {
+                echo "error: the app declares non-exempt encryption without ITSEncryptionExportComplianceCode" >&2; exit 1; }
+              echo "export compliance: non-exempt encryption with an export compliance code" ;;
+            *) echo "error: the app does not declare ITSAppUsesNonExemptEncryption (export compliance)" >&2; exit 1 ;;
+          esac
 
       - name: Write export options
         run: |

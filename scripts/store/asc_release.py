@@ -1105,9 +1105,11 @@ def ensure_export_compliance(
 ) -> None:
     """Answer the build's export-compliance question from the catalog, never against it.
 
-    The app's Info.plist does not declare ITSAppUsesNonExemptEncryption, so each
-    uploaded build starts unanswered. Verceltics uses only Apple's HTTPS, Keychain
-    and CryptoKit (store/catalog/products.json: uses_non_exempt_encryption).
+    The app declares ITSAppUsesNonExemptEncryption = NO in its build settings, so
+    an uploaded build normally arrives answered and this only confirms the answer
+    matches store/catalog/products.json (uses_non_exempt_encryption); a build that
+    arrives unanswered is answered from the catalog. Verceltics uses only Apple's
+    HTTPS, Keychain and CryptoKit (hashing and HMAC request signing).
     """
     if not isinstance(uses_encryption, bool):
         fail("store/catalog/products.json must declare uses_non_exempt_encryption as true or false")
