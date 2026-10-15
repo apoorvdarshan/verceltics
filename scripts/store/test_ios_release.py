@@ -1155,6 +1155,42 @@ class CreateVersionTests(unittest.TestCase):
         self.assertIn("would create", output)
         self.assertEqual(fake.calls, [])
 
+    def test_dry_run_rejects_a_bad_version_like_a_live_run(self) -> None:
+        for bad in ("2.2-beta", "v2.2", "2.2.1.1", "٢.٢"):
+            with self.subTest(bad=bad):
+                fake = self.fake(version_exists=False)
+                code, output = self.create(fake, None, "--dry-run", version=bad)
+                self.assertEqual(code, 1)
+                self.assertIn("must look like", output)
+                self.assertEqual(fake.calls, [])
+
+    def test_create_version_never_runs_together_with_the_preflight(self) -> None:
+        fake = self.fake(version_exists=False)
+        code, output = self.create(fake, {**self.ON, "SUBMIT_IOS_REVIEW": "true"}, "--preflight")
+        self.assertEqual(code, 1)
+        self.assertIn("separate steps", output)
+        self.assertEqual(fake.calls, [])
+        # Refused even with the switch off, so the combination never silently skips the preflight.
+        code, output = self.create(fake, {"SUBMIT_IOS_REVIEW": "true"}, "--preflight")
+        self.assertEqual(code, 1)
+        self.assertIn("separate steps", output)
+        self.assertEqual(fake.calls, [])
+
+    def test_a_created_version_that_does_not_read_back_fails_naming_it(self) -> None:
+        class Vanishing(FakeAsc):
+            def post(self, path: str, body: dict) -> dict:
+                result = super().post(path, body)
+                self.version_exists = False  # App Store Connect does not list it yet
+                return result
+
+        fake = Vanishing(app_id=asc_release.DEFAULT_APP_ID, version_exists=False)
+        code, output = self.create(fake)
+        self.assertEqual(code, 1)
+        self.assertEqual(fake.writes(), [("POST", "/appStoreVersions")])
+        self.assertIn(f"created App Store version {VERSION}, but reading it back found 0 records", output)
+        self.assertIn("check it in App Store Connect before rerunning", output)
+        self.assertNotIn("turn on IOS_CREATE_VERSION", output)
+
 
 class UnusedListingTests(unittest.TestCase):
     """P-14: with IOS_UPLOAD_LISTING off, the release prepares no listing
