@@ -50,6 +50,13 @@ trap cleanup EXIT
 # the tests finish timing out while collecting simulator diagnostics. Failure
 # screenshots and logs are still kept in the result bundle.
 status=0
+# CI sets IOS_COMPILATION_CACHE to a directory it restores and saves, so
+# unchanged Swift and C files reuse earlier compiler outputs. The tests always run.
+cache_settings=()
+if [ -n "${IOS_COMPILATION_CACHE:-}" ]; then
+  cache_settings=(COMPILATION_CACHE_ENABLE_CACHING=YES "COMPILATION_CACHE_CAS_PATH=$IOS_COMPILATION_CACHE")
+fi
+
 xcodebuild test \
   -project ios/verceltics.xcodeproj \
   -scheme verceltics \
@@ -64,6 +71,7 @@ xcodebuild test \
   -parallel-testing-enabled NO \
   -maximum-concurrent-test-simulator-destinations 1 \
   -collect-test-diagnostics never \
+  ${cache_settings[@]+"${cache_settings[@]}"} \
   CODE_SIGNING_ALLOWED=NO \
   2>&1 | tee "$results/xcodebuild.log" || status=$?
 
