@@ -46,6 +46,9 @@ trap cleanup EXIT
 
 # Tests run one at a time on one simulator: UI tests relaunch the app and must
 # not compete with a second clone for the runner's CPU.
+# -collect-test-diagnostics never: otherwise xcodebuild can spend 10 minutes after
+# the tests finish timing out while collecting simulator diagnostics. Failure
+# screenshots and logs are still kept in the result bundle.
 status=0
 xcodebuild test \
   -project ios/verceltics.xcodeproj \
@@ -60,6 +63,7 @@ xcodebuild test \
   -enableCodeCoverage YES \
   -parallel-testing-enabled NO \
   -maximum-concurrent-test-simulator-destinations 1 \
+  -collect-test-diagnostics never \
   CODE_SIGNING_ALLOWED=NO \
   2>&1 | tee "$results/xcodebuild.log" || status=$?
 
