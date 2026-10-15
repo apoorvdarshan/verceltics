@@ -161,49 +161,101 @@ class GateTests(unittest.TestCase):
 
 
 class ExportComplianceTests(unittest.TestCase):
-    """ITSAppUsesNonExemptEncryption must be declared, or App Store Connect asks about every build."""
+    """ITSAppUsesNonExemptEncryption must be declared in every configuration of the app
+    target, or App Store Connect asks about every build."""
 
     NO = "\t\t\t\tINFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;\n"
     YES = "\t\t\t\tINFOPLIST_KEY_ITSAppUsesNonExemptEncryption = YES;\n"
     CODE = "\t\t\t\tINFOPLIST_KEY_ITSEncryptionExportComplianceCode = ABC123;\n"
 
-    def check(self, settings: str, *, catalog_says: object = False) -> str:
+    @staticmethod
+    def configuration(name: str, bundle_id: str, extra: str = "") -> str:
+        return (
+            f"\t\tAAA{name}{len(bundle_id)} /* {name} */ = {{\n"
+            "\t\t\tisa = XCBuildConfiguration;\n"
+            "\t\t\tbuildSettings = {\n"
+            f"{extra}"
+            "\t\t\t\tLD_RUNPATH_SEARCH_PATHS = (\n"
+            "\t\t\t\t\t\"$(inherited)\",\n"
+            "\t\t\t\t);\n"
+            f"\t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = {bundle_id};\n"
+            "\t\t\t};\n"
+            f"\t\t\tname = {name};\n"
+            "\t\t};\n"
+        )
+
+    def project(self, text: str, *, catalog_says: object = False) -> str:
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         pbx = Path(tmp.name) / "project.pbxproj"
-        pbx.write_text("/* project */\n" + settings)
+        pbx.write_text("/* project */\n" + text)
         catalog = Path(tmp.name) / "products.json"
         declared = {} if catalog_says is None else {"uses_non_exempt_encryption": catalog_says}
         catalog.write_text(json.dumps({**declared, "products": []}))
         return ios_release.check_export_compliance(pbx, catalog)
 
+    def check(self, debug: str, release: str, others: str = "", *, catalog_says: object = False) -> str:
+        app = ios_release.BUNDLE_ID
+        return self.project(self.configuration("Debug", app, debug) + self.configuration("Release", app, release)
+                            + others, catalog_says=catalog_says)
+
     def test_the_app_declares_no_non_exempt_encryption(self) -> None:
         self.assertEqual(ios_release.check_export_compliance(), "NO")
+        configurations = ios_release.app_build_configurations()
+        self.assertEqual(sorted(configurations), ["Debug", "Release"])
+        for name, settings in configurations.items():
+            self.assertEqual(settings.get(ios_release.ENCRYPTION_KEY), "NO", name)
 
     def test_no_in_every_configuration_passes(self) -> None:
-        self.assertEqual(self.check(self.NO * 2), "NO")
+        self.assertEqual(self.check(self.NO, self.NO), "NO")
 
-    def test_missing_declaration_fails_before_the_build(self) -> None:
+    def test_a_configuration_without_the_key_fails_before_the_build(self) -> None:
+        # Debug only: the Release build that ships would lack the key.
+        with self.assertRaisesRegex(ReleaseError, "Release configuration does not declare export compliance"):
+            self.check(self.NO, "")
+        with self.assertRaisesRegex(ReleaseError, "Debug configuration does not declare export compliance"):
+            self.check("", self.NO)
         with self.assertRaisesRegex(ReleaseError, "does not declare export compliance"):
-            self.check("\t\t\t\tINFOPLIST_KEY_CFBundleDisplayName = Verceltics;\n")
+            self.check("", "")
 
-    def test_yes_needs_the_compliance_code(self) -> None:
-        with self.assertRaisesRegex(ReleaseError, "needs INFOPLIST_KEY_ITSEncryptionExportComplianceCode"):
-            self.check(self.YES, catalog_says=True)
-        self.assertEqual(self.check(self.YES + self.CODE, catalog_says=True), "YES")
+    def test_a_value_on_another_target_does_not_count_for_the_app(self) -> None:
+        for bundle_id in (ios_release.BUNDLE_ID + "Tests", ios_release.BUNDLE_ID + "UITests"):
+            with self.subTest(bundle_id=bundle_id):
+                others = (self.configuration("Debug", bundle_id, self.NO)
+                          + self.configuration("Release", bundle_id, self.NO))
+                with self.assertRaisesRegex(ReleaseError, "does not declare export compliance"):
+                    self.check("", "", others)
+                # ...and another target's YES never overrides the app's NO.
+                others = (self.configuration("Debug", bundle_id, self.YES)
+                          + self.configuration("Release", bundle_id, self.YES))
+                self.assertEqual(self.check(self.NO, self.NO, others), "NO")
+
+    def test_yes_needs_the_compliance_code_in_each_configuration(self) -> None:
+        with self.assertRaisesRegex(ReleaseError, "YES in the Release configuration needs "
+                                                  "INFOPLIST_KEY_ITSEncryptionExportComplianceCode"):
+            self.check(self.YES + self.CODE, self.YES, catalog_says=True)
+        self.assertEqual(self.check(self.YES + self.CODE, self.YES + self.CODE, catalog_says=True), "YES")
 
     def test_mixed_or_unknown_values_fail(self) -> None:
-        for settings in (self.NO + self.YES, "INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = maybe;\n"):
-            with self.subTest(settings=settings), self.assertRaisesRegex(ReleaseError, "must be NO or YES"):
-                self.check(settings)
+        with self.assertRaisesRegex(ReleaseError, "in every app configuration alike"):
+            self.check(self.NO, self.YES + self.CODE)
+        with self.assertRaisesRegex(ReleaseError, "must be NO or YES"):
+            self.check(self.NO, "\t\t\t\tINFOPLIST_KEY_ITSAppUsesNonExemptEncryption = maybe;\n")
+
+    def test_missing_app_configurations_fail(self) -> None:
+        for text in ("", self.configuration("Release", "com.example.other", self.NO),
+                     self.configuration("Release", ios_release.BUNDLE_ID, self.NO)):
+            with self.subTest(text=text), \
+                    self.assertRaisesRegex(ReleaseError, "could not find the Debug and Release configurations"):
+                self.project(text)
 
     def test_the_project_and_the_catalog_must_agree(self) -> None:
         # Review submission refuses a build whose answer differs from the catalog's.
-        for settings, catalog_says in ((self.NO, True), (self.YES + self.CODE, False), (self.NO, None),
-                                       (self.NO, "false")):
-            with self.subTest(settings=settings, catalog=catalog_says), \
+        for answer, catalog_says in ((self.NO, True), (self.YES + self.CODE, False), (self.NO, None),
+                                     (self.NO, "false")):
+            with self.subTest(answer=answer, catalog=catalog_says), \
                     self.assertRaisesRegex(ReleaseError, "they must agree"):
-                self.check(settings, catalog_says=catalog_says)
+                self.check(answer, answer, catalog_says=catalog_says)
 
     def test_gates_check_it_only_when_this_run_builds(self) -> None:
         missing = mock.patch.object(ios_release, "check_export_compliance",

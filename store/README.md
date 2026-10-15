@@ -334,12 +334,14 @@ Connect issues for the app's encryption documentation, and see
 [Apple's encryption guidance](https://developer.apple.com/documentation/security/complying-with-encryption-export-regulations).
 
 Every release and validation run checks it twice: `ios_release.py gates` reads
-the project and the catalog before anything is built, and the build job reads
-the archived app's `Info.plist`. A missing key, mixed values, `YES` without the
-code, or a project and catalog that disagree fail the run. Review submission
-then confirms this run's build carries the catalog's answer (answering it from
-the catalog only if the build arrived without one) and refuses a build that
-declares otherwise.
+each configuration (Debug and Release) of the app target, and the catalog,
+before anything is built, and the build job reads the archived app's
+`Info.plist`. Other targets' settings never count for the app. A key missing
+from either configuration, unknown or different values, `YES` without the code
+in that configuration, or a project and catalog that disagree fail the run.
+Review submission then confirms this run's build carries the catalog's answer
+(answering it from the catalog only if the build arrived without one) and
+refuses a build that declares otherwise.
 
 ### iOS subscription submission caveat
 
