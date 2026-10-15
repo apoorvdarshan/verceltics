@@ -1396,8 +1396,17 @@ def ensure_ios_app_store_version(
             }
         },
     )
-    created = get_ios_app_store_version(client, app_id, version_string)
-    state = (created.get("attributes") or {}).get("appStoreState") or ""
+    created = [
+        row
+        for row in list_ios_app_store_versions(client, app_id)
+        if (row.get("attributes") or {}).get("versionString") == version_string
+    ]
+    if len(created) != 1:
+        fail(
+            f"created App Store version {version_string}, but reading it back found "
+            f"{len(created)} records; check it in App Store Connect before rerunning"
+        )
+    state = (created[0].get("attributes") or {}).get("appStoreState") or ""
     print(f"created App Store version {version_string} ({state or 'state not reported yet'})")
 
 
@@ -1524,11 +1533,15 @@ def main() -> None:
         fail("this publisher only supports the Verceltics iOS bundle")
 
     if args.create_version:
+        if args.preflight:
+            fail("--create-version and --preflight are separate steps; run them one at a time")
         if not truthy("CREATE_IOS_VERSION"):
             print("App Store version creation skipped — CREATE_IOS_VERSION is off")
             return
         if not args.version:
             fail("--create-version needs --version (the marketing version from the tag)")
+        if version_key(args.version) is None:
+            fail(f"version {args.version!r} must look like 2.2 or 2.2.1")
         if args.dry_run:
             print(f"ASC dry-run — would create App Store version {args.version} if it is missing")
             return
