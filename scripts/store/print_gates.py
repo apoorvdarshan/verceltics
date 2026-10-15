@@ -12,6 +12,7 @@ import os
 GATES = {
     "ios": [
         "IOS_RELEASE_AUTOMATION",
+        "IOS_CREATE_VERSION",
         "IOS_UPLOAD_BUILD",
         "IOS_UPLOAD_LISTING",
         "IOS_UPLOAD_WHATS_NEW",

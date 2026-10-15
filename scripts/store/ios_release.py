@@ -39,6 +39,7 @@ FALSE_VALUES = {"", "0", "false", "no", "off"}
 
 MASTER = "IOS_RELEASE_AUTOMATION"
 OPERATION_SWITCHES = (
+    ("IOS_CREATE_VERSION", "create_version"),
     ("IOS_UPLOAD_BUILD", "upload_build"),
     ("IOS_UPLOAD_LISTING", "listing"),
     ("IOS_UPLOAD_WHATS_NEW", "whats_new"),
