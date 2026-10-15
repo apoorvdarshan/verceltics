@@ -22,7 +22,8 @@ so a GitHub switch cannot stop them: never re-create an Xcode Cloud workflow for
 ```
 ios-vX.Y tag ─► iOS unit + UI tests
              ─► offline checks: release-script tests, API catalogs, privacy manifest, IAP catalog
-             ─► resolve switches (tag must equal MARKETING_VERSION)
+             ─► resolve switches (tag must equal MARKETING_VERSION); a run that builds also
+                checks the app's export compliance declaration
   └─ IOS_RELEASE_AUTOMATION off ─► GitHub Release only
   └─ on:
        listing / What's New / screenshot / review switch on
@@ -34,11 +35,12 @@ ios-vX.Y tag ─► iOS unit + UI tests
                         ─► read-only App Store Connect preflight: version X.Y exists in a state
                            that allows the enabled steps, with every locale they touch
        IOS_UPLOAD_BUILD ─► next build number from App Store Connect
-                        ─► archive Release ─► verify app id/version/build in every bundle
+                        ─► archive Release ─► verify app id/version/build in every bundle,
+                           and the app's export compliance declaration
                         ─► cloud-signed export + upload
                         ─► wait until THIS build is VALID (poll 30 s, up to 120 min from upload start)
        IOS_UPLOAD_LISTING / IOS_UPLOAD_WHATS_NEW / IOS_UPLOAD_SCREENSHOTS ─► version metadata
-       IOS_SUBMIT_REVIEW ─► select this run's build, read it back, answer export compliance,
+       IOS_SUBMIT_REVIEW ─► select this run's build, read it back, confirm export compliance,
                             set release type, attach catalog subscriptions to the draft
                          ─► recheck build + selection
                          ─► submit catalog in-app purchases, then the version (+ subscriptions)
@@ -261,7 +263,7 @@ Offline checks need none of them.
 
 | Script | Role |
 |--------|------|
-| [`scripts/store/ios_release.py`](../scripts/store/ios_release.py) | iOS switches, build number, wait for this run's build |
+| [`scripts/store/ios_release.py`](../scripts/store/ios_release.py) | iOS switches, export compliance declaration (runs that build), build number, wait for this run's build |
 | [`scripts/store/asc_release.py`](../scripts/store/asc_release.py) | ASC version creation (`--create-version`), listing, App Info, What's New, screenshots, build selection, export compliance, IAPs, submit for review (`--dry-run` = local checks only, `--preflight` = read-only App Store Connect checks) |
 | [`scripts/store/ios_metadata.py`](../scripts/store/ios_metadata.py) | Check the App Store listing and/or screenshots; prepare the listing (unless `--no-listing`) with the tag's What's New as plain text |
 | [`scripts/store/export_ios_listing.py`](../scripts/store/export_ios_listing.py) | Read-only: export the live App Store listing into `store/metadata/ios/` |
@@ -270,7 +272,7 @@ Offline checks need none of them.
 | [`scripts/store/validate_catalog.py`](../scripts/store/validate_catalog.py) | `catalog/products.json` against StoreKit and the Android billing IDs |
 | [`scripts/store/print_gates.py`](../scripts/store/print_gates.py) | Print the configured switches |
 | [`scripts/store/check_store_tooling.py`](../scripts/store/check_store_tooling.py) | Offline check of the installed store tooling: the versions `requirements-store.in` pins, an ES256 App Store Connect token, the Google Play API client (store-automation.yml) |
-| [`scripts/store/test_ios_release.py`](../scripts/store/test_ios_release.py) | Offline tests: disabled/invalid switches, tag mismatch, validation mode, build wait timeout/failure/ambiguity/mismatch/old build/unknown upload time, selection read-back, purchases only after the recheck, version states and reruns, version creation, preflight, token refresh, listing (never read with its switch off), screenshots, catalog |
+| [`scripts/store/test_ios_release.py`](../scripts/store/test_ios_release.py) | Offline tests: disabled/invalid switches, tag mismatch, validation mode, build wait timeout/failure/ambiguity/mismatch/old build/unknown upload time, selection read-back, purchases only after the recheck, version states and reruns, version creation, export compliance, preflight, token refresh, listing (never read with its switch off), screenshots, catalog |
 | [`scripts/store/test_android_release.py`](../scripts/store/test_android_release.py) | Offline tests: switches, track selection, wrong app/version/key, pinned upload certificate, unsigned bundle entries, versionCode and pre-upload checks, Play listing and read-back |
 | [`scripts/store/test_store_assets.py`](../scripts/store/test_store_assets.py) | The repository's App Store and Play listings and screenshots (pull requests and main; a release checks only what it uploads) |
 | [`scripts/ci/redact_ids.py`](../scripts/ci/redact_ids.py) | Removes App Store Connect key/issuer IDs from failure logs before they are kept |
@@ -313,12 +315,31 @@ than silently skipping a change it cannot make. Screenshot replacement deletes
 and re-uploads one image at a time, so a failed run can leave a mixed set:
 inspect App Store Connect before rerunning.
 
-The catalog explicitly declares `uses_non_exempt_encryption: false`: the app
-uses only Apple's HTTPS, Keychain and CryptoKit implementations. Because the
-Info.plist does not answer the export-compliance question, review submission
-answers it on this run's build from the catalog and refuses a build that
-declares otherwise. Reassess before adding other cryptography; see
+### Export compliance
+
+The app declares its export compliance answer in its build settings
+(`INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO` on the app target, so every
+build's `Info.plist` carries `ITSAppUsesNonExemptEncryption = false`), and the
+catalog declares the same answer (`uses_non_exempt_encryption: false`). Without
+the key, App Store Connect asks about each build by hand, and review submission
+fails with `usesNonExemptEncryption` missing until someone answers.
+
+`NO` is right while the app uses only exempt encryption: HTTPS (`URLSession` and
+the RevenueCat SDK), the Keychain for credentials, iOS Data Protection for the
+site cache, and CryptoKit for hashing and request signing (SHA-256 for the
+Google sign-in PKCE challenge and cache keys, HMAC-SHA256 for AWS Signature
+Version 4). If the app ever adds its own encryption, set both to `YES` / `true`,
+add `INFOPLIST_KEY_ITSEncryptionExportComplianceCode` with the code App Store
+Connect issues for the app's encryption documentation, and see
 [Apple's encryption guidance](https://developer.apple.com/documentation/security/complying-with-encryption-export-regulations).
+
+Every release and validation run checks it twice: `ios_release.py gates` reads
+the project and the catalog before anything is built, and the build job reads
+the archived app's `Info.plist`. A missing key, mixed values, `YES` without the
+code, or a project and catalog that disagree fail the run. Review submission
+then confirms this run's build carries the catalog's answer (answering it from
+the catalog only if the build arrived without one) and refuses a build that
+declares otherwise.
 
 ### iOS subscription submission caveat
 

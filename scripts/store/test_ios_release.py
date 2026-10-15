@@ -160,6 +160,72 @@ class GateTests(unittest.TestCase):
         self.assertFalse(gates({**ALL_ON}, event="workflow_dispatch", ref="main")["create_version"])
 
 
+class ExportComplianceTests(unittest.TestCase):
+    """ITSAppUsesNonExemptEncryption must be declared, or App Store Connect asks about every build."""
+
+    NO = "\t\t\t\tINFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;\n"
+    YES = "\t\t\t\tINFOPLIST_KEY_ITSAppUsesNonExemptEncryption = YES;\n"
+    CODE = "\t\t\t\tINFOPLIST_KEY_ITSEncryptionExportComplianceCode = ABC123;\n"
+
+    def check(self, settings: str, *, catalog_says: object = False) -> str:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        pbx = Path(tmp.name) / "project.pbxproj"
+        pbx.write_text("/* project */\n" + settings)
+        catalog = Path(tmp.name) / "products.json"
+        declared = {} if catalog_says is None else {"uses_non_exempt_encryption": catalog_says}
+        catalog.write_text(json.dumps({**declared, "products": []}))
+        return ios_release.check_export_compliance(pbx, catalog)
+
+    def test_the_app_declares_no_non_exempt_encryption(self) -> None:
+        self.assertEqual(ios_release.check_export_compliance(), "NO")
+
+    def test_no_in_every_configuration_passes(self) -> None:
+        self.assertEqual(self.check(self.NO * 2), "NO")
+
+    def test_missing_declaration_fails_before_the_build(self) -> None:
+        with self.assertRaisesRegex(ReleaseError, "does not declare export compliance"):
+            self.check("\t\t\t\tINFOPLIST_KEY_CFBundleDisplayName = Verceltics;\n")
+
+    def test_yes_needs_the_compliance_code(self) -> None:
+        with self.assertRaisesRegex(ReleaseError, "needs INFOPLIST_KEY_ITSEncryptionExportComplianceCode"):
+            self.check(self.YES, catalog_says=True)
+        self.assertEqual(self.check(self.YES + self.CODE, catalog_says=True), "YES")
+
+    def test_mixed_or_unknown_values_fail(self) -> None:
+        for settings in (self.NO + self.YES, "INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = maybe;\n"):
+            with self.subTest(settings=settings), self.assertRaisesRegex(ReleaseError, "must be NO or YES"):
+                self.check(settings)
+
+    def test_the_project_and_the_catalog_must_agree(self) -> None:
+        # Review submission refuses a build whose answer differs from the catalog's.
+        for settings, catalog_says in ((self.NO, True), (self.YES + self.CODE, False), (self.NO, None),
+                                       (self.NO, "false")):
+            with self.subTest(settings=settings, catalog=catalog_says), \
+                    self.assertRaisesRegex(ReleaseError, "they must agree"):
+                self.check(settings, catalog_says=catalog_says)
+
+    def test_gates_check_it_only_when_this_run_builds(self) -> None:
+        missing = mock.patch.object(ios_release, "check_export_compliance",
+                                    side_effect=ReleaseError("the app does not declare export compliance"))
+        for env, fails in (({"GITHUB_EVENT_NAME": "workflow_dispatch", "GITHUB_REF_NAME": "main"}, True),
+                           ({"GITHUB_EVENT_NAME": "push", "GITHUB_REF_NAME": TAG,
+                             "IOS_RELEASE_AUTOMATION": "true", "IOS_UPLOAD_BUILD": "true"}, True),
+                           ({"GITHUB_EVENT_NAME": "push", "GITHUB_REF_NAME": TAG,
+                             "IOS_RELEASE_AUTOMATION": "true", "IOS_UPLOAD_LISTING": "true"}, False),
+                           ({"GITHUB_EVENT_NAME": "push", "GITHUB_REF_NAME": TAG}, False)):
+            with self.subTest(env=env), missing, mock.patch.object(ios_release, "single_project_value",
+                                                                   return_value=VERSION), \
+                    mock.patch.dict(os.environ, env, clear=True), redirect_stdout(io.StringIO()), \
+                    redirect_stderr(io.StringIO()) as err:
+                if fails:
+                    with self.assertRaises(SystemExit):
+                        ios_release.main(["gates"])
+                    self.assertIn("export compliance", err.getvalue())
+                else:
+                    ios_release.main(["gates"])
+
+
 class BuildNumberTests(unittest.TestCase):
     def test_next_build_number(self) -> None:
         self.assertEqual(ios_release.next_build_number(39, ["13", "35", "12"]), 39)
