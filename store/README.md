@@ -28,6 +28,9 @@ ios-vX.Y tag ─► iOS unit + UI tests
        listing / What's New / screenshot / review switch on
                         ─► check only what this run uploads: the listing, screenshots and
                            What's New, each only with its switch on
+       IOS_CREATE_VERSION ─► create App Store version X.Y when it is missing (an existing one
+                             is left alone)
+       listing / What's New / screenshot / review switch on
                         ─► read-only App Store Connect preflight: version X.Y exists in a state
                            that allows the enabled steps, with every locale they touch
        IOS_UPLOAD_BUILD ─► next build number from App Store Connect
@@ -42,13 +45,20 @@ ios-vX.Y tag ─► iOS unit + UI tests
   └─ GitHub Release (only if every enabled step succeeded)
 ```
 
-**Create the App Store version first.** App Store Connect only accepts listing,
-What's New, screenshots and review submission on an App Store version that
-already exists, and nothing here creates one. With any of those switches on,
-create version X.Y in App Store Connect (it then shows "Prepare for Submission")
-before pushing `ios-vX.Y`; otherwise the read-only preflight in the prepare job
-stops the run before anything is built or uploaded. A build-only release
-(`IOS_UPLOAD_BUILD` alone) needs no App Store version.
+**The App Store version must exist first.** App Store Connect only accepts
+listing, What's New, screenshots and review submission on an App Store version
+that already exists. With `IOS_CREATE_VERSION` on, a tag run creates version X.Y
+(it then shows "Prepare for Submission") when it is missing, after the offline
+checks and before the preflight; an existing X.Y is left alone. It refuses,
+before anything is built and without changing anything, when another iOS version
+is still on its way to the store (any state but Ready for Distribution, replaced
+or removed), when X.Y is not newer than every existing version, or when the
+bundle id resolves to another app. A version created by a run whose later steps
+fail stays in Prepare for Submission, and the next run for the same tag reuses
+it. With the switch off and any of those switches on, create version X.Y in App
+Store Connect before pushing `ios-vX.Y`; otherwise the read-only preflight in the
+prepare job stops the run before anything is built or uploaded. A build-only
+release (`IOS_UPLOAD_BUILD` alone) needs no App Store version.
 
 **A store asset the run does not upload never blocks it**, on either platform.
 The listing text is read and checked only with `IOS_UPLOAD_LISTING` /
@@ -168,6 +178,7 @@ run, even when the platform's master switch is off. Copy names from
 | Variable | When `true` |
 |----------|-------------|
 | `IOS_RELEASE_AUTOMATION` | Master switch. When off, every iOS store operation below is skipped (the tag still creates a GitHub Release) |
+| `IOS_CREATE_VERSION` | Create the tag's App Store version (Prepare for Submission) when App Store Connect does not have it, before the preflight. An existing version is left alone. Refuses, before anything is built, when another version is still on its way to the store (anything but Ready for Distribution, replaced or removed) or the tag is not newer than every existing version. Tag runs only |
 | `IOS_UPLOAD_BUILD` | Build, sign and upload the binary to App Store Connect, then wait for processing |
 | `IOS_UPLOAD_LISTING` | App name, subtitle, description, keywords, promotional text, privacy/marketing/support URLs from [`metadata/ios/`](metadata/ios/) |
 | `IOS_UPLOAD_WHATS_NEW` | What's New: the tag's `## ios-vX.Y` section in [RELEASE_NOTES.md](../RELEASE_NOTES.md) as plain text (4000 characters at most; fails without one) |
@@ -251,7 +262,7 @@ Offline checks need none of them.
 | Script | Role |
 |--------|------|
 | [`scripts/store/ios_release.py`](../scripts/store/ios_release.py) | iOS switches, build number, wait for this run's build |
-| [`scripts/store/asc_release.py`](../scripts/store/asc_release.py) | ASC listing, App Info, What's New, screenshots, build selection, export compliance, IAPs, submit for review (`--dry-run` = local checks only, `--preflight` = read-only App Store Connect checks) |
+| [`scripts/store/asc_release.py`](../scripts/store/asc_release.py) | ASC version creation (`--create-version`), listing, App Info, What's New, screenshots, build selection, export compliance, IAPs, submit for review (`--dry-run` = local checks only, `--preflight` = read-only App Store Connect checks) |
 | [`scripts/store/ios_metadata.py`](../scripts/store/ios_metadata.py) | Check the App Store listing and/or screenshots; prepare the listing (unless `--no-listing`) with the tag's What's New as plain text |
 | [`scripts/store/export_ios_listing.py`](../scripts/store/export_ios_listing.py) | Read-only: export the live App Store listing into `store/metadata/ios/` |
 | [`scripts/store/android_release.py`](../scripts/store/android_release.py) | Android switches, versionCode check against Play, AAB/APK identity + pinned signature checks, pre-upload track state, Play track read-back |
@@ -259,7 +270,7 @@ Offline checks need none of them.
 | [`scripts/store/validate_catalog.py`](../scripts/store/validate_catalog.py) | `catalog/products.json` against StoreKit and the Android billing IDs |
 | [`scripts/store/print_gates.py`](../scripts/store/print_gates.py) | Print the configured switches |
 | [`scripts/store/check_store_tooling.py`](../scripts/store/check_store_tooling.py) | Offline check of the installed store tooling: the versions `requirements-store.in` pins, an ES256 App Store Connect token, the Google Play API client (store-automation.yml) |
-| [`scripts/store/test_ios_release.py`](../scripts/store/test_ios_release.py) | Offline tests: disabled/invalid switches, tag mismatch, validation mode, build wait timeout/failure/ambiguity/mismatch/old build/unknown upload time, selection read-back, purchases only after the recheck, version states and reruns, preflight, token refresh, listing (never read with its switch off), screenshots, catalog |
+| [`scripts/store/test_ios_release.py`](../scripts/store/test_ios_release.py) | Offline tests: disabled/invalid switches, tag mismatch, validation mode, build wait timeout/failure/ambiguity/mismatch/old build/unknown upload time, selection read-back, purchases only after the recheck, version states and reruns, version creation, preflight, token refresh, listing (never read with its switch off), screenshots, catalog |
 | [`scripts/store/test_android_release.py`](../scripts/store/test_android_release.py) | Offline tests: switches, track selection, wrong app/version/key, pinned upload certificate, unsigned bundle entries, versionCode and pre-upload checks, Play listing and read-back |
 | [`scripts/store/test_store_assets.py`](../scripts/store/test_store_assets.py) | The repository's App Store and Play listings and screenshots (pull requests and main; a release checks only what it uploads) |
 | [`scripts/ci/redact_ids.py`](../scripts/ci/redact_ids.py) | Removes App Store Connect key/issuer IDs from failure logs before they are kept |
@@ -275,10 +286,11 @@ automation (dry-run)** workflow runs, including for every change to
 `store-tooling` job installs it the same way and uses it offline with
 [`check_store_tooling.py`](../scripts/store/check_store_tooling.py). A bad update
 fails there, before it is merged, instead of at the next release tag.
-`asc_release.py` reads `UPLOAD_LISTING`, `UPLOAD_WHATS_NEW`, `UPLOAD_SCREENSHOTS`,
-`SUBMIT_IOS_REVIEW` and `PUBLIC_RELEASE`, set by `ios-release.yml` from the
-resolved iOS switches. `play_listing.py upload` reads `UPLOAD_LISTING` and
-`UPLOAD_SCREENSHOTS`, set by `android-release.yml` from the resolved Android switches.
+`asc_release.py` reads `CREATE_IOS_VERSION`, `UPLOAD_LISTING`, `UPLOAD_WHATS_NEW`,
+`UPLOAD_SCREENSHOTS`, `SUBMIT_IOS_REVIEW` and `PUBLIC_RELEASE`, set by
+`ios-release.yml` from the resolved iOS switches. `play_listing.py upload` reads
+`UPLOAD_LISTING` and `UPLOAD_SCREENSHOTS`, set by `android-release.yml` from the
+resolved Android switches.
 
 ## Metadata layout
 
@@ -333,9 +345,10 @@ duplicates items or ships an unrelated app version.
    (the release checks this before building).
 2. Add reviewed `## ios-vX.Y` / `## android-vX.Y` notes to `RELEASE_NOTES.md`
    (required for What's New; otherwise the GitHub Release uses generated notes).
-3. iOS, with any listing, What's New, screenshot or review switch on: **create the
-   X.Y App Store version in App Store Connect** (Prepare for Submission). The
-   preflight stops the run before building when it is missing.
+3. iOS, with any listing, What's New, screenshot or review switch on: the X.Y App
+   Store version must exist. With `IOS_CREATE_VERSION` on, the tag run creates
+   it; otherwise **create it in App Store Connect first** (Prepare for
+   Submission). The preflight stops the run before building when it is missing.
 4. Run the validation run (**Run workflow**) to prove signing still works.
 5. Turn on only the switches you want; try Android on `ANDROID_INTERNAL_TESTING`
    first, and leave `IOS_SUBMIT_REVIEW`, `IOS_PUBLIC_RELEASE` and
