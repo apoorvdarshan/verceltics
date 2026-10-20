@@ -389,20 +389,19 @@ can be left incomplete: fix the error and rerun, and the set is replaced again.
 A creative image is matched in the Asset Library by file name and size, so give
 a changed image a new file name. A reservation left by an interrupted upload
 (`AWAITING_UPLOAD`, which asc never deletes) is ignored and the image is
-uploaded again. Images never take the draft the version and its products chose.
-An unfinished draft holding only these images is finished first, else an empty
-one, instead of starting another, so a rerun leaves no extra drafts. Apple
-reviews each new image on its own (the app already has an approved version), and
-a later run places it once it is approved; a rejected image stops the run with
-Apple's reason. Apple's rules for these images: no prices, website addresses,
-other platforms or Apple badges, and no transparency (`asc asset-library specs`
-lists the current sizes). Sizes, formats and alpha are checked with the other
-local inputs, before anything is built and before any asc call, so a wrong file
-stops the run early. An image approved while the version waits for review is not
-a mismatch: the rerun passes and the image is placed once the version can be
-edited. Both folders are empty today, so keep `IOS_UPLOAD_CREATIVE_ASSETS` off
-until an image is added: with the switch on and no image, the run fails before
-anything is built.
+uploaded again. Images never take an empty leftover draft (the version may have
+chosen it); an unfinished draft holding only these images is finished instead of
+starting another. Apple reviews each new image on its own (the app already has
+an approved version), and a later run places it once it is approved; a rejected
+image stops the run with Apple's reason. Apple's rules for these images: no
+prices, website addresses, other platforms or Apple badges, and no transparency
+(`asc asset-library specs` lists the current sizes). Sizes, formats and alpha
+are checked with the other local inputs, before anything is built and before any
+asc call, so a wrong file stops the run early. An image approved while the
+version waits for review is not a mismatch: the rerun passes and the image is
+placed once the version can be edited. Both folders are empty today, so keep
+`IOS_UPLOAD_CREATIVE_ASSETS` off until an image is added: with the switch on and
+no image, the run fails before anything is built.
 
 ### Export compliance
 
