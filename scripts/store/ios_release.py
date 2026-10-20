@@ -43,7 +43,6 @@ FALSE_VALUES = {"", "0", "false", "no", "off"}
 MASTER = "IOS_RELEASE_AUTOMATION"
 OPERATION_SWITCHES = (
     ("IOS_CREATE_VERSION", "create_version"),
-    ("IOS_CREATE_PRODUCTS", "create_products"),
     ("IOS_UPLOAD_BUILD", "upload_build"),
     ("IOS_UPLOAD_LISTING", "listing"),
     ("IOS_UPLOAD_WHATS_NEW", "whats_new"),
@@ -218,8 +217,6 @@ def resolve_gates(
         resolved = {key: False for _, key in OPERATION_SWITCHES}
         mode = "validate"
         notes.append("validation run: build is archived, signed and validated only; nothing is uploaded")
-        if master and requested["create_products"]:
-            notes.append("validation run: the App Store products the catalog would create are listed, read-only")
         if validation_version:
             notes.append(
                 f"validating as version {validation_version} (project is {marketing_version}); "
@@ -255,9 +252,6 @@ def resolve_gates(
         {
             "mode": mode,
             "master": master and mode == "release",
-            # Read-only product plan: on a tag run before creating them, and on a
-            # validation run when IOS_CREATE_PRODUCTS (and the master switch) ask for it.
-            "product_plan": resolved["create_products"] or (mode == "validate" and master and requested["create_products"]),
             "build": mode == "validate" or resolved["upload_build"],
             "asc": any(resolved[k] for k in ("listing", "whats_new", "screenshots", "creative", "submit")),
             "poll_seconds": poll_seconds,

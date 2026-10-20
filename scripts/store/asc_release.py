@@ -14,8 +14,7 @@ UPLOAD_SCREENSHOTS, header and search results images only with
 UPLOAD_CREATIVE_ASSETS.
 
 Submitting for review covers the App Store version and the Ready-to-Submit
-subscriptions and in-app purchases from store/catalog/products.json whose
-`platforms` list ios (asc_products.py creates missing ones first). Each
+subscriptions and in-app purchases from store/catalog/products.json. Each
 product joins the version's draft review submission through its current version
 (`subscriptionVersions` / `inAppPurchaseVersions` review items), so a first-time
 subscription goes out with the version or not at all. Nothing reaches App Review
@@ -429,8 +428,8 @@ def shown_path(path: Path) -> str:
         return str(path)
 
 
-def file_checksum(raw: bytes) -> str:
-    """The MD5 App Store Connect records as a screenshot's sourceFileChecksum (an integrity check)."""
+def md5_hex(raw: bytes) -> str:
+    """App Store Connect's sourceFileChecksum: the MD5 of the file (an integrity check)."""
     return hashlib.md5(raw, usedforsecurity=False).hexdigest()
 
 
@@ -442,7 +441,7 @@ def screenshot_pngs(spec: ios_metadata.ScreenshotSet) -> list[Path]:
 
 
 def checksums(pngs: list[Path]) -> list[str]:
-    return [file_checksum(path.read_bytes()) for path in pngs]
+    return [md5_hex(path.read_bytes()) for path in pngs]
 
 
 def live_screenshot_checksums(
@@ -511,7 +510,7 @@ def copies_to_upload(live: list[str | None] | None, pngs: list[Path]) -> list[by
     if live == checksums(pngs):
         return None
     copies = upload_copies(pngs)
-    return None if live == [file_checksum(raw) for raw in copies] else copies
+    return None if live == [md5_hex(raw) for raw in copies] else copies
 
 
 def require_screenshots_unchanged(asc: asc_cli.Asc, *, app_id: str, version_id: str, locale: str, state: str) -> None:
@@ -591,7 +590,7 @@ def upload_screenshots(
                 "--replace", "--confirm",
             )
         after = live_screenshot_checksums(asc, app_id=app_id, version_id=version_id, locale=locale)
-        if after.get(spec.display_type) != [file_checksum(raw) for raw in copies]:
+        if after.get(spec.display_type) != [md5_hex(raw) for raw in copies]:
             fail(f"after uploading, App Store Connect's {spec.label} screenshots differ from {shown_path(spec.directory)}")
         print(f"  uploaded {len(pngs)} {spec.label} screenshot(s)")
 
@@ -825,18 +824,14 @@ def load_catalog() -> dict[str, Any]:
     return json.loads((ROOT / "store" / "catalog" / "products.json").read_text(encoding="utf-8"))
 
 
-# The catalog's product groups (asc_products.PRODUCT_GROUPS maps each to its App Store type).
-CATALOG_PRODUCT_GROUPS = ("subscriptions", "consumables", "non_consumables", "tips")
-
-
 def intended_product_ids(catalog: dict[str, Any] | None = None) -> set[str]:
-    """Product IDs the release is allowed to submit: the canonical catalog's iOS products."""
+    """Product IDs the release is allowed to submit, from the canonical catalog."""
     catalog = catalog if catalog is not None else load_catalog()
     ids: set[str] = set()
-    for group in CATALOG_PRODUCT_GROUPS:
+    for group in ("subscriptions", "non_consumables", "tips"):
         for item in catalog.get(group) or []:
             pid = item.get("id")
-            if isinstance(pid, str) and pid and "ios" in (item.get("platforms") or []):
+            if isinstance(pid, str) and pid:
                 ids.add(pid)
     return ids
 
