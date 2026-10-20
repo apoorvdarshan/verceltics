@@ -4,13 +4,15 @@
 #
 # Jobs
 #   dry-run         offline release-script tests, store asset checks and publisher
-#                   dry-runs, with no third-party packages installed
+#                   dry-runs, with no third-party packages installed; it also
+#                   installs the pinned App Store Connect CLI (asc) the iOS release
+#                   uses and checks its version, so a bad pin fails here
 #   store-tooling   installs the hash-locked store tooling (requirements-store.txt)
 #                   that release jobs install, into the same pinned Python, and
-#                   uses it offline: pinned versions, an ES256 App Store Connect
-#                   token, the Google Play API client. A Dependabot pip update only
-#                   changes requirements-store.in/.txt, so this job is what checks
-#                   it before it is merged, instead of the next release tag.
+#                   uses it offline: pinned versions and the Google Play API
+#                   client. A Dependabot pip update only changes
+#                   requirements-store.in/.txt, so this job is what checks it
+#                   before it is merged, instead of the next release tag.
 #
 # Live store operations stay behind the repository Variables documented in
 # store/README.md and store/gates.env.example (all off by default).
@@ -90,6 +92,7 @@ jobs:
           IOS_UPLOAD_LISTING: ${{ vars.IOS_UPLOAD_LISTING }}
           IOS_UPLOAD_WHATS_NEW: ${{ vars.IOS_UPLOAD_WHATS_NEW }}
           IOS_UPLOAD_SCREENSHOTS: ${{ vars.IOS_UPLOAD_SCREENSHOTS }}
+          IOS_UPLOAD_CREATIVE_ASSETS: ${{ vars.IOS_UPLOAD_CREATIVE_ASSETS }}
           IOS_SUBMIT_REVIEW: ${{ vars.IOS_SUBMIT_REVIEW }}
           IOS_PUBLIC_RELEASE: ${{ vars.IOS_PUBLIC_RELEASE }}
           ANDROID_RELEASE_AUTOMATION: ${{ vars.ANDROID_RELEASE_AUTOMATION }}
@@ -115,6 +118,12 @@ jobs:
           python3 scripts/store/validate_catalog.py --platform all
           python3 scripts/store/ios_metadata.py check
           python3 scripts/store/play_listing.py check
+
+      # Proves the pinned release still downloads and matches its checksum.
+      - name: Install and check the pinned App Store Connect CLI (no store calls)
+        run: |
+          python3 scripts/store/asc_cli.py install --dest "$RUNNER_TEMP/asc-bin"
+          PATH="$RUNNER_TEMP/asc-bin:$PATH" python3 scripts/store/asc_cli.py check
 
       - name: Prepare store metadata and dry-run the publishers (no store APIs)
         run: |
@@ -168,5 +177,5 @@ jobs:
           python3 -m pip install --disable-pip-version-check --require-hashes -r requirements-store.txt
           python3 -m pip check
 
-      - name: Use it offline (pinned versions, App Store Connect token, Play API client)
+      - name: Use it offline (pinned versions, Play API client)
         run: python3 -u scripts/store/check_store_tooling.py

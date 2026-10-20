@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """Export the live App Store listing into store/metadata/ios/<locale>/.
 
-Read-only: it only sends GET requests to App Store Connect. Run it to bring the
-repository back in sync after the listing was edited in App Store Connect:
+Read-only: it runs the pinned App Store Connect CLI (asc_cli.py) in read-only
+mode, which refuses every write. Run it to bring the repository back in sync
+after the listing was edited in App Store Connect:
 
+    python3 scripts/store/asc_cli.py install --dest /tmp/asc-bin
+    PATH="/tmp/asc-bin:$PATH" \\
     APP_STORE_CONNECT_API_KEY_ID=… APP_STORE_CONNECT_ISSUER_ID=… \\
     APP_STORE_CONNECT_API_KEY_P8="$(cat AuthKey_….p8)" \\
     python3 scripts/store/export_ios_listing.py
 
-Needs PyJWT (pip install --require-hashes -r requirements-store.txt).
 What's New is not exported: it comes from the tag's RELEASE_NOTES.md section.
 """
 from __future__ import annotations
@@ -54,23 +56,27 @@ def main() -> None:
     parser.add_argument("--bundle-id", default=asc_release.DEFAULT_BUNDLE_ID)
     args = parser.parse_args()
 
-    client = asc_release.client_from_environment()
-    app_id = asc_release.find_app(client, args.bundle_id)
+    asc = asc_release.asc_from_environment(read_only=True)
+    app_id = asc_release.find_app(asc, args.bundle_id)
 
-    versions = asc_release.iter_collection(client, f"/apps/{app_id}/appStoreVersions?filter[platform]=IOS&limit=50")
+    versions = asc_release.list_ios_app_store_versions(asc, app_id)
     # Every released version keeps READY_FOR_SALE; the newest one is on the store.
-    released = [v for v in versions if (v.get("attributes") or {}).get("appStoreState") in LIVE_VERSION_STATES]
+    released = [v for v in versions if asc_release.attrs(v).get("appStoreState") in LIVE_VERSION_STATES]
     if not released:
         asc_release.fail("the app has no released iOS version")
     live = max(released, key=lambda v: dt.datetime.fromisoformat(v["attributes"]["createdDate"]))
     version_string = live["attributes"]["versionString"]
-    infos = asc_release.iter_collection(client, f"/apps/{app_id}/appInfos?limit=50")
+    infos = asc_release.rows(asc_release.call(asc, "apps", "info", "list", "--app", app_id))
     info = only([i for i in infos if asc_release.app_info_state(i) in LIVE_APP_INFO_STATES], "live App Info")
 
-    version_locs = asc_release.iter_collection(
-        client, f"/appStoreVersions/{live['id']}/appStoreVersionLocalizations?limit=50"
+    version_locs = asc_release.rows(
+        asc_release.call(asc, "localizations", "list", "--version", live["id"], "--paginate")
     )
-    info_locs = asc_release.iter_collection(client, f"/appInfos/{info['id']}/appInfoLocalizations?limit=50")
+    info_locs = asc_release.rows(
+        asc_release.call(
+            asc, "localizations", "list", "--app", app_id, "--type", "app-info", "--app-info", info["id"], "--paginate"
+        )
+    )
     by_locale: dict[str, list[str]] = {}
     for loc in version_locs:
         attrs = loc.get("attributes") or {}
