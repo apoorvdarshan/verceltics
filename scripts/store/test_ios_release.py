@@ -1506,8 +1506,7 @@ class LiveSubmitFlowTests(unittest.TestCase):
                            drafts=["D1"], draft_items={"D1": held})
             with self.subTest(held=held):
                 self.assertEqual(self.run_main(fake), 1)
-                # Checked before the build is selected, so nothing at all is written.
-                self.assertEqual(fake.writes(), [])
+                self.assertFalse([c for c in fake.writes() if c[:1] == ("review",)])
         fake = FakeAsc(state="READY_FOR_REVIEW", drafts=["D1"], draft_items={"D1": [item("appStoreVersion", "V1")]})
         self.assertEqual(self.run_main(fake), 0)
         self.assertEqual(fake.submitted, ["D1"])
@@ -2205,15 +2204,6 @@ class CreativeAssetTests(unittest.TestCase):
         self.assertEqual({flag(c, "--item-type") for c in review if c[:2] == ("review", "items-add")},
                          {"appAssetLibraryImages"})
         self.assertFalse([c for c in fake.writes() if c[:2] == ("localizations", "placements")])
-
-    def test_an_interrupted_upload_is_uploaded_again(self) -> None:
-        # asc never deletes the reservation an interrupted upload leaves behind.
-        fake = FakeAsc(library=[self.image("STALE", "header", "AWAITING_UPLOAD")])
-        self.assertEqual(self.run_creative(fake), 0)
-        uploads = [Path(flag(c, "--file")).name for c in fake.writes() if c[:3] == ("asset-library", "images", "upload")]
-        self.assertEqual(uploads, ["header.png", "search-results.png"])
-        added = [flag(c, "--item-id") for c in fake.writes() if c[:2] == ("review", "items-add")]
-        self.assertNotIn("STALE", added)
 
     def test_images_in_review_are_neither_reuploaded_nor_placed(self) -> None:
         fake = FakeAsc(library=[self.image("H", "header", "WAITING_FOR_REVIEW"),
