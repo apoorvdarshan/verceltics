@@ -1,5 +1,6 @@
-# Store release tooling only: App Store Connect JWTs (PyJWT) and the Google Play API.
-# The release workflows install it when a store step runs; offline tests need none of it.
+# Store release tooling only: the Google Play API (App Store Connect calls go through the
+# pinned asc CLI). The release workflows install it when a store step runs; offline tests
+# need none of it.
 # Hash-locked for OpenSSF Scorecard PinnedDependencies (install with --require-hashes).
 # Regenerate with:
 #   pip-compile requirements-store.in --generate-hashes -o requirements-store.txt
@@ -331,9 +332,7 @@ cryptography==50.0.1 \
     --hash=sha256:fc3ed7ebd2a8c96f5b166de0ab9b624996bef3b07bbeb19364dfb78222c22c80 \
     --hash=sha256:fd3718b960d0b5dd213cdf03f3bcb7000e69dda0de8b956061947ff6bcff5558 \
     --hash=sha256:ff838d62ec1bfce4f9ba7fa16f4a7b554cd8d0c299e6be37502161a660c84eef
-    # via
-    #   google-auth
-    #   pyjwt
+    # via google-auth
 google-api-core==2.36.0 \
     --hash=sha256:32779307b52e64c9a9592a3621de6281676ecaeea299fe8524e4637ab7ac2531 \
     --hash=sha256:e4d0b179260727ea5c42222426d9199285214dbef7bf48f8b16600c7f9a78944
@@ -401,12 +400,6 @@ pycparser==3.0 \
     --hash=sha256:600f49d217304a5902ac3c37e1281c9fe94e4d0489de643a9504c5cdfdfc6b29 \
     --hash=sha256:b727414169a36b7d524c1c3e31839a521725078d7b2ff038656844266160a992
     # via cffi
-pyjwt[crypto]==2.15.1 \
-    --hash=sha256:42d59d631f7768a1028a64c7ff581a9bf7519804daf91fc5b6c56e30eec5e193 \
-    --hash=sha256:4f259e80cdfb6b3fc18a7de51fd1ef9ec79652f25019bae68975ca2468a34df8
-    # via
-    #   -r requirements-store.in
-    #   pyjwt
 pyparsing==3.3.2 \
     --hash=sha256:850ba148bd908d7e2411587e247a1e4f0327839c40e2e5e6d05a007ecc69911d \
     --hash=sha256:c777f4d763f140633dcb6d8a3eda953bf7a214dc4eff598413c070bcdc117cbc
