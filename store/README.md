@@ -389,8 +389,10 @@ can be left incomplete: fix the error and rerun, and the set is replaced again.
 A creative image is matched in the Asset Library by file name and size, so give
 a changed image a new file name. A reservation left by an interrupted upload
 (`AWAITING_UPLOAD`, which asc never deletes) is ignored and the image is
-uploaded again. Apple reviews each new image on its own (the app already has an
-approved version), and a later run places it once it is approved; a rejected
+uploaded again. Images never take an empty leftover draft (the version may have
+chosen it); an unfinished draft holding only these images is finished instead of
+starting another. Apple reviews each new image on its own (the app already has
+an approved version), and a later run places it once it is approved; a rejected
 image stops the run with Apple's reason. Apple's rules for these images: no
 prices, website addresses, other platforms or Apple badges, and no transparency
 (`asc asset-library specs` lists the current sizes). Sizes, formats and alpha
@@ -451,11 +453,12 @@ images' own review and are never used for the version. The draft that already
 holds this version is reused; otherwise only a draft holding no app version is,
 so another version's draft is never touched. A `READY_FOR_REVIEW` version that
 no draft holds stops the run before anything is written: the draft is checked
-before the listing text, screenshots, images or build are touched. If the
-version is already `WAITING_FOR_REVIEW`, late products go out in a draft of
-their own, which is created only when a product has to be added, so a rerun with
-nothing to send leaves no empty draft; a retry never duplicates items or ships
-an unrelated app version.
+before the listing text, screenshots, images or build are touched, and the
+read-only preflight checks it too, before anything is built. If the version is
+already `WAITING_FOR_REVIEW`, late products go out in a draft of their own,
+which is created only when a product has to be added, so a rerun with nothing to
+send leaves no empty draft; a retry never duplicates items or ships an unrelated
+app version.
 
 ## Release procedure
 
