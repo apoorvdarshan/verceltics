@@ -2376,16 +2376,18 @@ class CreativeAssetTests(unittest.TestCase):
         self.assertEqual(self.run_main(fake), 0)
         self.assertEqual(len(writes(fake)), before)
 
-    def test_the_repository_has_no_creative_images_yet(self) -> None:
-        # store/creative/ios holds both slot folders, empty: with the switch on there
-        # is nothing to upload, so the run fails before any call until an image is added.
-        for folder, _, _, _ in asc_release.CREATIVE_SLOTS:
-            slot = asc_release.DEFAULT_CREATIVE_DIR / folder
-            with self.subTest(slot=folder):
-                self.assertTrue(slot.is_dir(), slot)
-                self.assertEqual([p.name for p in slot.iterdir() if p.suffix.lower() in asc_release.CREATIVE_EXTENSIONS], [])
+    def test_slots_holding_only_a_readme_fail_before_any_call(self) -> None:
+        # Laid out as store/creative/ios is committed while it has no image: each slot
+        # folder holds only its README. With the switch on there is nothing to upload,
+        # so a run with the default --creative-dir fails before any call. The folders
+        # themselves are a repository asset, checked by test_store_assets.py, so adding
+        # an image never fails these release tests.
+        for path in (self.header, self.search):
+            path.unlink()
+            (path.parent / "README.md").write_text("At most one image here.\n")
         fake = CreativeFake()
-        code, _, output = run_asc(fake, self.ENV)
+        with mock.patch.object(asc_release, "DEFAULT_CREATIVE_DIR", self.dir):
+            code, _, output = run_asc(fake, self.ENV)
         self.assertEqual(code, 1)
         self.assertIn("has no header or search results image", output)
         self.assertEqual(fake.calls, [])

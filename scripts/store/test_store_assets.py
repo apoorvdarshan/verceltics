@@ -49,11 +49,13 @@ class AppStoreAssetTests(unittest.TestCase):
 
     def test_repository_creative_images_pass_the_local_checks(self) -> None:
         # What IOS_UPLOAD_CREATIVE_ASSETS would upload: at most one image per slot, of a
-        # size and format Apple takes, without alpha, well formed. A slot may be empty.
+        # size and format Apple takes, without alpha, well formed. A slot may be empty,
+        # but both slot folders stay committed (each holds its README).
         for folder, placement_type, label, formats in asc_release.CREATIVE_SLOTS:
             slot = asc_release.DEFAULT_CREATIVE_DIR / folder
-            images = [p for p in slot.iterdir() if p.is_file() and p.suffix.lower() in asc_release.CREATIVE_EXTENSIONS]
             with self.subTest(slot=folder):
+                self.assertTrue(slot.is_dir(), f"{slot} is missing")
+                images = [p for p in slot.iterdir() if p.is_file() and p.suffix.lower() in asc_release.CREATIVE_EXTENSIONS]
                 self.assertLessEqual(len(images), 1, f"the {label} slot takes one image")
                 for path in images:
                     self.assertIsNone(asc_release.creative_problem(placement_type, path, formats), path.name)
