@@ -48,6 +48,7 @@ OPERATION_SWITCHES = (
     ("IOS_UPLOAD_LISTING", "listing"),
     ("IOS_UPLOAD_WHATS_NEW", "whats_new"),
     ("IOS_UPLOAD_SCREENSHOTS", "screenshots"),
+    ("IOS_UPLOAD_CREATIVE_ASSETS", "creative"),
     ("IOS_SUBMIT_REVIEW", "submit"),
     ("IOS_PUBLIC_RELEASE", "public_release"),
 )
@@ -242,7 +243,7 @@ def resolve_gates(
             "mode": mode,
             "master": master and mode == "release",
             "build": mode == "validate" or resolved["upload_build"],
-            "asc": any(resolved[k] for k in ("listing", "whats_new", "screenshots", "submit")),
+            "asc": any(resolved[k] for k in ("listing", "whats_new", "screenshots", "creative", "submit")),
             "poll_seconds": poll_seconds,
             "wait_minutes": wait_minutes,
             "marketing_version": marketing_version,

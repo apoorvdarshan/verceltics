@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Checks of the store assets committed to this repository: the App Store and
-Google Play listing text and screenshots.
+Google Play listing text and screenshots, and the App Store header and search
+results images.
 
 Pull requests and main run these (scripts/test.sh, store-automation.yml). A release
 run checks only the assets its switches upload (`ios_metadata.py check` and
@@ -24,6 +25,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import asc_release  # noqa: E402
 import ios_metadata  # noqa: E402
 import play_listing  # noqa: E402
 
@@ -37,9 +39,24 @@ class AppStoreAssetTests(unittest.TestCase):
                 self.assertIn("name.txt", values)
 
     def test_repository_screenshots_are_app_store_ready(self) -> None:
-        for spec in ios_metadata.SCREENSHOT_SETS:
+        # iPhone and iPad, plus iPhone Duo and Apple Watch when their folders hold frames.
+        sets = ios_metadata.screenshot_sets()
+        self.assertEqual([spec.display_type for spec, _ in sets][:2],
+                         [spec.display_type for spec in ios_metadata.SCREENSHOT_SETS])
+        for spec, files in sets:
             with self.subTest(spec.label):
-                self.assertGreaterEqual(len(ios_metadata.screenshot_files(spec)), 1)
+                self.assertGreaterEqual(len(files), 1)
+
+    def test_repository_creative_images_pass_the_local_checks(self) -> None:
+        # What IOS_UPLOAD_CREATIVE_ASSETS would upload: at most one image per slot, of a
+        # size and format Apple takes, without alpha, well formed. A slot may be empty.
+        for folder, placement_type, label, formats in asc_release.CREATIVE_SLOTS:
+            slot = asc_release.DEFAULT_CREATIVE_DIR / folder
+            images = [p for p in slot.iterdir() if p.is_file() and p.suffix.lower() in asc_release.CREATIVE_EXTENSIONS]
+            with self.subTest(slot=folder):
+                self.assertLessEqual(len(images), 1, f"the {label} slot takes one image")
+                for path in images:
+                    self.assertIsNone(asc_release.creative_problem(placement_type, path, formats), path.name)
 
 
 class PlayAssetTests(unittest.TestCase):

@@ -4,7 +4,9 @@
 store/metadata/ios/<locale>/ holds one text file per field, exported from the
 live App Store listing with export_ios_listing.py. What's New comes from the
 tag's RELEASE_NOTES.md section, converted to plain text (App Store Connect shows
-Markdown literally). Screenshots come from store/app-store/screenshots/.
+Markdown literally). Screenshots come from store/app-store/screenshots/: iphone/
+and ipad/ (required), iphone-duo/ and watch/ (optional; an Apple Watch frame's
+size picks its set). asc_release.py uploads RGB copies of them, never these files.
 
     ios_metadata.py check [--listing] [--screenshots]
                                           validate listing text and/or screenshots
@@ -85,6 +87,38 @@ SCREENSHOT_SETS = (
         frozenset({(2048, 2732), (2732, 2048), (2064, 2752), (2752, 2064)}),
     ),
 )
+# Uploaded with the sets above when their folder holds PNGs; without any, the
+# live set is left alone. One iPhone Duo set takes both screens: outer 1398x2034
+# and inner 2007x2853. APP_IPHONE_DUO is not in Apple's OpenAPI spec yet, but App
+# Store Connect accepts it.
+OPTIONAL_SCREENSHOT_SETS = (
+    ScreenshotSet(
+        "APP_IPHONE_DUO",
+        "iPhone Duo",
+        ROOT / "store" / "app-store" / "screenshots" / "iphone-duo",
+        frozenset({(1398, 2034), (2007, 2853)}),
+    ),
+)
+# Apple Watch screenshots, also optional: without PNGs in this folder the live
+# Watch sets are left alone. Each frame's size picks its display type (Apple's
+# screenshot specifications), so one folder can fill more than one Watch set.
+WATCH_FOLDER = "watch"
+WATCH_SCREENSHOTS = ROOT / "store" / "app-store" / "screenshots" / WATCH_FOLDER
+WATCH_DISPLAY_TYPES = {
+    (416, 496): "APP_WATCH_SERIES_10",  # Series 10 and 11
+    (422, 514): "APP_WATCH_ULTRA",  # Ultra 3
+    (410, 502): "APP_WATCH_ULTRA",  # Ultra and Ultra 2
+    (396, 484): "APP_WATCH_SERIES_7",  # Series 7 to 9
+    (368, 448): "APP_WATCH_SERIES_4",  # Series 4 to 6 and SE
+    (312, 390): "APP_WATCH_SERIES_3",
+}
+WATCH_LABELS = {
+    "APP_WATCH_SERIES_10": "Apple Watch Series 10",
+    "APP_WATCH_ULTRA": "Apple Watch Ultra",
+    "APP_WATCH_SERIES_7": "Apple Watch Series 7",
+    "APP_WATCH_SERIES_4": "Apple Watch Series 4",
+    "APP_WATCH_SERIES_3": "Apple Watch Series 3",
+}
 SCREENSHOTS_PER_SET = 10
 
 
@@ -167,6 +201,45 @@ def screenshot_files(spec: ScreenshotSet) -> list[Path]:
     return files
 
 
+def optional_screenshot_files(spec: ScreenshotSet) -> list[Path]:
+    """An optional set's PNGs in display order; none (an empty or missing folder) leaves the live set alone."""
+    if not (spec.directory.is_dir() and any(spec.directory.glob("*.png"))):
+        return []
+    return screenshot_files(spec)
+
+
+def watch_screenshot_sets(directory: Path | None = None) -> list[tuple[ScreenshotSet, list[Path]]]:
+    """The Apple Watch frames grouped by the display type their size picks, in file name order."""
+    directory = WATCH_SCREENSHOTS if directory is None else directory
+    groups: dict[str, list[Path]] = {}
+    for path in sorted(directory.glob("*.png")) if directory.is_dir() else []:
+        size = png_size(path)
+        display_type = WATCH_DISPLAY_TYPES.get(size)
+        if display_type is None:
+            accepted = ", ".join(f"{w}x{h}" for w, h in WATCH_DISPLAY_TYPES)
+            raise MetadataError(
+                f"the Apple Watch screenshot {path.name} is {size[0]}x{size[1]}, which is not an "
+                f"Apple Watch screenshot size ({accepted})"
+            )
+        groups.setdefault(display_type, []).append(path)
+    sets = []
+    for display_type, files in groups.items():
+        label = WATCH_LABELS[display_type]
+        if len(files) > SCREENSHOTS_PER_SET:
+            raise MetadataError(f"{len(files)} {label} screenshots; App Store Connect accepts {SCREENSHOTS_PER_SET}")
+        sizes = frozenset(size for size, kind in WATCH_DISPLAY_TYPES.items() if kind == display_type)
+        sets.append((ScreenshotSet(display_type, label, directory, sizes), files))
+    return sets
+
+
+def screenshot_sets() -> list[tuple[ScreenshotSet, list[Path]]]:
+    """Every set a screenshot upload sends, with its PNGs: iPhone and iPad (both
+    required), then iPhone Duo and the Apple Watch sets when they have frames."""
+    sets = [(spec, screenshot_files(spec)) for spec in SCREENSHOT_SETS]
+    sets += [(spec, files) for spec in OPTIONAL_SCREENSHOT_SETS if (files := optional_screenshot_files(spec))]
+    return sets + watch_screenshot_sets()
+
+
 def app_store_whats_new(notes: str, tag: str) -> str:
     """Reviewed notes as plain App Store text, within the What's New limit."""
     text = plain_text(notes)
@@ -238,8 +311,15 @@ def main(argv: list[str] | None = None) -> None:
                     values = load_locale(LISTING_DIR / locale)
                     print(f"listing {locale}: {len(values)} fields OK")
             if args.screenshots or everything:
-                for spec in SCREENSHOT_SETS:
-                    print(f"screenshots {spec.label}: {len(screenshot_files(spec))} PNGs OK")
+                sets = screenshot_sets()
+                for spec, files in sets:
+                    print(f"screenshots {spec.label}: {len(files)} PNGs OK")
+                shown = {spec.display_type for spec, _ in sets}
+                for spec in OPTIONAL_SCREENSHOT_SETS:
+                    if spec.display_type not in shown:
+                        print(f"screenshots {spec.label}: none; the live set is left alone")
+                if not shown & set(WATCH_LABELS):
+                    print("screenshots Apple Watch: none; the live Watch sets are left alone")
         else:
             written = prepare(args.out, args.tag, LISTING_DIR, include_listing=not args.no_listing)
             has_whats_new = any(path.name == WHATS_NEW.filename for path in written)
