@@ -438,7 +438,10 @@ today.) Products outside the catalog are never submitted, and the version is not
 submitted if a required product cannot be added. A reused draft is submitted
 only when it holds this version and nothing but versions of catalog products;
 anything else stops the run. Drafts holding creative images belong to those
-images' own review and are never used for the version. If the version is already
+images' own review and are never used for the version. The draft that already
+holds this version is reused; otherwise only a draft holding no app version is,
+so another version's draft is never touched. A `READY_FOR_REVIEW` version that no
+draft holds stops the run before anything is added. If the version is already
 `WAITING_FOR_REVIEW`, late products go out in a draft of their own, which is
 created only when a product has to be added, so a rerun with nothing to send
 leaves no empty draft; a retry never duplicates items or ships an unrelated app

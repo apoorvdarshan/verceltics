@@ -772,14 +772,25 @@ def submission_items(asc: asc_cli.Asc, submission_id: str) -> list[dict[str, Any
     )
 
 
-def find_draft_submission(asc: asc_cli.Asc, app_id: str) -> str | None:
-    """The app's READY_FOR_REVIEW draft for the version and products, if there is one.
+def find_draft_submission(asc: asc_cli.Asc, app_id: str, version_id: str | None = None) -> str | None:
+    """The app's READY_FOR_REVIEW draft to use for the version and products, if there is one.
 
     An earlier attempt can leave a draft that was never submitted; it is reused.
-    A draft holding creative images belongs to their own review and is skipped.
+    The draft already holding version_id wins. Otherwise only a draft holding no
+    app version is reused, so another version's draft is never touched. A draft
+    holding creative images belongs to their own review and is skipped.
     """
+    drafts = []
     for submission_id in draft_submission_ids(asc, app_id):
-        if not any(related_id(item, "appAssetLibraryImage") for item in submission_items(asc, submission_id)):
+        items = submission_items(asc, submission_id)
+        if not any(related_id(item, "appAssetLibraryImage") for item in items):
+            drafts.append((submission_id, {related_id(item, "appStoreVersion") for item in items} - {None, ""}))
+    if version_id:
+        for submission_id, versions in drafts:
+            if version_id in versions:
+                return submission_id
+    for submission_id, versions in drafts:
+        if not versions:
             return submission_id
     return None
 
@@ -791,8 +802,8 @@ def create_draft_submission(asc: asc_cli.Asc, app_id: str) -> str:
     return created["id"]
 
 
-def get_or_create_draft_submission(asc: asc_cli.Asc, app_id: str) -> str:
-    return find_draft_submission(asc, app_id) or create_draft_submission(asc, app_id)
+def get_or_create_draft_submission(asc: asc_cli.Asc, app_id: str, version_id: str | None = None) -> str:
+    return find_draft_submission(asc, app_id, version_id) or create_draft_submission(asc, app_id)
 
 
 def draft_item_version_ids(asc: asc_cli.Asc, submission_id: str) -> set[str]:
@@ -1526,7 +1537,17 @@ def main() -> None:
         )
         set_release_type(asc, version_id, public_release=do_public)
         print("adding in-app purchases / subscriptions and the version to the review submission…")
-        submission_id = get_or_create_draft_submission(asc, app_id)
+        submission_id = find_draft_submission(asc, app_id, version_id)
+        if state == READY_FOR_REVIEW and (
+            submission_id is None
+            or not any(related_id(item, "appStoreVersion") == version_id for item in submission_items(asc, submission_id))
+        ):
+            # Fail before anything is added, so a rerun is not stuck on the wrong draft.
+            fail(
+                f"version {args.version} is READY_FOR_REVIEW, but no draft review submission holds it; "
+                "remove the version from its submission in App Store Connect and rerun"
+            )
+        submission_id = submission_id or create_draft_submission(asc, app_id)
         try:
             # A first-time subscription must ship with the version, so a failed
             # required product blocks the whole submission rather than letting

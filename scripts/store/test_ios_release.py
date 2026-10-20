@@ -1392,11 +1392,13 @@ class LiveSubmitFlowTests(unittest.TestCase):
         self.assertEqual([(flag(c, "--item-type"), flag(c, "--item-id")) for c in added],
                          [("inAppPurchaseVersions", "IAP1v1")])
         self.assertEqual(fake.writes()[-1][:2], ("review", "submissions-submit"))
-        # A draft that also holds an app version is never submitted from here.
+        # A draft that holds an app version is never touched from here: the
+        # products go out in a new product-only draft instead.
         fake = FakeAsc(state="WAITING_FOR_REVIEW", attached="B9", iaps=[LIFETIME], drafts=["D1"],
                        draft_items={"D1": [item("appStoreVersion", "V0")]})
-        self.assertEqual(self.run_main(fake), 1)
-        self.assertEqual(fake.submitted, [])
+        self.assertEqual(self.run_main(fake), 0)
+        self.assertNotIn("D1", [flag(c, "--submission") for c in fake.writes() if c[:2] == ("review", "items-add")])
+        self.assertEqual(fake.submitted, ["SUB2"])
 
     def test_a_rerun_with_nothing_to_send_leaves_no_empty_draft(self) -> None:
         fake = FakeAsc(state="WAITING_FOR_REVIEW", attached="B9")
@@ -1458,21 +1460,42 @@ class LiveSubmitFlowTests(unittest.TestCase):
         self.assertIn(("review", "submissions-create"), [c[:2] for c in fake.writes()])
         self.assertEqual(fake.submitted, ["SUB2"])
 
-    def test_a_draft_without_this_version_is_never_submitted(self) -> None:
-        # READY_FOR_REVIEW: the version should already sit in the draft. A draft
-        # that does not hold it is not submitted in its place.
-        fake = FakeAsc(state="READY_FOR_REVIEW", drafts=["D1"], draft_items={"D1": []})
-        self.assertEqual(self.run_main(fake), 1)
-        self.assertEqual(fake.submitted, [])
-        # The same with a catalog product in the reused draft.
-        fake = FakeAsc(state="READY_FOR_REVIEW", subscriptions=[subscription("S1", MONTHLY, "READY_TO_SUBMIT")],
-                       drafts=["D1"], draft_items={"D1": [item("subscriptionVersion", "S1v2")]})
-        self.assertEqual(self.run_main(fake), 1)
-        self.assertEqual(fake.submitted, [])
+    def test_a_ready_for_review_version_with_no_draft_holding_it_stops_before_writing_to_review(self) -> None:
+        # READY_FOR_REVIEW says a draft holds the version; the only draft here does not.
+        for held in ([], [item("subscriptionVersion", "S1v2")]):
+            fake = FakeAsc(state="READY_FOR_REVIEW", subscriptions=[subscription("S1", MONTHLY, "READY_TO_SUBMIT")],
+                           drafts=["D1"], draft_items={"D1": held})
+            with self.subTest(held=held):
+                self.assertEqual(self.run_main(fake), 1)
+                self.assertFalse([c for c in fake.writes() if c[:1] == ("review",)])
         fake = FakeAsc(state="READY_FOR_REVIEW", drafts=["D1"], draft_items={"D1": [item("appStoreVersion", "V1")]})
         self.assertEqual(self.run_main(fake), 0)
         self.assertEqual(fake.submitted, ["D1"])
         self.assertEqual([c for c in fake.writes() if c[:2] == ("review", "items-add")], [])
+
+    def test_a_draft_without_this_version_is_never_submitted(self) -> None:
+        # The last check before submitting refuses a draft that does not hold the version.
+        empty = FakeAsc(drafts=["D1"], draft_items={"D1": []})
+        with self.assertRaises(SystemExit):
+            quiet(asc_release.check_draft_items, empty, "D1", version_id="V1", allowed_products=set())
+        holding = FakeAsc(drafts=["D1"], draft_items={"D1": [item("appStoreVersion", "V1")]})
+        quiet(asc_release.check_draft_items, holding, "D1", version_id="V1", allowed_products=set())
+
+    def test_the_draft_holding_this_version_is_chosen_over_others(self) -> None:
+        other = [item("subscriptionVersion", "S1v2", "P")]
+        mine = [item("appStoreVersion", "V1", "V")]
+        fake = FakeAsc(state="READY_FOR_REVIEW", subscriptions=[subscription("S1", MONTHLY, "READY_TO_SUBMIT")],
+                       drafts=["OTHER", "MINE"], draft_items={"OTHER": other, "MINE": mine})
+        self.assertEqual(self.run_main(fake), 0)
+        self.assertEqual({flag(c, "--submission") for c in fake.writes() if c[:2] == ("review", "items-add")}, {"MINE"})
+        self.assertEqual(fake.submitted, ["MINE"])
+
+    def test_another_versions_draft_is_never_reused(self) -> None:
+        fake = FakeAsc(drafts=["THEIRS"], draft_items={"THEIRS": [item("appStoreVersion", "V0", "V")]})
+        self.assertEqual(self.run_main(fake), 0)
+        self.assertIn(("review", "submissions-create"), [c[:2] for c in fake.writes()])
+        self.assertEqual(fake.submitted, ["SUB2"])
+        self.assertNotIn("THEIRS", [flag(c, "--submission") for c in fake.writes() if c[:2] == ("review", "items-add")])
 
 
 class ProductReviewOrderTests(unittest.TestCase):
