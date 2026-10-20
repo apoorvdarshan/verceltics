@@ -1283,6 +1283,27 @@ class CmdWaitBuildTests(unittest.TestCase):
         self.assertIs(captured["is_transient"], ios_release.is_transient_error)
         self.assertIn("build_id=B9", written)
 
+    def test_runs_alone_without_the_other_store_scripts(self) -> None:
+        # Only build-number and wait-build import asc_cli; gates and --help need this file alone.
+        import shutil
+        import subprocess
+
+        with tempfile.TemporaryDirectory() as tmp:
+            copy = Path(tmp) / "ios_release.py"
+            shutil.copy(Path(ios_release.__file__), copy)
+            for command in ("gates", "build-number", "wait-build"):
+                done = subprocess.run([sys.executable, str(copy), command, "--help"],
+                                      capture_output=True, text=True, timeout=60)
+                with self.subTest(command=command):
+                    self.assertEqual(done.returncode, 0, done.stderr)
+
+    def test_other_errors_still_raise(self) -> None:
+        with mock.patch.object(ios_release, "asc_client", side_effect=ValueError("bug")), \
+                mock.patch.dict(os.environ, {}, clear=True), redirect_stdout(io.StringIO()), \
+                self.assertRaises(ValueError):
+            ios_release.main(["wait-build", "--version", VERSION, "--build", "40", "--started-at", str(STARTED),
+                              "--wait-minutes", "120", "--poll-seconds", "30"])
+
     def test_asc_errors_end_with_an_error_line_not_a_traceback(self) -> None:
         err = io.StringIO()
         with mock.patch.object(ios_release, "asc_client", side_effect=asc_cli.AscError(("apps", "view"), 3, "unauthorized")), \
