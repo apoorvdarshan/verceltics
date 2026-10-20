@@ -1,17 +1,20 @@
 {
   "package": {"ios": "com.apoorvdarshan.verceltics", "android": "com.apoorvdarshan.verceltics"},
   "uses_non_exempt_encryption": false,
+  "ios_subscription_groups": [
+    {"reference_name": "Verceltics Pro"}
+  ],
   "subscriptions": [
-    {"id": "com.apoorvdarshan.verceltics.monthly"},
-    {"id": "com.apoorvdarshan.verceltics.yearly"}
+    {"id": "com.apoorvdarshan.verceltics.monthly", "period": "P1M", "suggested_price_usd": "4.99", "platforms": ["ios", "android"]},
+    {"id": "com.apoorvdarshan.verceltics.yearly", "period": "P1Y", "suggested_price_usd": "34.99", "platforms": ["ios", "android"]}
   ],
   "non_consumables": [
-    {"id": "com.apoorvdarshan.verceltics.lifetime"}
+    {"id": "com.apoorvdarshan.verceltics.lifetime", "suggested_price_usd": "59.99", "platforms": ["ios", "android"]}
   ],
   "tips": [
-    {"id": "com.apoorvdarshan.verceltics.tip.coffee"},
-    {"id": "com.apoorvdarshan.verceltics.tip.lunch"},
-    {"id": "com.apoorvdarshan.verceltics.tip.big"},
-    {"id": "com.apoorvdarshan.verceltics.tip.huge"}
+    {"id": "com.apoorvdarshan.verceltics.tip.coffee", "suggested_price_usd": "2.99", "platforms": ["ios", "android"]},
+    {"id": "com.apoorvdarshan.verceltics.tip.lunch", "suggested_price_usd": "5.99", "platforms": ["ios", "android"]},
+    {"id": "com.apoorvdarshan.verceltics.tip.big", "suggested_price_usd": "9.99", "platforms": ["ios", "android"]},
+    {"id": "com.apoorvdarshan.verceltics.tip.huge", "suggested_price_usd": "19.99", "platforms": ["ios", "android"]}
   ]
 }

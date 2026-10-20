@@ -3,6 +3,9 @@
 
 iOS: the product IDs in ios/verceltics/Paywall/Products.storekit.
 Android: the product ID constants in the Android BillingModels.kt.
+Each product lists the platforms that sell it (`platforms`). For iOS, the App
+Store creation fields (`ios` blocks, `ios_subscription_groups`) are checked
+too, including each review screenshot file; see asc_products.py.
 Never contacts a store.
 """
 from __future__ import annotations
@@ -13,6 +16,9 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import asc_products  # noqa: E402
+
 ROOT = Path(__file__).resolve().parents[2]
 CATALOG = ROOT / "store" / "catalog" / "products.json"
 STOREKIT = ROOT / "ios" / "verceltics" / "Paywall" / "Products.storekit"
@@ -21,7 +27,8 @@ BILLING_MODELS = (
     / "billing" / "BillingModels.kt"
 )
 PACKAGE = "com.apoorvdarshan.verceltics"
-GROUPS = ("subscriptions", "non_consumables", "tips")
+GROUPS = tuple(asc_products.PRODUCT_GROUPS)
+PLATFORMS = ("ios", "android")
 
 
 class CatalogError(Exception):
@@ -32,14 +39,23 @@ def load_catalog(path: Path = CATALOG) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def catalog_product_ids(catalog: dict) -> list[str]:
+def catalog_product_ids(catalog: dict, platform: str | None = None) -> list[str]:
+    """Every catalog product ID, or only those whose `platforms` list platform."""
     ids = []
     for group in GROUPS:
-        for item in catalog.get(group) or []:
+        items = catalog.get(group) or []
+        if not isinstance(items, list):
+            raise CatalogError(f"{group} must be a list")
+        for item in items:
             pid = item.get("id")
             if not isinstance(pid, str) or not pid:
                 raise CatalogError(f"{group} has an entry without an id: {item!r}")
-            ids.append(pid)
+            platforms = item.get("platforms")
+            if not (isinstance(platforms, list) and platforms and set(platforms) <= set(PLATFORMS)
+                    and len(set(platforms)) == len(platforms)):
+                raise CatalogError(f"{pid}: platforms must list ios and/or android, got {platforms!r}")
+            if platform is None or platform in platforms:
+                ids.append(pid)
     return ids
 
 
@@ -67,19 +83,24 @@ def check(catalog: dict, *, platform: str, app_ids: set[str]) -> int:
     foreign = sorted(pid for pid in ids if not pid.startswith(PACKAGE + "."))
     if foreign:
         raise CatalogError(f"products from another app: {', '.join(foreign)}")
-    missing = sorted(app_ids - set(ids))
-    extra = sorted(set(ids) - app_ids)
+    sold = catalog_product_ids(catalog, platform)
+    missing = sorted(app_ids - set(sold))
+    extra = sorted(set(sold) - app_ids)
     if missing or extra:
         source = "Products.storekit" if platform == "ios" else "BillingModels.kt"
         details = []
         if missing:
-            details.append(f"missing from the catalog: {', '.join(missing)}")
+            details.append(f"missing from the catalog (or without {platform} in platforms): {', '.join(missing)}")
         if extra:
             details.append(f"not in {source}: {', '.join(extra)}")
         raise CatalogError(f"{platform} catalog does not match {source} ({'; '.join(details)})")
     if platform == "ios" and not isinstance(catalog.get("uses_non_exempt_encryption"), bool):
         raise CatalogError("catalog must declare uses_non_exempt_encryption as true or false")
-    return len(ids)
+    if platform == "ios":
+        problems = asc_products.catalog_problems(catalog, ROOT)
+        if problems:
+            raise CatalogError("App Store product fields: " + "; ".join(problems))
+    return len(sold)
 
 
 def main(argv: list[str] | None = None) -> None:
