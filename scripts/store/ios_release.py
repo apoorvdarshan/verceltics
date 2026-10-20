@@ -15,19 +15,20 @@ key=value lines to $GITHUB_OUTPUT when it is set):
                 processing failure, ambiguity, mismatch or an unknown upload time
                 and never falls back to another build.
 
-build-number and wait-build read App Store Connect through the pinned asc
-(asc_cli.py) in read-only mode, so they can never change anything there.
 See store/README.md for what each switch controls.
 """
 from __future__ import annotations
 
 import argparse
 import datetime as dt
+import http.client
 import json
 import os
 import re
 import sys
 import time
+import urllib.error
+import urllib.parse
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
@@ -43,12 +44,10 @@ FALSE_VALUES = {"", "0", "false", "no", "off"}
 MASTER = "IOS_RELEASE_AUTOMATION"
 OPERATION_SWITCHES = (
     ("IOS_CREATE_VERSION", "create_version"),
-    ("IOS_CREATE_PRODUCTS", "create_products"),
     ("IOS_UPLOAD_BUILD", "upload_build"),
     ("IOS_UPLOAD_LISTING", "listing"),
     ("IOS_UPLOAD_WHATS_NEW", "whats_new"),
     ("IOS_UPLOAD_SCREENSHOTS", "screenshots"),
-    ("IOS_UPLOAD_CREATIVE_ASSETS", "creative"),
     ("IOS_SUBMIT_REVIEW", "submit"),
     ("IOS_PUBLIC_RELEASE", "public_release"),
 )
@@ -57,18 +56,7 @@ WAIT_MINUTES = ("IOS_BUILD_WAIT_MINUTES", 120, 10, 300)
 
 # Builds this old (relative to this run's upload) cannot be the one we uploaded.
 UPLOAD_CLOCK_SKEW_SECONDS = 600
-# asc exit codes worth retrying: HTTP 408 (18) and 429 (39), any 5xx (60-99), and
-# a call that ran out of time (124). Auth, usage and not-found errors stop at once.
-TRANSIENT_ASC_EXIT_CODES = {18, 39, 124} | set(range(60, 100))
-# asc retries a read itself after those statuses and some dropped connections
-# (ASC_MAX_RETRIES), then reports a connection that still fails as a generic
-# exit 1, so the build wait also retries exit 1 when asc's message is one of
-# these network failures (the wait stays bounded by its deadline).
-NETWORK_ERROR = re.compile(
-    r"connection reset|connection refused|broken pipe|\bEOF\b|i/o timeout|TLS handshake timeout"
-    r"|no such host|network is unreachable|server misbehaving|context deadline exceeded|Client\.Timeout",
-    re.IGNORECASE,
-)
+TRANSIENT_HTTP_STATUSES = {408, 429, 500, 502, 503, 504}
 
 
 class ReleaseError(Exception):
@@ -218,8 +206,6 @@ def resolve_gates(
         resolved = {key: False for _, key in OPERATION_SWITCHES}
         mode = "validate"
         notes.append("validation run: build is archived, signed and validated only; nothing is uploaded")
-        if master and requested["create_products"]:
-            notes.append("validation run: the App Store products the catalog would create are listed, read-only")
         if validation_version:
             notes.append(
                 f"validating as version {validation_version} (project is {marketing_version}); "
@@ -255,11 +241,8 @@ def resolve_gates(
         {
             "mode": mode,
             "master": master and mode == "release",
-            # Read-only product plan: on a tag run before creating them, and on a
-            # validation run when IOS_CREATE_PRODUCTS (and the master switch) ask for it.
-            "product_plan": resolved["create_products"] or (mode == "validate" and master and requested["create_products"]),
             "build": mode == "validate" or resolved["upload_build"],
-            "asc": any(resolved[k] for k in ("listing", "whats_new", "screenshots", "creative", "submit")),
+            "asc": any(resolved[k] for k in ("listing", "whats_new", "screenshots", "submit")),
             "poll_seconds": poll_seconds,
             "wait_minutes": wait_minutes,
             "marketing_version": marketing_version,
@@ -351,11 +334,16 @@ def evaluate_builds(
     return BuildState.READY, f"build {build_number} is VALID", build
 
 
-def builds_query(app_id: str, build_number: str) -> tuple[str, ...]:
-    """The asc read for one poll: every build with this number, with its app and version."""
-    return (
-        "builds", "list", "--app", app_id, "--build-number", build_number, "--platform", "IOS",
-        "--processing-state", "all", "--include", "preReleaseVersion,app", "--limit", "20",
+def builds_query(app_id: str, build_number: str) -> str:
+    return "/builds?" + urllib.parse.urlencode(
+        {
+            "filter[app]": app_id,
+            "filter[version]": build_number,
+            "include": "preReleaseVersion,app",
+            "fields[builds]": "version,processingState,expired,uploadedDate,preReleaseVersion,app",
+            "fields[preReleaseVersions]": "version,platform",
+            "limit": "20",
+        }
     )
 
 
@@ -375,7 +363,7 @@ def wait_for_build(
     """Poll until this run's build is processed; raise ReleaseError otherwise."""
     now = now or time.time
     sleep = sleep or time.sleep
-    query = builds_query(app_id, build_number)
+    path = builds_query(app_id, build_number)
     while True:
         # The budget is total (upload + processing): a build first seen as ready
         # after the deadline is still a timeout, never a late success.
@@ -384,7 +372,7 @@ def wait_for_build(
                 f"timed out waiting for {marketing_version} ({build_number}) to finish processing"
             )
         try:
-            payload = client.run(*query)
+            payload = client.get(path)
         except BaseException as exc:  # noqa: BLE001 - classified below
             if is_transient is None or not is_transient(exc):
                 raise
@@ -410,11 +398,15 @@ def wait_for_build(
 
 
 def is_transient_error(exc: BaseException) -> bool:
-    """Apple server errors, rate limits, timeouts and network drops are retried; anything else stops."""
-    code = getattr(exc, "exit_code", None)
-    if code in TRANSIENT_ASC_EXIT_CODES:
-        return True
-    return code == 1 and bool(NETWORK_ERROR.search(str(exc)))
+    """Network hiccups and App Store Connect overload are retried; anything else stops."""
+    if isinstance(exc, urllib.error.HTTPError):
+        return exc.code in TRANSIENT_HTTP_STATUSES
+    status = getattr(exc, "status", None)
+    if isinstance(exc, SystemExit):  # asc_release.AscHttpError carries the HTTP status
+        return isinstance(status, int) and status in TRANSIENT_HTTP_STATUSES
+    return isinstance(
+        exc, (urllib.error.URLError, TimeoutError, ConnectionError, http.client.HTTPException)
+    )
 
 
 def call_with_retries(
@@ -454,11 +446,10 @@ def write_outputs(values: Mapping[str, Any]) -> None:
 
 
 def asc_client() -> Any:
-    """asc_release and a read-only asc: build numbering and the build wait never write."""
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-    import asc_release  # noqa: PLC0415 - keeps `gates` free of App Store Connect setup
+    import asc_release  # noqa: PLC0415 - keeps `gates` free of PyJWT
 
-    return asc_release, asc_release.asc_from_environment(read_only=True)
+    return asc_release, asc_release.client_from_environment()
 
 
 def cmd_gates(_: argparse.Namespace) -> None:
@@ -484,8 +475,11 @@ def cmd_build_number(_: argparse.Namespace) -> None:
         raise ReleaseError(f"CURRENT_PROJECT_VERSION must be a whole number, got {project_build!r}")
     asc_release, client = asc_client()
     app_id = asc_release.find_app(client, BUNDLE_ID)
-    rows = asc_release.rows(
-        asc_release.call(client, "builds", "list", "--app", app_id, "--processing-state", "all", "--paginate")
+    rows = asc_release.iter_collection(
+        client,
+        "/builds?" + urllib.parse.urlencode(
+            {"filter[app]": app_id, "fields[builds]": "version", "limit": "200"}
+        ),
     )
     versions = [(row.get("attributes") or {}).get("version", "") for row in rows]
     number = next_build_number(int(project_build), versions)
@@ -501,15 +495,11 @@ def cmd_wait_build(args: argparse.Namespace) -> None:
         f"waiting for {args.version} ({args.build}) — poll every {args.poll_seconds}s, "
         f"deadline {dt.datetime.fromtimestamp(deadline, dt.timezone.utc).isoformat()}"
     )
-
-    def pinned_app() -> str:
-        # asc errors propagate (unlike find_app), so transient ones are retried.
-        record = asc_release.data(client.run("apps", "view", "--id", asc_release.ASC_APP_ID)) or {}
-        if record.get("id") != asc_release.ASC_APP_ID or asc_release.attrs(record).get("bundleId") != BUNDLE_ID:
-            raise ReleaseError(f"App Store Connect app {asc_release.ASC_APP_ID} is not {BUNDLE_ID}")
-        return record["id"]
-
-    app_id = call_with_retries(pinned_app, deadline=deadline, poll_seconds=args.poll_seconds)
+    app_id = call_with_retries(
+        lambda: asc_release.find_app(client, BUNDLE_ID),
+        deadline=deadline,
+        poll_seconds=args.poll_seconds,
+    )
     build = wait_for_build(
         client,
         app_id=app_id,
@@ -539,14 +529,6 @@ def main(argv: list[str] | None = None) -> None:
     try:
         args.func(args)
     except ReleaseError as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        raise SystemExit(1) from None
-    except Exception as exc:
-        # asc_cli is imported only by the commands that run asc (build-number,
-        # wait-build), so this file also runs on its own, without asc_cli.py.
-        asc_cli = sys.modules.get("asc_cli")
-        if asc_cli is None or not isinstance(exc, asc_cli.AscError):
-            raise
         print(f"error: {exc}", file=sys.stderr)
         raise SystemExit(1) from None
 

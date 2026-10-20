@@ -1,22 +1,17 @@
 #!/usr/bin/env python3
 """Offline smoke check of the installed store tooling (requirements-store.txt).
 
-Release jobs install requirements-store.txt next to the Google Play (and,
-for the screenshots' RGB copies, App Store Connect) credentials, and a
-Dependabot pip update changes nothing else, so
+Release jobs install requirements-store.txt next to the App Store Connect and
+Google Play credentials, and a Dependabot pip update changes nothing else, so
 store-automation.yml installs it and runs this check before such a change is
 merged. With a throwaway key and no network:
 
   - every package requirements-store.in pins is installed at exactly that version
+  - PyJWT signs an App Store Connect token (ES256) through
+    asc_release.make_asc_token, and the token verifies with the public key
   - google-auth and google-api-python-client build the Play Developer API client
     through play_listing.build_android_publisher, from the discovery document
     bundled with the library, with every edits() method the release scripts call
-
-App Store Connect calls need no Python packages: every call goes through the
-pinned App Store Connect CLI, which asc_cli.py installs only after its SHA-256
-matches (store-automation.yml installs and checks it as well). Pillow makes the
-RGB copies of App Store screenshots that store alpha; store-automation.yml runs
-those tests (test_ios_release.py ScreenshotRgbCopyTests) with it installed.
 
 Needs `pip install --require-hashes -r requirements-store.txt`. Uses no
 credentials and never contacts a store.
@@ -82,6 +77,25 @@ def pem(private_key) -> str:
     ).decode()
 
 
+def check_app_store_connect_token() -> None:
+    import jwt
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    import asc_release
+
+    key = ec.generate_private_key(ec.SECP256R1())
+    issuer = "00000000-0000-0000-0000-000000000000"
+    token = asc_release.make_asc_token("SMOKETEST1", issuer, pem(key))
+    header = jwt.get_unverified_header(token)
+    require(header.get("alg") == "ES256" and header.get("kid") == "SMOKETEST1",
+            f"unexpected App Store Connect token header {header}")
+    claims = jwt.decode(token, key.public_key(), algorithms=["ES256"], audience="appstoreconnect-v1",
+                        issuer=issuer)
+    require(0 < claims["exp"] - claims["iat"] <= 1200,
+            "App Store Connect tokens must expire within 20 minutes")
+    print("  App Store Connect token: ES256, verified with the public key")
+
+
 def check_play_client() -> None:
     from cryptography.hazmat.primitives.asymmetric import rsa
     from googleapiclient.http import MediaFileUpload
@@ -111,6 +125,7 @@ def check_play_client() -> None:
 def main() -> None:
     print("store tooling (requirements-store.in pins):")
     check_versions()
+    check_app_store_connect_token()
     check_play_client()
     print("store tooling OK")
 

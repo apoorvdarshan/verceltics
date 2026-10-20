@@ -71,14 +71,12 @@ class ScreenshotSet:
     sizes: frozenset[tuple[int, int]]
 
 
-# Accepted sizes are exactly what the App Store Connect CLI takes for each set
-# (`asc screenshots sizes --display-type APP_IPHONE_67`); 1284x2778 is the 6.5" size.
 SCREENSHOT_SETS = (
     ScreenshotSet(
         "APP_IPHONE_67",
         'iPhone 6.7"',
         ROOT / "store" / "app-store" / "screenshots" / "iphone",
-        frozenset({(1260, 2736), (1290, 2796), (1320, 2868), (2736, 1260), (2796, 1290), (2868, 1320)}),
+        frozenset({(1290, 2796), (2796, 1290), (1284, 2778), (2778, 1284)}),
     ),
     ScreenshotSet(
         "APP_IPAD_PRO_3GEN_129",
