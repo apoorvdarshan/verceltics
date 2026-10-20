@@ -4,7 +4,7 @@ Verceltics' App Store and Google Play releases run on
 [apoorvdarshan/store-release](https://github.com/apoorvdarshan/store-release), a
 shared set of reusable workflows and Python tooling. Its Verceltics flow is this
 repository's former `scripts/store` tooling, ported unchanged. Three thin caller
-workflows pin it by commit SHA, with the version in a `# vX.Y.Z` comment (v0.2.0
+workflows pin it by commit SHA, with the version in a `# vX.Y.Z` comment (v0.3.0
 today):
 
 | Workflow | Trigger | What it does |
@@ -22,16 +22,16 @@ when one is edited by hand or pins anything but a store-release release. Dependa
 moves all three pins to a new store-release release in one PR of its own, seven days
 after it is published.
 
-How the pipeline behaves is documented in store-release (v0.2.0):
-[switches](https://github.com/apoorvdarshan/store-release/blob/v0.2.0/docs/switches.md),
-[secrets](https://github.com/apoorvdarshan/store-release/blob/v0.2.0/docs/secrets.md),
-[jobs and checks](https://github.com/apoorvdarshan/store-release/blob/v0.2.0/docs/workflows.md),
-[the Verceltics flow](https://github.com/apoorvdarshan/store-release/blob/v0.2.0/docs/flows.md#verceltics-iosflow-and-androidflow--verceltics),
-[store plan](https://github.com/apoorvdarshan/store-release/blob/v0.2.0/docs/plan.md),
-[re-runs](https://github.com/apoorvdarshan/store-release/blob/v0.2.0/docs/rerun.md),
-[verifying downloads](https://github.com/apoorvdarshan/store-release/blob/v0.2.0/docs/verification.md),
-[the config file](https://github.com/apoorvdarshan/store-release/blob/v0.2.0/docs/config.md)
-and [how a new release reaches this repository](https://github.com/apoorvdarshan/store-release/blob/v0.2.0/docs/release-process.md#how-apps-receive-a-release).
+How the pipeline behaves is documented in store-release (v0.3.0):
+[switches](https://github.com/apoorvdarshan/store-release/blob/v0.3.0/docs/switches.md),
+[secrets](https://github.com/apoorvdarshan/store-release/blob/v0.3.0/docs/secrets.md),
+[jobs and checks](https://github.com/apoorvdarshan/store-release/blob/v0.3.0/docs/workflows.md),
+[the Verceltics flow](https://github.com/apoorvdarshan/store-release/blob/v0.3.0/docs/flows.md#verceltics-iosflow-and-androidflow--verceltics),
+[store plan](https://github.com/apoorvdarshan/store-release/blob/v0.3.0/docs/plan.md),
+[re-runs](https://github.com/apoorvdarshan/store-release/blob/v0.3.0/docs/rerun.md),
+[verifying downloads](https://github.com/apoorvdarshan/store-release/blob/v0.3.0/docs/verification.md),
+[the config file](https://github.com/apoorvdarshan/store-release/blob/v0.3.0/docs/config.md)
+and [how a new release reaches this repository](https://github.com/apoorvdarshan/store-release/blob/v0.3.0/docs/release-process.md#how-apps-receive-a-release).
 This file keeps only Verceltics' own facts.
 
 **Xcode Cloud was removed for Verceltics on 2026-10-14**, after this pipeline's
@@ -139,7 +139,7 @@ The CI Apple Development identity is certificate "Apple Development: Created via
 API", ID `NVNGDQGCKK`, **expiring 2027-10-14**. The same identity signs the archives
 of Fud AI, Abysm, iitjee, Quit All, Scowld and Sesslet, because Apple allows one
 API-created development certificate per API key. Renewing it:
-[the shared CI signing identity](https://github.com/apoorvdarshan/store-release/blob/v0.2.0/docs/secrets.md#the-shared-ci-signing-identity).
+[the shared CI signing identity](https://github.com/apoorvdarshan/store-release/blob/v0.3.0/docs/provenance.md#facts-that-only-concern-the-six-apps).
 When it is replaced, update both `IOS_DEV_SIGNING_*` secrets here and in every
 repository listed above, then run a validation run.
 
@@ -174,7 +174,7 @@ secret.
    release.
 6. Push the `ios-vX.Y` / `android-vX.Y` tag, one at a time. A tag can be used once.
 7. If a later step fails, fix the cause and use **Re-run failed jobs**
-   ([re-runs](https://github.com/apoorvdarshan/store-release/blob/v0.2.0/docs/rerun.md)).
+   ([re-runs](https://github.com/apoorvdarshan/store-release/blob/v0.3.0/docs/rerun.md)).
 
 ## Export compliance (iOS)
 
@@ -262,7 +262,7 @@ With Python 3.11 or later (CI uses 3.13), from the repository root:
 
 ```bash
 ./scripts/test.sh                                   # the offline repository tests (ci.yml's catalog job)
-git clone --branch v0.2.0 https://github.com/apoorvdarshan/store-release ../store-release
+git clone --branch v0.3.0 https://github.com/apoorvdarshan/store-release ../store-release
 python3 -I -u ../store-release/run.py --app-root . config check --files
 python3 -I -u ../store-release/run.py --app-root . catalog check
 python3 -I -u ../store-release/run.py --app-root . release-notes --check-headings
