@@ -4,11 +4,15 @@
 #
 # Jobs
 #   dry-run         offline release-script tests, store asset checks and publisher
-#                   dry-runs, with no third-party packages installed
+#                   dry-runs, with no third-party packages installed (the Pillow
+#                   tests skip here)
 #   store-tooling   installs the hash-locked store tooling (requirements-store.txt)
 #                   that release jobs install, into the same pinned Python, and
 #                   uses it offline: pinned versions, an ES256 App Store Connect
-#                   token, the Google Play API client. A Dependabot pip update only
+#                   token, the Google Play API client, and Pillow's RGB copies of
+#                   the App Store screenshots (the iOS release tests again, where
+#                   the Pillow tests cannot skip, and a dry run that stages the
+#                   repository's screenshots). A Dependabot pip update only
 #                   changes requirements-store.in/.txt, so this job is what checks
 #                   it before it is merged, instead of the next release tag.
 #
@@ -90,6 +94,7 @@ jobs:
           IOS_UPLOAD_LISTING: ${{ vars.IOS_UPLOAD_LISTING }}
           IOS_UPLOAD_WHATS_NEW: ${{ vars.IOS_UPLOAD_WHATS_NEW }}
           IOS_UPLOAD_SCREENSHOTS: ${{ vars.IOS_UPLOAD_SCREENSHOTS }}
+          IOS_UPLOAD_CREATIVE_ASSETS: ${{ vars.IOS_UPLOAD_CREATIVE_ASSETS }}
           IOS_SUBMIT_REVIEW: ${{ vars.IOS_SUBMIT_REVIEW }}
           IOS_PUBLIC_RELEASE: ${{ vars.IOS_PUBLIC_RELEASE }}
           ANDROID_RELEASE_AUTOMATION: ${{ vars.ANDROID_RELEASE_AUTOMATION }}
@@ -120,7 +125,9 @@ jobs:
         run: |
           python3 scripts/store/ios_metadata.py prepare --out "$RUNNER_TEMP/store-meta" --tag ios-v2.1
           python3 scripts/store/play_listing.py prepare --out "$RUNNER_TEMP/store-meta" --tag android-v1.0
-          UPLOAD_LISTING=true UPLOAD_WHATS_NEW=true UPLOAD_SCREENSHOTS=true SUBMIT_IOS_REVIEW=true \
+          # Screenshots are left out here: their RGB copies are staged with Pillow,
+          # which this job does not install (the store-tooling job dry-runs them).
+          UPLOAD_LISTING=true UPLOAD_WHATS_NEW=true SUBMIT_IOS_REVIEW=true \
             python3 scripts/store/asc_release.py --dry-run --metadata-dir "$RUNNER_TEMP/store-meta" \
             --build-id DRY-RUN --build-number 1
           # With IOS_UPLOAD_LISTING off a release prepares only What's New and never reads the listing.
@@ -152,11 +159,19 @@ jobs:
         with:
           persist-credentials: false
           sparse-checkout-cone-mode: false
+          # The store tooling, plus what the iOS release tests and the screenshot
+          # dry run read (store/ holds the committed screenshots).
           sparse-checkout: |
             /scripts/store/
             /scripts/release_notes.py
             /requirements-store.in
             /requirements-store.txt
+            /store/
+            /RELEASE_NOTES.md
+            /ios/verceltics.xcodeproj/
+            /ios/verceltics/Paywall/Products.storekit
+            /android/app/build.gradle.kts
+            /android/app/src/main/java/com/apoorvdarshan/verceltics/billing/BillingModels.kt
 
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -170,3 +185,13 @@ jobs:
 
       - name: Use it offline (pinned versions, App Store Connect token, Play API client)
         run: python3 -u scripts/store/check_store_tooling.py
+
+      # Release runs stage the App Store screenshots as RGB copies with Pillow. The
+      # Pillow tests skip without it; STORE_TESTS_NEED_PILLOW makes them fail instead.
+      - name: Test the iOS release with the store tooling (offline, RGB screenshots included)
+        env:
+          STORE_TESTS_NEED_PILLOW: "1"
+        run: python3 -m unittest -v scripts/store/test_ios_release.py
+
+      - name: Stage the repository's App Store screenshots as RGB (dry-run, no store APIs)
+        run: UPLOAD_SCREENSHOTS=true python3 scripts/store/asc_release.py --dry-run
