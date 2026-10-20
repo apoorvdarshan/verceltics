@@ -1,9 +1,9 @@
 name: CI
 
-# Python checks (API catalogs, privacy manifest, CI helper scripts, store release
-# scripts and store assets), the website and Worker, and the Android app (unit
-# tests, lint, Debug and unsigned Release builds, and instrumentation tests on an
-# emulator). iOS tests run in ios-tests.yml.
+# Python checks (API catalogs, privacy manifest, AuthManager), the website and
+# Worker, and the Android app (unit tests, lint, Debug and unsigned Release builds,
+# and instrumentation tests on an emulator). iOS tests run in ios-tests.yml; the
+# store data is checked by store-checks.yml (apoorvdarshan/store-release).
 on:
   # PR branches are checked by pull_request; push covers main only, so a PR's
   # checks do not run twice.
@@ -18,11 +18,10 @@ on:
       android-release:
         description: >-
           Set by android-release.yml. Runs every check that covers the Android app
-          (catalog and store release tests, Android unit tests, lint, builds and
-          emulator tests) but not the website/Worker job or the repository's store
-          listing and screenshot checks: the release checks the store assets it
-          uploads itself, and a website dependency advisory never blocks it.
-          Pull requests and main always run everything.
+          (catalog tests, Android unit tests, lint, builds and emulator tests) but
+          not the website/Worker job: a website dependency advisory never blocks
+          the release, and store-release checks the store assets the release
+          uploads. Pull requests and main always run everything.
         type: boolean
         default: false
 
@@ -90,23 +89,16 @@ jobs:
           sparse-checkout: |
             /tests/
             /scripts/
-            /store/
-            /RELEASE_NOTES.md
-            /requirements-store.txt
             /ios/verceltics/Resources/
             /ios/verceltics/PrivacyInfo.xcprivacy
             /ios/verceltics/Auth/AuthManager.swift
-            /ios/verceltics/Paywall/Products.storekit
-            /ios/verceltics.xcodeproj/
-            /android/app/build.gradle.kts
-            /android/app/src/main/java/com/apoorvdarshan/verceltics/billing/BillingModels.kt
 
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
 
-      - name: Catalog integrity, CI script and store release tests
+      - name: Catalog integrity tests
         env:
           RELEASE_GATE: ${{ inputs.android-release }}
         run: |
@@ -178,7 +170,7 @@ jobs:
       - uses: gradle/actions/wrapper-validation@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
 
       - name: Set up Java
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
           java-version: "17"
@@ -244,7 +236,7 @@ jobs:
       - uses: gradle/actions/wrapper-validation@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
 
       - name: Set up Java
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
           java-version: "17"

@@ -10,8 +10,9 @@ characters at most; `short_description.txt`, 80; `full_description.txt`, 4000).
 `android-release.yml` uploads them, and the phone screenshots below, only when
 `ANDROID_UPLOAD_LISTING` / `ANDROID_UPLOAD_SCREENSHOTS` are on (see
 [store/README.md](../README.md)). Otherwise copy them into Play Console →
-Grow → Store presence → Main store listing. Check them with
-`python3 scripts/store/play_listing.py check`.
+Grow → Store presence → Main store listing. Store checks validates them on
+every pull request that touches `store/` (see
+[Checking locally](../README.md#checking-locally)).
 
 ## Other fields
 
