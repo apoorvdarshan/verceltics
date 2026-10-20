@@ -18,6 +18,10 @@
 # See store/README.md for the full table.
 #   IOS_RELEASE_AUTOMATION   master switch for every iOS store operation below
 #   IOS_CREATE_VERSION       create the tag's App Store version when it is missing
+#   IOS_CREATE_PRODUCTS      create the catalog's iOS products App Store Connect does
+#                            not have yet, Ready to Submit (store/catalog/products.json;
+#                            tag runs only; validation runs list them read-only).
+#                            Existing products are never changed
 #   IOS_UPLOAD_BUILD         build + upload the binary to App Store Connect
 #   IOS_UPLOAD_LISTING       name, subtitle, description, keywords, promo text, URLs
 #   IOS_UPLOAD_WHATS_NEW     What's New text (the tag's RELEASE_NOTES.md section,
@@ -38,7 +42,9 @@
 # the listing with IOS_UPLOAD_LISTING, screenshots with IOS_UPLOAD_SCREENSHOTS and
 # What's New with IOS_UPLOAD_WHATS_NEW. An asset the run does not upload is never
 # read, so it never blocks a release. With IOS_CREATE_VERSION on, a tag run then
-# creates the X.Y App Store version when it is missing. With any listing, What's
+# creates the X.Y App Store version when it is missing. With IOS_CREATE_PRODUCTS
+# on, it creates the catalog's missing products, after a read-only check of every
+# one (a validation run only prints that check). With any listing, What's
 # New, screenshot, creative asset or review switch on, a read-only App Store
 # Connect preflight then requires the X.Y App Store version to exist in a state
 # that allows the enabled steps: turn on IOS_CREATE_VERSION or create the version
@@ -111,13 +117,15 @@ jobs:
 
   prepare:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Product creation waits for Apple to process each App Review screenshot.
+    timeout-minutes: 30
     env:
       # Validation runs never write to App Store Connect; asc enforces it.
       ASC_READ_ONLY: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
     outputs:
       mode: ${{ steps.gates.outputs.mode }}
       create_version: ${{ steps.gates.outputs.create_version }}
+      create_products: ${{ steps.gates.outputs.create_products }}
       build: ${{ steps.gates.outputs.build }}
       upload_build: ${{ steps.gates.outputs.upload_build }}
       listing: ${{ steps.gates.outputs.listing }}
@@ -136,6 +144,7 @@ jobs:
         with:
           persist-credentials: false
           sparse-checkout-cone-mode: false
+          # The two workflow files are read by the store-script tests.
           sparse-checkout: |
             /scripts/store/
             /scripts/release_notes.py
@@ -149,6 +158,8 @@ jobs:
             /android/app/src/main/java/com/apoorvdarshan/verceltics/billing/BillingModels.kt
             /RELEASE_NOTES.md
             /requirements-store.txt
+            /.github/workflows/ios-release.yml
+            /.github/workflows/store-automation.yml
 
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -172,6 +183,7 @@ jobs:
         env:
           IOS_RELEASE_AUTOMATION: ${{ vars.IOS_RELEASE_AUTOMATION }}
           IOS_CREATE_VERSION: ${{ vars.IOS_CREATE_VERSION }}
+          IOS_CREATE_PRODUCTS: ${{ vars.IOS_CREATE_PRODUCTS }}
           IOS_UPLOAD_BUILD: ${{ vars.IOS_UPLOAD_BUILD }}
           IOS_UPLOAD_LISTING: ${{ vars.IOS_UPLOAD_LISTING }}
           IOS_UPLOAD_WHATS_NEW: ${{ vars.IOS_UPLOAD_WHATS_NEW }}
@@ -207,7 +219,7 @@ jobs:
       - name: Install the pinned App Store Connect CLI
         if: >-
           steps.gates.outputs.build == 'true' || steps.gates.outputs.asc == 'true' ||
-          steps.gates.outputs.create_version == 'true'
+          steps.gates.outputs.create_version == 'true' || steps.gates.outputs.product_plan == 'true'
         run: |
           python3 scripts/store/asc_cli.py install --dest "$RUNNER_TEMP/asc-bin"
           PATH="$RUNNER_TEMP/asc-bin:$PATH" python3 scripts/store/asc_cli.py check
@@ -227,6 +239,27 @@ jobs:
           CREATE_IOS_VERSION: ${{ steps.gates.outputs.create_version }}
           MARKETING_VERSION: ${{ steps.gates.outputs.marketing_version }}
         run: python3 -u scripts/store/asc_release.py --create-version --version "$MARKETING_VERSION"
+
+      # Every iOS product in store/catalog/products.json that App Store Connect
+      # does not have yet is created and brought to Ready to Submit, so
+      # IOS_SUBMIT_REVIEW attaches it in this same run. The read-only plan runs
+      # first and must pass for every product (fields, review screenshot, price
+      # point, territories) before anything is written, so a problem stops the run
+      # before the build. A product an interrupted run left in Missing Metadata is
+      # finished, never created twice; other existing products are only compared
+      # (warnings). Validation runs only print the plan (asc is read-only there).
+      - name: Create missing App Store products (IOS_CREATE_PRODUCTS)
+        if: steps.gates.outputs.product_plan == 'true'
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
+          CREATE_IOS_PRODUCTS: ${{ steps.gates.outputs.create_products }}
+        run: |
+          set -euo pipefail
+          command=plan
+          [ "$CREATE_IOS_PRODUCTS" = true ] && command=create
+          python3 -u scripts/store/asc_products.py "$command"
 
       # Pillow makes the RGB copies uploaded for screenshots that store alpha (asc
       # refuses those); the preflight makes them for every set it would replace.
@@ -663,6 +696,7 @@ jobs:
         env:
           IOS_RELEASE_AUTOMATION: ${{ vars.IOS_RELEASE_AUTOMATION }}
           IOS_CREATE_VERSION: ${{ vars.IOS_CREATE_VERSION }}
+          IOS_CREATE_PRODUCTS: ${{ vars.IOS_CREATE_PRODUCTS }}
           IOS_UPLOAD_BUILD: ${{ vars.IOS_UPLOAD_BUILD }}
           IOS_UPLOAD_LISTING: ${{ vars.IOS_UPLOAD_LISTING }}
           IOS_UPLOAD_WHATS_NEW: ${{ vars.IOS_UPLOAD_WHATS_NEW }}
