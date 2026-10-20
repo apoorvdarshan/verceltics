@@ -348,14 +348,21 @@ def pre_row(pre_id: str = "P1", version: str = VERSION, platform: str = "IOS") -
     return {"type": "preReleaseVersions", "id": pre_id, "attributes": {"version": version, "platform": platform}}
 
 
-def png_header(color_type: int, *, trns: bool = False) -> bytes:
-    """A PNG signature and IHDR (plus an optional tRNS chunk) with the given colour type."""
+def png_header(color_type: int = 2, *, trns: bool = False, width: int = 16, height: int = 16) -> bytes:
+    """A PNG signature and IHDR (plus an optional tRNS chunk) with the given colour type and size."""
 
     def chunk(kind: bytes, body: bytes) -> bytes:
         return len(body).to_bytes(4, "big") + kind + body + zlib.crc32(kind + body).to_bytes(4, "big")
 
-    ihdr = (16).to_bytes(4, "big") + (16).to_bytes(4, "big") + bytes([8, color_type, 0, 0, 0])
+    ihdr = width.to_bytes(4, "big") + height.to_bytes(4, "big") + bytes([8, color_type, 0, 0, 0])
     return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + (chunk(b"tRNS", b"\x00\x00") if trns else b"") + chunk(b"IDAT", b"x")
+
+
+def jpeg_header(width: int, height: int) -> bytes:
+    """A JPEG with an APP0 segment and a baseline SOF0 frame header of the given size."""
+    app0 = b"\xff\xe0" + (16).to_bytes(2, "big") + b"JFIF\x00" + bytes(9)
+    sof0 = b"\xff\xc0" + (17).to_bytes(2, "big") + b"\x08" + height.to_bytes(2, "big") + width.to_bytes(2, "big") + bytes(12)
+    return b"\xff\xd8" + app0 + sof0 + b"\xff\xd9"
 
 
 def asc_error(code: int) -> asc_cli.AscError:
@@ -1175,8 +1182,8 @@ class DryRunTests(unittest.TestCase):
             self.assertEqual(code, 1)
             self.assertIn("no header or search results image", output)
             (Path(tmp) / "header").mkdir()
-            (Path(tmp) / "header" / "a.png").write_bytes(b"x")
-            (Path(tmp) / "header" / "b.png").write_bytes(b"y")
+            (Path(tmp) / "header" / "a.png").write_bytes(png_header(width=3840, height=1646))
+            (Path(tmp) / "header" / "b.png").write_bytes(png_header(width=3840, height=1646))
             code, output = self.run_cli({"UPLOAD_CREATIVE_ASSETS": "true"}, "--creative-dir", tmp)
             self.assertEqual(code, 1)
             self.assertIn("takes one image", output)
@@ -1275,6 +1282,16 @@ class CmdWaitBuildTests(unittest.TestCase):
         self.assertEqual(captured["app_id"], APP)
         self.assertIs(captured["is_transient"], ios_release.is_transient_error)
         self.assertIn("build_id=B9", written)
+
+    def test_asc_errors_end_with_an_error_line_not_a_traceback(self) -> None:
+        err = io.StringIO()
+        with mock.patch.object(ios_release, "asc_client", side_effect=asc_cli.AscError(("apps", "view"), 3, "unauthorized")), \
+                mock.patch.dict(os.environ, {}, clear=True), redirect_stderr(err), redirect_stdout(io.StringIO()), \
+                self.assertRaises(SystemExit) as caught:
+            ios_release.main(["wait-build", "--version", VERSION, "--build", "40", "--started-at", str(STARTED),
+                              "--wait-minutes", "120", "--poll-seconds", "30"])
+        self.assertEqual(caught.exception.code, 1)
+        self.assertIn("error: asc apps view failed (exit 3)", err.getvalue())
 
     def test_another_app_record_stops_the_wait(self) -> None:
         class Other:
@@ -2028,6 +2045,23 @@ class ListingMetadataTests(unittest.TestCase):
                              ["whats_new.txt"])
             self.assertEqual(cli(), 1, "a run that uploads the listing still fails on it")
 
+    def test_screenshot_sizes_are_the_ones_asc_accepts(self) -> None:
+        # `asc screenshots sizes --display-type <type>` (asc 5.15.0); 1284x2778 is the 6.5" size.
+        accepted = {
+            "APP_IPHONE_67": {(1260, 2736), (1290, 2796), (1320, 2868), (2736, 1260), (2796, 1290), (2868, 1320)},
+            "APP_IPAD_PRO_3GEN_129": {(2048, 2732), (2064, 2752), (2732, 2048), (2752, 2064)},
+        }
+        self.assertEqual({spec.display_type: set(spec.sizes) for spec in ios_metadata.SCREENSHOT_SETS}, accepted)
+        iphone = ios_metadata.SCREENSHOT_SETS[0]
+        with tempfile.TemporaryDirectory() as tmp:
+            spec = ios_metadata.ScreenshotSet(iphone.display_type, iphone.label, Path(tmp), iphone.sizes)
+            with mock.patch.object(ios_metadata, "ROOT", Path(tmp).parent):
+                (Path(tmp) / "a.png").write_bytes(png(1284, 2778))
+                with self.assertRaisesRegex(ios_metadata.MetadataError, "1284x2778"):
+                    ios_metadata.screenshot_files(spec)
+                (Path(tmp) / "a.png").write_bytes(png(1320, 2868))
+                self.assertEqual([p.name for p in ios_metadata.screenshot_files(spec)], ["a.png"])
+
     def test_screenshot_sets_accept_only_app_store_sizes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             spec = ios_metadata.ScreenshotSet("APP_IPHONE_67", "iPhone", Path(tmp), frozenset({(1290, 2796)}))
@@ -2124,7 +2158,8 @@ class CreativeAssetTests(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.dir = Path(tmp.name)
-        for folder, payload in (("header", b"header-image"), ("search-results", b"search-image")):
+        for folder, payload in (("header", png_header(width=3840, height=1646)),
+                                ("search-results", png_header(width=3840, height=2560) + b"search")):
             (self.dir / folder).mkdir()
             (self.dir / folder / f"{folder}.png").write_bytes(payload)
 
@@ -2180,8 +2215,47 @@ class CreativeAssetTests(unittest.TestCase):
             with self.subTest(content=content[25]):
                 self.assertEqual(self.run_creative(fake), 1)
                 self.assertEqual(fake.calls, [])
-        (self.dir / "header" / "header.png").write_bytes(png_header(2))
+        (self.dir / "header" / "header.png").write_bytes(png_header(width=3840, height=1646))
         self.assertEqual(self.run_creative(FakeAsc()), 0)
+
+    def test_images_apple_would_refuse_fail_before_any_call(self) -> None:
+        cases = {
+            "header": [png_header(width=3840, height=2160), jpeg_header(3840, 1646), b"not an image"],
+            "search-results": [png_header(width=3000, height=2000 + 1), png_header(width=1800, height=1200),
+                               jpeg_header(4000, 2666)],
+        }
+        for folder, contents in cases.items():
+            original = (self.dir / folder / f"{folder}.png").read_bytes()
+            for content in contents:
+                (self.dir / folder / f"{folder}.png").write_bytes(content)
+                fake = FakeAsc()
+                with self.subTest(folder=folder, content=content[:24]):
+                    self.assertEqual(self.run_creative(fake), 1)
+                    self.assertEqual(fake.calls, [])
+            (self.dir / folder / f"{folder}.png").write_bytes(original)
+
+    def test_sizes_apple_accepts_pass(self) -> None:
+        good = [("PRODUCT_PAGE_HEADER_ASSET", png_header(width=3840, height=1646)),
+                ("PRODUCT_PAGE_HEADER_ASSET", png_header(width=5244, height=2950)),
+                ("APP_STORE_SEARCH_RESULTS_ASSET", png_header(width=3840, height=2560)),
+                ("APP_STORE_SEARCH_RESULTS_ASSET", jpeg_header(1920, 1280)),
+                ("APP_STORE_SEARCH_RESULTS_ASSET", png_header(width=5244, height=2950))]
+        for placement, content in good:
+            path = self.dir / "probe"
+            path.write_bytes(content)
+            with self.subTest(placement=placement, content=content[:24]):
+                self.assertIsNone(asc_release.creative_size_problem(placement, path))
+
+    def test_an_approved_image_on_a_locked_version_waits_without_failing(self) -> None:
+        # Approval can land between the submit and a rerun of the store job.
+        library = [self.image("H", "header", "APPROVED"), self.image("S", "search-results", "IN_REVIEW")]
+        for state in ("WAITING_FOR_REVIEW", "READY_FOR_REVIEW"):
+            fake = FakeAsc(state=state, attached="B9", library=library)
+            with self.subTest(state=state):
+                code, output = run_asc(fake, self.ENV, creative=self.dir)
+                self.assertEqual(code, 0, output)
+                self.assertEqual(fake.writes(), [])
+                self.assertIn("placed on a later run, once the version can be edited", output)
 
     def test_a_rejected_image_stops_the_run(self) -> None:
         fake = FakeAsc(library=[self.image("H", "header", "REJECTED")])

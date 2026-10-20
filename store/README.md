@@ -323,7 +323,7 @@ Offline checks need none of them.
 | [`scripts/store/validate_catalog.py`](../scripts/store/validate_catalog.py) | `catalog/products.json` against StoreKit and the Android billing IDs |
 | [`scripts/store/print_gates.py`](../scripts/store/print_gates.py) | Print the configured switches |
 | [`scripts/store/check_store_tooling.py`](../scripts/store/check_store_tooling.py) | Offline check of the installed store tooling: the versions `requirements-store.in` pins and the Google Play API client (store-automation.yml) |
-| [`scripts/store/test_ios_release.py`](../scripts/store/test_ios_release.py) | Offline tests against a fake App Store Connect behind `asc`: disabled/invalid switches, tag mismatch, validation mode, build wait timeout/failure/ambiguity/mismatch/old build/unknown upload time, selection read-back, products only in the rechecked draft, unchosen draft items, no empty drafts on reruns, version states and reruns, version creation, export compliance, preflight, listing (never read with its switch off), screenshots and creative images (including alpha), catalog, network-drop retries, and the asc runner (credentials, read-only mode, redaction, pinned checksum) |
+| [`scripts/store/test_ios_release.py`](../scripts/store/test_ios_release.py) | Offline tests against a fake App Store Connect behind `asc`: disabled/invalid switches, tag mismatch, validation mode, build wait timeout/failure/ambiguity/mismatch/old build/unknown upload time, selection read-back, products only in the rechecked draft, unchosen draft items, no empty drafts on reruns, version states and reruns, version creation, export compliance, preflight, listing (never read with its switch off), screenshots and creative images (sizes, formats and alpha), locked-version approvals, catalog, network-drop retries, and the asc runner (credentials, read-only mode, redaction, pinned checksum) |
 | [`scripts/store/test_android_release.py`](../scripts/store/test_android_release.py) | Offline tests: switches, track selection, wrong app/version/key, pinned upload certificate, unsigned bundle entries, versionCode and pre-upload checks, Play listing and read-back |
 | [`scripts/store/test_store_assets.py`](../scripts/store/test_store_assets.py) | The repository's App Store and Play listings and screenshots (pull requests and main; a release checks only what it uploads) |
 | [`scripts/ci/redact_ids.py`](../scripts/ci/redact_ids.py) | Removes App Store Connect key/issuer IDs from failure logs before they are kept |
@@ -357,7 +357,8 @@ store/app-store/screenshots/ipad/     App Store iPad 13" screenshots (2048×2732
 store/creative/ios/header/            one App Store product page header image, 3840×1646 PNG
                                       (IOS_UPLOAD_CREATIVE_ASSETS; empty today)
 store/creative/ios/search-results/    one App Store search results image, 3:2, 1920×1280 to
-                                      3840×2560 PNG or JPEG (IOS_UPLOAD_CREATIVE_ASSETS; empty today)
+                                      3840×2560 PNG or JPEG (IOS_UPLOAD_CREATIVE_ASSETS; empty today);
+                                      a 5244×2950 PNG is a universal image that fits either slot
 store/google-play/screenshots/phone/   Play phone screenshots (1080×1920)
 RELEASE_NOTES.md            ## ios-vX.Y / ## android-vX.Y → GitHub Release + What's New
 ```
@@ -369,28 +370,34 @@ covers every locale folder; App Info fields (name, subtitle, privacy URL) are
 only editable while a new version is being prepared, and the run fails rather
 than silently skipping a change it cannot make.
 
-A screenshot set that App Store Connect already holds exactly (the same files in
-the same order, compared by checksum) is left alone. Any other set is replaced as
-a whole (`asc screenshots upload --replace`) and read back. asc refuses to upload
-a PNG that stores an alpha channel or transparency (colour types 4 and 6, or a
-`tRNS` chunk), even when every pixel is opaque, and the release checks the same
-way (`asc_cli.image_has_alpha`). The screenshots in the repository today are
-RGBA, which is fine while App Store Connect already shows them, but they must be
-re-exported as RGB PNGs without transparency before the next screenshot change:
-a set with alpha that has to be uploaded stops the release in the preflight,
-before anything is built, and in the store step before anything is written. If
-an upload fails part-way, the set can be left incomplete: fix the error and
-rerun, and the set is replaced again.
+Each set takes exactly the sizes asc accepts for it (`asc screenshots sizes
+--display-type <type>`): 1260×2736, 1290×2796 or 1320×2868 for the 6.7" iPhone
+(not 1284×2778, the 6.5" size) and 2048×2732 or 2064×2752 for the 13" iPad, in
+either orientation. A screenshot set that App Store Connect already holds
+exactly (the same files in the same order, compared by checksum) is left alone.
+Any other set is replaced as a whole (`asc screenshots upload --replace`) and
+read back. asc refuses to upload a PNG that stores an alpha channel or
+transparency (colour types 4 and 6, or a `tRNS` chunk), even when every pixel is
+opaque, and the release checks the same way (`asc_cli.image_has_alpha`). The
+screenshots in the repository today are RGBA, which is fine while App Store
+Connect already shows them, but they must be re-exported as RGB PNGs without
+transparency before the next screenshot change: a set with alpha that has to be
+uploaded stops the release in the preflight, before anything is built, and in
+the store step before anything is written. If an upload fails part-way, the set
+can be left incomplete: fix the error and rerun, and the set is replaced again.
 
 A creative image is matched in the Asset Library by file name and size, so give
 a changed image a new file name. Apple reviews each new image on its own (the app
 already has an approved version), and a later run places it once it is approved;
 a rejected image stops the run with Apple's reason. Apple's rules for these
 images: no prices, website addresses, other platforms or Apple badges, and no
-transparency (`asc asset-library specs` lists the current sizes). An image with
-an alpha channel stops the run before any asc call. Both folders are empty
-today, so keep `IOS_UPLOAD_CREATIVE_ASSETS` off until an image is added: with the
-switch on and no image, the run fails before anything is built.
+transparency (`asc asset-library specs` lists the current sizes). Sizes, formats
+and alpha are checked with the other local inputs, before anything is built and
+before any asc call, so a wrong file stops the run early. An image approved while
+the version waits for review is not a mismatch: the rerun passes and the image is
+placed once the version can be edited. Both folders are empty today, so keep
+`IOS_UPLOAD_CREATIVE_ASSETS` off until an image is added: with the switch on and no
+image, the run fails before anything is built.
 
 ### Export compliance
 
