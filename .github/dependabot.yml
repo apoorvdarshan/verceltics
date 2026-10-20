@@ -5,9 +5,23 @@ updates:
     schedule:
       interval: weekly
     groups:
+      # The release callers' pins (one SHA in ios-release.yml, android-release.yml
+      # and store-checks.yml, with its "# vX.Y.Z" comment). Declared first: a
+      # dependency joins the first group it matches, so a store-release bump always
+      # gets a PR of its own.
+      store-release:
+        patterns:
+          - "apoorvdarshan/store-release*"
       codeql-actions:
         patterns:
           - "github/codeql-action*"
+    # store-release pins run with the app's signing and store credentials: a new
+    # release waits seven days before Dependabot proposes it. Security updates are
+    # never delayed by a cooldown.
+    cooldown:
+      default-days: 7
+      include:
+        - "apoorvdarshan/store-release*"
   - package-ecosystem: npm
     directory: /web
     schedule:
@@ -16,14 +30,9 @@ updates:
     directory: /android
     schedule:
       interval: weekly
-  # Hash-locked store tooling (requirements-store.in → requirements-store.txt) that
-  # release jobs install next to the App Store Connect and Google Play credentials.
-  # The store-tooling job in store-automation.yml installs and uses each update
-  # offline before it is merged.
-  - package-ecosystem: pip
-    directory: /
-    schedule:
-      interval: weekly
+  # The store release tooling and its hash-locked Python dependencies live in
+  # apoorvdarshan/store-release, which keeps them up to date; the store-release
+  # group above moves this repository to each new release.
   # Swift packages resolved by the Xcode project
   # (ios/verceltics.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved).
   - package-ecosystem: swift

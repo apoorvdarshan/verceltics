@@ -58,7 +58,8 @@ files can affect:
   minified Release build through the Gradle wrapper, then the instrumentation and Compose UI
   tests split across two API 36 emulators that start from a clean snapshot (each shard
   fails if it runs zero tests). It also runs the Python checks (API catalogs, privacy
-  manifest, store release scripts and store assets) and the website and Worker checks.
+  manifest, AuthManager) and the website and Worker checks; `store-checks.yml` checks the
+  store data with apoorvdarshan/store-release.
 - Releases rerun them before anything is uploaded: `ios-release.yml` calls `ios-tests.yml`,
   and `android-release.yml` calls `ci.yml` without the website and Worker job.
 - No Flutter bootstrap, analysis, test, or framework-generation step is required.
