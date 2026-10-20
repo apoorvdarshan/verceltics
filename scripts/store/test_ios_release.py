@@ -1513,6 +1513,20 @@ class LiveSubmitFlowTests(unittest.TestCase):
         self.assertEqual(fake.submitted, ["D1"])
         self.assertEqual([c for c in fake.writes() if c[:2] == ("review", "items-add")], [])
 
+    def test_a_stopped_submit_leaves_the_listing_text_alone_too(self) -> None:
+        # Text stays editable in READY_FOR_REVIEW, so the draft check must come
+        # before the listing update, not just before the build selection.
+        with tempfile.TemporaryDirectory() as tmp:
+            loc = write_listing(Path(tmp), **{"description.txt": "New description"})
+            (loc / "whats_new.txt").write_text("Fixes.\n")
+            fake = FakeAsc(state="READY_FOR_REVIEW", localization={"description": "Old", "whatsNew": "Older"},
+                           app_infos=[app_info("NEXT", "READY_FOR_REVIEW")])
+            env = {**SUBMIT, "UPLOAD_LISTING": "true", "UPLOAD_WHATS_NEW": "true"}
+            code, output = run_asc(fake, env, *BUILD_ARGS, metadata=Path(tmp))
+        self.assertEqual(code, 1, output)
+        self.assertIn("no draft review submission holds it", output)
+        self.assertEqual(fake.writes(), [])
+
     def test_a_draft_without_this_version_is_never_submitted(self) -> None:
         # The last check before submitting refuses a draft that does not hold the version.
         empty = FakeAsc(drafts=["D1"], draft_items={"D1": []})
@@ -1625,7 +1639,8 @@ class VersionStateTests(unittest.TestCase):
         with temp_screenshot_sets() as sets:
             live = {k: v[::-1] for k, v in wanted_screenshots(sets).items()}  # same files, other order
             fake = FakeAsc(state="READY_FOR_REVIEW", screenshots=live, localization={"description": "Old"},
-                           app_infos=[app_info("NEXT", "READY_FOR_REVIEW")])
+                           app_infos=[app_info("NEXT", "READY_FOR_REVIEW")],
+                           drafts=["SUB1"], draft_items={"SUB1": [item("appStoreVersion", "V1")]})
             code, output = self.run_live(fake, env)
         self.assertEqual(code, 1)
         self.assertIn("cannot change", output)

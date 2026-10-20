@@ -450,11 +450,12 @@ anything else stops the run. Drafts holding creative images belong to those
 images' own review and are never used for the version. The draft that already
 holds this version is reused; otherwise only a draft holding no app version is,
 so another version's draft is never touched. A `READY_FOR_REVIEW` version that
-no draft holds stops the run before anything is written, even before this run's
-build is selected. If the version is already `WAITING_FOR_REVIEW`, late products
-go out in a draft of their own, which is created only when a product has to be
-added, so a rerun with nothing to send leaves no empty draft; a retry never
-duplicates items or ships an unrelated app version.
+no draft holds stops the run before anything is written: the draft is checked
+before the listing text, screenshots, images or build are touched. If the
+version is already `WAITING_FOR_REVIEW`, late products go out in a draft of
+their own, which is created only when a product has to be added, so a rerun with
+nothing to send leaves no empty draft; a retry never duplicates items or ships
+an unrelated app version.
 
 ## Release procedure
 
