@@ -1,4 +1,6 @@
-# Release tooling only: the Google Play API. App Store Connect calls go through the
-# pinned App Store Connect CLI (scripts/store/asc_cli.py), which needs no packages.
+# Release tooling only: the Google Play API, and Pillow, which gives App Store
+# screenshots stored with alpha an RGB copy to upload. App Store Connect calls go
+# through the pinned App Store Connect CLI (scripts/store/asc_cli.py).
 google-api-python-client==2.201.0
 google-auth==2.61.0
+Pillow==12.3.0
