@@ -26,15 +26,16 @@ ios-vX.Y tag ─► iOS unit + UI tests
                 checks the app's export compliance declaration
   └─ IOS_RELEASE_AUTOMATION off ─► GitHub Release only
   └─ on:
-       listing / What's New / screenshot / creative asset / review switch on
-                        ─► check only what this run uploads: the listing, screenshots,
-                           creative images and What's New, each only with its switch on
+       listing / What's New / screenshot / review switch on
+                        ─► check only what this run uploads: the listing, screenshots and
+                           What's New, each only with its switch on
        IOS_CREATE_VERSION ─► create App Store version X.Y when it is missing (an existing one
                              is left alone)
        listing / What's New / screenshot / creative asset / review switch on
                         ─► read-only App Store Connect preflight: version X.Y exists in a state
-                           that allows the enabled steps, with every locale they touch, and
-                           screenshot sets that will be replaced are PNGs asc can upload
+                           that allows the enabled steps, with every locale they touch; the
+                           creative images exist, and screenshot sets that will be replaced
+                           are PNGs asc can upload
        IOS_UPLOAD_BUILD ─► next build number from App Store Connect
                         ─► archive Release ─► verify app id/version/build in every bundle,
                            and the app's export compliance declaration
