@@ -64,7 +64,7 @@ TRANSIENT_ASC_EXIT_CODES = {18, 39, 124} | set(range(60, 100))
 # exit 1, so the build wait also retries exit 1 when asc's message is one of
 # these network failures (the wait stays bounded by its deadline).
 NETWORK_ERROR = re.compile(
-    r"connection reset|connection refused|broken pipe|unexpected EOF|i/o timeout|TLS handshake timeout"
+    r"connection reset|connection refused|broken pipe|\bEOF\b|i/o timeout|TLS handshake timeout"
     r"|no such host|network is unreachable|server misbehaving|context deadline exceeded|Client\.Timeout",
     re.IGNORECASE,
 )
