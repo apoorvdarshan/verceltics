@@ -18,9 +18,9 @@ What's New is the tag's `## ios-vX.Y` section in [RELEASE_NOTES.md](RELEASE_NOTE
 Screenshots are the App Store-ready mockups in [`store/app-store/screenshots/iphone/`](store/app-store/screenshots/iphone/)
 (iPhone 6.7", 1290×2796) and [`store/app-store/screenshots/ipad/`](store/app-store/screenshots/ipad/) (iPad 13", 2048×2732).
 `ios-release.yml` uploads each of these only when its switch is on; see
-[store/README.md](store/README.md). Check them with `python3 scripts/store/ios_metadata.py check`,
-and re-export after editing the listing in App Store Connect with
-`scripts/store/export_ios_listing.py`.
+[store/README.md](store/README.md). Store checks validates them on every pull request that
+touches `store/`; to check locally, or to re-export after editing the listing in App Store
+Connect (`ios export-listing`), see [Checking locally](store/README.md#checking-locally).
 
 The fields below are managed in App Store Connect by hand.
 

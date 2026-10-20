@@ -65,8 +65,9 @@ on or tapping it (`performScrollTo`, or `performScrollToNode` on lazy lists), an
 remember the keyboard can push a sheet's buttons out of view.
 
 Store listing text, release notes, and release switches are described in
-[store/README.md](store/README.md); `./scripts/test.sh` also runs the offline
-store release tests and checks the store listings and screenshots.
+[store/README.md](store/README.md); the Store checks workflow (apoorvdarshan/store-release)
+checks the store listings, screenshots, catalog and release notes, and store/README.md shows
+how to run those checks locally.
 
 For website and Worker changes, run these checks from `web/`:
 

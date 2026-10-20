@@ -184,7 +184,7 @@ verceltics/
 ├── web/                     # Next.js website, privacy, and terms
 ├── docs/screenshots/ios/    # Current iPhone screenshots used by this README
 ├── docs/screenshots/ipad/   # Current iPad screenshot source assets
-├── scripts/                 # Provider catalogs, test runners, and store release scripts
+├── scripts/                 # Provider catalogs, test runners, and CI helper scripts
 ├── store/                   # Store listings, product catalog, and release switches
 └── tests/                   # Catalog and request-integrity tests
 ```
