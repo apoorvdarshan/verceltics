@@ -61,10 +61,7 @@
 #   the credentials. Its telemetry is off. Checks that must not write (version
 #   preflight, build number, build wait, and everything on validation runs) run
 #   asc in read-only mode, which refuses any write before it is sent. The binary
-#   itself is still uploaded by xcodebuild. Screenshots that store alpha (asc
-#   refuses those) are uploaded as RGB copies made with Pillow, which the
-#   preflight and the store step install from requirements-store.txt only with
-#   IOS_UPLOAD_SCREENSHOTS on.
+#   itself is still uploaded by xcodebuild.
 #
 # Secrets
 #   APP_STORE_CONNECT_API_KEY_ID / _ISSUER_ID / _API_KEY_P8
@@ -148,7 +145,6 @@ jobs:
             /ios/verceltics/Paywall/Products.storekit
             /android/app/src/main/java/com/apoorvdarshan/verceltics/billing/BillingModels.kt
             /RELEASE_NOTES.md
-            /requirements-store.txt
 
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -228,18 +224,12 @@ jobs:
           MARKETING_VERSION: ${{ steps.gates.outputs.marketing_version }}
         run: python3 -u scripts/store/asc_release.py --create-version --version "$MARKETING_VERSION"
 
-      # Pillow makes the RGB copies uploaded for screenshots that store alpha (asc
-      # refuses those); the preflight makes them for every set it would replace.
-      - name: Install store tooling (Pillow, for screenshot RGB copies)
-        if: steps.gates.outputs.mode == 'release' && steps.gates.outputs.screenshots == 'true'
-        run: python3 -m pip install --disable-pip-version-check --require-hashes -r requirements-store.txt
-
       # Read-only (asc refuses every write): the X.Y App Store version exists in a
       # state that allows the enabled steps, with every locale they touch, and the
-      # screenshot sets that will be replaced have their upload copies made (RGB
-      # copies of PNGs with alpha), so a missing version (turn on IOS_CREATE_VERSION
-      # or create it in App Store Connect first) fails here instead of after the
-      # upload. Tag runs only: validation versions do not exist in App Store Connect.
+      # screenshot sets that will be replaced are PNGs asc can upload, so a missing
+      # version (turn on IOS_CREATE_VERSION or create it in App Store Connect
+      # first) fails here instead of after the upload. Tag runs only: validation
+      # versions do not exist in App Store Connect.
       - name: Check App Store Connect before building (read-only)
         if: steps.gates.outputs.mode == 'release' && steps.gates.outputs.asc == 'true'
         env:
@@ -590,17 +580,11 @@ jobs:
             /store/
             /ios/verceltics.xcodeproj/
             /RELEASE_NOTES.md
-            /requirements-store.txt
 
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
-
-      # Pillow, for the RGB copies uploaded for screenshots that store alpha.
-      - name: Install store tooling (Pillow, for screenshot RGB copies)
-        if: needs.prepare.outputs.screenshots == 'true'
-        run: python3 -m pip install --disable-pip-version-check --require-hashes -r requirements-store.txt
 
       - name: Install the pinned App Store Connect CLI
         run: |

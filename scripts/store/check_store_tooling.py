@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Offline smoke check of the installed store tooling (requirements-store.txt).
 
-Release jobs install requirements-store.txt next to the Google Play (and,
-for the screenshots' RGB copies, App Store Connect) credentials, and a
-Dependabot pip update changes nothing else, so
+Release jobs install requirements-store.txt next to the Google Play
+credentials, and a Dependabot pip update changes nothing else, so
 store-automation.yml installs it and runs this check before such a change is
 merged. With a throwaway key and no network:
 
@@ -12,11 +11,9 @@ merged. With a throwaway key and no network:
     through play_listing.build_android_publisher, from the discovery document
     bundled with the library, with every edits() method the release scripts call
 
-App Store Connect calls need no Python packages: every call goes through the
-pinned App Store Connect CLI, which asc_cli.py installs only after its SHA-256
-matches (store-automation.yml installs and checks it as well). Pillow makes the
-RGB copies of App Store screenshots that store alpha; store-automation.yml runs
-those tests (test_ios_release.py ScreenshotRgbCopyTests) with it installed.
+App Store Connect needs no Python packages: every call goes through the pinned
+App Store Connect CLI, which asc_cli.py installs only after its SHA-256 matches
+(store-automation.yml installs and checks it as well).
 
 Needs `pip install --require-hashes -r requirements-store.txt`. Uses no
 credentials and never contacts a store.

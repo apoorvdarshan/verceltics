@@ -35,7 +35,7 @@ ios-vX.Y tag ─► iOS unit + UI tests
                         ─► read-only App Store Connect preflight: version X.Y exists in a state
                            that allows the enabled steps, with every locale they touch; the
                            creative images exist, and screenshot sets that will be replaced
-                           have their upload copies made (RGB copies of PNGs with alpha)
+                           are PNGs asc can upload
        IOS_UPLOAD_BUILD ─► next build number from App Store Connect
                         ─► archive Release ─► verify app id/version/build in every bundle,
                            and the app's export compliance declaration
@@ -323,25 +323,22 @@ Offline checks need none of them.
 | [`scripts/store/validate_catalog.py`](../scripts/store/validate_catalog.py) | `catalog/products.json` against StoreKit and the Android billing IDs |
 | [`scripts/store/print_gates.py`](../scripts/store/print_gates.py) | Print the configured switches |
 | [`scripts/store/check_store_tooling.py`](../scripts/store/check_store_tooling.py) | Offline check of the installed store tooling: the versions `requirements-store.in` pins and the Google Play API client (store-automation.yml) |
-| [`scripts/store/test_ios_release.py`](../scripts/store/test_ios_release.py) | Offline tests against a fake App Store Connect behind `asc`: disabled/invalid switches, tag mismatch, validation mode, build wait timeout/failure/ambiguity/mismatch/old build/unknown upload time, selection read-back, products only in the rechecked draft, unchosen draft items, no empty drafts on reruns, version states and reruns, version creation, export compliance, preflight, listing (never read with its switch off), screenshots (sizes, formats, and RGB copies of PNGs with alpha) and creative images (sizes, formats and alpha), locked-version approvals, catalog, network-drop retries, and the asc runner (credentials, read-only mode, redaction, pinned checksum) |
+| [`scripts/store/test_ios_release.py`](../scripts/store/test_ios_release.py) | Offline tests against a fake App Store Connect behind `asc`: disabled/invalid switches, tag mismatch, validation mode, build wait timeout/failure/ambiguity/mismatch/old build/unknown upload time, selection read-back, products only in the rechecked draft, unchosen draft items, no empty drafts on reruns, version states and reruns, version creation, export compliance, preflight, listing (never read with its switch off), screenshots and creative images (sizes, formats and alpha), locked-version approvals, catalog, network-drop retries, and the asc runner (credentials, read-only mode, redaction, pinned checksum) |
 | [`scripts/store/test_android_release.py`](../scripts/store/test_android_release.py) | Offline tests: switches, track selection, wrong app/version/key, pinned upload certificate, unsigned bundle entries, versionCode and pre-upload checks, Play listing and read-back |
 | [`scripts/store/test_store_assets.py`](../scripts/store/test_store_assets.py) | The repository's App Store and Play listings and screenshots (pull requests and main; a release checks only what it uploads) |
 | [`scripts/ci/redact_ids.py`](../scripts/ci/redact_ids.py) | Removes App Store Connect key/issuer IDs from failure logs before they are kept |
 | [`scripts/release_notes.py`](../scripts/release_notes.py) | The tag's reviewed notes: GitHub Release body and (as plain text) What's New |
 
-The release workflows install [`requirements-store.txt`](../requirements-store.txt)
-(Google API client and Pillow; hash-pinned) into the pinned Python 3.13 from
+The Android release installs [`requirements-store.txt`](../requirements-store.txt)
+(Google API client; hash-pinned) into the pinned Python 3.13 from
 `actions/setup-python`, never the runner's system Python, and only for steps
-that need it: Android for the steps that call Google Play, iOS only with
-`IOS_UPLOAD_SCREENSHOTS` on, in the preflight and the store step, for the
-screenshots' RGB copies (Pillow). Otherwise the iOS store steps install only the
-pinned `asc`. Store steps run unbuffered (`python3 -u`), so the build wait and
-uploads log as they go. Nothing else installs the requirements, so whenever the
-**Store automation (dry-run)** workflow runs, including for every change to
-`requirements-store.in`/`.txt` (all that a Dependabot pip update touches), its
-`store-tooling` job installs them the same way and uses them offline with
-[`check_store_tooling.py`](../scripts/store/check_store_tooling.py) and the
-screenshot RGB copy tests (`STORE_TESTS_NEED_PILLOW=1`, so they cannot skip).
+that call Google Play. The iOS release needs no Python packages: its store steps
+install only the pinned `asc`. Store steps run unbuffered (`python3 -u`), so the
+build wait and uploads log as they go. Nothing else installs the requirements, so
+whenever the **Store automation (dry-run)** workflow runs, including for every
+change to `requirements-store.in`/`.txt` (all that a Dependabot pip update
+touches), its `store-tooling` job installs them the same way and uses them
+offline with [`check_store_tooling.py`](../scripts/store/check_store_tooling.py).
 A bad update fails there, before it is merged, instead of at the next release tag.
 `asc_release.py` reads `CREATE_IOS_VERSION`, `UPLOAD_LISTING`, `UPLOAD_WHATS_NEW`,
 `UPLOAD_SCREENSHOTS`, `UPLOAD_CREATIVE_ASSETS`, `SUBMIT_IOS_REVIEW` and
@@ -376,24 +373,18 @@ than silently skipping a change it cannot make.
 Each set takes exactly the sizes asc accepts for it (`asc screenshots sizes
 --display-type <type>`): 1260×2736, 1290×2796 or 1320×2868 for the 6.7" iPhone
 (not 1284×2778, the 6.5" size) and 2048×2732 or 2064×2752 for the 13" iPad, in
-either orientation. asc refuses to upload a PNG that stores an alpha channel or
+either orientation. A screenshot set that App Store Connect already holds
+exactly (the same files in the same order, compared by checksum) is left alone.
+Any other set is replaced as a whole (`asc screenshots upload --replace`) and
+read back. asc refuses to upload a PNG that stores an alpha channel or
 transparency (colour types 4 and 6, or a `tRNS` chunk), even when every pixel is
-opaque, so the release uploads an RGB copy of each such PNG instead (checked the
-same way, `asc_cli.image_has_alpha`). Pillow makes the copies in a temporary
-folder, laying transparent pixels over black and keeping the colour profile; the
-repository's files are never changed, and PNGs without alpha are uploaded byte
-for byte. The screenshots in the repository today are fully opaque RGBA, so
-their copies have exactly the same pixels. A copy that would still have alpha is
-never handed to asc. A screenshot set that App Store Connect already holds
-exactly (the same screenshots in the same order, compared by checksum, as the
-committed files or as their copies) is left alone. Any other set is replaced as
-a whole (`asc screenshots upload --replace`) and read back against the copies
-that were uploaded. The preflight makes the copies too, so a missing Pillow
-stops a release whose screenshots with alpha have to be uploaded before anything
-is built. Copies are the same for the same Pillow version; after a Pillow update
-a set uploaded as copies may be replaced once more. If an upload fails part-way,
-the set can be left incomplete: fix the error and rerun, and the set is replaced
-again.
+opaque, and the release checks the same way (`asc_cli.image_has_alpha`). The
+screenshots in the repository today are RGBA, which is fine while App Store
+Connect already shows them, but they must be re-exported as RGB PNGs without
+transparency before the next screenshot change: a set with alpha that has to be
+uploaded stops the release in the preflight, before anything is built, and in
+the store step before anything is written. If an upload fails part-way, the set
+can be left incomplete: fix the error and rerun, and the set is replaced again.
 
 A creative image is matched in the Asset Library by file name and size, so give
 a changed image a new file name. A reservation left by an interrupted upload

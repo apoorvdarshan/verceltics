@@ -9,9 +9,8 @@
 #                   uses and checks its version, so a bad pin fails here
 #   store-tooling   installs the hash-locked store tooling (requirements-store.txt)
 #                   that release jobs install, into the same pinned Python, and
-#                   uses it offline: pinned versions, the Google Play API client
-#                   and the RGB copies of App Store screenshots that store alpha
-#                   (Pillow). A Dependabot pip update only changes
+#                   uses it offline: pinned versions and the Google Play API
+#                   client. A Dependabot pip update only changes
 #                   requirements-store.in/.txt, so this job is what checks it
 #                   before it is merged, instead of the next release tag.
 #
@@ -165,7 +164,6 @@ jobs:
           sparse-checkout: |
             /scripts/store/
             /scripts/release_notes.py
-            /store/catalog/
             /requirements-store.in
             /requirements-store.txt
 
@@ -181,10 +179,3 @@ jobs:
 
       - name: Use it offline (pinned versions, Play API client)
         run: python3 -u scripts/store/check_store_tooling.py
-
-      # iOS release runs upload RGB copies, made with Pillow, of screenshots that
-      # store alpha; with STORE_TESTS_NEED_PILLOW these tests cannot skip.
-      - name: Test the screenshot RGB copies with Pillow (offline)
-        env:
-          STORE_TESTS_NEED_PILLOW: "1"
-        run: python3 -m unittest -v -k ScreenshotRgbCopy scripts/store/test_ios_release.py
