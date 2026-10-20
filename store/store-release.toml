@@ -1,0 +1,139 @@
+# Verceltics' store-release configuration. Schema:
+# https://github.com/apoorvdarshan/store-release/blob/v0.2.0/docs/config.md
+# Switches stay in repository variables and secrets in repository secrets.
+schema = 1
+
+[app]
+name = "Verceltics"
+slug = "verceltics"
+
+[release_notes]
+path = "RELEASE_NOTES.md"
+# Only the tag being released must have one section; other duplicate headings never failed a check.
+unique_headings = false
+
+[catalog]
+path = "store/catalog/products.json"
+groups = ["subscriptions", "non_consumables", "tips"]
+id_prefix = "com.apoorvdarshan.verceltics."
+# validate_catalog.py's sources: the iOS StoreKit file and the Android product constants.
+storekit = "ios/verceltics/Paywall/Products.storekit"
+products_source = "android/app/src/main/java/com/apoorvdarshan/verceltics/billing/BillingModels.kt"
+
+[checks]
+paths = [
+  "store/**",
+  "RELEASE_NOTES.md",
+  "ios/verceltics.xcodeproj/project.pbxproj",
+  "ios/verceltics/Paywall/Products.storekit",
+  "android/app/build.gradle.kts",
+  "android/app/src/main/java/com/apoorvdarshan/verceltics/billing/BillingModels.kt",
+  ".github/workflows/store-checks.yml",
+  ".github/workflows/ios-release.yml",
+  ".github/workflows/android-release.yml",
+]
+
+[ios]
+# Verceltics' own release scripts (scripts/store at 30378f6), ported unchanged.
+flow = "verceltics"
+tag_prefix = "ios-v"
+bundle_id = "com.apoorvdarshan.verceltics"
+asc_app_id = "6761645656"
+team_id = "23RV7FYH36"
+project = "ios/verceltics.xcodeproj"
+scheme = "verceltics"
+app_target = "verceltics"
+locale = "en-US"
+gate_jobs = [
+  { id = "tests", uses = "./.github/workflows/ios-tests.yml" },
+]
+gate_policy = "parallel"
+
+# Every iOS prepare runs the app's offline repository tests (tests/: the provider API
+# catalogs, the privacy manifest, AuthManager), as its prepare job did.
+[ios.prepare]
+checks = ["scripts/ci/release_gate_tests.sh"]
+checkout = [
+  "/tests/",
+  "/ios/verceltics/Resources/",
+  "/ios/verceltics/PrivacyInfo.xcprivacy",
+  "/ios/verceltics/Auth/AuthManager.swift",
+  "/ios/verceltics/Paywall/Products.storekit",
+  "/android/app/src/main/java/com/apoorvdarshan/verceltics/billing/BillingModels.kt",
+]
+
+[ios.build]
+developer_dir = "/Applications/Xcode_27.app/Contents/Developer"
+checkout = ["/ios/"]
+package_cache_files = ["ios/**/Package.resolved"]
+
+[ios.listing]
+source = "files"
+dir = "store/metadata/ios"
+
+# The tag's RELEASE_NOTES.md section, as plain text.
+[ios.whats_new]
+source = "release-notes"
+
+[[ios.screenshots.sets]]
+display_type = "APP_IPHONE_67"
+dir = "store/app-store/screenshots/iphone"
+required = true
+
+[[ios.screenshots.sets]]
+display_type = "APP_IPAD_PRO_3GEN_129"
+dir = "store/app-store/screenshots/ipad"
+required = true
+
+[[ios.screenshots.sets]]
+display_type = "APP_IPHONE_DUO"
+dir = "store/app-store/screenshots/iphone-duo"
+required = false
+
+[[ios.screenshots.sets]]
+display_type = "WATCH"
+dir = "store/app-store/screenshots/watch"
+required = false
+
+[ios.creative]
+dir = "store/creative/ios"
+
+[ios.github_release]
+title = "iOS {version} (build {build})"
+on_existing = "fail"
+latest = "always"
+
+[android]
+flow = "verceltics"
+tag_prefix = "android-v"
+package = "com.apoorvdarshan.verceltics"
+gradle_file = "android/app/build.gradle.kts"
+upload_cert_sha256 = "fe735c7c3e4b92a796da23a2051b7fcbb9e65304864396212512b387df61f1ef"
+locale = "en-US"
+gate_jobs = [
+  { id = "quality", uses = "./.github/workflows/ci.yml", with = { android-release = true } },
+]
+
+[android.build]
+dir = "android"
+tasks = [":app:bundleRelease", ":app:assembleRelease"]
+checkout = ["/android/"]
+signing = "gradle-properties"
+keystore_property = "VERCELTICS_UPLOAD_KEYSTORE"
+password_file_property = "VERCELTICS_UPLOAD_KEYSTORE_PASSWORD_FILE"
+key_alias = "upload"
+sdk_packages = ["platform-tools", "platforms;android-37.0"]
+
+[android.listing]
+source = "files"
+dir = "store/metadata/play"
+
+[android.whats_new]
+source = "release-notes"
+
+[android.screenshots]
+dir = "store/google-play/screenshots/phone"
+pad_to_9_16 = false
+
+[android.github_release]
+asset_name = "verceltics-android-{version}-{version_code}"
