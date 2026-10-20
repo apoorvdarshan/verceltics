@@ -153,9 +153,11 @@ place that runs it:
   preflight, build numbering, the build wait, and the whole `prepare` job on
   validation runs. asc refuses a write in that mode before sending it (exit 6).
 - On failure the error keeps asc's exit code and drops the key and issuer IDs.
-  asc retries reads after network errors itself; the build wait also retries
-  asc's server-side exit codes (HTTP 5xx, 408, 429 and timeouts), while auth,
-  usage and not-found errors stop at once.
+  asc retries a read itself after a rate limit, a server error or a dropped
+  connection (`ASC_MAX_RETRIES=5`). The build wait also retries asc's
+  server-side exit codes (HTTP 5xx, 408, 429 and timeouts) and network drops,
+  which asc reports as a generic exit 1 with a connection error; auth, usage
+  and not-found errors stop at once.
 - Every run checks that the pinned App Store Connect app (`ASC_APP_ID`,
   `6761645656`) carries exactly the bundle id `com.apoorvdarshan.verceltics`
   before it reads or changes anything.
@@ -321,7 +323,7 @@ Offline checks need none of them.
 | [`scripts/store/validate_catalog.py`](../scripts/store/validate_catalog.py) | `catalog/products.json` against StoreKit and the Android billing IDs |
 | [`scripts/store/print_gates.py`](../scripts/store/print_gates.py) | Print the configured switches |
 | [`scripts/store/check_store_tooling.py`](../scripts/store/check_store_tooling.py) | Offline check of the installed store tooling: the versions `requirements-store.in` pins and the Google Play API client (store-automation.yml) |
-| [`scripts/store/test_ios_release.py`](../scripts/store/test_ios_release.py) | Offline tests against a fake App Store Connect behind `asc`: disabled/invalid switches, tag mismatch, validation mode, build wait timeout/failure/ambiguity/mismatch/old build/unknown upload time, selection read-back, products only in the rechecked draft, unchosen draft items, version states and reruns, version creation, export compliance, preflight, listing (never read with its switch off), screenshots, creative assets, catalog, and the asc runner (credentials, read-only mode, redaction, pinned checksum) |
+| [`scripts/store/test_ios_release.py`](../scripts/store/test_ios_release.py) | Offline tests against a fake App Store Connect behind `asc`: disabled/invalid switches, tag mismatch, validation mode, build wait timeout/failure/ambiguity/mismatch/old build/unknown upload time, selection read-back, products only in the rechecked draft, unchosen draft items, no empty drafts on reruns, version states and reruns, version creation, export compliance, preflight, listing (never read with its switch off), screenshots and creative images (including alpha), catalog, network-drop retries, and the asc runner (credentials, read-only mode, redaction, pinned checksum) |
 | [`scripts/store/test_android_release.py`](../scripts/store/test_android_release.py) | Offline tests: switches, track selection, wrong app/version/key, pinned upload certificate, unsigned bundle entries, versionCode and pre-upload checks, Play listing and read-back |
 | [`scripts/store/test_store_assets.py`](../scripts/store/test_store_assets.py) | The repository's App Store and Play listings and screenshots (pull requests and main; a release checks only what it uploads) |
 | [`scripts/ci/redact_ids.py`](../scripts/ci/redact_ids.py) | Removes App Store Connect key/issuer IDs from failure logs before they are kept |
@@ -369,21 +371,26 @@ than silently skipping a change it cannot make.
 
 A screenshot set that App Store Connect already holds exactly (the same files in
 the same order, compared by checksum) is left alone. Any other set is replaced as
-a whole (`asc screenshots upload --replace`) and read back. asc uploads only PNGs
-without an alpha channel: the screenshots in the repository today are RGBA, which
-is fine while App Store Connect already shows them, but a changed set must be
-exported as RGB PNGs without transparency. The preflight stops such a release
-before anything is built. If an upload fails part-way, the set can be left
-incomplete: fix the error and rerun, and the set is replaced again.
+a whole (`asc screenshots upload --replace`) and read back. asc refuses to upload
+a PNG that stores an alpha channel or transparency (colour types 4 and 6, or a
+`tRNS` chunk), even when every pixel is opaque, and the release checks the same
+way (`asc_cli.image_has_alpha`). The screenshots in the repository today are
+RGBA, which is fine while App Store Connect already shows them, but they must be
+re-exported as RGB PNGs without transparency before the next screenshot change:
+a set with alpha that has to be uploaded stops the release in the preflight,
+before anything is built, and in the store step before anything is written. If
+an upload fails part-way, the set can be left incomplete: fix the error and
+rerun, and the set is replaced again.
 
 A creative image is matched in the Asset Library by file name and size, so give
 a changed image a new file name. Apple reviews each new image on its own (the app
 already has an approved version), and a later run places it once it is approved;
 a rejected image stops the run with Apple's reason. Apple's rules for these
 images: no prices, website addresses, other platforms or Apple badges, and no
-transparency (`asc asset-library specs` lists the current sizes). Both folders are
-empty today, so keep `IOS_UPLOAD_CREATIVE_ASSETS` off until an image is added:
-with the switch on and no image, the run fails before anything is built.
+transparency (`asc asset-library specs` lists the current sizes). An image with
+an alpha channel stops the run before any asc call. Both folders are empty
+today, so keep `IOS_UPLOAD_CREATIVE_ASSETS` off until an image is added: with the
+switch on and no image, the run fails before anything is built.
 
 ### Export compliance
 
@@ -432,8 +439,10 @@ submitted if a required product cannot be added. A reused draft is submitted
 only when it holds this version and nothing but versions of catalog products;
 anything else stops the run. Drafts holding creative images belong to those
 images' own review and are never used for the version. If the version is already
-`WAITING_FOR_REVIEW`, late products go out in a draft of their own; a retry never
-duplicates items or ships an unrelated app version.
+`WAITING_FOR_REVIEW`, late products go out in a draft of their own, which is
+created only when a product has to be added, so a rerun with nothing to send
+leaves no empty draft; a retry never duplicates items or ships an unrelated app
+version.
 
 ## Release procedure
 

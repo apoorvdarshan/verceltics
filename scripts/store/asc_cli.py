@@ -30,7 +30,6 @@ import platform
 import shutil
 import stat
 import subprocess
-import sys
 import tempfile
 import urllib.request
 from pathlib import Path
@@ -88,6 +87,8 @@ def asc_environment(base: Mapping[str, str] | None = None, *, read_only: bool = 
             "DO_NOT_TRACK": "1",
             "ASC_SKILLS_AUTO_CHECK": "0",
             "ASC_SPINNER_DISABLED": "1",
+            # asc retries GET requests that hit 429 or 503 this many times.
+            "ASC_MAX_RETRIES": "5",
             "ASC_DEFAULT_OUTPUT": "json",
             "NO_COLOR": "1",
         }
@@ -174,6 +175,37 @@ def check_version(asc: Asc) -> str:
     if reported != ASC_VERSION:
         raise SystemExit(f"error: {asc.binary} reports {reported or 'no version'}, expected the pinned {ASC_VERSION}")
     return reported
+
+
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+
+
+def image_has_alpha(path: Path) -> bool:
+    """True when a PNG stores an alpha channel or transparency.
+
+    asc refuses such files for screenshots and Asset Library images, even when
+    every pixel is opaque (PNG colour types 4 and 6, or a tRNS chunk). Only the
+    chunk headers before the image data are read. JPEGs have no alpha.
+    """
+    with Path(path).open("rb") as handle:
+        if handle.read(8) != PNG_SIGNATURE:
+            return False
+        while True:
+            head = handle.read(8)
+            if len(head) < 8:
+                return False
+            length, kind = int.from_bytes(head[:4], "big"), head[4:8]
+            if kind == b"IHDR":
+                body = handle.read(length)
+                if len(body) >= 10 and body[9] in (4, 6):
+                    return True
+                handle.seek(4, os.SEEK_CUR)
+            elif kind == b"tRNS":
+                return True
+            elif kind == b"IDAT":
+                return False
+            else:
+                handle.seek(length + 4, os.SEEK_CUR)
 
 
 def platform_key(system: str | None = None, machine: str | None = None) -> str:

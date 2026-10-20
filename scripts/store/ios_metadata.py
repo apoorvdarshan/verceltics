@@ -149,31 +149,6 @@ def png_size(path: Path) -> tuple[int, int]:
     return struct.unpack(">II", header[16:24])
 
 
-def png_has_alpha(path: Path) -> bool:
-    """True when a PNG has an alpha channel (RGBA or grey + alpha) or a transparency chunk.
-
-    The App Store Connect CLI the release uploads with refuses such PNGs, even fully
-    opaque ones, so a screenshot set that has to be uploaded must not contain one.
-    """
-    with path.open("rb") as handle:
-        header = handle.read(26)
-        if len(header) != 26 or header[:8] != b"\x89PNG\r\n\x1a\n" or header[12:16] != b"IHDR":
-            raise MetadataError(f"{path.name} is not a PNG image")
-        if header[25] in (4, 6):  # IHDR colour type: grey + alpha, RGBA
-            return True
-        handle.seek(8)
-        while True:
-            chunk = handle.read(8)
-            if len(chunk) != 8:
-                return False
-            length, kind = struct.unpack(">I4s", chunk)
-            if kind == b"tRNS":
-                return True
-            if kind in (b"IDAT", b"IEND"):
-                return False
-            handle.seek(length + 4, 1)  # chunk data and CRC
-
-
 def screenshot_files(spec: ScreenshotSet) -> list[Path]:
     """The set's PNGs in display order, or a clear error when there are none."""
     files = sorted(spec.directory.glob("*.png")) if spec.directory.is_dir() else []
