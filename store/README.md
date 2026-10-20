@@ -387,17 +387,19 @@ the store step before anything is written. If an upload fails part-way, the set
 can be left incomplete: fix the error and rerun, and the set is replaced again.
 
 A creative image is matched in the Asset Library by file name and size, so give
-a changed image a new file name. Apple reviews each new image on its own (the app
-already has an approved version), and a later run places it once it is approved;
-a rejected image stops the run with Apple's reason. Apple's rules for these
-images: no prices, website addresses, other platforms or Apple badges, and no
-transparency (`asc asset-library specs` lists the current sizes). Sizes, formats
-and alpha are checked with the other local inputs, before anything is built and
-before any asc call, so a wrong file stops the run early. An image approved while
-the version waits for review is not a mismatch: the rerun passes and the image is
+a changed image a new file name. A reservation left by an interrupted upload
+(`AWAITING_UPLOAD`, which asc never deletes) is ignored and the image is
+uploaded again. Apple reviews each new image on its own (the app already has an
+approved version), and a later run places it once it is approved; a rejected
+image stops the run with Apple's reason. Apple's rules for these images: no
+prices, website addresses, other platforms or Apple badges, and no transparency
+(`asc asset-library specs` lists the current sizes). Sizes, formats and alpha
+are checked with the other local inputs, before anything is built and before any
+asc call, so a wrong file stops the run early. An image approved while the
+version waits for review is not a mismatch: the rerun passes and the image is
 placed once the version can be edited. Both folders are empty today, so keep
-`IOS_UPLOAD_CREATIVE_ASSETS` off until an image is added: with the switch on and no
-image, the run fails before anything is built.
+`IOS_UPLOAD_CREATIVE_ASSETS` off until an image is added: with the switch on and
+no image, the run fails before anything is built.
 
 ### Export compliance
 
@@ -429,9 +431,9 @@ refuses a build that declares otherwise.
 
 ### iOS subscription submission caveat
 
-`IOS_SUBMIT_REVIEW` submits the App Store version and every
-`READY_TO_SUBMIT` (or `DEVELOPER_REJECTED`) subscription and `READY_TO_SUBMIT`
-in-app purchase (the lifetime purchase and tips) in
+`IOS_SUBMIT_REVIEW` submits the App Store version and every `READY_TO_SUBMIT`
+(or `DEVELOPER_REJECTED`) subscription and `READY_TO_SUBMIT` in-app purchase
+(the lifetime purchase and tips) in
 [`catalog/products.json`](catalog/products.json) in one review submission. Each
 product attaches through its current version (`subscriptionVersions` /
 `inAppPurchaseVersions` review items, via `asc review items-add`), so a
@@ -447,12 +449,12 @@ only when it holds this version and nothing but versions of catalog products;
 anything else stops the run. Drafts holding creative images belong to those
 images' own review and are never used for the version. The draft that already
 holds this version is reused; otherwise only a draft holding no app version is,
-so another version's draft is never touched. A `READY_FOR_REVIEW` version that no
-draft holds stops the run before anything is added. If the version is already
-`WAITING_FOR_REVIEW`, late products go out in a draft of their own, which is
-created only when a product has to be added, so a rerun with nothing to send
-leaves no empty draft; a retry never duplicates items or ships an unrelated app
-version.
+so another version's draft is never touched. A `READY_FOR_REVIEW` version that
+no draft holds stops the run before anything is written, even before this run's
+build is selected. If the version is already `WAITING_FOR_REVIEW`, late products
+go out in a draft of their own, which is created only when a product has to be
+added, so a rerun with nothing to send leaves no empty draft; a retry never
+duplicates items or ships an unrelated app version.
 
 ## Release procedure
 
