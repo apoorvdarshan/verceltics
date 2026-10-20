@@ -31,53 +31,42 @@ ios-vX.Y tag ─► iOS unit + UI tests
                            What's New, each only with its switch on
        IOS_CREATE_VERSION ─► create App Store version X.Y when it is missing (an existing one
                              is left alone)
-       listing / What's New / screenshot / creative asset / review switch on
+       listing / What's New / screenshot / review switch on
                         ─► read-only App Store Connect preflight: version X.Y exists in a state
-                           that allows the enabled steps, with every locale they touch; the
-                           creative images exist, and screenshot sets that will be replaced
-                           are PNGs asc can upload
+                           that allows the enabled steps, with every locale they touch
        IOS_UPLOAD_BUILD ─► next build number from App Store Connect
                         ─► archive Release ─► verify app id/version/build in every bundle,
                            and the app's export compliance declaration
                         ─► cloud-signed export + upload
                         ─► wait until THIS build is VALID (poll 30 s, up to 120 min from upload start)
        IOS_UPLOAD_LISTING / IOS_UPLOAD_WHATS_NEW / IOS_UPLOAD_SCREENSHOTS ─► version metadata
-       IOS_UPLOAD_CREATIVE_ASSETS ─► header / search results images: upload and review new
-                                     ones on their own, place approved ones
        IOS_SUBMIT_REVIEW ─► select this run's build, read it back, confirm export compliance,
-                            set release type, add Ready-to-Submit catalog subscriptions +
-                            in-app purchases and the version to one draft submission
-                         ─► recheck build + selection, and that the draft holds nothing else
-                         ─► submit the draft
+                            set release type, attach catalog subscriptions to the draft
+                         ─► recheck build + selection
+                         ─► submit catalog in-app purchases, then the version (+ subscriptions)
   └─ GitHub Release (only if every enabled step succeeded)
 ```
 
-Every App Store Connect call goes through the pinned App Store Connect CLI
-([`asc`](#app-store-connect-cli-asc)); the binary itself is still exported and
-uploaded by `xcodebuild`.
-
 **The App Store version must exist first.** App Store Connect only accepts
-listing, What's New, screenshots, creative assets and review submission on an
-App Store version that already exists. With `IOS_CREATE_VERSION` on, a tag run
-creates version X.Y (it then shows "Prepare for Submission") when it is missing,
-after the offline checks and before the preflight; an existing X.Y is left alone.
-It refuses, before anything is built and without changing anything, when another
-iOS version is still on its way to the store (any state but Ready for
-Distribution, replaced or removed), when X.Y is not newer than every existing
-version, or when the pinned App Store Connect app (`6761645656`) does not carry
-the Verceltics bundle id. A version created by a run whose later steps fail stays
-in Prepare for Submission, and the next run for the same tag reuses it. With the
-switch off and any of those switches on, create version X.Y in App Store Connect
-before pushing `ios-vX.Y`; otherwise the read-only preflight in the prepare job
-stops the run before anything is built or uploaded. A build-only release
-(`IOS_UPLOAD_BUILD` alone) needs no App Store version.
+listing, What's New, screenshots and review submission on an App Store version
+that already exists. With `IOS_CREATE_VERSION` on, a tag run creates version X.Y
+(it then shows "Prepare for Submission") when it is missing, after the offline
+checks and before the preflight; an existing X.Y is left alone. It refuses,
+before anything is built and without changing anything, when another iOS version
+is still on its way to the store (any state but Ready for Distribution, replaced
+or removed), when X.Y is not newer than every existing version, or when the
+bundle id resolves to another app. A version created by a run whose later steps
+fail stays in Prepare for Submission, and the next run for the same tag reuses
+it. With the switch off and any of those switches on, create version X.Y in App
+Store Connect before pushing `ios-vX.Y`; otherwise the read-only preflight in the
+prepare job stops the run before anything is built or uploaded. A build-only
+release (`IOS_UPLOAD_BUILD` alone) needs no App Store version.
 
 **A store asset the run does not upload never blocks it**, on either platform.
 The listing text is read and checked only with `IOS_UPLOAD_LISTING` /
 `ANDROID_UPLOAD_LISTING` on (otherwise `prepare --no-listing` hands the store step
 What's New alone), screenshots only with their screenshot switch, and the tag's
-What's New only with its What's New switch, and the header and search results
-images only with `IOS_UPLOAD_CREATIVE_ASSETS`. Pull requests that change store
+What's New only with its What's New switch. Pull requests that change store
 files, and every push to main, still check every asset in the repository.
 
 A manual **Run workflow** (`workflow_dispatch`) is a validation run: it archives,
@@ -109,11 +98,10 @@ A rerun also works after a submission went partly through. If the version is
 already in a draft review submission (`READY_FOR_REVIEW`, for example after App
 Store Connect rejected the submit), the listing and What's New text are updated
 where they differ and the version is submitted; screenshots must already match,
-because they cannot change in that state, and creative assets are never changed
-there. If the version was already submitted (`WAITING_FOR_REVIEW`), the rerun
-changes nothing: it passes only when App Store Connect already holds this run's
-build and the repository's text and screenshots, and then the GitHub Release is
-created.
+because they cannot change in that state. If the version was already submitted
+(`WAITING_FOR_REVIEW`), the rerun changes nothing: it passes only when App Store
+Connect already holds this run's build and the repository's text and
+screenshots, and then the GitHub Release is created.
 
 What's New is the tag's `RELEASE_NOTES.md` section converted to plain text, as
 App Store Connect and Google Play show text literally: links and images keep
@@ -127,43 +115,6 @@ When the build job fails, its logs are kept for 7 days as the
 Store Connect key and issuer IDs in text logs, leaves out binary or UTF-16 files
 that hold one, and renames files named after one; if any ID were left, nothing
 would be uploaded.
-
-### App Store Connect CLI (`asc`)
-
-Every App Store Connect call goes through the
-[App Store Connect CLI](https://github.com/rorkai/App-Store-Connect-CLI) (`asc`,
-MIT) instead of hand-written API code (no more JWT signing or HTTP client in this
-repository). [`scripts/store/asc_cli.py`](../scripts/store/asc_cli.py) is the only
-place that runs it:
-
-- It is pinned to one release (`ASC_VERSION`, now 5.15.0) and installed by
-  `asc_cli.py install`, which refuses a binary whose SHA-256 differs from the
-  pinned value for that platform (`linux_amd64` and `macOS_arm64`). Every job
-  that uses it runs `asc_cli.py check`, and every run re-checks the checksum of
-  the `asc` on `PATH` before handing it credentials; no environment variable can
-  point the scripts at another executable. The **Store automation (dry-run)**
-  workflow installs and checks it on every change to the store scripts, so a bad
-  pin fails on the pull request.
-- Credentials come only from the `APP_STORE_CONNECT_*` secrets, through asc's
-  own environment variables; the keychain and asc config files are bypassed,
-  and `ASC_STRICT_AUTH` rejects credentials mixed from several sources.
-- Telemetry (`ASC_TELEMETRY_DISABLED`, `DO_NOT_TRACK`) and the skills update
-  check are off.
-- Checks that must never write run asc read-only (`ASC_READ_ONLY`): the version
-  preflight, build numbering, the build wait, and the whole `prepare` job on
-  validation runs. asc refuses a write in that mode before sending it (exit 6).
-- On failure the error keeps asc's exit code and drops the key and issuer IDs.
-  asc retries a read itself after a rate limit, a server error or a dropped
-  connection (`ASC_MAX_RETRIES=5`). The build wait also retries asc's
-  server-side exit codes (HTTP 5xx, 408, 429 and timeouts) and network drops,
-  which asc reports as a generic exit 1 with a connection error; auth, usage
-  and not-found errors stop at once.
-- Every run checks that the pinned App Store Connect app (`ASC_APP_ID`,
-  `6761645656`) carries exactly the bundle id `com.apoorvdarshan.verceltics`
-  before it reads or changes anything.
-
-To move to a newer asc, change `ASC_VERSION` and both `ASC_SHA256` values from
-that release's `asc_<version>_checksums.txt`, then run the store tests.
 
 ## Android release flow (`android-v*` tag)
 
@@ -233,8 +184,7 @@ run, even when the platform's master switch is off. Copy names from
 | `IOS_UPLOAD_BUILD` | Build, sign and upload the binary to App Store Connect, then wait for processing |
 | `IOS_UPLOAD_LISTING` | App name, subtitle, description, keywords, promotional text, privacy/marketing/support URLs from [`metadata/ios/`](metadata/ios/) |
 | `IOS_UPLOAD_WHATS_NEW` | What's New: the tag's `## ios-vX.Y` section in [RELEASE_NOTES.md](../RELEASE_NOTES.md) as plain text (4000 characters at most; fails without one) |
-| `IOS_UPLOAD_SCREENSHOTS` | Replace the iPhone 6.7" and iPad 13" screenshot sets that differ from App Store Connect (see below) |
-| `IOS_UPLOAD_CREATIVE_ASSETS` | Product page header and search results images from `store/creative/ios/header/` and `store/creative/ios/search-results/` (see below). A new image is uploaded to the Asset Library and sent to App Review in a submission of its own; once Apple approves it, a later run places it on the version (or swaps it in for the current image). Never changes anything while the version waits for review |
+| `IOS_UPLOAD_SCREENSHOTS` | Replace the iPhone 6.7" and iPad 13" screenshots (see below) |
 | `IOS_SUBMIT_REVIEW` | Select this run's build and submit the version **and** Ready-to-Submit catalog IAPs / subscriptions for review. Requires `IOS_UPLOAD_BUILD` |
 | `IOS_PUBLIC_RELEASE` | Release automatically after approval. Off = manual release. Requires `IOS_SUBMIT_REVIEW` |
 | `IOS_BUILD_POLL_SECONDS` | Poll interval, default 30 (10–600) |
@@ -273,7 +223,7 @@ iOS:
 
 | Secret | Used for |
 |--------|----------|
-| `APP_STORE_CONNECT_API_KEY_ID` | App Store Connect API key: build numbers, cloud-managed distribution signing, upload, build readiness, listing, review (used by `asc` and `xcodebuild`) |
+| `APP_STORE_CONNECT_API_KEY_ID` | App Store Connect API key: build numbers, cloud-managed distribution signing, upload, build readiness, listing, review |
 | `APP_STORE_CONNECT_ISSUER_ID` | ASC issuer |
 | `APP_STORE_CONNECT_API_KEY_P8` | ASC private key (`.p8` body) |
 | `IOS_DEV_SIGNING_P12_BASE64` | CI Apple Development identity (base64 `.p12`; certificate "Apple Development: Created via API", ID `NVNGDQGCKK`, expires 2027-10-14) that signs the archive. App Store signing happens at export with Apple's cloud-managed distribution certificate |
@@ -313,38 +263,36 @@ Offline checks need none of them.
 
 | Script | Role |
 |--------|------|
-| [`scripts/store/ios_release.py`](../scripts/store/ios_release.py) | iOS switches, export compliance declaration (runs that build), build number, wait for this run's build (both read-only) |
-| [`scripts/store/asc_cli.py`](../scripts/store/asc_cli.py) | Installs the pinned, checksum-verified `asc` and runs it (credentials, read-only mode, telemetry off, redacted errors) |
-| [`scripts/store/asc_release.py`](../scripts/store/asc_release.py) | ASC version creation (`--create-version`), listing, App Info, What's New, screenshots, header and search results images, build selection, export compliance, IAPs, submit for review (`--dry-run` = local checks only, `--preflight` = read-only App Store Connect checks); every call through `asc` |
+| [`scripts/store/ios_release.py`](../scripts/store/ios_release.py) | iOS switches, export compliance declaration (runs that build), build number, wait for this run's build |
+| [`scripts/store/asc_release.py`](../scripts/store/asc_release.py) | ASC version creation (`--create-version`), listing, App Info, What's New, screenshots, build selection, export compliance, IAPs, submit for review (`--dry-run` = local checks only, `--preflight` = read-only App Store Connect checks) |
 | [`scripts/store/ios_metadata.py`](../scripts/store/ios_metadata.py) | Check the App Store listing and/or screenshots; prepare the listing (unless `--no-listing`) with the tag's What's New as plain text |
-| [`scripts/store/export_ios_listing.py`](../scripts/store/export_ios_listing.py) | Read-only (asc in read-only mode): export the live App Store listing into `store/metadata/ios/` |
+| [`scripts/store/export_ios_listing.py`](../scripts/store/export_ios_listing.py) | Read-only: export the live App Store listing into `store/metadata/ios/` |
 | [`scripts/store/android_release.py`](../scripts/store/android_release.py) | Android switches, versionCode check against Play, AAB/APK identity + pinned signature checks, pre-upload track state, Play track read-back |
 | [`scripts/store/play_listing.py`](../scripts/store/play_listing.py) | Check, prepare and upload the Play listing, phone screenshots and What's New |
 | [`scripts/store/validate_catalog.py`](../scripts/store/validate_catalog.py) | `catalog/products.json` against StoreKit and the Android billing IDs |
 | [`scripts/store/print_gates.py`](../scripts/store/print_gates.py) | Print the configured switches |
-| [`scripts/store/check_store_tooling.py`](../scripts/store/check_store_tooling.py) | Offline check of the installed store tooling: the versions `requirements-store.in` pins and the Google Play API client (store-automation.yml) |
-| [`scripts/store/test_ios_release.py`](../scripts/store/test_ios_release.py) | Offline tests against a fake App Store Connect behind `asc`: disabled/invalid switches, tag mismatch, validation mode, build wait timeout/failure/ambiguity/mismatch/old build/unknown upload time, selection read-back, products only in the rechecked draft, unchosen draft items, no empty drafts on reruns, version states and reruns, version creation, export compliance, preflight, listing (never read with its switch off), screenshots and creative images (sizes, formats and alpha), locked-version approvals, catalog, network-drop retries, and the asc runner (credentials, read-only mode, redaction, pinned checksum) |
+| [`scripts/store/check_store_tooling.py`](../scripts/store/check_store_tooling.py) | Offline check of the installed store tooling: the versions `requirements-store.in` pins, an ES256 App Store Connect token, the Google Play API client (store-automation.yml) |
+| [`scripts/store/test_ios_release.py`](../scripts/store/test_ios_release.py) | Offline tests: disabled/invalid switches, tag mismatch, validation mode, build wait timeout/failure/ambiguity/mismatch/old build/unknown upload time, selection read-back, purchases only after the recheck, version states and reruns, version creation, export compliance, preflight, token refresh, listing (never read with its switch off), screenshots, catalog |
 | [`scripts/store/test_android_release.py`](../scripts/store/test_android_release.py) | Offline tests: switches, track selection, wrong app/version/key, pinned upload certificate, unsigned bundle entries, versionCode and pre-upload checks, Play listing and read-back |
 | [`scripts/store/test_store_assets.py`](../scripts/store/test_store_assets.py) | The repository's App Store and Play listings and screenshots (pull requests and main; a release checks only what it uploads) |
 | [`scripts/ci/redact_ids.py`](../scripts/ci/redact_ids.py) | Removes App Store Connect key/issuer IDs from failure logs before they are kept |
 | [`scripts/release_notes.py`](../scripts/release_notes.py) | The tag's reviewed notes: GitHub Release body and (as plain text) What's New |
 
-The Android release installs [`requirements-store.txt`](../requirements-store.txt)
-(Google API client; hash-pinned) into the pinned Python 3.13 from
+Release workflows install [`requirements-store.txt`](../requirements-store.txt)
+(PyJWT, Google API client; hash-pinned) into the pinned Python 3.13 from
 `actions/setup-python`, never the runner's system Python, and only for steps
-that call Google Play. The iOS release needs no Python packages: its store steps
-install only the pinned `asc`. Store steps run unbuffered (`python3 -u`), so the
-build wait and uploads log as they go. Nothing else installs the requirements, so
-whenever the **Store automation (dry-run)** workflow runs, including for every
-change to `requirements-store.in`/`.txt` (all that a Dependabot pip update
-touches), its `store-tooling` job installs them the same way and uses them
-offline with [`check_store_tooling.py`](../scripts/store/check_store_tooling.py).
-A bad update fails there, before it is merged, instead of at the next release tag.
+that call a store. Store steps run unbuffered (`python3 -u`), so the build wait
+and uploads log as they go. Nothing else installs it, so whenever the **Store
+automation (dry-run)** workflow runs, including for every change to
+`requirements-store.in`/`.txt` (all that a Dependabot pip update touches), its
+`store-tooling` job installs it the same way and uses it offline with
+[`check_store_tooling.py`](../scripts/store/check_store_tooling.py). A bad update
+fails there, before it is merged, instead of at the next release tag.
 `asc_release.py` reads `CREATE_IOS_VERSION`, `UPLOAD_LISTING`, `UPLOAD_WHATS_NEW`,
-`UPLOAD_SCREENSHOTS`, `UPLOAD_CREATIVE_ASSETS`, `SUBMIT_IOS_REVIEW` and
-`PUBLIC_RELEASE`, set by `ios-release.yml` from the resolved iOS switches.
-`play_listing.py upload` reads `UPLOAD_LISTING` and `UPLOAD_SCREENSHOTS`, set by
-`android-release.yml` from the resolved Android switches.
+`UPLOAD_SCREENSHOTS`, `SUBMIT_IOS_REVIEW` and `PUBLIC_RELEASE`, set by
+`ios-release.yml` from the resolved iOS switches. `play_listing.py upload` reads
+`UPLOAD_LISTING` and `UPLOAD_SCREENSHOTS`, set by `android-release.yml` from the
+resolved Android switches.
 
 ## Metadata layout
 
@@ -354,11 +302,6 @@ store/metadata/
   play/en-US/       title, short_description, full_description (.txt)
 store/app-store/screenshots/iphone/   App Store iPhone 6.7" screenshots (1290×2796), upload order = file name
 store/app-store/screenshots/ipad/     App Store iPad 13" screenshots (2048×2732)
-store/creative/ios/header/            one App Store product page header image, 3840×1646 PNG
-                                      (IOS_UPLOAD_CREATIVE_ASSETS; empty today)
-store/creative/ios/search-results/    one App Store search results image, 3:2, 1920×1280 to
-                                      3840×2560 PNG or JPEG (IOS_UPLOAD_CREATIVE_ASSETS; empty today);
-                                      a 5244×2950 PNG is a universal image that fits either slot
 store/google-play/screenshots/phone/   Play phone screenshots (1080×1920)
 RELEASE_NOTES.md            ## ios-vX.Y / ## android-vX.Y → GitHub Release + What's New
 ```
@@ -368,36 +311,9 @@ locale) with `export_ios_listing.py`; after editing the listing in App Store
 Connect, export again so the repository stays the source of truth. The upload
 covers every locale folder; App Info fields (name, subtitle, privacy URL) are
 only editable while a new version is being prepared, and the run fails rather
-than silently skipping a change it cannot make.
-
-Each set takes exactly the sizes asc accepts for it (`asc screenshots sizes
---display-type <type>`): 1260×2736, 1290×2796 or 1320×2868 for the 6.7" iPhone
-(not 1284×2778, the 6.5" size) and 2048×2732 or 2064×2752 for the 13" iPad, in
-either orientation. A screenshot set that App Store Connect already holds
-exactly (the same files in the same order, compared by checksum) is left alone.
-Any other set is replaced as a whole (`asc screenshots upload --replace`) and
-read back. asc refuses to upload a PNG that stores an alpha channel or
-transparency (colour types 4 and 6, or a `tRNS` chunk), even when every pixel is
-opaque, and the release checks the same way (`asc_cli.image_has_alpha`). The
-screenshots in the repository today are RGBA, which is fine while App Store
-Connect already shows them, but they must be re-exported as RGB PNGs without
-transparency before the next screenshot change: a set with alpha that has to be
-uploaded stops the release in the preflight, before anything is built, and in
-the store step before anything is written. If an upload fails part-way, the set
-can be left incomplete: fix the error and rerun, and the set is replaced again.
-
-A creative image is matched in the Asset Library by file name and size, so give
-a changed image a new file name. Apple reviews each new image on its own (the app
-already has an approved version), and a later run places it once it is approved;
-a rejected image stops the run with Apple's reason. Apple's rules for these
-images: no prices, website addresses, other platforms or Apple badges, and no
-transparency (`asc asset-library specs` lists the current sizes). Sizes, formats
-and alpha are checked with the other local inputs, before anything is built and
-before any asc call, so a wrong file stops the run early. An image approved while
-the version waits for review is not a mismatch: the rerun passes and the image is
-placed once the version can be edited. Both folders are empty today, so keep
-`IOS_UPLOAD_CREATIVE_ASSETS` off until an image is added: with the switch on and no
-image, the run fails before anything is built.
+than silently skipping a change it cannot make. Screenshot replacement deletes
+and re-uploads one image at a time, so a failed run can leave a mixed set:
+inspect App Store Connect before rerunning.
 
 ### Export compliance
 
@@ -430,29 +346,19 @@ refuses a build that declares otherwise.
 ### iOS subscription submission caveat
 
 `IOS_SUBMIT_REVIEW` submits the App Store version and every
-`READY_TO_SUBMIT` (or `DEVELOPER_REJECTED`) subscription and `READY_TO_SUBMIT`
-in-app purchase (the lifetime purchase and tips) in
-[`catalog/products.json`](catalog/products.json) in one review submission. Each
-product attaches through its current version (`subscriptionVersions` /
-`inAppPurchaseVersions` review items, via `asc review items-add`), so a
-first-time subscription ships with the version. Nothing reaches App Review until
-the draft is submitted, after the final build and selection recheck; when the
-recheck fails, nothing is sent. (The lifetime purchase and tips used to go
-through Apple's deprecated `inAppPurchaseSubmissions` endpoint, which sent each
-one to App Review at once; asc submits them only as review items, so they now
-wait in the draft with everything else. Every catalog purchase is approved
-today.) Products outside the catalog are never submitted, and the version is not
-submitted if a required product cannot be added. A reused draft is submitted
-only when it holds this version and nothing but versions of catalog products;
-anything else stops the run. Drafts holding creative images belong to those
-images' own review and are never used for the version. The draft that already
-holds this version is reused; otherwise only a draft holding no app version is,
-so another version's draft is never touched. A `READY_FOR_REVIEW` version that no
-draft holds stops the run before anything is added. If the version is already
-`WAITING_FOR_REVIEW`, late products go out in a draft of their own, which is
-created only when a product has to be added, so a rerun with nothing to send
-leaves no empty draft; a retry never duplicates items or ships an unrelated app
-version.
+`READY_TO_SUBMIT` (or `DEVELOPER_REJECTED`) subscription in
+[`catalog/products.json`](catalog/products.json) in one step. As of the 2026 App
+Store Connect workflow, subscriptions attach to the review submission through
+the `subscriptionVersion` relationship on Review Submission Items, so a
+first-time subscription must ship with the version. The lifetime purchase and
+tips go through `inAppPurchaseSubmissions`, which submits each one immediately,
+so they are sent only after the final build and selection recheck, right before
+the version. (Apple marks that endpoint deprecated in favour of review
+submission items; it still works, and every catalog purchase is approved
+today.) Products outside the catalog are never submitted, and the version is
+not submitted if a required product cannot be added. If the version is already
+`WAITING_FOR_REVIEW`, a late product is submitted on its own; a retry never
+duplicates items or ships an unrelated app version.
 
 ## Release procedure
 
