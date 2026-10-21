@@ -8,6 +8,14 @@ heading, quote, bold and code markers are dropped; App Store: 4000 characters at
 Google Play: 500). A tag without a section gets generated GitHub release notes, and a
 What's New upload for it fails. Each tag may have only one section.
 
+## ios-v2.1.1
+
+Bug fixes and improvements.
+
+## android-v1.0.1
+
+Bug fixes and improvements.
+
 ## ios-v2.1
 
 Verceltics 2.1 brings interface refinements and new ways to get help.
