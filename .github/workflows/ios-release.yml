@@ -7,7 +7,7 @@
 #                       what a tag run would change in App Store Connect.
 #
 # Switches (repository variables), secrets, re-runs and verification:
-# https://github.com/apoorvdarshan/store-release/tree/v0.2.0/docs
+# https://github.com/apoorvdarshan/store-release/tree/v0.3.0/docs
 name: iOS Release
 
 on:
@@ -18,7 +18,7 @@ on:
     inputs:
       marketing_version:
         description: >-
-          Validation only: version to validate as (e.g. 7.2). Empty = the project
+          Validation only: version to validate as (e.g. 1.2). Empty = the project
           version. Apple rejects versions already approved, so use the next one.
         required: false
         default: ""
@@ -42,7 +42,7 @@ jobs:
       contents: read
 
   prepare:
-    uses: apoorvdarshan/store-release/.github/workflows/ios-prepare.yml@0b298d3e98267f8e98423b7b56c806c0c6f43f99 # v0.2.0
+    uses: apoorvdarshan/store-release/.github/workflows/ios-prepare.yml@3e580dc136d0ede17e8f4d12e9385fb512d02faf # v0.3.0
     permissions:
       contents: read
     with:
@@ -61,7 +61,7 @@ jobs:
       ((needs.tests.result == 'success') ||
        (github.event_name == 'workflow_dispatch' &&
         needs.tests.result == 'skipped'))
-    uses: apoorvdarshan/store-release/.github/workflows/ios-build.yml@0b298d3e98267f8e98423b7b56c806c0c6f43f99 # v0.2.0
+    uses: apoorvdarshan/store-release/.github/workflows/ios-build.yml@3e580dc136d0ede17e8f4d12e9385fb512d02faf # v0.3.0
     permissions:
       contents: read
     with:
@@ -87,7 +87,7 @@ jobs:
       needs.prepare.outputs.upload_build == 'true' &&
       needs.tests.result == 'success' &&
       needs.build.result == 'success'
-    uses: apoorvdarshan/store-release/.github/workflows/ios-wait-for-build.yml@0b298d3e98267f8e98423b7b56c806c0c6f43f99 # v0.2.0
+    uses: apoorvdarshan/store-release/.github/workflows/ios-wait-for-build.yml@3e580dc136d0ede17e8f4d12e9385fb512d02faf # v0.3.0
     permissions:
       contents: read
     with:
@@ -114,7 +114,7 @@ jobs:
       ((needs.build.result == 'success' && needs.wait-for-build.result == 'success') ||
        (needs.prepare.outputs.upload_build != 'true' &&
         needs.build.result == 'skipped' && needs.wait-for-build.result == 'skipped'))
-    uses: apoorvdarshan/store-release/.github/workflows/ios-app-store-connect.yml@0b298d3e98267f8e98423b7b56c806c0c6f43f99 # v0.2.0
+    uses: apoorvdarshan/store-release/.github/workflows/ios-app-store-connect.yml@3e580dc136d0ede17e8f4d12e9385fb512d02faf # v0.3.0
     permissions:
       contents: read
     with:
@@ -143,7 +143,7 @@ jobs:
       (needs.build.result == 'success' || needs.build.result == 'skipped') &&
       (needs.wait-for-build.result == 'success' || needs.wait-for-build.result == 'skipped') &&
       (needs.app-store-connect.result == 'success' || needs.app-store-connect.result == 'skipped')
-    uses: apoorvdarshan/store-release/.github/workflows/ios-github-release.yml@0b298d3e98267f8e98423b7b56c806c0c6f43f99 # v0.2.0
+    uses: apoorvdarshan/store-release/.github/workflows/ios-github-release.yml@3e580dc136d0ede17e8f4d12e9385fb512d02faf # v0.3.0
     permissions:
       contents: write
     with:
@@ -156,7 +156,7 @@ jobs:
   store-plan:
     needs: prepare
     if: github.event_name == 'workflow_dispatch' && needs.prepare.result == 'success'
-    uses: apoorvdarshan/store-release/.github/workflows/ios-store-plan.yml@0b298d3e98267f8e98423b7b56c806c0c6f43f99 # v0.2.0
+    uses: apoorvdarshan/store-release/.github/workflows/ios-store-plan.yml@3e580dc136d0ede17e8f4d12e9385fb512d02faf # v0.3.0
     permissions:
       contents: read
     with:
