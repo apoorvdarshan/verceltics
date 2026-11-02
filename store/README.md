@@ -97,11 +97,10 @@ With these values:
 - An `android-vX.Y` tag builds and releases nothing.
 
 Each **Run workflow** prints this plan for the switches as they are at that moment
-(the `store-plan` job's summary). Try `ANDROID_INTERNAL_TESTING` first, and keep
-`ANDROID_PRODUCTION_ROLLOUT` off: **Google has not granted Verceltics production
-access yet** (it needs at least 12 testers opted in to closed testing for 14
-consecutive days, see [google-play/TESTERS.md](google-play/TESTERS.md)), so Play
-rejects a production upload until then.
+(the `store-plan` job's summary). The Play developer account is an organization
+account, so the 12-tester closed-testing requirement for personal accounts does not
+apply and the production track is open. `ANDROID_PRODUCTION_ROLLOUT` publishes the
+tag's build to production at full rollout.
 
 ### Migrating from the earlier `STORE_*` variables
 
