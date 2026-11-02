@@ -14,7 +14,14 @@ Bug fixes and improvements.
 
 ## android-v1.0.1
 
-Bug fixes and improvements.
+Verceltics is now on Google Play: one private workspace for hosting, domains, analytics, search, speed, and uptime.
+
+• 27 integrations: 10 hosting platforms, 8 domain registrars, and 9 site services.
+• Projects, deployments, domains, DNS, logs, and traffic in a native Android app.
+• API credentials stay encrypted on your device.
+• Fixes and improvements from the closed beta.
+
+Provider data and operations depend on each API, account permissions, and plan.
 
 ## ios-v2.1
 
