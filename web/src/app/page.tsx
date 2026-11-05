@@ -362,6 +362,15 @@ export default function Home() {
           </div>
         </section>
 
+        <section className="home-library-section">
+          <header className="section-intro"><div><p className="instrument-label"><span>08</span> Guides and technical notes</p><h2>Connect your providers and check the right resource.</h2></div><p>Follow setup instructions, investigate deployments and DNS, and understand what each provider report can tell you.</p></header>
+          <div className="library-grid">
+            <article className="library-card"><h3><Link href="/guides">Setup and task guides</Link></h3><p>Connection requirements and focused workflows for hosting, registrars and site services.</p><Link className="text-control" href="/guides">Browse the guides →</Link></article>
+            <article className="library-card"><h3><Link href="/blog/vercel-analytics-api-mobile-dashboard">Vercel Analytics: API, SDK and reports</Link></h3><p>Understand the difference between collecting events, reading a report and building an API integration.</p><Link className="text-control" href="/blog">Read the blog →</Link></article>
+            <article className="library-card"><h3><Link href="/guides/mobile-website-incident-triage">Investigate a website incident</Link></h3><p>Keep deployment, domain, DNS and availability evidence clear when working from your phone.</p><Link className="text-control" href="/guides/mobile-website-incident-triage">Follow the workflow →</Link></article>
+          </div>
+        </section>
+
         <section className="closing-section">
           <div className="closing-copy">
             <p>Verceltics {IOS_APP_STORE_VERSION} / iPhone + iPad + Android / 27 direct connections</p>

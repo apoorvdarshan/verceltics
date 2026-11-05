@@ -1,0 +1,546 @@
+[
+  {
+    "path": "/",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/android",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/vercel-analytics-ios",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/integrations",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/privacy",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/terms",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/blog",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/integrations/vercel",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/connect-vercel",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/vercel-web-analytics-on-mobile",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/vercel-deployment-build-events",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/integrations/cloudflare",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/connect-cloudflare",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/cloudflare-dns-record-review",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/cloudflare-pages-workers-inventory",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/integrations/netlify",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/connect-netlify",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/netlify-published-deployment",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/netlify-domain-build-triage",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/integrations/railway",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/connect-railway",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/railway-project-environment-check",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/railway-service-log-triage",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/integrations/render",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/connect-render",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/render-service-deployment-status",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/render-jobs-and-environments",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/integrations/digitalocean",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/connect-digitalocean",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/digitalocean-app-platform-deployments",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/digitalocean-app-bandwidth-logs",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/integrations/heroku",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/connect-heroku",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/heroku-release-history-mobile",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/heroku-dynos-domains-check",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/integrations/fly-io",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/connect-fly-io",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/fly-machines-regions-mobile",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/fly-volumes-before-machine-changes",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/integrations/firebase-hosting",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/connect-firebase-hosting",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/firebase-hosting-live-preview-channels",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/firebase-hosting-version-release-check",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/integrations/aws-amplify",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/connect-aws-amplify",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/amplify-region-branch-job-check",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/amplify-temporary-credentials-troubleshooting",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/integrations/name-com",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/connect-name-com",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/name-com-domain-renewal-review",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/name-com-dns-hosting-boundary",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/integrations/namecheap",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/connect-namecheap",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/namecheap-clientip-network-change",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/namecheap-nameservers-dns-records",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/integrations/porkbun",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/connect-porkbun",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/porkbun-domain-api-access",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/porkbun-certificate-forwarding-review",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/integrations/spaceship",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/connect-spaceship",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/spaceship-domain-nameserver-review",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/spaceship-domain-contact-context",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/integrations/dynadot",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/connect-dynadot",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/dynadot-owned-domain-portfolio",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/dynadot-api-operation-review",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/integrations/namesilo",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/connect-namesilo",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/namesilo-expiry-portfolio-review",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/namesilo-transfer-status-check",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/integrations/gandi",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/connect-gandi",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/gandi-livedns-authoritative-zone",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/gandi-organization-token-scope",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/integrations/godaddy",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/connect-godaddy",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/godaddy-domain-lock-renewal-context",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/godaddy-dns-provider-boundary",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/integrations/google-search-console",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/connect-google-search-console",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/search-console-clicks-impressions-ctr",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/search-console-url-inspection-sitemaps",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/integrations/google-analytics",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/connect-google-analytics",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/ga4-traffic-sessions-mobile",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/ga4-realtime-events-check",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/integrations/pagespeed-crux",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/connect-pagespeed-crux",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/pagespeed-mobile-desktop-audits",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/crux-field-data-vs-lighthouse",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/integrations/bing-webmaster",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/connect-bing-webmaster",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/bing-verified-sites-check",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/bing-search-crawl-report-context",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/integrations/microsoft-clarity",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/connect-microsoft-clarity",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/clarity-project-export-window",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/clarity-behavior-vs-traffic",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/integrations/plausible",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/connect-plausible",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/plausible-site-id-troubleshooting",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/plausible-visitors-visits-pageviews",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/integrations/umami",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/connect-umami",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/umami-cloud-self-hosted-auth",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/umami-website-traffic-window",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/integrations/uptimerobot",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/connect-uptimerobot",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/uptimerobot-monitor-state-response-time",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/uptimerobot-uptime-ratio-context",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/integrations/better-stack",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/connect-better-stack",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/better-stack-monitor-check-cadence",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/better-stack-uptime-token-resource-scope",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/mobile-website-incident-triage",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/hosting-registrar-dns-responsibilities",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/multiple-provider-accounts",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/provider-authentication-permission-errors",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/cached-data-refresh-and-offline",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/safe-provider-api-explorer",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/try-verceltics-with-sample-data",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/verceltics-pro-purchases-and-restore",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/google-connections-three-separate-services",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/report-a-provider-bug-without-secrets",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/mobile-vs-tablet-infrastructure-checks",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/guides/read-analytics-without-mixing-metrics",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/blog/verceltics-android-public-release",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/blog/vercel-analytics-api-mobile-dashboard",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/blog/native-app-or-mobile-provider-dashboard",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/blog/how-verceltics-protects-provider-credentials",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/blog/deployment-success-is-not-website-health",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/blog/search-console-vs-google-analytics",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/blog/dns-change-checklist-for-developers",
+    "updated": "2026-11-05"
+  },
+  {
+    "path": "/blog/turn-search-console-exports-into-actions",
+    "updated": "2026-11-05"
+  }
+]

@@ -10,9 +10,9 @@ const SITE_URL = "https://verceltics.com";
 const PAGE_URL = `${SITE_URL}/vercel-analytics-ios`;
 const APP_STORE = "https://apps.apple.com/us/app/verceltics/id6761645656";
 
-const TITLE = "Vercel iOS App for iPhone and iPad: Analytics and Deployments";
+const TITLE = "Vercel iOS App for iPhone & iPad";
 const DESCRIPTION =
-  "An independent native Vercel app for iPhone and iPad: Web Analytics, projects and deployments. Available on the App Store and Google Play.";
+  "View Vercel Web Analytics, projects and deployments on iPhone and iPad with Verceltics. Independent native iOS app; your token stays in Keychain.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -129,7 +129,8 @@ export default function VercelAnalyticsIOSPage() {
             <p>Check Vercel Web Analytics, projects and deployments on iPhone and iPad with Verceltics: visitors, page views, traffic breakdowns and deployment status, with project context close while you check your website. Also <Link href="/android">available on Android</Link>.</p>
             <div className="discovery-actions">
               <a className="primary-control" href={APP_STORE} rel="noreferrer" target="_blank">Download on the App Store <ArrowUpRight /></a>
-              <Link className="text-control" href="/integrations#vercel">See the Vercel integration <span aria-hidden="true">→</span></Link>
+              <Link className="text-control" href="/guides/connect-vercel">Vercel connection guide <span aria-hidden="true">→</span></Link>
+              <Link className="text-control" href="/blog/vercel-analytics-api-mobile-dashboard">Analytics API, SDK and reporting <span aria-hidden="true">→</span></Link>
               <Link className="text-control" href="/android">Vercel on Android <span aria-hidden="true">→</span></Link>
             </div>
             <p className="independence-note">Independent and open source. Not affiliated with or endorsed by Vercel.</p>

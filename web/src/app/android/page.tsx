@@ -10,9 +10,9 @@ import { ANDROID_PLAY_VERSION, APP_STORE_URL, GOOGLE_PLAY_URL } from "@/lib/prod
 
 const SITE_URL = "https://verceltics.com";
 const PAGE_URL = `${SITE_URL}/android`;
-const TITLE = "Vercel, Cloudflare and Domain App for Android";
+const TITLE = "Vercel & Cloudflare App for Android";
 const DESCRIPTION =
-  "Vercel, Cloudflare, Netlify, domain registrars and Search Console in one native Android app. Download Verceltics on Google Play for phones and tablets.";
+  "Get Verceltics, an independent Vercel and Cloudflare app for Android. Check deployments, analytics and DNS across 27 integrations. Available on Google Play.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -152,6 +152,7 @@ export default function AndroidPage() {
             <div className="discovery-actions">
               <a className="primary-control" href={GOOGLE_PLAY_URL} rel="noreferrer" target="_blank">Get it on Google Play <ArrowUpRight /></a>
               <a className="text-control" href="#install">How to get started <span aria-hidden="true">→</span></a>
+              <Link className="text-control" href="/guides/connect-vercel">Connect your Vercel account <span aria-hidden="true">→</span></Link>
             </div>
             <p className="independence-note">Independent and open source. Not affiliated with or endorsed by any supported provider.</p>
           </div>
