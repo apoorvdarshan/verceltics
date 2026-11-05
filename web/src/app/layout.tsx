@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     template: "%s | Verceltics",
   },
   description:
-    "Manage Vercel, Cloudflare, domains, DNS and website analytics on iPhone, iPad and Android (beta). 27 integrations, tokens on your device, open source.",
+    "Manage Vercel, Cloudflare, domains, DNS and website analytics on iPhone, iPad and Android. 27 integrations, tokens on your device, open source.",
   applicationName: "Verceltics",
   category: "Developer Tools",
   keywords: [
@@ -106,7 +106,7 @@ const siteJsonLd = {
       "@id": `${SITE_URL}/#website`,
       name: "Verceltics",
       url: SITE_URL,
-      description: "A private, open-source app for iPhone, iPad and Android (beta) for hosting, domains, DNS, analytics, search, speed and uptime.",
+      description: "A private, open-source app for iPhone, iPad and Android for hosting, domains, DNS, analytics, search, speed and uptime.",
       inLanguage: "en-US",
       publisher: { "@id": `${SITE_URL}/#organization` },
     },

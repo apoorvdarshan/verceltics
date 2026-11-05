@@ -1922,8 +1922,8 @@ main[id] {
   box-shadow: inset 0 0 0 3px var(--panel);
 }
 
-/* Android beta */
-.beta-console {
+/* Android getting started */
+.android-console {
   margin-top: 34px;
   background: var(--panel);
   border: 2px solid var(--ink);
@@ -1933,14 +1933,14 @@ main[id] {
   scroll-margin-top: 110px;
 }
 
-.beta-steps {
+.android-steps {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   padding: 0;
   list-style: none;
 }
 
-.beta-steps li {
+.android-steps li {
   display: grid;
   min-height: 190px;
   padding: 24px;
@@ -1950,9 +1950,9 @@ main[id] {
   border-right: 1px solid var(--rule);
 }
 
-.beta-steps li:last-child { border-right: 0; }
+.android-steps li:last-child { border-right: 0; }
 
-.beta-steps li > span {
+.android-steps li > span {
   display: grid;
   width: 36px;
   height: 36px;
@@ -1967,12 +1967,12 @@ main[id] {
   font-weight: 700;
 }
 
-.beta-steps strong {
+.android-steps strong {
   align-self: center;
   font-size: 1.1rem;
 }
 
-.beta-steps p {
+.android-steps p {
   grid-column: 2;
   align-self: start;
   margin-top: 9px;
@@ -1981,7 +1981,7 @@ main[id] {
   line-height: 1.5;
 }
 
-.beta-steps code {
+.android-steps code {
   padding: 2px 7px;
   color: var(--white);
   background: var(--violet);
@@ -1991,7 +1991,7 @@ main[id] {
   letter-spacing: 0.04em;
 }
 
-.beta-steps a {
+.android-steps a {
   display: inline-flex;
   grid-column: 2;
   align-items: center;
@@ -2004,16 +2004,16 @@ main[id] {
   overflow-wrap: anywhere;
 }
 
-.beta-steps a svg {
+.android-steps a svg {
   width: 13px;
   height: 13px;
   flex: none;
 }
 
 @media (max-width: 780px) {
-  .beta-steps { grid-template-columns: 1fr; }
-  .beta-steps li { min-height: 0; border-right: 0; border-bottom: 1px solid var(--rule); }
-  .beta-steps li:last-child { border-bottom: 0; }
+  .android-steps { grid-template-columns: 1fr; }
+  .android-steps li { min-height: 0; border-right: 0; border-bottom: 1px solid var(--rule); }
+  .android-steps li:last-child { border-bottom: 0; }
 }
 
 /* FAQ */
@@ -3176,7 +3176,7 @@ main[id] {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
 
-/* Store buttons: App Store download and Android beta on Google Play */
+/* Store buttons: App Store and Google Play downloads */
 .store-buttons {
   display: flex;
   flex-wrap: wrap;
@@ -3247,20 +3247,20 @@ main[id] {
 .store-buttons--light .store-button--apple { color: var(--ink); background: var(--white); }
 .store-buttons--light .store-button--play { color: var(--white); background: var(--ink); }
 
-/* Android beta section */
+/* Android section */
 .android-section {
   padding-block: 110px 40px;
   scroll-margin-top: 90px;
 }
 
-.android-section .beta-console { margin-top: 0; }
+.android-section .android-console { margin-top: 0; }
 
-.beta-actions {
+.android-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
 }
 
-.beta-actions .price-cta + .price-cta { border-left: 2px solid var(--ink); }
+.android-actions .price-cta + .price-cta { border-left: 2px solid var(--ink); }
 
 .price-cta--light {
   color: var(--ink);
@@ -3269,8 +3269,8 @@ main[id] {
 
 @media (max-width: 780px) {
   .android-section { padding-block: 70px 20px; }
-  .beta-actions { grid-template-columns: 1fr; }
-  .beta-actions .price-cta + .price-cta { border-left: 0; border-top: 2px solid var(--ink); }
+  .android-actions { grid-template-columns: 1fr; }
+  .android-actions .price-cta + .price-cta { border-left: 0; border-top: 2px solid var(--ink); }
   .store-buttons { width: 100%; }
   .store-button { flex: 1 1 200px; }
 }
@@ -3278,8 +3278,8 @@ main[id] {
 /* Android landing page */
 .product-screen--android { aspect-ratio: 1080 / 1920; }
 .product-guide a.price-cta { text-decoration: none; }
-.product-guide#join { padding-top: clamp(60px, 8vw, 110px); }
-.product-guide .beta-console { margin-top: 34px; }
+.product-guide#install { padding-top: clamp(60px, 8vw, 110px); }
+.product-guide .android-console { margin-top: 34px; }
 .product-guide .price-console { margin-top: 34px; }
 .product-faq .product-guide-copy a { text-decoration: underline; text-underline-offset: 4px; }
 .product-hero-copy p a,

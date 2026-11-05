@@ -1,4 +1,4 @@
-import { APP_STORE_URL } from "@/lib/product";
+import { APP_STORE_URL, GOOGLE_PLAY_URL } from "@/lib/product";
 
 function AppleMark() {
   return (
@@ -22,18 +22,16 @@ function PlayMark() {
   );
 }
 
-// Separate store buttons: iOS downloads from the App Store, Android goes to the beta join steps.
-export function StoreButtons({ tone = "ink", androidHref = "/#android-beta" }: { tone?: "ink" | "light"; androidHref?: string }) {
+export function StoreButtons({ tone = "ink" }: { tone?: "ink" | "light" }) {
   return (
     <div className={`store-buttons store-buttons--${tone}`}>
       <a className="store-button store-button--apple" href={APP_STORE_URL} rel="noreferrer" target="_blank">
         <AppleMark />
         <span><small>Download on the</small><strong>App Store</strong></span>
       </a>
-      <a className="store-button store-button--play" href={androidHref}>
+      <a className="store-button store-button--play" href={GOOGLE_PLAY_URL} rel="noreferrer" target="_blank">
         <PlayMark />
-        <span><small>Android beta on</small><strong>Google Play</strong></span>
-        <em>Beta</em>
+        <span><small>Get it on</small><strong>Google Play</strong></span>
       </a>
     </div>
   );

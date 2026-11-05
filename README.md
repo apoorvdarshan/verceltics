@@ -6,11 +6,12 @@
 
 <p align="center">
   Hosting, domains, deployments, analytics, search, speed, and uptime<br>
-  in one private iPhone and iPad workspace.
+  in one private iPhone, iPad, and Android workspace.
 </p>
 
 <p align="center">
   <a href="https://apps.apple.com/us/app/verceltics/id6761645656">App Store</a> ·
+  <a href="https://play.google.com/store/apps/details?id=com.apoorvdarshan.verceltics">Google Play</a> ·
   <a href="https://verceltics.com">Website</a> ·
   <a href="https://verceltics.com/privacy">Privacy</a> ·
   <a href="https://verceltics.com/terms">Terms</a>
@@ -29,20 +30,18 @@
 Verceltics is an independent, open-source operator workspace for the infrastructure and site services developers already use. Each provider keeps its own dashboard and capabilities; Verceltics supplies the native navigation, secure local credential storage, responsive caching, and iPhone/iPad interface around them. The `main` branch documents the current source build and can be ahead of the latest App Store release.
 
 **Version status:** iOS **2.1 (43)** is the current App Store release.
-Android **1.0 (44)** is in a Google Play closed beta; it is not publicly released yet.
+Android **1.0.1 (45)** is the current public Google Play release.
 Screenshots and feature descriptions document the current source build.
 
-## Android beta
+## Android
 
 Verceltics for Android has all 27 integrations and the same Pro plans as iOS.
-To test it:
+Download it directly from [Google Play](https://play.google.com/store/apps/details?id=com.apoorvdarshan.verceltics)
+on an Android 9 or later phone or tablet. No tester group or test opt-in is required.
 
-1. Join the [Verceltics Testers](https://groups.google.com/g/verceltics-testers) Google Group.
-2. Once the closed test is approved, opt in at
-   [Google Play testing](https://play.google.com/apps/testing/com.apoorvdarshan.verceltics),
-   install Verceltics, and keep it installed for 14 days.
-3. Redeem **`VERCELTICSBETA`** in Google Play for 30 days of Pro on the monthly plan.
-   After the free period it renews at the regular price unless you cancel. Valid until December 31, 2026.
+Optional test builds are separate from the public release. Existing testers can manage
+their participation through [Google Play testing](https://play.google.com/apps/testing/com.apoorvdarshan.verceltics)
+and the [Verceltics Testers](https://groups.google.com/g/verceltics-testers) Google Group.
 
 Send feedback to [ad13dtu@gmail.com](mailto:ad13dtu@gmail.com) or use the app's About screen.
 

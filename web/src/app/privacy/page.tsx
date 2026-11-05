@@ -36,7 +36,7 @@ const sections = [
   { id: "website", label: "Website delivery" },
   { id: "feedback", label: "Support and feedback" },
   { id: "discord", label: "Vercie on Discord" },
-  { id: "android-beta", label: "Android beta testing" },
+  { id: "android-beta", label: "Optional Android testing" },
   { id: "purchases", label: "Purchases" },
   { id: "controls", label: "Your controls" },
   { id: "changes", label: "Policy changes" },
@@ -51,7 +51,7 @@ export default function Privacy() {
       sections={sections}
       summary="The Verceltics app connects directly to providers. Vercie, our optional Discord bot, processes the questions and reports you submit through Cloudflare, Google Gemini, and GitHub as explained below."
       title="Privacy Policy"
-      updated="October 10, 2026"
+      updated="November 5, 2026"
     >
       <section id="overview">
         <h2>Overview</h2>
@@ -137,8 +137,8 @@ export default function Privacy() {
       </section>
 
       <section id="android-beta">
-        <h2>Android beta testing</h2>
-        <p>The Android app is offered as a beta through Google Play testing. To take part, you join the Verceltics Testers Google Group and then opt in to the test on Google Play. Google Groups and Google Play process your membership and opt in under Google&apos;s own terms and the <a href="https://policies.google.com/privacy" rel="noreferrer" target="_blank">Google Privacy Policy</a>.</p>
+        <h2>Optional Android testing</h2>
+        <p>The Android app is publicly available on Google Play. Joining a Google Group or opting in to a test is not required to install the public release. If you choose to participate in a separate Google Play test through the Verceltics Testers Google Group, Google Groups and Google Play process your membership and opt in under Google&apos;s own terms and the <a href="https://policies.google.com/privacy" rel="noreferrer" target="_blank">Google Privacy Policy</a>.</p>
         <p>Group managers can see the email addresses of group members. We use them only to run the beta and to contact testers about it, for example to share builds, collect feedback, or answer a report you send. We do not sell them or use them for advertising. Leaving the group removes your membership, and leaving the test on Google Play removes your access to beta builds. Feedback you email to <a href="mailto:ad13dtu@gmail.com">ad13dtu@gmail.com</a> is handled as described in Support and feedback.</p>
         <p>The beta app handles credentials, provider data, and purchases the same way as the released apps, as described in the other sections of this policy.</p>
       </section>
