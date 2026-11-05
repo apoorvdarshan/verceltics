@@ -30,7 +30,7 @@ export const guides: Article[] = [
     const { provider, group } = providerCatalog(detail.slug);
     const setup: Article = {
       slug: `connect-${detail.slug}`, title: `Connect ${provider.name} to Verceltics`,
-      description: `Set up ${provider.name} with ${provider.connection.toLowerCase()}. Check the required fields, permissions and common connection problems on iOS and Android.`,
+      description: `Set up ${provider.name} in Verceltics. Connection method: ${provider.connection}. Check required fields, permissions and setup problems on iOS and Android.`,
       category: "Setup", published: detail.published, updated: detail.updated, provider: detail.slug,
       sections: [
         { heading: "What you need", paragraphs: [`Use a ${provider.name} account that can access the resources you want to inspect. The connection belongs in the ${group.label} workspace. Prepare the following values for the installed app’s protected connection form; never post them in GitHub issues, Discord or screenshots.`], items: detail.fields },
