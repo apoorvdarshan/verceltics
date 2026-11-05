@@ -13,7 +13,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params;
   if (!providers.some(item => item.slug === slug)) notFound();
   const { provider } = providerCatalog(slug);
-  return pageMetadata(`${provider.name} on iPhone, iPad & Android`, `${provider.summary} with the ${provider.name} integration in Verceltics. Read supported capabilities, connection requirements and practical mobile guides.`, `/integrations/${slug}`);
+  return pageMetadata(`${provider.name} on iPhone, iPad & Android`, `Use ${provider.name} in Verceltics on iOS and Android. ${provider.summary}. See setup and API limits.`, `/integrations/${slug}`);
 }
 export default async function ProviderPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
