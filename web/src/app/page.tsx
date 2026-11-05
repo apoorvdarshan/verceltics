@@ -8,7 +8,7 @@ import { ProviderPatchbay } from "@/components/provider-directory";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { StoreButtons } from "@/components/store-buttons";
-import { ANDROID_BETA_CODE, ANDROID_BETA_GROUP, ANDROID_BETA_OPT_IN, DISCORD, INSTAGRAM, IOS_APP_STORE_VERSION, LINKEDIN } from "@/lib/product";
+import { DISCORD, GOOGLE_PLAY_URL, INSTAGRAM, IOS_APP_STORE_VERSION, LINKEDIN } from "@/lib/product";
 
 const SITE_URL = "https://verceltics.com";
 const APP_STORE = "https://apps.apple.com/us/app/verceltics/id6761645656";
@@ -24,7 +24,7 @@ const PUBLIC_PROFILES = [
 
 export const metadata: Metadata = {
   title: { absolute: "Verceltics: Vercel and Cloudflare App for iPhone and Android" },
-  description: "Manage Vercel, Cloudflare, domains, DNS and website analytics on iPhone, iPad and Android (beta). 27 integrations, tokens on your device, open source.",
+  description: "Manage Vercel, Cloudflare, domains, DNS and website analytics on iPhone, iPad and Android. 27 integrations, tokens on your device, open source.",
   alternates: { canonical: `${SITE_URL}/` },
 };
 
@@ -46,7 +46,7 @@ const plans = [
 const faqs: readonly { question: string; answer: string; link?: { href: string; label: string } }[] = [
   {
     question: "What is Verceltics?",
-    answer: "Verceltics is an independent native workspace for hosting platforms, domain registrars, and site-intelligence services on iPhone and iPad, with a native Android app in beta on Google Play.",
+    answer: "Verceltics is an independent native workspace for hosting platforms, domain registrars, and site-intelligence services on iPhone and iPad, with a native Android app available on Google Play.",
   },
   {
     question: "Does Verceltics merge provider data?",
@@ -82,7 +82,7 @@ const faqs: readonly { question: string; answer: string; link?: { href: string; 
   },
   {
     question: "Is there an Android app?",
-    answer: `Yes, in beta. Verceltics for Android has all 27 integrations and the same Pro plans. Join the Verceltics Testers Google Group, then become a tester on Google Play and install the app. Testers can redeem ${ANDROID_BETA_CODE} in Google Play for 30 days of Pro on the monthly plan.`,
+    answer: "Yes. Verceltics for Android is publicly available on Google Play with all 27 integrations and the same Pro plans. Install it directly on an Android 9 or later phone or tablet; no tester group or test opt-in is required.",
     link: { href: "/android", label: "Verceltics for Android" },
   },
 ];
@@ -120,13 +120,13 @@ const applicationJsonLd = {
   "@id": `${SITE_URL}/#app`,
   name: "Verceltics",
   alternateName: "Verceltics: Hosting & Domains",
-  operatingSystem: "iOS 18.0 or later; iPadOS 18.0 or later; Android 9 or later (beta)",
+  operatingSystem: "iOS 18.0 or later; iPadOS 18.0 or later; Android 9 or later",
   applicationCategory: "DeveloperApplication",
   applicationSubCategory: "Infrastructure monitoring and management",
   softwareVersion: IOS_APP_STORE_VERSION,
-  description: "Verceltics is a private native app for iPhone, iPad and Android (beta) for hosting, domains, analytics, search performance, speed, and uptime.",
+  description: "Verceltics is a private native app for iPhone, iPad and Android for hosting, domains, analytics, search performance, speed, and uptime.",
   url: `${SITE_URL}/`,
-  downloadUrl: APP_STORE,
+  downloadUrl: [APP_STORE, GOOGLE_PLAY_URL],
   image: `${SITE_URL}/og-verceltics.png`,
   publisher: { "@id": `${SITE_URL}/#organization` },
   featureList: [
@@ -147,7 +147,7 @@ const applicationJsonLd = {
     `${SITE_URL}/screens/ipad/registrars.webp`,
     `${SITE_URL}/screens/ipad/sites.webp`,
   ],
-  sameAs: [APP_STORE, `${SITE_URL}/android`, ...PUBLIC_PROFILES],
+  sameAs: [APP_STORE, GOOGLE_PLAY_URL, `${SITE_URL}/android`, ...PUBLIC_PROFILES],
   offers: plans.map((plan) => ({ "@type": "Offer", price: plan.price.replace("$", ""), priceCurrency: "USD", description: `${plan.name} access` })),
 };
 
@@ -171,38 +171,38 @@ export default function Home() {
       <main id="main-content">
         <InstrumentHero />
 
-        <section className="android-section" id="android-beta">
+        <section className="android-section" id="android">
+          <span aria-hidden="true" className="anchor-alias" id="android-beta" />
           <header className="section-intro">
             <div>
-              <p className="instrument-label"><span>A</span> Android beta</p>
-              <h2>Verceltics for Android is in beta.</h2>
+              <p className="instrument-label"><span>A</span> Android</p>
+              <h2>Verceltics for Android is on Google Play.</h2>
             </div>
-            <p>All 27 integrations, the same Pro plans, and credentials kept in Android Keystore. Google asks new apps to run a closed test with 12 testers for 14 days before launch, so every tester counts. Three steps to join:</p>
+            <p>All 27 integrations, the same Pro plans, and credentials kept in Android Keystore. Download the public release directly on your Android phone or tablet.</p>
           </header>
-            <div className="beta-console">
-              <div className="price-console-head"><span>Android beta</span><span>Google Play closed test</span><span>Testers wanted</span></div>
-              <ol className="beta-steps">
+            <div className="android-console">
+              <div className="price-console-head"><span>Native Android</span><span>Google Play</span><span>Android 9+</span></div>
+              <ol className="android-steps">
                 <li>
                   <span>1</span>
-                  <strong>Join the tester group</strong>
-                  <p>Anyone can join the Verceltics Testers Google Group.</p>
-                  <a href={ANDROID_BETA_GROUP} rel="noreferrer" target="_blank">groups.google.com/g/verceltics-testers <ArrowUpRight /></a>
+                  <strong>Install from Google Play</strong>
+                  <p>Get Verceltics on an Android 9 or later phone or tablet. No tester signup needed.</p>
+                  <a href={GOOGLE_PLAY_URL} rel="noreferrer" target="_blank">Get it on Google Play <ArrowUpRight /></a>
                 </li>
                 <li>
                   <span>2</span>
-                  <strong>Become a tester</strong>
-                  <p>Opt in on Google Play with the same Google account, install Verceltics, and keep it for 14 days.</p>
-                  <a href={ANDROID_BETA_OPT_IN} rel="noreferrer" target="_blank">Open the Google Play test <ArrowUpRight /></a>
+                  <strong>Explore your workspace</strong>
+                  <p>Try sample data first, or connect your hosting, domain and site-service accounts. Credentials stay encrypted on your device.</p>
                 </li>
                 <li>
                   <span>3</span>
-                  <strong>Get a month of Pro</strong>
-                  <p>Redeem <code>{ANDROID_BETA_CODE}</code> in Google Play for 30 days of Pro on the monthly plan. It then renews at $4.99 a month unless you cancel. Valid until December 31, 2026.</p>
+                  <strong>Connect free. Add Pro.</strong>
+                  <p>Connections, lists, search and refresh stay free. Choose monthly, yearly or lifetime Pro for details and provider tools.</p>
                 </li>
               </ol>
-              <div className="beta-actions">
-                <a className="price-cta" href={ANDROID_BETA_GROUP} rel="noreferrer" target="_blank">Join the tester group <ArrowUpRight /></a>
-                <a className="price-cta price-cta--light" href={ANDROID_BETA_OPT_IN} rel="noreferrer" target="_blank">Open the Google Play test <ArrowUpRight /></a>
+              <div className="android-actions">
+                <a className="price-cta" href={GOOGLE_PLAY_URL} rel="noreferrer" target="_blank">Get it on Google Play <ArrowUpRight /></a>
+                <Link className="price-cta price-cta--light" href="/android">Explore the Android app <ArrowUpRight /></Link>
               </div>
             </div>
             <p className="android-more"><Link className="text-control" href="/android">More about Verceltics for Android <span aria-hidden="true">→</span></Link></p>
@@ -302,12 +302,12 @@ export default function Home() {
           <header className="circuit-heading">
             <p className="instrument-label instrument-label--light"><span>05</span> Sealed circuit</p>
             <h2>Credentials stay on your device—not on a Verceltics server.</h2>
-            <p>Tokens stay in the device-only iOS Keychain. Provider data moves directly between your device and the provider API or an explicitly selected HTTPS host for a supported self-hosted service.</p>
+            <p>Tokens stay in the device-only iOS Keychain or encrypted with Android Keystore. Provider data moves directly between your device and the provider API or an explicitly selected HTTPS host for a supported self-hosted service.</p>
           </header>
           <div aria-label="Your device connects directly to the selected provider endpoint" className="circuit-path" role="group">
             <div className="circuit-node circuit-node--device">
               <span className="node-icon"><Image alt="" height={46} src="/icon.png" width={46} /></span>
-              <span><small>Origin</small><strong>Your device</strong><p>Keychain + protected cache</p></span>
+              <span><small>Origin</small><strong>Your device</strong><p>Keychain / Keystore + protected cache</p></span>
             </div>
             <div className="cable"><i /><span>Encrypted HTTPS</span><i /></div>
             <div className="circuit-node circuit-node--provider">
@@ -364,7 +364,7 @@ export default function Home() {
 
         <section className="closing-section">
           <div className="closing-copy">
-            <p>Verceltics {IOS_APP_STORE_VERSION} / iPhone + iPad + Android beta / 27 direct connections</p>
+            <p>Verceltics {IOS_APP_STORE_VERSION} / iPhone + iPad + Android / 27 direct connections</p>
             <h2>Production called.<br />You can answer from here.</h2>
           </div>
           <StoreButtons tone="light" />

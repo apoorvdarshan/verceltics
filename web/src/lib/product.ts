@@ -7,7 +7,5 @@ export const GITHUB_BUG_REPORT = "https://github.com/apoorvdarshan/verceltics/is
 export const GITHUB_FEATURE_REQUEST = "https://github.com/apoorvdarshan/verceltics/issues/new?template=feature_request.yml";
 export const LINKEDIN = "https://www.linkedin.com/showcase/verceltics";
 export const INSTAGRAM = "https://www.instagram.com/apoorvcodes/";
-// Android is a Google Play closed beta; these links work for invited testers.
-export const ANDROID_BETA_GROUP = "https://groups.google.com/g/verceltics-testers";
-export const ANDROID_BETA_OPT_IN = "https://play.google.com/apps/testing/com.apoorvdarshan.verceltics";
-export const ANDROID_BETA_CODE = "VERCELTICSBETA";
+export const ANDROID_PLAY_VERSION = "1.0.1";
+export const GOOGLE_PLAY_URL = "https://play.google.com/store/apps/details?id=com.apoorvdarshan.verceltics";
