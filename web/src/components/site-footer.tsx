@@ -56,6 +56,9 @@ export function SiteFooter() {
             <Link href="/integrations">27 integrations</Link>
             <Link href="/vercel-analytics-ios">Vercel app for iPhone</Link>
             <Link href="/android">Android app</Link>
+            <Link href="/guides">Setup & task guides</Link>
+            <Link href="/blog">Blog</Link>
+            <a href="/feed.xml">RSS feed</a>
             <Link href="/#workflows">Workflows</Link>
             <a href={APP_STORE} rel="noreferrer" target="_blank">App Store <ArrowUpRight /></a>
             <a href={GOOGLE_PLAY_URL} rel="noreferrer" target="_blank">Google Play <ArrowUpRight /></a>

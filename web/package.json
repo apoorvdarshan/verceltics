@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node scripts/generate-site-paths.mjs && next build && node scripts/check-static-site.mjs",
     "start": "wrangler dev",
     "preview": "npm run build && wrangler dev",
     "deploy": "npm run build && wrangler deploy",

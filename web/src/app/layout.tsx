@@ -34,6 +34,7 @@ export const metadata: Metadata = {
   description:
     "Manage Vercel, Cloudflare, domains, DNS and website analytics on iPhone, iPad and Android. 27 integrations, tokens on your device, open source.",
   applicationName: "Verceltics",
+  alternates: { types: { "application/rss+xml": "https://verceltics.com/feed.xml" } },
   category: "Developer Tools",
   keywords: [
     "Vercel app",

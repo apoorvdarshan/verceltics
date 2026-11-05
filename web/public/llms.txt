@@ -1,6 +1,6 @@
 # Verceltics
 
-> Verceltics is an independent, open-source native app for checking the infrastructure behind your websites: hosting platforms, domain registrars and site services, with 27 direct integrations. Available on iPhone and iPad (App Store) and in beta on Android (Google Play closed testing).
+> Verceltics is an independent, open-source native app for checking the infrastructure behind your websites: hosting platforms, domain registrars and site services, with 27 direct integrations. Available on iPhone and iPad (App Store) and Android (Google Play).
 
 ## What it does
 
@@ -23,11 +23,13 @@
 ## Links
 
 - Home: https://verceltics.com/
-- Android beta: https://verceltics.com/android
+- Android: https://verceltics.com/android
 - Vercel app for iPhone and iPad: https://verceltics.com/vercel-analytics-ios
 - Integrations: https://verceltics.com/integrations
 - Privacy policy: https://verceltics.com/privacy
 - App Store: https://apps.apple.com/us/app/verceltics/id6761645656
-- Android beta tester group: https://groups.google.com/g/verceltics-testers
-- Google Play test opt-in: https://play.google.com/apps/testing/com.apoorvdarshan.verceltics
+- Google Play: https://play.google.com/store/apps/details?id=com.apoorvdarshan.verceltics
+- Setup and task guides: https://verceltics.com/guides
+- Blog: https://verceltics.com/blog
+- RSS feed: https://verceltics.com/feed.xml
 - Source code (MIT): https://github.com/apoorvdarshan/verceltics

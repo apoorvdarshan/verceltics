@@ -1,0 +1,1638 @@
+[
+  {
+    "slug": "vercel",
+    "overview": [
+      "Vercel projects connect application source, deployments, custom domains and traffic. Verceltics puts those project-level checks in a native mobile workspace, so you can investigate a failed deploy or a traffic change from an iPhone, iPad or Android phone without treating every hosted website as a separate account.",
+      "Start with the correct personal or team context. A project list and an analytics report answer different questions: the first identifies what is deployed; the second reflects events Vercel has collected for a particular project, time range and environment. Verceltics reads the provider data rather than installing analytics instrumentation for you."
+    ],
+    "capabilities": [
+      "Browse projects and their custom or deployment domains, with search and account switching.",
+      "Inspect recent deployments and build events before deciding whether a release needs attention.",
+      "Open Web Analytics overviews, time series and traffic breakdowns for the selected project."
+    ],
+    "fields": [
+      "Vercel personal access token"
+    ],
+    "setup": [
+      "Create a token in your Vercel account token settings. Choose the account or team scope that contains the projects you intend to inspect.",
+      "Open Hosting in Verceltics, choose Vercel and enter the token in the protected connection form. Give multiple connections distinguishable account labels when available.",
+      "Connect and check that an expected project appears. If your projects belong to a team, verify the team context instead of assuming an empty personal list means the token failed.",
+      "Open a project to check its deployments or analytics. Enable Web Analytics in Vercel and instrument your site there if traffic collection has not been configured."
+    ],
+    "troubleshooting": [
+      "An empty list can mean the wrong team or token scope. Compare the account and project membership in Vercel.",
+      "A successful project connection does not guarantee analytics access. Check Web Analytics configuration, reporting window and account eligibility separately."
+    ],
+    "limit": "Web Analytics availability follows Vercel account access, plan and collection settings. Verceltics is independent of Vercel and does not provide a new tracking service or guarantee that dashboard endpoints are a stable public export API.",
+    "reference": "https://vercel.com/docs",
+    "source": "ios/verceltics/Network/VercelAPI.swift",
+    "tasks": [
+      {
+        "slug": "vercel-web-analytics-on-mobile",
+        "title": "Read Vercel Web Analytics on your phone",
+        "summary": "Choose a project, environment and date range before comparing visitors, page views and traffic sources.",
+        "context": "Use this check when a release appears to change traffic. A meaningful comparison needs the same project, deployment environment and reporting window; a preview deployment and a production website can have very different audiences.",
+        "steps": [
+          "Select the Vercel account and team that own the website, then open the intended project rather than a similarly named fork.",
+          "Open analytics and choose the reporting window and environment. Note those selections before interpreting a total or a trend.",
+          "Read visitors and page views together, then inspect the available traffic breakdowns to see whether a source or page explains the change.",
+          "Refresh after changing the range. Compare with the same project and period in Vercel if a number looks unexpected."
+        ],
+        "verify": "The project name, environment and dates should match your comparison. A zero total is a report result, not proof that the deployment is down.",
+        "caution": "Verceltics cannot reconstruct events that were never collected. Configure the analytics integration on the site in Vercel before expecting historical traffic."
+      },
+      {
+        "slug": "vercel-deployment-build-events",
+        "title": "Investigate a Vercel deployment from mobile",
+        "summary": "Follow a recent deployment into its build events and separate a build failure from a domain or traffic problem.",
+        "context": "Deployment status tells you whether a build is progressing or completed; it does not by itself prove that the public custom domain serves the intended version. Use build events to narrow the failure before making another release.",
+        "steps": [
+          "Find the project under the correct Vercel account and inspect the recent deployment list.",
+          "Select the deployment associated with the branch or release you are investigating and confirm its identity.",
+          "Read the available build events for the first useful error, such as a failed command or missing configuration, rather than only the final failed status.",
+          "Check the deployment URL and the project domain separately when the build succeeded but users still report a problem."
+        ],
+        "verify": "Record the deployment identifier and the relevant error without copying secrets or private environment values into a public report.",
+        "caution": "An old successful deployment is not proof that a new one succeeded. Account permissions and provider retention can limit the events available in the app."
+      }
+    ],
+    "published": "2026-11-05",
+    "updated": "2026-11-05"
+  },
+  {
+    "slug": "cloudflare",
+    "overview": [
+      "Cloudflare separates account resources, such as Workers and Pages, from zone resources, such as DNS records and zone analytics. Verceltics keeps that distinction visible so a token intended for one website is not mistaken for unrestricted access to every account resource.",
+      "The native workspace covers zone and account inventory, traffic and security data, and supported Pages, Workers and storage operations. Advanced API tools are useful when an operation needs explicit parameters, but the provider remains responsible for validating permissions and the final response."
+    ],
+    "capabilities": [
+      "Inspect zones, DNS records, traffic, cache and security information for authorized websites.",
+      "Browse Pages, Workers and account storage resources including D1, KV and R2 where permitted.",
+      "Use confirmed provider operations and advanced API tools with destination and credential safeguards."
+    ],
+    "fields": [
+      "Scoped Cloudflare API token; the iOS form also supports email plus Global API Key"
+    ],
+    "setup": [
+      "Create a scoped API token in Cloudflare for the accounts and zones you actually want to manage. Prefer a token with only the permissions needed for the first task.",
+      "Choose Cloudflare under Hosting in Verceltics and enter the token. On iOS, use the API token option unless you deliberately need the alternative Global API Key connection.",
+      "Confirm that the expected account and zone inventory loads. A token limited to one zone should not be expected to enumerate unrelated account resources.",
+      "Open a zone or account resource and verify access with a read before enabling permissions for DNS edits or other writes."
+    ],
+    "troubleshooting": [
+      "A token can be valid while lacking account enumeration, zone analytics or DNS permissions. Match the failed resource to the token scope.",
+      "If one zone is missing, inspect the token resource selection and account ownership before replacing a working token."
+    ],
+    "limit": "Resource availability differs between account and zone scopes. A confirmation dialog does not grant Cloudflare permissions; supported writes still need an authorized token and a successful provider response.",
+    "reference": "https://developers.cloudflare.com/",
+    "source": "ios/verceltics/Network/CloudflareAPI.swift",
+    "tasks": [
+      {
+        "slug": "cloudflare-dns-record-review",
+        "title": "Review Cloudflare DNS records before an edit",
+        "summary": "Identify the zone, record type, content and proxy setting before confirming a DNS change.",
+        "context": "A DNS record may direct a website, email service or verification flow. Before editing, identify which system depends on it and preserve the previous value so an accidental change can be reversed deliberately.",
+        "steps": [
+          "Select the Cloudflare account and exact zone. Similar domain names and subdomains can make the wrong zone look plausible.",
+          "Open DNS and locate the full record name and type. Compare the current content, TTL and proxy setting where shown.",
+          "If making a supported edit, change only the intended fields and inspect the confirmation before sending the request.",
+          "Refresh the record list after a successful provider response and check the affected service independently."
+        ],
+        "verify": "The refreshed Cloudflare record should contain the intended value. Public DNS and application behavior may take additional time to reflect it.",
+        "caution": "Do not toggle proxying or delete an unfamiliar record as a diagnostic shortcut. Cloudflare accepting an edit does not establish that every resolver has updated."
+      },
+      {
+        "slug": "cloudflare-pages-workers-inventory",
+        "title": "Find Cloudflare Pages and Workers in the right account",
+        "summary": "Separate account-level serverless resources from the DNS zone that routes traffic to them.",
+        "context": "A custom domain can be in one zone while its Pages project or Worker belongs to an account-level inventory. Start with the owning account instead of expecting every deployment resource to appear inside a zone.",
+        "steps": [
+          "Open the Cloudflare account context that owns the application and inspect the available Pages and Workers resources.",
+          "Choose the named project or Worker and read the deployment or configuration details that your token can access.",
+          "Compare its deployment state with the domain or route used by the affected website.",
+          "Return to the zone DNS view only when the evidence points to domain routing rather than the application deployment."
+        ],
+        "verify": "You should be able to identify both the serving resource and the domain or route that connects users to it.",
+        "caution": "A zone-only token may be insufficient for Pages or Workers. Keep existing bindings and storage configuration intact while investigating a deployment."
+      }
+    ],
+    "published": "2026-11-05",
+    "updated": "2026-11-05"
+  },
+  {
+    "slug": "netlify",
+    "overview": [
+      "A Netlify site has a stable site identity, a published deployment and a deployment history. Verceltics exposes those relationships on mobile, helping you distinguish a site that exists from the particular deployment currently serving its domain.",
+      "The native Android Netlify flow is read-only. It shows sites, domains, deploy and build history and related state, while mutations are intentionally excluded. Use Netlify itself for an action that the installed app does not expose rather than assuming iOS and Android have identical controls."
+    ],
+    "capabilities": [
+      "Browse connected sites and inspect their domains and published deployment information.",
+      "Review deploy history and build state to connect a release to its site.",
+      "Reconcile an unfinished or canceled load by refreshing the native site view."
+    ],
+    "fields": [
+      "Netlify personal access token"
+    ],
+    "setup": [
+      "Create a personal access token in the Netlify account that has access to the sites you want to inspect.",
+      "Choose Netlify in the Hosting workspace and enter the token in the connection form.",
+      "Connect and locate a known site. Compare team membership in Netlify if the expected site is absent.",
+      "Open the site and verify the published deployment and domain information. On Android, plan to perform unsupported changes in Netlify rather than looking for a write control."
+    ],
+    "troubleshooting": [
+      "A site may belong to a different team from the account currently connected. Check membership and site identity.",
+      "A deploy list loading successfully does not prove that every build or domain detail is available to the same account."
+    ],
+    "limit": "Android Netlify operations described here are read-only. Build and deployment details follow the account permissions and information returned by the Netlify API.",
+    "reference": "https://docs.netlify.com/",
+    "source": "android/app/src/main/java/com/apoorvdarshan/verceltics/data/netlify/NetlifyApi.kt",
+    "tasks": [
+      {
+        "slug": "netlify-published-deployment",
+        "title": "Find the published Netlify deployment",
+        "summary": "Compare the live published deploy with the recent history for the correct site.",
+        "context": "The latest attempted build and the published deployment are not always the same. A failed new deploy may leave the previous version serving users, so inspect the published state before describing the website as unavailable.",
+        "steps": [
+          "Select the Netlify connection and locate the site by name and domain.",
+          "Open the site details and note the published deployment information that Netlify returns.",
+          "Compare that deployment with the recent deploy history, including the state of the latest attempt.",
+          "Refresh the site and check its public domain separately if the issue concerns what visitors see."
+        ],
+        "verify": "You should know which deployment is published and whether a more recent attempt failed or is still running.",
+        "caution": "The Android app does not publish a replacement deploy from this flow. Use the provider dashboard when a supported read identifies a change that must be made there."
+      },
+      {
+        "slug": "netlify-domain-build-triage",
+        "title": "Separate Netlify domain problems from build problems",
+        "summary": "Use site domains and deploy state to choose the next investigation without changing production.",
+        "context": "A domain error and a build error require different follow-up. Verceltics can show the site context and recent provider state, giving you evidence before you change DNS or start another deployment.",
+        "steps": [
+          "Confirm that the selected site is the one associated with the affected custom domain.",
+          "Read the available domain and published deploy information, then inspect recent builds and deploys.",
+          "If the build failed, preserve the relevant status and investigate the build configuration in Netlify.",
+          "If the deploy is published, compare the site domain with the DNS provider configuration instead of treating another rebuild as a DNS fix."
+        ],
+        "verify": "Your notes should identify a build/deploy problem or a domain-routing problem, with the matching site name.",
+        "caution": "Read-only mobile inspection cannot verify all certificate, DNS or account configuration. Refresh after a provider-side fix before concluding that the mobile report is stale."
+      }
+    ],
+    "published": "2026-11-05",
+    "updated": "2026-11-05"
+  },
+  {
+    "slug": "railway",
+    "overview": [
+      "Railway organizes work around projects, environments and services. Verceltics uses that structure so you can identify the service that needs attention without confusing a production environment with a preview or development environment.",
+      "Railway uses GraphQL for its provider API. Its token type and scope determine what can be discovered and inspected. The advanced operation workspace can use the live schema, while ordinary project and service views remain the starting point for routine checks."
+    ],
+    "capabilities": [
+      "Inspect project, service and environment context before interpreting deployment state.",
+      "Review available deployments and service logs under the connected token scope.",
+      "Explore provider operations through the supported Railway GraphQL workspace."
+    ],
+    "fields": [
+      "Railway API token and the matching token type"
+    ],
+    "setup": [
+      "Obtain the appropriate Railway token for your intended project or account access. Note whether it is a project token or an account/team token.",
+      "Choose Railway under Hosting and select the token type that matches the credential. A project token should not be represented as an account token.",
+      "Connect and verify the project inventory that this credential is expected to expose.",
+      "Choose the intended environment and service before opening deployments, logs or advanced operations."
+    ],
+    "troubleshooting": [
+      "A valid project token can have narrower discovery than an account token. Check the token type before diagnosing an empty inventory.",
+      "A service with the same name can exist in several environments. Confirm the environment when a deployment looks unfamiliar."
+    ],
+    "limit": "Railway schema, token scope and project membership constrain available operations. Raw GraphQL access is not a promise that every operation is safe to run or exposed as a dedicated mobile control.",
+    "reference": "https://docs.railway.com/",
+    "source": "ios/verceltics/Network/HostingProviderAPI.swift",
+    "tasks": [
+      {
+        "slug": "railway-project-environment-check",
+        "title": "Choose the right Railway project and environment",
+        "summary": "Keep production, staging and preview services distinct during a mobile deployment check.",
+        "context": "A service name is only part of its identity. For a reliable Railway check, treat project, environment and service as one context before looking at releases or logs.",
+        "steps": [
+          "Open the Railway connection and select the project that owns the application.",
+          "Identify the intended environment before choosing a service. Do not infer production from the service name alone.",
+          "Read the service deployment state and compare it with the release you are investigating.",
+          "Refresh after changing environments so the visible resource details belong to the new selection."
+        ],
+        "verify": "Record the project, environment and service together. They should match the deployment context in Railway.",
+        "caution": "Token types affect which projects and environments can be discovered. An absent environment is not evidence that it has been deleted."
+      },
+      {
+        "slug": "railway-service-log-triage",
+        "title": "Use Railway service logs to narrow a deployment issue",
+        "summary": "Start with a service and environment, then use available log data to choose a focused next step.",
+        "context": "Logs become useful only after the resource context is correct. A startup failure in staging should not trigger changes to a healthy production service with a similar name.",
+        "steps": [
+          "Select the Railway project, environment and affected service in the Hosting workspace.",
+          "Read the service deployment state and identify the relevant release or attempt.",
+          "Inspect the logs made available by the provider, looking for the first useful error rather than repeating status messages.",
+          "Preserve the error category and resource identity, then investigate configuration or code in the provider or repository."
+        ],
+        "verify": "A useful report links a concrete service state to a relevant log event without exposing environment variables or credentials.",
+        "caution": "Log access, history and returned content depend on Railway. Refresh does not create missing historical logs or grant broader permissions."
+      }
+    ],
+    "published": "2026-11-05",
+    "updated": "2026-11-05"
+  },
+  {
+    "slug": "render",
+    "overview": [
+      "Render services and deployments provide the context for checking a web app, worker or scheduled job. Verceltics presents the provider resources in a native mobile workspace so a deployment investigation starts with the actual service rather than only its public URL.",
+      "A service can exist while its latest deployment is failing or still running. Check service identity and recent deployment information together, then inspect the available environment or job details when those are relevant to the problem."
+    ],
+    "capabilities": [
+      "Browse accessible Render services and their provider-returned state.",
+      "Inspect deployment history and relevant job or environment information.",
+      "Use supported provider actions only after checking the intended resource and confirmation."
+    ],
+    "fields": [
+      "Render API key"
+    ],
+    "setup": [
+      "Create an API key in the Render account that can access the services you intend to inspect.",
+      "Choose Render in Hosting and enter the key in the protected connection form.",
+      "Check that a known service appears and confirm its name and service context.",
+      "Open its deployment information and refresh before drawing conclusions about the newest release."
+    ],
+    "troubleshooting": [
+      "Missing services can reflect account access or provider API scope rather than a broken connection.",
+      "A current service status and an older deployment entry may describe different moments. Refresh and compare the deployment identity."
+    ],
+    "limit": "Supported service types, jobs, logs and actions follow the Render API and the installed platform. Creating or modifying infrastructure is not implied by a resource appearing in a list.",
+    "reference": "https://render.com/docs",
+    "source": "ios/verceltics/Network/HostingProviderAPI.swift",
+    "tasks": [
+      {
+        "slug": "render-service-deployment-status",
+        "title": "Check a Render service deployment on mobile",
+        "summary": "Connect the service identity to its latest deployment before investigating an outage.",
+        "context": "Use a service-level deployment check when a Render-hosted application has just changed behavior. It separates a failed deploy from an older version that is still serving traffic.",
+        "steps": [
+          "Select Render and find the service associated with the affected application.",
+          "Read the service state, then open the available deployment information.",
+          "Identify the deployment you expected to be live and compare its state with the most recent attempt.",
+          "Refresh and test the public application separately before reporting that deployment success means the user-facing issue is resolved."
+        ],
+        "verify": "You should have the service name, relevant deployment identity and its returned state.",
+        "caution": "A successful provider deployment is not an end-to-end health check. Application dependencies can fail after the process starts."
+      },
+      {
+        "slug": "render-jobs-and-environments",
+        "title": "Review Render job and environment context",
+        "summary": "Use the correct Render resource context before interpreting scheduled work or release behavior.",
+        "context": "A background task and a public web service may fail differently. The mobile resource view helps identify which Render service owns the work before you investigate its configuration.",
+        "steps": [
+          "Find the owning Render service, using its purpose and name rather than only a shared repository.",
+          "Inspect the job or environment information that the connected API returns for that resource.",
+          "Compare the state with the expected task or release and preserve the relevant timing where shown.",
+          "Use Render for an unsupported configuration change, then refresh the resource in Verceltics."
+        ],
+        "verify": "The investigation should point to the responsible service and job/environment context instead of an unrelated web deployment.",
+        "caution": "Do not copy environment values into a support report. Availability of job details and provider actions varies by service type and permissions."
+      }
+    ],
+    "published": "2026-11-05",
+    "updated": "2026-11-05"
+  },
+  {
+    "slug": "digitalocean",
+    "overview": [
+      "DigitalOcean App Platform groups an application with its deployments, components and domains. Verceltics focuses mobile inspection on that app context, including deployment state and the operational information returned by the connected API.",
+      "A DigitalOcean account can contain many resource types. The Verceltics integration described here concerns supported app and hosting operations; it should not be mistaken for a promise that every DigitalOcean dashboard product has a dedicated native screen."
+    ],
+    "capabilities": [
+      "Inspect App Platform applications, deployments and application domains.",
+      "Review available logs and bandwidth information for the selected app.",
+      "Keep the selected account and application clear when using supported operations."
+    ],
+    "fields": [
+      "DigitalOcean personal access token"
+    ],
+    "setup": [
+      "Create a DigitalOcean personal access token with access to the intended App Platform resources.",
+      "Choose DigitalOcean under Hosting and enter the token in Verceltics.",
+      "Locate a known application and compare the account and app name with DigitalOcean.",
+      "Open the app deployment and domain details, then add broader permissions only if a specific supported operation needs them."
+    ],
+    "troubleshooting": [
+      "A token for an account without the expected app can authenticate successfully while showing no relevant resources.",
+      "Permissions for one DigitalOcean product do not automatically establish access to every app or operation."
+    ],
+    "limit": "The hosting integration is constrained by supported App Platform/API operations and token scope. Bandwidth information should not be represented as a complete billing statement.",
+    "reference": "https://docs.digitalocean.com/products/app-platform/",
+    "source": "ios/verceltics/Network/HostingProviderAPI.swift",
+    "tasks": [
+      {
+        "slug": "digitalocean-app-platform-deployments",
+        "title": "Inspect DigitalOcean App Platform deployments",
+        "summary": "Identify the application and deployment state before changing code, domains or infrastructure.",
+        "context": "App Platform deployments belong to a particular application. When several apps use the same repository, checking the correct app is more useful than assuming the newest repository commit reached every environment.",
+        "steps": [
+          "Open DigitalOcean and select the App Platform application associated with the reported issue.",
+          "Read its recent deployments and identify the attempt you expected to be serving traffic.",
+          "Compare the returned deployment state with the application domain and component context where available.",
+          "Refresh after any provider-side fix and verify the public application independently."
+        ],
+        "verify": "The deployment you recorded should belong to the intended App Platform app, with a provider-returned status.",
+        "caution": "The mobile view is not a complete infrastructure inventory or a substitute for testing the application itself."
+      },
+      {
+        "slug": "digitalocean-app-bandwidth-logs",
+        "title": "Read DigitalOcean app logs and bandwidth in context",
+        "summary": "Use operational app data to investigate traffic and runtime behavior without treating it as billing proof.",
+        "context": "Logs and bandwidth answer different questions: logs help explain application activity, while bandwidth reflects data transfer in the reporting context returned by the provider.",
+        "steps": [
+          "Select the DigitalOcean app whose traffic or runtime behavior you want to inspect.",
+          "Review the available log data and identify the relevant component or deployment context.",
+          "Read bandwidth information with its period or scope where provided, instead of comparing unlike windows.",
+          "Confirm any billing question in DigitalOcean billing and any runtime conclusion against the application behavior."
+        ],
+        "verify": "Your notes should distinguish a runtime observation from a transfer metric and identify the app each belongs to.",
+        "caution": "Do not infer charges from an isolated bandwidth number. Logs can contain private user data, so share only the minimum diagnostic detail."
+      }
+    ],
+    "published": "2026-11-05",
+    "updated": "2026-11-05"
+  },
+  {
+    "slug": "heroku",
+    "overview": [
+      "Heroku applications have releases, dynos, domains and configuration context. Verceltics helps you inspect those relationships from a native mobile workspace when an application changes behavior after a release or a process no longer appears healthy.",
+      "A release is configuration and code history; a dyno is a running process allocation. Checking one does not establish the state of the other. Keep those resource types separate when deciding whether a problem concerns a release, runtime process or public domain."
+    ],
+    "capabilities": [
+      "Browse Heroku apps and inspect release history.",
+      "Review available dyno, domain and log information for an application.",
+      "Use supported app actions with an explicit resource selection and confirmation."
+    ],
+    "fields": [
+      "Heroku API credential"
+    ],
+    "setup": [
+      "Obtain the Heroku API credential for the account or team that owns the application.",
+      "Choose Heroku under Hosting and enter the credential in Verceltics.",
+      "Find a known application and verify its identity before opening details.",
+      "Review releases and dyno state separately, and use the provider dashboard for any operation not exposed by your installed app."
+    ],
+    "troubleshooting": [
+      "An app owned by another team may require different membership even when authentication succeeds.",
+      "Release and dyno state can differ. A completed release does not prove that every process is healthy."
+    ],
+    "limit": "Available Heroku resources and actions depend on the account and provider API. Reading release history does not authorize an automatic rollback or a configuration change.",
+    "reference": "https://devcenter.heroku.com/",
+    "source": "ios/verceltics/Network/HostingProviderAPI.swift",
+    "tasks": [
+      {
+        "slug": "heroku-release-history-mobile",
+        "title": "Review Heroku releases from your phone",
+        "summary": "Connect a behavior change to a Heroku app release without assuming a rollback is required.",
+        "context": "A new Heroku release may include a code deployment or a configuration change. Start by identifying the release associated with the behavior change rather than treating every incident as a new build failure.",
+        "steps": [
+          "Select the Heroku account and application that users report as affected.",
+          "Open its available release history and identify the release you are investigating.",
+          "Compare that release context with current dyno state and relevant logs where accessible.",
+          "Preserve the app and release identity before making a deliberate provider-side correction."
+        ],
+        "verify": "You should be able to distinguish a release-history observation from the current running process state.",
+        "caution": "Do not trigger a rollback merely because a release is recent. Provider permissions and the app version determine which actions are available."
+      },
+      {
+        "slug": "heroku-dynos-domains-check",
+        "title": "Check Heroku dynos and domains during an incident",
+        "summary": "Separate process state from public-domain routing for the correct Heroku app.",
+        "context": "If an application cannot be reached, both runtime and routing matter. A domain pointing to the right app does not guarantee that the app has a healthy process serving requests.",
+        "steps": [
+          "Open the affected Heroku app and verify its name under the connected account.",
+          "Inspect the available dyno information and note the process state that Heroku returns.",
+          "Compare the application domain information with the hostname users are visiting.",
+          "Use logs and a direct public check to decide whether the next step belongs to runtime configuration or DNS."
+        ],
+        "verify": "Your evidence should identify the app, relevant process state and affected hostname together.",
+        "caution": "The integration does not turn a dyno list into a full uptime test. Avoid changing domain configuration before confirming the process and routing evidence."
+      }
+    ],
+    "published": "2026-11-05",
+    "updated": "2026-11-05"
+  },
+  {
+    "slug": "fly-io",
+    "overview": [
+      "Fly.io applications contain Machines, regions and attached resources such as volumes. Verceltics brings those resource relationships to mobile so an investigation can stay specific to the affected app and location.",
+      "A running Machine and a healthy public application are different observations. Region placement, volume dependencies and the deployment context can all matter, especially when an application has several Machines rather than one process."
+    ],
+    "capabilities": [
+      "Browse Fly.io apps and inspect Machines and deployment context.",
+      "Review region placement and available attached-volume information.",
+      "Keep organization and resource identity explicit before supported operations."
+    ],
+    "fields": [
+      "Fly.io access token",
+      "Optional organization context where requested"
+    ],
+    "setup": [
+      "Obtain a Fly.io access token scoped to the organization and apps you intend to inspect.",
+      "Choose Fly.io in Hosting, enter the token and provide organization context if the connection form requests it.",
+      "Connect and verify a known app appears in the expected organization.",
+      "Open Machines, regions and volume information before using an operation that could affect an app instance."
+    ],
+    "troubleshooting": [
+      "Organization scope can explain missing apps even when a token is otherwise valid.",
+      "A Machine resource may exist without the application being healthy. Compare its current state with a public check."
+    ],
+    "limit": "Machine, region and volume access follows Fly.io API permissions. Resource inspection does not guarantee application health or authorize deleting storage.",
+    "reference": "https://fly.io/docs/",
+    "source": "ios/verceltics/Network/HostingProviderAPI.swift",
+    "tasks": [
+      {
+        "slug": "fly-machines-regions-mobile",
+        "title": "Inspect Fly.io Machines and regions",
+        "summary": "Identify the app instance and location involved in a runtime problem.",
+        "context": "Apps with several Machines can behave differently across instances or regions. A mobile check should identify the exact Machine context rather than reporting only that the application exists.",
+        "steps": [
+          "Select the Fly.io organization and app associated with the incident.",
+          "Review its Machines and the returned state for each relevant instance.",
+          "Read region placement and compare it with where the problem is observed.",
+          "Refresh and verify the public application separately before concluding that a Machine state explains the entire incident."
+        ],
+        "verify": "Keep the app, Machine identity and region together in your diagnostic notes.",
+        "caution": "A provider state such as running is not a request-level health check. Avoid restarting unrelated Machines while investigating one region."
+      },
+      {
+        "slug": "fly-volumes-before-machine-changes",
+        "title": "Review Fly.io volumes before changing Machines",
+        "summary": "Check app storage context before a supported instance operation.",
+        "context": "Persistent volumes deserve a separate review from replaceable application processes. Before acting on a Machine, identify any storage resource shown for the application and the consequences of the intended action.",
+        "steps": [
+          "Open the Fly.io app under the correct organization.",
+          "Inspect the available volume inventory and associated region or resource details.",
+          "Compare that storage context with the Machine you are investigating.",
+          "If an operation is needed, review its confirmation and use Fly.io for any storage action outside the installed app flow."
+        ],
+        "verify": "You should know which storage resources are relevant before approving an instance change.",
+        "caution": "Do not assume a volume is disposable because a Machine can be recreated. This inspection does not back up data or verify recovery procedures."
+      }
+    ],
+    "published": "2026-11-05",
+    "updated": "2026-11-05"
+  },
+  {
+    "slug": "firebase-hosting",
+    "overview": [
+      "Firebase Hosting organizes websites into projects, sites, channels, versions and releases. Verceltics preserves those distinctions so checking a preview channel does not become a mistaken conclusion about the production release.",
+      "The connection uses Google sign-in, with tokens stored on the device. Firebase Hosting resources stay separate from Google Analytics and Search Console, even when the same Google account can access all three products."
+    ],
+    "capabilities": [
+      "Browse Firebase Hosting project and site resources authorized by Google sign-in.",
+      "Inspect channels, versions and releases in their site context.",
+      "Use supported hosting operations only when explicitly selected and authorized."
+    ],
+    "fields": [
+      "Google sign-in for the Firebase project account"
+    ],
+    "setup": [
+      "Choose Firebase Hosting in the Hosting workspace and continue through the Google authorization flow.",
+      "Use the Google account that can access the intended Firebase project and review the requested access.",
+      "Return to Verceltics and select the project and Hosting site you expect to inspect.",
+      "Identify the live or preview channel before reading release and version information."
+    ],
+    "troubleshooting": [
+      "Signing into the wrong Google account can produce an empty or unexpected Firebase inventory.",
+      "A Firebase project can have multiple Hosting sites and channels. Check all three levels before diagnosing a missing release."
+    ],
+    "limit": "Firebase Hosting access follows Google authorization and project permissions. A Hosting connection does not connect GA4 or Search Console automatically, and provider actions remain permission-bound.",
+    "reference": "https://firebase.google.com/docs/hosting",
+    "source": "ios/verceltics/Network/HostingProviderAPI.swift",
+    "tasks": [
+      {
+        "slug": "firebase-hosting-live-preview-channels",
+        "title": "Distinguish Firebase live and preview channels",
+        "summary": "Identify the project, site and channel before interpreting a Hosting release.",
+        "context": "A preview channel can serve a different version from the live site. The channel identity matters as much as the project name when checking whether a website update is public.",
+        "steps": [
+          "Open Firebase Hosting and choose the intended Google account and project.",
+          "Select the Hosting site associated with the website rather than assuming the project has only one site.",
+          "Inspect the channel and its release/version context, distinguishing live from preview.",
+          "Compare the intended release with the URL users actually visit and refresh after a provider-side change."
+        ],
+        "verify": "Your record should include the project, site and channel, along with the relevant release or version.",
+        "caution": "A successful preview deployment does not establish that the production site changed. Google Analytics data is a separate integration."
+      },
+      {
+        "slug": "firebase-hosting-version-release-check",
+        "title": "Trace a Firebase Hosting release to its version",
+        "summary": "Use Hosting release and version context to investigate a website change.",
+        "context": "A Hosting version and a release are related but distinct resources. Use the release context to understand which version a channel is serving before changing the website again.",
+        "steps": [
+          "Choose the Firebase project and Hosting site that own the affected domain.",
+          "Open the relevant channel and review its available release information.",
+          "Inspect the associated version details returned by the provider and compare them with the expected change.",
+          "Refresh and test the public URL separately, retaining the resource identities for any follow-up."
+        ],
+        "verify": "The version you investigate should be associated with the intended channel release rather than an unrelated uploaded version.",
+        "caution": "This check does not build or upload site files. Use your existing Firebase deployment workflow for changes the mobile app does not expose."
+      }
+    ],
+    "published": "2026-11-05",
+    "updated": "2026-11-05"
+  },
+  {
+    "slug": "aws-amplify",
+    "overview": [
+      "AWS Amplify hosting resources belong to an AWS account and region, with apps, branches, jobs and domains inside that context. Verceltics signs supported Amplify requests with AWS Signature Version 4 so you can inspect that hosting inventory from a native mobile app.",
+      "Region is part of the connection, not just a presentation preference. An app that exists in one region should not be expected in another region’s inventory. Temporary AWS credentials also need their session token and expire independently of the app connection."
+    ],
+    "capabilities": [
+      "Browse Amplify applications and their branches in the selected AWS region.",
+      "Inspect build jobs and domain associations for the intended app.",
+      "Use signed supported Amplify requests while preserving AWS account and region boundaries."
+    ],
+    "fields": [
+      "AWS access key ID",
+      "AWS secret access key",
+      "AWS region",
+      "Session token when using temporary credentials"
+    ],
+    "setup": [
+      "Choose AWS credentials whose IAM permissions cover the Amplify hosting resources you need. Use the intended account and note their expiration if temporary.",
+      "Choose AWS Amplify in Hosting and enter the access key ID, secret access key and region. Include the session token for temporary credentials.",
+      "Connect and verify an expected Amplify app appears in that region.",
+      "Select the app and branch before inspecting jobs or domains. Replace expired credentials deliberately rather than broadening IAM permissions as a shortcut."
+    ],
+    "troubleshooting": [
+      "An empty region can be correct even with valid credentials. Check the region in AWS before changing the keys.",
+      "Signature failures can involve an expired session, a missing session token or mismatched credential fields. Check these separately from IAM authorization."
+    ],
+    "limit": "Amplify access is restricted by AWS IAM, credential lifetime and region. Verceltics is not a general-purpose replacement for the AWS console or a mechanism to bypass IAM policies.",
+    "reference": "https://docs.aws.amazon.com/amplify/",
+    "source": "ios/verceltics/Network/HostingProviderAPI.swift",
+    "tasks": [
+      {
+        "slug": "amplify-region-branch-job-check",
+        "title": "Check an Amplify branch build in the right AWS region",
+        "summary": "Follow the account, region, app and branch context before interpreting an Amplify build job.",
+        "context": "Amplify apps and jobs are regional. A branch named main in one app is not evidence about another app, and a valid AWS credential can return an empty list for the wrong region.",
+        "steps": [
+          "Check the region configured for the Amplify connection and compare it with the region used in AWS.",
+          "Select the intended Amplify app, then the branch associated with the release you are checking.",
+          "Inspect its available jobs and identify the relevant attempt and returned state.",
+          "Refresh after a provider-side fix and test the application domain separately."
+        ],
+        "verify": "Your diagnostic record should contain the AWS region, app, branch and job context rather than only the branch name.",
+        "caution": "Do not switch to broader IAM permissions until you have ruled out the wrong account or region. A completed build is not a full application health test."
+      },
+      {
+        "slug": "amplify-temporary-credentials-troubleshooting",
+        "title": "Troubleshoot temporary AWS credentials in Amplify",
+        "summary": "Separate an expired session or missing token from an IAM permission problem.",
+        "context": "Temporary credentials consist of an access key ID, a secret access key and a session token. They can stop working after a successful connection because their session expires, even though the Amplify application remains available.",
+        "steps": [
+          "Confirm whether the supplied credential is temporary and whether its session is still valid.",
+          "Check that the access key, secret and session token belong to the same credential set and that the region is correct.",
+          "Reconnect with a valid set and inspect the expected app with a read request.",
+          "If authorization still fails, inspect the credential’s IAM access to that specific Amplify resource in AWS."
+        ],
+        "verify": "A successful app inventory read confirms the new credentials can access that resource context; it does not prove permission for every write.",
+        "caution": "Keep all three credential values out of screenshots and reports. Changing the device clock or granting administrator access is not an appropriate first fix."
+      }
+    ],
+    "published": "2026-11-05",
+    "updated": "2026-11-05"
+  },
+  {
+    "slug": "name-com",
+    "overview": [
+      "Name.com is a domain registrar connection, separate from whichever hosting provider serves your website. Verceltics uses the CORE API username and token to expose the domain portfolio and supported domain operations without sending credentials through a Verceltics server.",
+      "Name.com API access can require an additional account security setting when two-step verification is enabled. Its optional IP allowlist is different from Namecheap’s required ClientIp field; Verceltics does not save or send a detected public IP as a Name.com credential."
+    ],
+    "capabilities": [
+      "Inspect the domain portfolio, DNS and available renewal or transfer information.",
+      "Use provider-specific domain operations and review confirmations for writes.",
+      "Keep registrar ownership separate from Vercel, Cloudflare or another hosting account."
+    ],
+    "fields": [
+      "Name.com CORE API username",
+      "Production API token"
+    ],
+    "setup": [
+      "Obtain the CORE API username and a production API token for your Name.com account.",
+      "If two-step verification is enabled, check Name.com Security Settings and enable API Access as described by the app connection note.",
+      "Choose Name.com under Registrars and enter the API username and token.",
+      "Verify a known domain loads. If you deliberately use an optional IP allowlist, manage it in Name.com; do not confuse this with Namecheap ClientIp setup."
+    ],
+    "troubleshooting": [
+      "Check the API username rather than assuming it is the same as the email used to sign in.",
+      "With two-step verification enabled, a valid token may still require the separate API Access setting."
+    ],
+    "limit": "Domain operations depend on Name.com API availability and account access. Registration, renewal and transfer operations can have financial consequences and require deliberate confirmation where supported.",
+    "reference": "https://www.name.com/api-docs",
+    "source": "ios/verceltics/Network/RegistrarAPI.swift",
+    "tasks": [
+      {
+        "slug": "name-com-domain-renewal-review",
+        "title": "Review Name.com domains and renewal context",
+        "summary": "Identify the registrar-owned domain and its returned expiry or renewal information before taking action.",
+        "context": "A website can keep working while its domain approaches expiration. Domain ownership and renewal belong to the registrar, so begin with Name.com rather than the hosting provider’s deployment list.",
+        "steps": [
+          "Open the Name.com connection in Registrars and locate the full domain name.",
+          "Inspect the returned domain details, especially expiry, renewal and status information where available.",
+          "Compare the domain with the hostname used by your website and identify who is responsible for the registration.",
+          "Confirm payment-sensitive renewal choices in the provider workflow rather than treating a displayed date as a completed renewal."
+        ],
+        "verify": "You should know which registered domain is involved and what renewal state the provider currently reports.",
+        "caution": "A hosting subscription does not prove that a registrar renewal succeeded. Do not promise automatic renewal from a mobile list entry."
+      },
+      {
+        "slug": "name-com-dns-hosting-boundary",
+        "title": "Check Name.com DNS before changing hosting settings",
+        "summary": "Identify whether Name.com’s DNS is authoritative for the domain you are troubleshooting.",
+        "context": "Registering a domain at Name.com does not necessarily mean its active DNS records are managed there. Delegated nameservers can place DNS control at another provider such as Cloudflare.",
+        "steps": [
+          "Select the domain in the Name.com registrar connection and inspect nameserver information where returned.",
+          "Determine which DNS provider is authoritative before editing records.",
+          "If Name.com hosts the active zone, compare the relevant record name, type and value with the hosting provider’s expected target.",
+          "After a supported change, refresh the registrar view and verify public DNS and website behavior independently."
+        ],
+        "verify": "The record you inspect should belong to the authoritative DNS service for the intended domain.",
+        "caution": "Editing a non-authoritative zone can produce a successful API response without changing what visitors resolve. Keep the old record values for any intentional correction."
+      }
+    ],
+    "published": "2026-11-05",
+    "updated": "2026-11-05"
+  },
+  {
+    "slug": "namecheap",
+    "overview": [
+      "Namecheap’s API requires account identification, an API key and a whitelisted public IPv4 address supplied as ClientIp. Verceltics treats that address as explicit connection metadata, because Wi-Fi, mobile data and a VPN can use different public addresses.",
+      "The registrar workspace covers domain inventory and supported DNS, contact, renewal and transfer operations. Namecheap registration and the domain’s authoritative DNS configuration remain separate concepts, so a DNS change should start by checking which nameservers are in use."
+    ],
+    "capabilities": [
+      "Browse Namecheap domains with provider-returned status and expiry details.",
+      "Inspect supported DNS, contacts, renewal and transfer operations.",
+      "Detect and explicitly accept the public IPv4 required for API connection metadata."
+    ],
+    "fields": [
+      "Namecheap username / API user",
+      "API key",
+      "Whitelisted public IPv4 address (ClientIp)"
+    ],
+    "setup": [
+      "Enable Namecheap API access for an eligible account and obtain its API key.",
+      "Identify the public IPv4 for the network used by the phone and add that exact address to the Namecheap API whitelist.",
+      "Choose Namecheap in Registrars and enter the API user, key and matching public IPv4. Accept a detected address explicitly before it is saved as ClientIp.",
+      "Connect and verify a known domain. Revisit the whitelist and ClientIp if you switch networks or VPN routing."
+    ],
+    "troubleshooting": [
+      "A private Wi-Fi address such as an internal LAN address is not the public IPv4 Namecheap expects.",
+      "An old whitelisted address may fail after moving from Wi-Fi to cellular or enabling a VPN."
+    ],
+    "limit": "API eligibility and IP allowlisting are controlled by Namecheap. The address lookup is credential-free; the accepted ClientIp is then sent as required Namecheap API metadata.",
+    "reference": "https://www.namecheap.com/support/api/",
+    "source": "ios/verceltics/Network/RegistrarAPI.swift",
+    "tasks": [
+      {
+        "slug": "namecheap-clientip-network-change",
+        "title": "Fix Namecheap ClientIp after a network change",
+        "summary": "Reconcile the saved public IPv4 and Namecheap API whitelist when Wi-Fi, cellular or VPN access changes.",
+        "context": "A previously working Namecheap connection can fail after the network’s public address changes. The stored ClientIp and the provider whitelist must describe the allowed public IPv4 rather than a private device address.",
+        "steps": [
+          "Check which network and VPN configuration the phone is currently using.",
+          "Use the app’s public IPv4 helper or another trusted network check to identify the current public IPv4 without sharing your API key.",
+          "Add the intended address in Namecheap’s API whitelist and update the connection’s required ClientIp through the supported connection flow.",
+          "Retry a domain-list read and verify a known domain before attempting another operation."
+        ],
+        "verify": "The address accepted into the connection should match an address permitted by Namecheap for this API use.",
+        "caution": "Do not disable network protections or expose credentials to an IP lookup service. A network change can recur, so preserve the distinction between a connection issue and invalid credentials."
+      },
+      {
+        "slug": "namecheap-nameservers-dns-records",
+        "title": "Distinguish Namecheap nameservers from DNS records",
+        "summary": "Check delegation before editing host records for a domain registered at Namecheap.",
+        "context": "Nameservers select the authoritative DNS service. Host records describe entries inside a zone. Changing one is not equivalent to changing the other, and editing inactive DNS records may not affect your website.",
+        "steps": [
+          "Open the Namecheap domain and inspect the available nameserver or DNS hosting information.",
+          "Identify whether the active zone is managed by Namecheap or a separate provider.",
+          "Compare the relevant host record name, type and target in the authoritative zone with the target required by your hosting service.",
+          "Review any supported write confirmation and verify public resolution after the provider accepts the change."
+        ],
+        "verify": "The intended domain, authoritative DNS provider and exact record should be clear before a write.",
+        "caution": "Replacing nameservers can affect the entire domain, including mail. A single website record correction usually should not be treated as an instruction to replace delegation."
+      }
+    ],
+    "published": "2026-11-05",
+    "updated": "2026-11-05"
+  },
+  {
+    "slug": "porkbun",
+    "overview": [
+      "Porkbun connects with an API key and secret rather than a single bearer token. Verceltics uses that registrar connection for domain inventory and the supported DNS, certificate, forwarding and marketplace operations exposed by the provider catalog.",
+      "Porkbun’s per-domain API access and the account credential pair are separate checks. A connected account does not automatically prove that every registered domain allows the same API operations or that a certificate is ready to retrieve."
+    ],
+    "capabilities": [
+      "Inspect registered domains and supported DNS resources.",
+      "Explore available certificate and forwarding operations in provider context.",
+      "Keep key/secret access and domain-specific API availability distinct."
+    ],
+    "fields": [
+      "Porkbun API key",
+      "Porkbun API secret"
+    ],
+    "setup": [
+      "Create the Porkbun API key and secret for your account and keep them as a matching pair.",
+      "Check that API access is enabled for the domain you intend to use in Porkbun where required.",
+      "Choose Porkbun in Registrars and enter both credential values.",
+      "Confirm a known domain and perform a read of the desired resource before using a write or certificate operation."
+    ],
+    "troubleshooting": [
+      "A key without its matching secret is not a complete Porkbun connection.",
+      "If one domain fails while others load, inspect domain-specific API availability in Porkbun."
+    ],
+    "limit": "Certificate and marketplace operations follow the provider’s eligibility and response. Certificate private keys and registrar secrets must never be included in a public support report.",
+    "reference": "https://porkbun.com/api/json/v3/documentation",
+    "source": "ios/verceltics/Network/RegistrarAPI.swift",
+    "tasks": [
+      {
+        "slug": "porkbun-domain-api-access",
+        "title": "Check Porkbun access for an individual domain",
+        "summary": "Separate a working account credential pair from per-domain API availability.",
+        "context": "When an account connects but one domain operation fails, replacing every credential is rarely the most focused first step. Check the specific domain’s API availability and the requested operation.",
+        "steps": [
+          "Confirm that the Porkbun key and secret connect and return the expected domain portfolio.",
+          "Select the domain that fails and verify its exact spelling and account ownership.",
+          "Check that domain’s API access setting in Porkbun and the permissions or eligibility for the requested resource.",
+          "Retry a read before any DNS, forwarding or other supported change."
+        ],
+        "verify": "The result should distinguish an account authentication problem from a resource-specific access problem.",
+        "caution": "Do not broaden access to unrelated domains while troubleshooting one. Only Porkbun can determine which domain operations the account is allowed to perform."
+      },
+      {
+        "slug": "porkbun-certificate-forwarding-review",
+        "title": "Review Porkbun certificate and forwarding operations",
+        "summary": "Check the intended domain and operation before using the advanced registrar tools.",
+        "context": "Certificates and URL forwarding are different services from DNS delegation. Use the provider operation catalog to understand the available request and response instead of assuming a DNS edit will configure either service.",
+        "steps": [
+          "Open the Porkbun domain and confirm the account and domain API access.",
+          "Inspect the available certificate or forwarding operation in the provider tools, including its required parameters.",
+          "Read existing state where the provider supports it and verify that the requested operation applies to this domain.",
+          "For a supported change, inspect the confirmation and recheck the provider state after success."
+        ],
+        "verify": "The operation and its returned result should correspond to the correct domain and service.",
+        "caution": "A certificate response may contain private material. Keep it out of screenshots, chat and public issues, and do not treat retrieval as proof that a web server installed it."
+      }
+    ],
+    "published": "2026-11-05",
+    "updated": "2026-11-05"
+  },
+  {
+    "slug": "spaceship",
+    "overview": [
+      "Spaceship’s registrar API uses a key and secret. Verceltics exposes the domain portfolio with provider-specific contact, DNS and nameserver context, keeping the registration record separate from the infrastructure hosting the website.",
+      "A registered domain, its contact records and its DNS delegation can change independently. Mobile inspection is most useful when it identifies which of those layers actually needs attention rather than presenting every registrar operation as a DNS fix."
+    ],
+    "capabilities": [
+      "Browse Spaceship domains and inspect their returned status.",
+      "Review supported DNS, nameserver and contact resources.",
+      "Use provider operations with domain identity and explicit confirmation for writes."
+    ],
+    "fields": [
+      "Spaceship API key",
+      "Spaceship API secret"
+    ],
+    "setup": [
+      "Obtain a Spaceship API key and matching secret with access to the intended domain portfolio.",
+      "Choose Spaceship in Registrars and enter both values in the protected fields.",
+      "Connect and verify that a domain you own is returned by the provider.",
+      "Inspect the relevant domain details and distinguish DNS settings from contact or registration state before using advanced tools."
+    ],
+    "troubleshooting": [
+      "A missing secret or a key/secret pair from different credentials will not form a valid connection.",
+      "Domain ownership, contact objects and nameservers are distinct resource contexts; check which request actually failed."
+    ],
+    "limit": "Spaceship determines the available domain, contact and DNS operations. A successful contact or nameserver update is not equivalent to deploying a website.",
+    "reference": "https://docs.spaceship.dev/",
+    "source": "ios/verceltics/Network/RegistrarAPI.swift",
+    "tasks": [
+      {
+        "slug": "spaceship-domain-nameserver-review",
+        "title": "Review Spaceship domain delegation",
+        "summary": "Identify the authoritative DNS service before changing a Spaceship domain’s records or nameservers.",
+        "context": "A domain registered at Spaceship can delegate DNS to another service. Confirm delegation first so a domain-routing investigation addresses the active DNS zone.",
+        "steps": [
+          "Open the Spaceship connection and select the registered domain.",
+          "Inspect nameserver information where available and identify the DNS service that currently answers for the domain.",
+          "Compare the intended hosting target with records in that authoritative zone.",
+          "If a supported change is necessary, inspect the exact domain and fields in the confirmation and then verify public resolution."
+        ],
+        "verify": "The selected domain and its authoritative DNS location should be unambiguous before a write.",
+        "caution": "Nameserver changes can affect every service on a domain. Preserve mail and verification records when planning any migration."
+      },
+      {
+        "slug": "spaceship-domain-contact-context",
+        "title": "Understand Spaceship domain contact context",
+        "summary": "Separate registrant/contact information from the DNS configuration used by a website.",
+        "context": "Contact records describe domain administration; DNS records describe routing. When a registrar request concerns contacts, changing an A or CNAME record will not resolve it.",
+        "steps": [
+          "Select the Spaceship domain under the correct registrar account.",
+          "Inspect the domain and any supported contact resources in the provider tools.",
+          "Identify the contact or ownership context required by the intended administrative task without copying personal contact details into a report.",
+          "Use a supported confirmed operation or the provider dashboard for an intentional change, then reread the provider state."
+        ],
+        "verify": "Your investigation should name the administrative resource and domain without disclosing personal registrant data.",
+        "caution": "Domain contact changes may have provider-specific consequences. Do not infer transfer eligibility or completed ownership verification from a single contact response."
+      }
+    ],
+    "published": "2026-11-05",
+    "updated": "2026-11-05"
+  },
+  {
+    "slug": "dynadot",
+    "overview": [
+      "Dynadot combines domain registration with DNS, renewal and aftermarket services. Verceltics keeps those provider resources in the registrar workspace, so domain portfolio health can be checked without confusing an auction or marketplace result with a domain already owned.",
+      "The API key’s configuration and allowed access matter as much as the key itself. Begin with owned-domain reads, then inspect a specific advanced operation only when its parameters and consequences match the task you intend."
+    ],
+    "capabilities": [
+      "Inspect owned-domain inventory, status and renewal information.",
+      "Review supported DNS and registrar operations through the provider tools.",
+      "Keep aftermarket resources separate from registered-domain ownership."
+    ],
+    "fields": [
+      "Dynadot API key"
+    ],
+    "setup": [
+      "Enable Dynadot API access and obtain an API key for your account, following its current access requirements.",
+      "Choose Dynadot under Registrars and enter the key in Verceltics.",
+      "Verify that your owned-domain list includes an expected domain.",
+      "Inspect the specific domain or operation before using advanced tools; domain purchase and renewal actions require deliberate review."
+    ],
+    "troubleshooting": [
+      "A key may need account-side configuration before the intended API operation is available. Check Dynadot access settings.",
+      "An aftermarket listing is not proof that the domain belongs to your connected portfolio."
+    ],
+    "limit": "Auctions, aftermarket, renewals and purchases are governed by Dynadot’s API and account eligibility. A resource being visible does not establish that a paid action has been authorized.",
+    "reference": "https://www.dynadot.com/domain/api.html",
+    "source": "ios/verceltics/Network/RegistrarAPI.swift",
+    "tasks": [
+      {
+        "slug": "dynadot-owned-domain-portfolio",
+        "title": "Review owned domains in Dynadot",
+        "summary": "Use portfolio identity and expiry information without mixing in marketplace listings.",
+        "context": "A registrar account can expose both owned domains and aftermarket resources. A portfolio review should begin with domains already registered to the connected account.",
+        "steps": [
+          "Open Dynadot under Registrars and read the owned-domain inventory.",
+          "Search for the exact domain and inspect the returned status and expiry or renewal information.",
+          "Separate this record from any similarly named auction or aftermarket item.",
+          "Refresh and verify a renewal-sensitive decision in Dynadot before initiating a paid operation."
+        ],
+        "verify": "Your notes should identify an owned domain and the current provider-returned registration state.",
+        "caution": "Do not count marketplace results as owned assets or assume an enabled renewal setting guarantees a future payment will succeed."
+      },
+      {
+        "slug": "dynadot-api-operation-review",
+        "title": "Review a Dynadot operation before submitting it",
+        "summary": "Identify read, write and purchase-sensitive requests in the registrar API workspace.",
+        "context": "The provider API catalog exposes operations with different consequences. A domain lookup, a DNS change and an aftermarket transaction should not be treated as interchangeable requests.",
+        "steps": [
+          "Choose Dynadot and locate the provider operation relevant to the actual domain task.",
+          "Read its parameters and select the intended domain or resource explicitly.",
+          "Prefer a read of existing state before considering any write, renewal or purchase-sensitive operation.",
+          "For a supported write, review the app confirmation and check the returned provider result before reporting success."
+        ],
+        "verify": "You should be able to state what the request changes and which resource it affects before submitting it.",
+        "caution": "API success must be interpreted for the specific operation. Do not infer a completed purchase, transfer or renewal from a lookup response."
+      }
+    ],
+    "published": "2026-11-05",
+    "updated": "2026-11-05"
+  },
+  {
+    "slug": "namesilo",
+    "overview": [
+      "NameSilo provides domain portfolio, DNS, renewal, contact and transfer functions through its registrar API. Verceltics makes those provider resources accessible from the Registrars workspace alongside other domain accounts.",
+      "Keep a transfer request distinct from the final registration state. Transfers can involve multiple parties and provider-side conditions; a mobile request response is only one observation in that process."
+    ],
+    "capabilities": [
+      "Browse the connected NameSilo domain portfolio and domain details.",
+      "Inspect supported DNS, renewal, contact and transfer operations.",
+      "Use account-specific provider tools without merging other registrar credentials."
+    ],
+    "fields": [
+      "NameSilo API key"
+    ],
+    "setup": [
+      "Obtain the NameSilo API key for the account that owns the domains you want to inspect.",
+      "Choose NameSilo under Registrars and enter the key in Verceltics.",
+      "Connect and confirm the expected owned-domain inventory.",
+      "Open a domain and review the relevant DNS, expiry or transfer information before selecting an operation."
+    ],
+    "troubleshooting": [
+      "Check the connected NameSilo account when a known domain is absent.",
+      "A transfer operation and the current domain ownership state can be at different stages; reread the relevant provider resource."
+    ],
+    "limit": "NameSilo controls transfer, renewal and API eligibility. Credential access does not guarantee that a domain is unlocked, transferable or successfully renewed.",
+    "reference": "https://www.namesilo.com/api-reference",
+    "source": "ios/verceltics/Network/RegistrarAPI.swift",
+    "tasks": [
+      {
+        "slug": "namesilo-expiry-portfolio-review",
+        "title": "Check NameSilo expiry and portfolio state",
+        "summary": "Use domain identity and provider-returned registration details for a focused renewal review.",
+        "context": "Domain expiry is a registrar concern even when hosting is paid and deployments are healthy. A NameSilo portfolio check should identify the exact domain and its registration state.",
+        "steps": [
+          "Open the NameSilo connection and find the domain by its full name.",
+          "Inspect available expiry, renewal and status details rather than relying on the website still loading.",
+          "Compare the registrar record with any renewal notice or planned administrative action.",
+          "Refresh after a deliberate provider-side renewal and verify the updated registration state."
+        ],
+        "verify": "You should have a current domain record tied to the connected account, not just a hosting-domain alias.",
+        "caution": "A future expiry date does not prove every related domain or subdomain is covered. Renewal and payment eligibility remain controlled by NameSilo."
+      },
+      {
+        "slug": "namesilo-transfer-status-check",
+        "title": "Review NameSilo transfer context",
+        "summary": "Distinguish a transfer request from completed domain ownership and delegation.",
+        "context": "A domain transfer can be requested without being complete. When reviewing it from mobile, identify the intended domain and the specific stage returned by the registrar.",
+        "steps": [
+          "Select the NameSilo domain or relevant transfer operation under the correct account.",
+          "Read the returned transfer or domain status and identify what it actually confirms.",
+          "Check lock, contact or authorization prerequisites in NameSilo when the request cannot proceed.",
+          "After any provider-side action, refresh the domain record and separately check the authoritative DNS configuration."
+        ],
+        "verify": "Report the observed transfer stage precisely rather than saying the domain has moved based only on request acceptance.",
+        "caution": "Never publish transfer authorization codes or registrant contact data. Changing registrar ownership is separate from changing website hosting or DNS."
+      }
+    ],
+    "published": "2026-11-05",
+    "updated": "2026-11-05"
+  },
+  {
+    "slug": "gandi",
+    "overview": [
+      "Gandi combines domain registration with LiveDNS and other account services. Verceltics connects through a personal access token and exposes the provider-specific resources that the token and organization scope allow.",
+      "A domain’s registrar record and its LiveDNS zone are related but different resources. If another provider is authoritative for DNS, a successful Gandi zone change may not alter public resolution. Organization scope can also explain why one set of domains is visible and another is absent."
+    ],
+    "capabilities": [
+      "Inspect Gandi domain inventory and available LiveDNS resources.",
+      "Explore supported certificate, mail and billing operations in provider context.",
+      "Keep organization-scoped access and domain ownership explicit."
+    ],
+    "fields": [
+      "Gandi personal access token",
+      "Optional organization label"
+    ],
+    "setup": [
+      "Create a scoped Gandi personal access token for the organization and domains you need.",
+      "Choose Gandi under Registrars and enter the token. Add an organization label if helpful for distinguishing saved accounts.",
+      "Connect and confirm an expected domain is present.",
+      "Check whether Gandi LiveDNS is authoritative before planning a DNS operation, and inspect the exact provider request before a write."
+    ],
+    "troubleshooting": [
+      "A token scoped to one organization may not expose another organization’s domains.",
+      "The optional organization label identifies a saved connection; it should not be assumed to grant organization access."
+    ],
+    "limit": "Gandi determines which domain, LiveDNS and other services the token can access. Available API operations are not a promise that each one has a dedicated native screen.",
+    "reference": "https://api.gandi.net/docs/",
+    "source": "ios/verceltics/Network/RegistrarAPI.swift",
+    "tasks": [
+      {
+        "slug": "gandi-livedns-authoritative-zone",
+        "title": "Check whether Gandi LiveDNS is authoritative",
+        "summary": "Connect a registrar domain to the DNS zone that actually serves it.",
+        "context": "LiveDNS records matter to public traffic only when the domain delegates to that DNS service. Start with nameserver delegation before editing a record in the Gandi zone.",
+        "steps": [
+          "Select the Gandi domain under the intended organization-scoped connection.",
+          "Inspect its nameserver context and determine whether the active DNS service is Gandi LiveDNS.",
+          "Read the relevant LiveDNS record only after establishing that it is the authoritative zone.",
+          "After a supported change, refresh the record and verify public DNS independently."
+        ],
+        "verify": "The selected domain, authoritative nameservers and zone record should describe the same website configuration.",
+        "caution": "A successful edit to an inactive zone does not change visitor routing. Preserve the prior values and related mail records during any DNS migration."
+      },
+      {
+        "slug": "gandi-organization-token-scope",
+        "title": "Troubleshoot missing Gandi domains by organization",
+        "summary": "Check personal access token scope before replacing credentials or changing domain settings.",
+        "context": "Gandi domains can be associated with different organizations. A connection that works for one organization can legitimately omit resources outside its token scope.",
+        "steps": [
+          "Confirm the Gandi account and organization that own the missing domain.",
+          "Compare that ownership with the personal access token’s permitted organization and domain scope in Gandi.",
+          "Use a clearly labeled connection for the intended scope and retry the domain inventory read.",
+          "Verify a known domain before opening LiveDNS or other provider operations."
+        ],
+        "verify": "A successful check identifies which organization’s resources the token can actually read.",
+        "caution": "Renaming an organization label in Verceltics does not change Gandi authorization. Do not grant broader access than the domain task requires."
+      }
+    ],
+    "published": "2026-11-05",
+    "updated": "2026-11-05"
+  },
+  {
+    "slug": "godaddy",
+    "overview": [
+      "GoDaddy connects using a production API key and secret. Verceltics provides the supported registrar inventory and domain operation catalog while preserving the distinction between a working website account and access to GoDaddy’s production Domains API.",
+      "The app’s connection guidance notes that production API eligibility can depend on portfolio size or a paid account plan. If authentication or access fails, verify current eligibility with GoDaddy rather than assuming the app can bypass that requirement."
+    ],
+    "capabilities": [
+      "Inspect available domain portfolio, DNS, renewal, privacy and transfer resources.",
+      "Use provider-specific domain operations with the intended key/secret pair.",
+      "Separate production API eligibility from ordinary GoDaddy website sign-in."
+    ],
+    "fields": [
+      "GoDaddy production API key",
+      "Matching API secret"
+    ],
+    "setup": [
+      "Check GoDaddy’s current production Domains API eligibility for your account before creating or using credentials.",
+      "Obtain a production API key and matching secret. Do not substitute test-environment credentials for the production connection.",
+      "Choose GoDaddy under Registrars and enter both values.",
+      "Verify a known domain loads before attempting DNS or another supported operation."
+    ],
+    "troubleshooting": [
+      "A successful GoDaddy website login does not prove the account is eligible for the production Domains API.",
+      "Check that the key and secret are a matching production pair rather than test credentials."
+    ],
+    "limit": "GoDaddy controls API eligibility and operation availability. Verceltics cannot override account restrictions, transfer conditions or paid-plan requirements.",
+    "reference": "https://developer.godaddy.com/",
+    "source": "ios/verceltics/Network/RegistrarAPI.swift",
+    "tasks": [
+      {
+        "slug": "godaddy-domain-lock-renewal-context",
+        "title": "Review GoDaddy domain locks and renewal state",
+        "summary": "Separate domain registration controls from website deployment and DNS.",
+        "context": "A domain lock, renewal setting and DNS record affect different parts of domain administration. Review the exact returned field before deciding that a website problem calls for a registrar change.",
+        "steps": [
+          "Open the GoDaddy connection and select the full registered domain name.",
+          "Inspect the available registration, lock and renewal information for that domain.",
+          "Compare the observed state with the administrative task, such as a planned transfer or renewal review.",
+          "Use a supported confirmed operation or GoDaddy itself for an intended change, then reread the domain state."
+        ],
+        "verify": "Report the specific registration state that GoDaddy returned, without treating it as proof of a completed transfer or payment.",
+        "caution": "API eligibility can limit access even when you own the domain. Do not unlock or alter unrelated registration settings as an outage troubleshooting step."
+      },
+      {
+        "slug": "godaddy-dns-provider-boundary",
+        "title": "Find the active DNS provider for a GoDaddy domain",
+        "summary": "Check delegation before editing registrar-hosted DNS records.",
+        "context": "GoDaddy registration does not require that GoDaddy hosts the active DNS zone. This distinction matters when a domain has moved to Cloudflare or another external nameserver provider.",
+        "steps": [
+          "Select the domain in the GoDaddy registrar workspace and inspect nameserver context where available.",
+          "Identify the authoritative DNS provider for the domain you are troubleshooting.",
+          "Compare the relevant A, AAAA, CNAME or other record in that authoritative zone with the hosting provider’s required target.",
+          "After a supported correction, recheck public DNS and the website separately from the registrar API response."
+        ],
+        "verify": "The DNS record under review should belong to the provider that currently answers for the domain.",
+        "caution": "Changing nameservers is broader than correcting one record and can affect email and verification. Keep a record of the original delegation and zone before a migration."
+      }
+    ],
+    "published": "2026-11-05",
+    "updated": "2026-11-05"
+  },
+  {
+    "slug": "google-search-console",
+    "overview": [
+      "Google Search Console reports how a verified property appears in Google Search. Verceltics gives that property its own Sites connection, with performance reports, sitemaps and URL inspection kept separate from Google Analytics traffic reports.",
+      "Clicks and impressions describe search visibility, not all visits to the website. Property type, reporting period and filters matter when comparing results. A Domain property and a URL-prefix property can represent different scopes even if their names look similar."
+    ],
+    "capabilities": [
+      "Inspect verified properties and their available search performance reports.",
+      "Review query, page and other supported performance dimensions with date controls.",
+      "Read sitemap and indexed-URL inspection information where authorized."
+    ],
+    "fields": [
+      "Google sign-in for an account with access to the verified property"
+    ],
+    "setup": [
+      "Choose Google Search Console under Sites and continue with the Google account that can access the property.",
+      "Review and authorize the requested Google access, then return to Verceltics.",
+      "Select the expected Domain or URL-prefix property and compare its exact scope with Search Console.",
+      "Open performance, sitemaps or URL inspection and use the relevant date range or full URL for that property."
+    ],
+    "troubleshooting": [
+      "An absent property often indicates the wrong Google account or property permissions, not a need to recreate the website.",
+      "A performance report and an indexing report measure different things and can have different freshness. Check dates before comparing them."
+    ],
+    "limit": "The app reads Google-provided search and indexing information. It cannot guarantee indexing or rankings, and URL inspection is not the same as an indexing request or a live crawl.",
+    "reference": "https://developers.google.com/webmaster-tools",
+    "source": "ios/verceltics/Network/SearchConsoleDetailAPI.swift",
+    "tasks": [
+      {
+        "slug": "search-console-clicks-impressions-ctr",
+        "title": "Read Search Console clicks, impressions and CTR",
+        "summary": "Use a consistent property, date range and dimension before choosing an SEO improvement.",
+        "context": "Impressions indicate appearances in search results, while clicks measure visits from those appearances. A low click-through rate can reflect irrelevant queries or a weak result snippet; a higher count alone does not establish which explanation applies.",
+        "steps": [
+          "Select the verified property and reporting period in the Search Console connection.",
+          "Read clicks and impressions together, then compare the available query and page breakdowns.",
+          "Identify relevant queries with visible impressions and assess whether the matching page answers that search intent.",
+          "Compare a later equivalent period after an improvement, keeping the property and filters consistent."
+        ],
+        "verify": "Calculate aggregate CTR from total clicks divided by total impressions, rather than averaging row percentages.",
+        "caution": "Not every search query is included in query-level data. Do not assume query rows reconcile exactly to the overall chart or mistake a sitemap submission for indexing."
+      },
+      {
+        "slug": "search-console-url-inspection-sitemaps",
+        "title": "Inspect a URL and its sitemap context",
+        "summary": "Separate sitemap discovery, Google’s indexed view and a public page check.",
+        "context": "A URL can be listed in a sitemap without being indexed. URL inspection adds Google’s recorded indexing context, while opening the public page checks a different question: what a visitor can access now.",
+        "steps": [
+          "Choose the property that covers the exact HTTPS URL you want to investigate.",
+          "Inspect that full URL and read the indexing and canonical information returned by Google.",
+          "Review the relevant sitemap state and make sure the site’s canonical URL is the one intended for discovery.",
+          "Check the public page independently and use Search Console itself for supported indexing actions not exposed by the installed app."
+        ],
+        "verify": "Describe the result as published, submitted, crawled or indexed according to what was actually observed.",
+        "caution": "A fresh publication may not yet appear in Google’s indexed data. Inspection does not force a crawl or override Google’s canonical selection."
+      }
+    ],
+    "published": "2026-11-05",
+    "updated": "2026-11-05"
+  },
+  {
+    "slug": "google-analytics",
+    "overview": [
+      "Google Analytics 4 measures activity within a configured property, including visitors, sessions, traffic and events. Verceltics opens GA4 as a separate Sites integration so it can be inspected alongside, but not merged with, Search Console or other analytics providers.",
+      "GA4 numbers depend on instrumentation, property configuration, reporting windows and consent behavior. The native app reads existing reports; connecting an account does not add a tracking tag to a website or create historical events that were never collected."
+    ],
+    "capabilities": [
+      "Browse accessible GA4 properties under the authorized Google account.",
+      "Inspect supported visitors, sessions, traffic, event and real-time reporting.",
+      "Keep property identity and reporting scope visible when comparing analytics providers."
+    ],
+    "fields": [
+      "Google sign-in for a GA4 property account"
+    ],
+    "setup": [
+      "Choose Google Analytics under Sites and sign in with an account that can read the intended GA4 property.",
+      "Review the requested Google authorization and return to Verceltics.",
+      "Select the correct property rather than a similarly named test or development property.",
+      "Open the available reports and verify their date range and scope against the same property in Google Analytics."
+    ],
+    "troubleshooting": [
+      "A Google account can access Search Console without access to the intended GA4 property. Verify both separately.",
+      "A connected property can have no recent events if its website instrumentation or collection configuration is incomplete."
+    ],
+    "limit": "GA4 collection, consent and reporting configuration remain with Google Analytics and the website. Verceltics does not combine GA4 visitors with Vercel, Plausible or Umami into a single total.",
+    "reference": "https://developers.google.com/analytics",
+    "source": "ios/verceltics/Network/SiteIntegrationDetailAPI.swift",
+    "tasks": [
+      {
+        "slug": "ga4-traffic-sessions-mobile",
+        "title": "Compare GA4 traffic and sessions on mobile",
+        "summary": "Read a single GA4 property and reporting window before interpreting acquisition or visitor changes.",
+        "context": "Traffic reports can use different dimensions and definitions from a hosting provider’s analytics. Begin with the GA4 property and reporting period, then use the available traffic breakdown to explain a change.",
+        "steps": [
+          "Choose Google Analytics in Sites and select the property associated with the production website.",
+          "Set or note the reporting period supported by the report you open.",
+          "Read users, sessions and the available traffic-source details in that same context.",
+          "Compare with the identical property and window in Google Analytics if a number looks inconsistent."
+        ],
+        "verify": "A comparison should name the metric as well as the property and time window; users, sessions and page views are not interchangeable.",
+        "caution": "Do not add GA4 traffic to another provider’s visitor total as if those were independent people. Instrumentation and consent can change what each provider observes."
+      },
+      {
+        "slug": "ga4-realtime-events-check",
+        "title": "Use GA4 real-time and event reports carefully",
+        "summary": "Separate recent event activity from historical performance and full tracking validation.",
+        "context": "Real-time activity can help establish whether a property is receiving recent events, but it does not verify every page, consent state or custom event in a production website.",
+        "steps": [
+          "Select the intended GA4 property and confirm it is not a development property.",
+          "Open the real-time or event reporting available in Verceltics and note the context shown.",
+          "Compare the events with an expected action on the website without collecting or sharing personal user data.",
+          "Use Google’s own debugging tools and the website implementation for a complete instrumentation investigation."
+        ],
+        "verify": "Describe which recent event activity was observed rather than claiming that all analytics tracking passed.",
+        "caution": "Real-time and historical reports can differ in freshness and scope. A quiet report may reflect no current traffic rather than a broken connection."
+      }
+    ],
+    "published": "2026-11-05",
+    "updated": "2026-11-05"
+  },
+  {
+    "slug": "pagespeed-crux",
+    "overview": [
+      "PageSpeed Insights combines a Lighthouse lab audit with Chrome UX Report field data when available. Verceltics presents those performance views for a public HTTPS URL, with mobile and desktop context kept explicit.",
+      "A lab run describes one test under its test conditions. CrUX describes observed user experience over the field-data window returned by Google and may not have enough eligible data for every URL. The two sources should inform different parts of a performance investigation."
+    ],
+    "capabilities": [
+      "Run supported PageSpeed audits for a public HTTPS site URL.",
+      "Inspect Lighthouse categories and diagnostics in mobile or desktop context.",
+      "Review available Chrome UX field data, history and cached report restoration."
+    ],
+    "fields": [
+      "Public HTTPS site URL",
+      "Google Cloud API key with PageSpeed Insights and Chrome UX Report enabled"
+    ],
+    "setup": [
+      "Prepare a Google Cloud API key for the PageSpeed Insights and Chrome UX Report APIs, keeping the key’s intended restrictions intact.",
+      "Choose PageSpeed & CrUX under Sites and enter the full public HTTPS URL and API key.",
+      "Connect and run the relevant mobile or desktop audit for the URL.",
+      "Read Lighthouse and available field data separately, and compare later runs using the same page and device context."
+    ],
+    "troubleshooting": [
+      "Check API enablement, key restrictions and quota if the audit request fails. Do not remove restrictions as the default fix.",
+      "A successful Lighthouse audit can coexist with unavailable CrUX data for a low-traffic URL."
+    ],
+    "limit": "Audit scores vary with test conditions. Missing CrUX data is not a zero score, and one good lab run does not prove that all real users have good Core Web Vitals.",
+    "reference": "https://developers.google.com/speed/docs/insights/v5/about",
+    "source": "ios/verceltics/Network/SiteIntegrationDetailAPI.swift",
+    "tasks": [
+      {
+        "slug": "pagespeed-mobile-desktop-audits",
+        "title": "Compare PageSpeed mobile and desktop audits",
+        "summary": "Keep the audited URL, device context and test conditions clear when reading Lighthouse results.",
+        "context": "Mobile and desktop audits use different testing contexts. Compare like with like when deciding whether a website change improved performance rather than treating the two scores as interchangeable.",
+        "steps": [
+          "Select the exact public HTTPS page in the PageSpeed & CrUX connection.",
+          "Run or open the mobile audit and read its categories and main diagnostics.",
+          "Inspect the desktop result separately, noting which device context each result belongs to.",
+          "Repeat a relevant audit after a targeted website change and compare the same URL and strategy."
+        ],
+        "verify": "A useful finding names the page, mobile or desktop context and the diagnostic that explains the score.",
+        "caution": "A numeric score alone does not identify the root cause. Network conditions and test variance mean a single before-and-after run is limited evidence."
+      },
+      {
+        "slug": "crux-field-data-vs-lighthouse",
+        "title": "Read CrUX field data beside Lighthouse",
+        "summary": "Distinguish observed user experience from a single lab audit, including missing field data.",
+        "context": "CrUX field data and Lighthouse lab data answer different questions. A new optimization can affect a fresh lab test before it meaningfully changes the rolling population represented by field data.",
+        "steps": [
+          "Open the PageSpeed report for the intended page and identify the field-data section separately from the lab audit.",
+          "Check whether Google returned URL-level or broader origin context where shown.",
+          "Read the available user-experience metrics and their reporting context without replacing missing values with zero.",
+          "Use lab diagnostics to investigate a fix, then monitor later field-data results for observed-user changes."
+        ],
+        "verify": "Your conclusion should say which data source supports it and whether field data was actually available.",
+        "caution": "A lab pass does not guarantee a field-data pass. Small or new sites can lack eligible CrUX data even while audits work normally."
+      }
+    ],
+    "published": "2026-11-05",
+    "updated": "2026-11-05"
+  },
+  {
+    "slug": "bing-webmaster",
+    "overview": [
+      "Bing Webmaster Tools provides search and crawl information for sites verified in the connected Bing account. Verceltics gives it its own Sites connection so Bing visibility can be checked without confusing it with Google Search Console results.",
+      "The connection uses a Bing Webmaster API key. Its accessible site set follows the Bing account, so a working key can expose several verified sites while omitting a website that has not been verified or shared with that account."
+    ],
+    "capabilities": [
+      "Browse Bing-verified sites accessible to the account API key.",
+      "Inspect supported search traffic and crawl-related site details.",
+      "Keep Bing search observations separate from Google and on-site analytics metrics."
+    ],
+    "fields": [
+      "Bing Webmaster API key"
+    ],
+    "setup": [
+      "Open Bing Webmaster Tools and obtain an API key through its API Access settings.",
+      "Choose Bing Webmaster under Sites and enter the key in Verceltics.",
+      "Confirm that the expected verified site appears for that account.",
+      "Open site details and compare the available search or crawl reporting with the same site in Bing Webmaster Tools."
+    ],
+    "troubleshooting": [
+      "An absent site may need verification or account access in Bing rather than a different API key.",
+      "Bing search traffic is not expected to equal Google clicks or all website visits."
+    ],
+    "limit": "Bing controls site verification, report availability and API limits. The integration cannot guarantee Bing indexing or replace unsupported Webmaster Tools actions.",
+    "reference": "https://www.bing.com/webmasters/help",
+    "source": "ios/verceltics/Network/SiteIntegrationDetailAPI.swift",
+    "tasks": [
+      {
+        "slug": "bing-verified-sites-check",
+        "title": "Find the right verified site in Bing Webmaster",
+        "summary": "Match the Bing API account and website scope before reading search or crawl data.",
+        "context": "Bing reporting begins with a verified website. If the wrong account is connected, the API can work while the intended website is absent from the returned inventory.",
+        "steps": [
+          "Open the Bing Webmaster connection and inspect the available verified sites.",
+          "Compare the exact site URL with the website you want to investigate.",
+          "If the site is absent, check its verification and permissions in the connected Bing account.",
+          "Open the intended site and refresh before interpreting its report."
+        ],
+        "verify": "The selected site should match the verified website in Bing Webmaster Tools, including the relevant hostname.",
+        "caution": "Do not create duplicate website properties solely to fix a mobile list. Check account ownership and verification first."
+      },
+      {
+        "slug": "bing-search-crawl-report-context",
+        "title": "Read Bing search and crawl reports in context",
+        "summary": "Separate Bing’s search observations from Google visibility and on-site analytics.",
+        "context": "Different search engines crawl and report independently. A change in a Bing report should be investigated using Bing’s website context rather than assuming Google reports must show the same result.",
+        "steps": [
+          "Select the intended Bing-verified website in Verceltics.",
+          "Inspect the available search and crawl information, noting any reporting window or status context.",
+          "Compare the observed issue with the public page and the same site in Bing Webmaster Tools.",
+          "Use the provider’s supported tooling for any indexing or crawl action outside the mobile report."
+        ],
+        "verify": "Report the search engine, website and observed state explicitly, especially when comparing provider reports.",
+        "caution": "A public page being reachable does not prove Bing has indexed it. Report freshness and available dimensions can differ between providers."
+      }
+    ],
+    "published": "2026-11-05",
+    "updated": "2026-11-05"
+  },
+  {
+    "slug": "microsoft-clarity",
+    "overview": [
+      "Microsoft Clarity is a behavioral-insights connection, separate from traffic counters and search visibility reports. Verceltics reads the project’s export data rather than replaying every Clarity dashboard capability in a native app.",
+      "The app’s connection guidance specifies a project export token and a recent three-day export context. That makes the integration useful for recent behavioral summaries, while long-term analysis and session replay remain questions for Clarity’s own supported tools."
+    ],
+    "capabilities": [
+      "Connect a named Clarity project using its export token.",
+      "Inspect available recent behavioral, session and interaction summaries.",
+      "Keep project identity and export reporting limits visible."
+    ],
+    "fields": [
+      "Project name",
+      "Clarity export token",
+      "Optional public HTTPS site URL"
+    ],
+    "setup": [
+      "Open the intended Clarity project and obtain its export token from the Data Export settings.",
+      "Choose Microsoft Clarity under Sites and enter a recognizable project name and the export token.",
+      "Optionally add the public HTTPS site URL for context, keeping the credential tied to the actual Clarity project.",
+      "Connect and inspect the recent export data, remembering the app’s documented three-day export context."
+    ],
+    "troubleshooting": [
+      "Clarity export tokens belong to a project. Check that the token and project label refer to the same website.",
+      "A short export window should not be interpreted as a complete historical or session-replay archive."
+    ],
+    "limit": "Available metrics and history follow Clarity’s export API. The native connection does not promise session replay, full dashboard parity or arbitrary long-term reporting.",
+    "reference": "https://learn.microsoft.com/en-us/clarity/",
+    "source": "ios/verceltics/Network/SiteIntegrationDetailAPI.swift",
+    "tasks": [
+      {
+        "slug": "clarity-project-export-window",
+        "title": "Understand the Clarity project export window",
+        "summary": "Use recent Clarity export data without presenting it as an unlimited behavior history.",
+        "context": "Clarity’s native connection is based on project export data. The app documents a recent three-day context, so the visible summary must be interpreted within that export scope.",
+        "steps": [
+          "Select the Clarity project whose export token you configured.",
+          "Inspect the recent session and behavioral summaries returned for that connection.",
+          "Confirm the project and available reporting context before comparing with a screenshot from the Clarity dashboard.",
+          "Use Clarity itself when the investigation needs older history or a capability outside the export report."
+        ],
+        "verify": "Your summary should state that it concerns the returned recent export data for the selected project.",
+        "caution": "Do not describe an absent older period as deleted data. A short export is not evidence about every historical Clarity session."
+      },
+      {
+        "slug": "clarity-behavior-vs-traffic",
+        "title": "Compare Clarity behavior insights with traffic reports",
+        "summary": "Use interaction summaries to complement, rather than replace, visitor and acquisition metrics.",
+        "context": "A traffic increase says little about how visitors interact with a page. Clarity can add behavioral context, while another provider’s visitors or sessions remain a separate measurement.",
+        "steps": [
+          "Open the relevant Clarity project and read the behavioral or interaction signals exposed by its export report.",
+          "Compare the timing with the traffic change in the appropriate analytics provider, keeping the reporting windows explicit.",
+          "Identify a page or interaction question to investigate in Clarity’s own tools when more detail is needed.",
+          "Record a focused observation without merging incompatible session or visitor totals."
+        ],
+        "verify": "A useful conclusion distinguishes the traffic observation from the behavioral evidence that supports a follow-up.",
+        "caution": "Verceltics does not stitch individual users across providers or provide live account actions through the Discord helper. Avoid inferring a causal explanation from one summary metric."
+      }
+    ],
+    "published": "2026-11-05",
+    "updated": "2026-11-05"
+  },
+  {
+    "slug": "plausible",
+    "overview": [
+      "Plausible provides privacy-focused website analytics through a Stats API connection. Verceltics uses the exact site ID and API key to read a specific website’s visitors, visits, page views and engagement reporting.",
+      "The site ID is an analytics identifier, not an arbitrary display label. A domain alias or a URL with an added scheme can be different from the site ID configured in Plausible, so matching the provider’s identifier is a useful first troubleshooting step."
+    ],
+    "capabilities": [
+      "Read the selected Plausible site’s supported traffic and engagement reports.",
+      "Inspect visitors, visits and page views without combining other analytics providers.",
+      "Keep the exact Plausible site identity tied to its Stats API access."
+    ],
+    "fields": [
+      "Exact Plausible Site ID",
+      "Plausible Stats API key"
+    ],
+    "setup": [
+      "Create a Stats API key in Plausible account settings with access to the intended site.",
+      "Copy the exact Site ID used by the Plausible dashboard rather than inventing a local website label.",
+      "Choose Plausible under Sites and enter that Site ID and Stats API key.",
+      "Connect and compare the site and reporting window with the same property in Plausible."
+    ],
+    "troubleshooting": [
+      "A Site ID mismatch can fail even when the API key is valid. Compare the exact configured identifier.",
+      "API access and the available report scope depend on the Plausible account and service configuration."
+    ],
+    "limit": "Supported API access follows Plausible’s account and deployment configuration. Use only hosting and endpoint options exposed by your installed app; the connection is not permission to send keys to an arbitrary analytics host.",
+    "reference": "https://plausible.io/docs/stats-api",
+    "source": "ios/verceltics/Network/SiteIntegrationDetailAPI.swift",
+    "tasks": [
+      {
+        "slug": "plausible-site-id-troubleshooting",
+        "title": "Fix a Plausible Site ID mismatch",
+        "summary": "Compare the exact provider identifier before changing a working Stats API key.",
+        "context": "The analytics property is selected by its Site ID. A hostname that looks right in a browser address bar is not automatically the exact identifier expected by the Stats API.",
+        "steps": [
+          "Open the intended site in Plausible and identify its configured Site ID.",
+          "Compare it character-for-character with the value entered in Verceltics, including any domain variation.",
+          "Verify that the Stats API key can access that site under the connected Plausible account.",
+          "Retry the site report and compare an equivalent reporting window."
+        ],
+        "verify": "The mobile report should identify the same Plausible site you selected in the provider dashboard.",
+        "caution": "Do not broaden key access or change the website’s analytics identifier as the first response to a typo. Preserve provider restrictions."
+      },
+      {
+        "slug": "plausible-visitors-visits-pageviews",
+        "title": "Read Plausible visitors, visits and page views",
+        "summary": "Use each metric’s meaning and the same site period when reviewing traffic.",
+        "context": "Visitors, visits and page views describe different units of activity. Their relationship can help explain a traffic change, but one metric should not be renamed as another for comparison with a different provider.",
+        "steps": [
+          "Select the Plausible site and note the report period in the available view.",
+          "Read visitors, visits and page views together with the supported engagement details.",
+          "Check relevant breakdowns in the same report context to narrow the change.",
+          "Compare the same site and window in Plausible if the numbers appear inconsistent."
+        ],
+        "verify": "A report should preserve the metric names and period, rather than presenting every count as unique people.",
+        "caution": "Plausible and another analytics service can measure different populations. Do not sum their totals or assume a difference proves that one provider is wrong."
+      }
+    ],
+    "published": "2026-11-05",
+    "updated": "2026-11-05"
+  },
+  {
+    "slug": "umami",
+    "overview": [
+      "Umami can run as a cloud service or on your own HTTPS host. Verceltics makes that hosting choice explicit because a Cloud API key and a self-hosted bearer token are different authentication contracts.",
+      "The documented native flow reads website traffic over a 30-day context. Keep the website identity, host and authentication mode together when comparing results, especially if you maintain both a production analytics instance and a development instance."
+    ],
+    "capabilities": [
+      "Choose Umami Cloud or a self-hosted HTTPS instance explicitly.",
+      "Browse accessible websites and supported traffic reports.",
+      "Inspect the documented 30-day traffic context without merging other analytics providers."
+    ],
+    "fields": [
+      "Umami Cloud API key, or a self-hosted bearer token",
+      "HTTPS base URL for self-hosted mode"
+    ],
+    "setup": [
+      "Decide whether the website is tracked by Umami Cloud or your own Umami instance.",
+      "For Cloud, obtain the Cloud API key. For self-hosted mode, prepare the intended instance’s HTTPS base URL and a bearer token for that instance.",
+      "Choose Umami under Sites, select the matching hosting mode and enter the matching credential. Enter the base URL only for the intended self-hosted service.",
+      "Connect and verify the website inventory and report context against that same Umami instance."
+    ],
+    "troubleshooting": [
+      "A Cloud API key is not a substitute for a self-hosted bearer token. Check the hosting-mode selection.",
+      "A self-hosted URL must be HTTPS and point to the intended instance; a different instance can legitimately contain a different website list."
+    ],
+    "limit": "Self-hosted API behavior depends on the installed Umami version and configuration. A Cloud connection and a self-hosted connection are separate accounts, not a combined analytics history.",
+    "reference": "https://umami.is/docs",
+    "source": "ios/verceltics/Network/SiteIntegrationDetailAPI.swift",
+    "tasks": [
+      {
+        "slug": "umami-cloud-self-hosted-auth",
+        "title": "Choose Umami Cloud or self-hosted authentication",
+        "summary": "Match the hosting mode, credential type and HTTPS endpoint before connecting.",
+        "context": "Many Umami connection failures are mismatches between deployment mode and credential. Cloud and self-hosted instances should be treated as distinct services with their own website inventories.",
+        "steps": [
+          "Identify which Umami service actually tracks the production website.",
+          "Select Cloud or Self-hosted in the Verceltics connection form to match that service.",
+          "Use the Cloud API key for Cloud, or the intended HTTPS instance URL and bearer token for self-hosted mode.",
+          "Verify a known website appears before reading its traffic report."
+        ],
+        "verify": "The connection should return websites from the expected instance and account, not just accept a plausible-looking URL.",
+        "caution": "Never send a token to a host you have not verified. Changing from Cloud to self-hosted mode does not migrate historical analytics data."
+      },
+      {
+        "slug": "umami-website-traffic-window",
+        "title": "Review Umami website traffic in its report window",
+        "summary": "Keep website identity and the documented 30-day context consistent when comparing activity.",
+        "context": "Traffic belongs to a website record within a specific Umami instance. A site with the same display name elsewhere may have a different identifier and a different history.",
+        "steps": [
+          "Open the connected Umami service and choose the website associated with the production domain.",
+          "Read the available traffic report and its 30-day context documented for the native integration.",
+          "Compare the website identifier and period with the same instance’s own reporting.",
+          "Refresh after a known tracking change and distinguish current collection from previously stored activity."
+        ],
+        "verify": "Your comparison should name the Umami instance, website and reporting context.",
+        "caution": "Do not interpret a new instance’s empty history as data loss on the old one. The mobile connection does not consolidate data across instances."
+      }
+    ],
+    "published": "2026-11-05",
+    "updated": "2026-11-05"
+  },
+  {
+    "slug": "uptimerobot",
+    "overview": [
+      "UptimeRobot monitors website or service availability from its own monitoring infrastructure. Verceltics reads monitor state, uptime ratios and response-time information through a read-only connection in the Sites workspace.",
+      "An uptime monitor and an application’s internal health checks can observe different failures. Treat the monitor’s target, returned state and measurement period as part of the evidence rather than assuming one green status proves every user journey works."
+    ],
+    "capabilities": [
+      "Browse accessible UptimeRobot monitors through a read-only key.",
+      "Inspect monitor state, uptime ratios and response-time information.",
+      "Use monitor observations alongside hosting and DNS context during an incident."
+    ],
+    "fields": [
+      "UptimeRobot read-only API key"
+    ],
+    "setup": [
+      "Create a read-only key in UptimeRobot’s Integrations & API area for the account or monitors you intend to inspect.",
+      "Choose UptimeRobot under Sites and enter the read-only key.",
+      "Verify that the expected monitor and target appear in the inventory.",
+      "Open its state, uptime and response-time details and compare the reporting context with UptimeRobot."
+    ],
+    "troubleshooting": [
+      "An account-scoped and a monitor-scoped key can expose different inventories. Verify the intended scope.",
+      "A monitor can be healthy while a different hostname, route or authenticated workflow fails. Compare the target."
+    ],
+    "limit": "The documented connection is for read-only monitoring. Verceltics does not create an independent uptime network or guarantee service availability.",
+    "reference": "https://uptimerobot.com/api/",
+    "source": "ios/verceltics/Network/SiteIntegrationDetailAPI.swift",
+    "tasks": [
+      {
+        "slug": "uptimerobot-monitor-state-response-time",
+        "title": "Read UptimeRobot state and response time",
+        "summary": "Identify the monitor target and reporting context before interpreting an incident.",
+        "context": "Response time is a measurement of a particular monitor check. It is not the same as a browser’s page-load time or a complete application performance trace. A monitor aimed at the homepage can pass while an API route or signed-in workflow fails, so compare the configured target with the exact URL users report as broken.",
+        "steps": [
+          "Select the UptimeRobot connection and find the monitor for the affected website or service.",
+          "Confirm its target and current state before reading the available response-time information.",
+          "Compare the timing with a public service check and the corresponding hosting deployment.",
+          "Refresh and preserve the specific monitor observation when reporting the issue."
+        ],
+        "verify": "Your report should identify which target was monitored and what UptimeRobot observed.",
+        "caution": "A response-time improvement does not prove that frontend rendering improved. Monitoring checks and real user experience measure different aspects of a service."
+      },
+      {
+        "slug": "uptimerobot-uptime-ratio-context",
+        "title": "Interpret UptimeRobot uptime ratios",
+        "summary": "Keep the monitoring period and target consistent when comparing availability.",
+        "context": "An uptime percentage is meaningful only with its target and measurement period. A current healthy state can coexist with a lower historical uptime ratio after a recent incident.",
+        "steps": [
+          "Open the intended monitor and read its current state separately from historical uptime ratios.",
+          "Note the reporting windows available in the returned monitor details.",
+          "Compare like periods for the same target instead of averaging percentages from unrelated monitors.",
+          "Use the provider’s incident history or supported details to investigate a change in the ratio."
+        ],
+        "verify": "Describe current state and historical availability as separate observations.",
+        "caution": "Do not average uptime percentages to invent an account-wide SLA. The read-only connection does not alter monitor settings or resolve the underlying outage."
+      }
+    ],
+    "published": "2026-11-05",
+    "updated": "2026-11-05"
+  },
+  {
+    "slug": "better-stack",
+    "overview": [
+      "Better Stack’s Uptime API exposes monitors and their availability context. Verceltics uses a Uptime API token to bring that monitor inventory, check cadence and current state into a separate native Sites connection.",
+      "This integration concerns Uptime resources. Better Stack also offers other products, but an Uptime connection should not be assumed to grant access to every log, telemetry, incident-management or billing capability in the broader platform."
+    ],
+    "capabilities": [
+      "Read accessible Better Stack Uptime monitors.",
+      "Inspect monitor state, check cadence and availability information.",
+      "Relate monitor observations to hosting, domain and DNS checks without merging data."
+    ],
+    "fields": [
+      "Better Stack Uptime API token"
+    ],
+    "setup": [
+      "Create a Uptime API token for the intended Better Stack account and monitor resources.",
+      "Choose Better Stack under Sites and enter the token in the protected connection form.",
+      "Confirm a known monitor and its target appear in the returned inventory.",
+      "Review state and check cadence, then compare with the same Uptime monitor in Better Stack."
+    ],
+    "troubleshooting": [
+      "An API token for another Better Stack product may not authorize the Uptime monitor endpoint.",
+      "A missing monitor can reflect the wrong account or token scope rather than a deleted service."
+    ],
+    "limit": "The documented integration reads Uptime monitor resources. It is not a promise of full Better Stack product parity or an automatic incident-resolution service.",
+    "reference": "https://betterstack.com/docs/uptime/",
+    "source": "ios/verceltics/Network/SiteIntegrationDetailAPI.swift",
+    "tasks": [
+      {
+        "slug": "better-stack-monitor-check-cadence",
+        "title": "Read Better Stack monitor cadence and state",
+        "summary": "Understand what a monitor checks and how often before judging detection freshness.",
+        "context": "A monitor’s last observed state reflects its configured check cadence and provider reporting. An application change may occur between checks, so compare timestamps and the target before calling a result stale.",
+        "steps": [
+          "Open the Better Stack Uptime connection and select the relevant monitor.",
+          "Confirm the monitored target and read the returned state.",
+          "Inspect check cadence and any available timing context, keeping them separate from application request latency.",
+          "Refresh and compare with the provider’s monitor view if an incident and the displayed state appear inconsistent."
+        ],
+        "verify": "A useful observation states the target, provider-returned state and relevant check cadence.",
+        "caution": "Changing a check interval can affect monitoring behavior and plan usage. This guide concerns reading the configured state, not silently changing it."
+      },
+      {
+        "slug": "better-stack-uptime-token-resource-scope",
+        "title": "Check Better Stack Uptime token scope",
+        "summary": "Identify the right API product and account when monitors do not appear.",
+        "context": "Better Stack has more than one product surface. A credential intended for another service is not proof of authorization to list Uptime monitors.",
+        "steps": [
+          "Confirm that the token was created for Better Stack Uptime and the intended account.",
+          "Compare its resource scope with the monitor you expect to inspect.",
+          "Reconnect using the correct token through the Better Stack Sites connection and read the inventory.",
+          "Verify a known target before interpreting an empty monitor list as a production problem."
+        ],
+        "verify": "A successful inventory check should return a monitor from the expected Uptime account.",
+        "caution": "Do not send unrelated logging credentials to an Uptime endpoint or broaden all account permissions to troubleshoot one missing monitor."
+      }
+    ],
+    "published": "2026-11-05",
+    "updated": "2026-11-05"
+  }
+]

@@ -22,7 +22,7 @@ export function ProviderPatchbay() {
           <ul aria-label={`${group.label} providers. Scroll horizontally to inspect every connection.`} className="provider-ports" role="region" tabIndex={0}>
             {group.providers.map((provider, index) => (
               <li key={provider.name}>
-                <Link aria-label={`View ${provider.name} integration details`} href={`/integrations#${provider.slug}`} translate="no">
+                <Link aria-label={`View ${provider.name} integration details`} href={`/integrations/${provider.slug}`} translate="no">
                   <span className="port-number">{String(index + 1).padStart(2, "0")}</span>
                   <span className="port-socket"><span><Image alt="" fill sizes="28px" src={`/providers/${provider.icon}`} /></span></span>
                   <strong>{provider.name}</strong>

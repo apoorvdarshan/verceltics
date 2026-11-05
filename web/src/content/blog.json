@@ -1,0 +1,422 @@
+[
+  {
+    "slug": "verceltics-android-public-release",
+    "title": "Verceltics is publicly available on Google Play",
+    "description": "Android 1.0.1 brings the native hosting, domain and site-service workspace from closed testing to the public Play listing.",
+    "category": "Releases",
+    "published": "2026-11-05",
+    "updated": "2026-11-05",
+    "sections": [
+      {
+        "heading": "Install directly from Google Play",
+        "paragraphs": [
+          "Verceltics for Android is now publicly available as version 1.0.1. You can install it from the Google Play listing without joining a tester group or opting into a closed test. It runs on Android 9 and later, on phones and tablets.",
+          "The Android app is built natively in Kotlin and Jetpack Compose. It is a separate application from the SwiftUI iPhone and iPad app, with its own lifecycle, adaptive layouts and encrypted local credential storage."
+        ]
+      },
+      {
+        "heading": "What the workspace connects",
+        "paragraphs": [
+          "The app supports 27 integrations: 10 hosting platforms, eight domain registrars and nine site services. Hosting covers services such as Vercel, Cloudflare, Netlify, Railway and Firebase Hosting. Registrars provide domain inventory and their API-supported tools. Sites keeps search, analytics, speed and uptime services in separate dashboards.",
+          "That structure matters. Google Search Console search clicks are not GA4 sessions, and a registered domain is not the same resource as a hosting deployment. The app keeps those boundaries visible while making mobile navigation consistent."
+        ]
+      },
+      {
+        "heading": "Start with sample data or your account",
+        "paragraphs": [
+          "Use the sample-data experience to understand the interface before connecting a real provider. When you do connect, the credential contract follows the service: tokens for some hosts, key/secret pairs for several registrars, Google authorization for supported Google services and signed AWS requests for Amplify.",
+          "Connections, list browsing, search, refresh and account switching remain free. Pro unlocks supported details and provider tools with monthly, yearly or lifetime access. Google Play presents the current localized prices and trial eligibility. Purchases are made separately through Google Play and the App Store."
+        ]
+      },
+      {
+        "heading": "A public release with provider boundaries",
+        "paragraphs": [
+          "Provider data and supported operations still depend on permissions, account plans and each API. Some platform flows differ; the documented Android Netlify integration is read-only. Public availability does not imply that every provider has identical features or unrestricted access.",
+          "For help, use the app’s About routes to GitHub or Discord. Reports submitted through Discord’s /bug and /feature commands become public GitHub issues, so remove credentials and private account data before sending."
+        ]
+      }
+    ],
+    "related": [
+      "/android",
+      "/integrations",
+      "/guides/try-verceltics-with-sample-data"
+    ],
+    "sources": [
+      {
+        "label": "Google Play listing",
+        "url": "https://play.google.com/store/apps/details?id=com.apoorvdarshan.verceltics"
+      },
+      {
+        "label": "Reviewed Android release notes",
+        "url": "https://github.com/apoorvdarshan/verceltics/blob/main/RELEASE_NOTES.md"
+      }
+    ]
+  },
+  {
+    "slug": "vercel-analytics-api-mobile-dashboard",
+    "title": "Vercel Analytics API, SDK and mobile dashboard: the differences",
+    "description": "Choose between instrumenting a website, reading analytics and building against an API without assuming they are the same task.",
+    "category": "Analytics",
+    "published": "2026-11-05",
+    "updated": "2026-11-05",
+    "sections": [
+      {
+        "heading": "Three different jobs",
+        "paragraphs": [
+          "A search for Vercel Analytics API can mean several things. You might want to add analytics collection to a website, inspect the data already collected, or integrate reporting into another system. The JavaScript instrumentation, Vercel’s dashboard and an independent mobile client solve different parts of that workflow.",
+          "Verceltics addresses the reading workflow. It connects an authorized Vercel account, selects the project and reads available Web Analytics reports. Connecting the app does not add the analytics SDK to your website or enable collection retroactively."
+        ]
+      },
+      {
+        "heading": "Collection comes before reporting",
+        "paragraphs": [
+          "Configure Web Analytics and the appropriate website instrumentation through Vercel’s documented setup. Deploy that website change through your normal workflow, then verify collection using the provider’s supported tools. A mobile dashboard cannot recover visits that the site never recorded.",
+          "When looking at a report, preserve the project, team, environment and reporting window. A preview environment may have a different audience from production, and the same project can return different totals for different periods."
+        ]
+      },
+      {
+        "heading": "Do not assume a stable public export contract",
+        "paragraphs": [
+          "Verceltics’ open-source Vercel client uses provider Web Analytics dashboard endpoints for overviews, time series and breakdowns. Those implementation details are visible in the repository, but they are not a promise that the endpoints are a stable, supported public export API.",
+          "If you are building your own integration, check Vercel’s current documentation, supported endpoints, permission requirements and account eligibility. Keep credentials out of browser code, URLs and public reports. Do not copy a private dashboard request and present it as a guaranteed long-term API contract."
+        ]
+      },
+      {
+        "heading": "Use the right surface for the decision",
+        "paragraphs": [
+          "For a quick mobile traffic review, choose the project in Verceltics and inspect visitors, page views and relevant breakdowns. For SDK installation or a provider-side setting, use your website repository and Vercel’s own documentation. For unsupported exports or integrations, verify provider support before designing around them.",
+          "The result is a clearer investigation: collection problems belong to instrumentation, report interpretation belongs to the selected data context, and API reliability belongs to the provider’s actual support contract."
+        ]
+      }
+    ],
+    "related": [
+      "/vercel-analytics-ios",
+      "/guides/vercel-web-analytics-on-mobile",
+      "/integrations/vercel"
+    ],
+    "sources": [
+      {
+        "label": "Vercel Web Analytics documentation",
+        "url": "https://vercel.com/docs/analytics"
+      },
+      {
+        "label": "Verceltics Vercel client",
+        "url": "https://github.com/apoorvdarshan/verceltics/blob/main/ios/verceltics/Network/VercelAPI.swift"
+      }
+    ]
+  },
+  {
+    "slug": "native-app-or-mobile-provider-dashboard",
+    "title": "When to use a native app or a provider’s mobile dashboard",
+    "description": "Compare the convenience of a native workspace with the provider’s own controls for infrastructure work away from your laptop.",
+    "category": "Mobile workflows",
+    "published": "2026-11-05",
+    "updated": "2026-11-05",
+    "sections": [
+      {
+        "heading": "Start with the task you need to finish",
+        "paragraphs": [
+          "A phone check often has a narrow goal: identify a deployment, inspect a DNS record, see whether a monitor is down or review a traffic change. A native workspace can make those recurring checks easier to reach across several providers.",
+          "A provider dashboard is valuable when the task needs a setting, an account decision or a recently added capability outside the installed app. Choosing it for that step is a normal part of the workflow rather than a failure of the mobile app."
+        ]
+      },
+      {
+        "heading": "What Verceltics adds",
+        "paragraphs": [
+          "Verceltics supplies native navigation, provider-aware accounts, local credential protection and responsive data presentation. iPhone and iPad use SwiftUI, while Android uses Kotlin and Jetpack Compose. Hosting, Registrars and Sites remain separate workspaces with provider-specific resources.",
+          "The common interface does not merge every API into an identical feature set. Cloudflare zones, Railway environments, Namecheap ClientIp requirements and Google properties each retain their own meaning. Account permissions and plans continue to determine what the provider allows."
+        ]
+      },
+      {
+        "heading": "Where the provider stays necessary",
+        "paragraphs": [
+          "Use the provider for operations the installed app does not expose, account eligibility decisions, broader administrative configuration or a workflow that requires more context. The documented Android Netlify flow, for example, is read-only, so a publishing change belongs in a supported provider workflow.",
+          "A browser can also be the best place to compare the provider’s authoritative report when a cached mobile view looks unexpected. Match account, resource and dates before concluding that the numbers disagree."
+        ]
+      },
+      {
+        "heading": "A useful mobile boundary",
+        "paragraphs": [
+          "Use the native app to gather context and run only supported deliberate operations. Review confirmation for writes, preserve previous values for consequential changes and verify the result independently.",
+          "Verceltics is an independent app, not the official app of Vercel, Cloudflare or any other integration. Its source and provider architecture are public, so you can inspect the boundaries before connecting your own accounts."
+        ]
+      }
+    ],
+    "related": [
+      "/guides/mobile-website-incident-triage",
+      "/guides/safe-provider-api-explorer",
+      "/guides/mobile-vs-tablet-infrastructure-checks"
+    ],
+    "sources": [
+      {
+        "label": "Native architecture and parity",
+        "url": "https://github.com/apoorvdarshan/verceltics/blob/main/docs/native-mobile-architecture.md"
+      }
+    ]
+  },
+  {
+    "slug": "how-verceltics-protects-provider-credentials",
+    "title": "How Verceltics protects provider credentials",
+    "description": "Device storage, direct HTTPS requests and the boundary between the mobile apps and optional Discord support.",
+    "category": "Architecture",
+    "published": "2026-11-05",
+    "updated": "2026-11-05",
+    "sections": [
+      {
+        "heading": "Keep the credential on the device",
+        "paragraphs": [
+          "Verceltics stores iOS provider credentials and Google OAuth tokens in device-only, when-unlocked Keychain records. Android encrypts account data using keys held by Android Keystore and stores it in app-private, backup-excluded storage.",
+          "These are platform-specific implementations. Installing Android does not copy iOS Keychain records, and connecting an iPhone does not create a cloud-synchronized credential account for another device."
+        ]
+      },
+      {
+        "heading": "Send provider requests directly",
+        "paragraphs": [
+          "Provider data requests travel from the app to the selected provider’s HTTPS API, or an explicitly selected supported HTTPS host for a self-hosted service. Verceltics does not operate a provider-data or credential proxy between them.",
+          "The request boundary matters when interpreting a token’s scope. The provider still validates the credential, account membership and operation permission. A confirmation dialog in the app does not grant access that the token does not have."
+        ]
+      },
+      {
+        "heading": "Separate caches and other services",
+        "paragraphs": [
+          "Protected local report snapshots make some dashboards faster to reopen. They are different from credential storage and should not be described as a fresh provider response after a failed refresh.",
+          "Store purchases and the optional Discord helper are separate services with their own processing. RevenueCat and the stores handle purchase/entitlement information as described in the privacy policy. Vercie processes only the questions or reports submitted through its commands; it cannot inspect the app’s saved accounts or credentials."
+        ]
+      },
+      {
+        "heading": "Use narrow, deliberate access",
+        "paragraphs": [
+          "Create credentials for the provider task you actually need, preserve restrictions and verify a read before considering a write. Keep tokens, secret pairs, OAuth values, private logs and purchase credentials out of public bug reports.",
+          "The security model is described in the repository and privacy policy. Those documents are the place to verify current storage, network and support boundaries rather than assuming that a general privacy statement covers every third-party purchase or community service."
+        ]
+      }
+    ],
+    "related": [
+      "/privacy",
+      "/guides/provider-authentication-permission-errors",
+      "/guides/report-a-provider-bug-without-secrets"
+    ],
+    "sources": [
+      {
+        "label": "Privacy policy",
+        "url": "https://verceltics.com/privacy"
+      },
+      {
+        "label": "Security policy",
+        "url": "https://github.com/apoorvdarshan/verceltics/blob/main/SECURITY.md"
+      }
+    ]
+  },
+  {
+    "slug": "deployment-success-is-not-website-health",
+    "title": "A successful deployment is not a complete website health check",
+    "description": "Combine deployment state, DNS and availability evidence before declaring an incident resolved.",
+    "category": "Operations",
+    "published": "2026-11-05",
+    "updated": "2026-11-05",
+    "sections": [
+      {
+        "heading": "Read the deployment result precisely",
+        "paragraphs": [
+          "A provider can successfully build or release an application while the public website still has a problem. A missing DNS record, an unavailable dependency or a broken authenticated route can remain outside what that deployment result proves.",
+          "The opposite can happen too: a new deployment can fail while the previous published version keeps serving users. That is why the published deploy and the latest attempted deploy should be checked separately."
+        ]
+      },
+      {
+        "heading": "Use three independent observations",
+        "paragraphs": [
+          "First identify the hosting resource and release you expected to be live. Then inspect the public domain’s routing through its authoritative DNS provider. Finally check the actual URL or user path and any relevant availability monitor.",
+          "Verceltics exposes those provider contexts in Hosting, Registrars and Sites without turning them into one invented health score. Keep each result attached to its resource and time so the evidence can be compared correctly."
+        ]
+      },
+      {
+        "heading": "Avoid unnecessary follow-up changes",
+        "paragraphs": [
+          "If a build failed, read its events or logs before changing domain settings. If a deployment is healthy but the domain resolves incorrectly, another rebuild is unlikely to correct the authoritative DNS record. If a monitor is healthy while a checkout route fails, investigate the route rather than assuming the monitor exercised it.",
+          "For any supported write, inspect the target and confirmation. Make one focused correction, refresh provider state and test the affected public path again. Broad changes make it harder to identify which action actually helped."
+        ]
+      },
+      {
+        "heading": "Report the remaining limits",
+        "paragraphs": [
+          "A useful incident update says which deployment is active, which hostname was checked and which user paths passed. It also says what remains untested. Current monitor state and historical availability are different observations.",
+          "Do not publish credentials or raw private logs to make the report look complete. Resource category, platform, app version, relevant timing and a redacted error are normally more useful than secret-bearing diagnostic dumps."
+        ]
+      }
+    ],
+    "related": [
+      "/guides/vercel-deployment-build-events",
+      "/guides/netlify-published-deployment",
+      "/guides/mobile-website-incident-triage"
+    ],
+    "sources": [
+      {
+        "label": "Hosting integrations",
+        "url": "https://github.com/apoorvdarshan/verceltics/blob/main/README.md"
+      },
+      {
+        "label": "Provider request boundaries",
+        "url": "https://github.com/apoorvdarshan/verceltics/blob/main/SECURITY.md"
+      }
+    ]
+  },
+  {
+    "slug": "search-console-vs-google-analytics",
+    "title": "Search Console and GA4 answer different questions",
+    "description": "Understand search visibility and on-site activity before comparing their numbers or choosing an SEO change.",
+    "category": "Analytics",
+    "published": "2026-11-05",
+    "updated": "2026-11-05",
+    "sections": [
+      {
+        "heading": "Search appearance and collected activity",
+        "paragraphs": [
+          "Google Search Console describes a verified property’s appearance in Google Search, including clicks and impressions. Google Analytics 4 describes activity collected for an analytics property, such as users, sessions, traffic and events.",
+          "A search click and a GA4 session are different measurements. Their counts can differ because they represent different scopes, collection rules and reporting contexts. A difference alone is not proof that either integration is broken."
+        ]
+      },
+      {
+        "heading": "Keep Google connections separate",
+        "paragraphs": [
+          "Verceltics opens Search Console and Google Analytics as independent Sites integrations. A Google account can be authorized for one property and lack access to another. Firebase Hosting is a third, separate integration concerned with hosting resources.",
+          "When comparing reports, select the intended production property and match the dates as closely as the tools allow. Preserve any time-zone and freshness differences visible in the provider reports."
+        ]
+      },
+      {
+        "heading": "Use each report for its own decision",
+        "paragraphs": [
+          "Use Search Console to find relevant queries and pages with impressions, then assess whether the page actually answers that intent. Use GA4 to investigate collected on-site activity after visitors arrive. Add performance and uptime evidence when the question concerns site experience or availability.",
+          "Do not sum Search Console clicks and GA4 sessions as separate visitors. Do not average row CTR percentages to calculate an overall CTR; use matching total clicks divided by total impressions when those totals are available."
+        ]
+      },
+      {
+        "heading": "Measure a change honestly",
+        "paragraphs": [
+          "After improving a page, compare later equivalent periods while keeping property and filters consistent. Search reporting does not establish that a particular text edit caused a change, especially when query mix or traffic volume also changed.",
+          "Publication, sitemap discovery, crawling and indexing are separate states. A connected reporting app cannot guarantee rankings or make a newly published page appear in search immediately. Use the relevant provider’s tools to inspect those states explicitly."
+        ]
+      }
+    ],
+    "related": [
+      "/guides/search-console-clicks-impressions-ctr",
+      "/guides/ga4-traffic-sessions-mobile",
+      "/guides/google-connections-three-separate-services"
+    ],
+    "sources": [
+      {
+        "label": "Search Console API",
+        "url": "https://developers.google.com/webmaster-tools"
+      },
+      {
+        "label": "Google Analytics APIs",
+        "url": "https://developers.google.com/analytics"
+      }
+    ]
+  },
+  {
+    "slug": "dns-change-checklist-for-developers",
+    "title": "A practical DNS-change checklist for developers",
+    "description": "Protect domain, mail and hosting context when making a focused DNS correction from mobile.",
+    "category": "Domains",
+    "published": "2026-11-05",
+    "updated": "2026-11-05",
+    "sections": [
+      {
+        "heading": "Find the authoritative zone first",
+        "paragraphs": [
+          "A domain’s registrar, DNS provider and hosting platform can be different companies. Start by identifying the active nameservers. Editing a zone at the registrar has no public effect if the domain delegates DNS elsewhere.",
+          "In Verceltics, inspect registrar ownership in Registrars and the appropriate zone or hosting resources in Hosting. That separation makes it easier to avoid changing an inactive or unrelated DNS configuration."
+        ]
+      },
+      {
+        "heading": "Record the existing state",
+        "paragraphs": [
+          "Write down the domain, full record name, type, content and relevant TTL or proxy setting before changing it. Preserve the previous value so a correction can be reviewed or reversed deliberately.",
+          "Check whether mail, verification or another service depends on the same domain. Replacing nameservers is broader than adjusting an individual record and should be planned as a zone migration rather than treated as a quick website fix."
+        ]
+      },
+      {
+        "heading": "Change only the intended fields",
+        "paragraphs": [
+          "Compare the host’s required target with the authoritative DNS record. In a supported Verceltics operation, inspect the write confirmation and the exact provider account and zone. The provider still decides whether the token has permission.",
+          "After a successful response, refresh the zone and verify that the record now contains the intended value. Then check public DNS and the actual website independently; an accepted API response is not proof that every resolver has updated."
+        ]
+      },
+      {
+        "heading": "Keep the follow-up specific",
+        "paragraphs": [
+          "If the site is still wrong, distinguish a remaining DNS issue from a failed application deployment or certificate configuration. Avoid immediately changing several unrelated records or toggling proxying without evidence.",
+          "For a public support report, include a redacted symptom and resource category rather than credentials or a full private zone export. Provider limits, account access and the installed platform determine which operations are available in the native app."
+        ]
+      }
+    ],
+    "related": [
+      "/guides/hosting-registrar-dns-responsibilities",
+      "/guides/cloudflare-dns-record-review",
+      "/guides/namecheap-nameservers-dns-records"
+    ],
+    "sources": [
+      {
+        "label": "Cloudflare DNS documentation",
+        "url": "https://developers.cloudflare.com/dns/"
+      },
+      {
+        "label": "Registrar connection behavior",
+        "url": "https://github.com/apoorvdarshan/verceltics/blob/main/ios/verceltics/Views/RegistrarConnectionView.swift"
+      }
+    ]
+  },
+  {
+    "slug": "turn-search-console-exports-into-actions",
+    "title": "Turn Search Console exports into useful website work",
+    "description": "Prioritize relevant search intent, crawlable content and honest measurement instead of chasing every query or URL count.",
+    "category": "Search",
+    "published": "2026-11-05",
+    "updated": "2026-11-05",
+    "sections": [
+      {
+        "heading": "Begin with relevance, not just impressions",
+        "paragraphs": [
+          "An export can include branded searches, useful product queries, unrelated hostnames and tiny samples. Sort impressions, then classify the actual intent before choosing a page to improve. A high-impression irrelevant query is not automatically a good content opportunity.",
+          "Compare page-level results with query-level results carefully. Query tables can omit data, so they should not be assumed to reconcile exactly to the overall chart. Calculate aggregate CTR from matching clicks and impressions rather than averaging row percentages."
+        ]
+      },
+      {
+        "heading": "Separate normal alternatives from real problems",
+        "paragraphs": [
+          "A redirect or an alternate URL with a proper canonical can be expected when a site consolidates HTTP, www, trailing-slash or HTML-file variants. The useful question is whether the intended canonical page is reachable, indexable and internally linked.",
+          "For crawled-but-not-indexed URLs, inspect the actual examples before choosing a fix. A feed or an alternate URL needs a different response from a substantial product guide. HTTPS success is also a separate observation from indexing."
+        ]
+      },
+      {
+        "heading": "Expand around real tasks",
+        "paragraphs": [
+          "A useful content library can explain provider capabilities, connection requirements, troubleshooting and practical workflows. Distinct guides should resolve distinct reader problems, rather than repeat the same text for every device, keyword order or city.",
+          "Keep each page’s title, summary, heading and canonical URL aligned with its purpose. Link from relevant existing pages and include canonical, indexable URLs in the sitemap. A blog can add original release notes and technical explanations without replacing evergreen setup instructions."
+        ]
+      },
+      {
+        "heading": "Check the published result and wait for evidence",
+        "paragraphs": [
+          "After deployment, verify actual pages, redirects, navigation and sitemap content. Check whether the sitemap is already submitted before creating duplicate submissions. A successful sitemap submission is discovery evidence, not a ranking promise.",
+          "Measure later equivalent periods and keep published, submitted, crawled and indexed states separate. Improvements can be verified as code and live content immediately, while changes in search performance require later provider data."
+        ]
+      }
+    ],
+    "related": [
+      "/guides/search-console-url-inspection-sitemaps",
+      "/guides/search-console-clicks-impressions-ctr",
+      "/guides/read-analytics-without-mixing-metrics"
+    ],
+    "sources": [
+      {
+        "label": "Google Search spam policies",
+        "url": "https://developers.google.com/search/docs/essentials/spam-policies#scaled-content"
+      },
+      {
+        "label": "Sitemap guidance",
+        "url": "https://developers.google.com/search/docs/crawling-indexing/sitemaps/overview"
+      }
+    ]
+  }
+]
