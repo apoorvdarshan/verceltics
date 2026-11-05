@@ -12,7 +12,7 @@ const APP_STORE = "https://apps.apple.com/us/app/verceltics/id6761645656";
 
 const TITLE = "Vercel iOS App for iPhone and iPad: Analytics and Deployments";
 const DESCRIPTION =
-  "An independent native Vercel app for iPhone and iPad: Web Analytics, projects and deployments. On the App Store, with an Android beta.";
+  "An independent native Vercel app for iPhone and iPad: Web Analytics, projects and deployments. Available on the App Store and Google Play.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -41,8 +41,8 @@ const questions: readonly { question: string; answer: string; link?: { href: str
   },
   {
     question: "Is there a Vercel app for Android?",
-    answer: "Yes, Verceltics for Android is in beta on Google Play with the same Vercel features and 26 other integrations.",
-    link: { href: "/android", label: "Join the Android beta" },
+    answer: "Yes, Verceltics for Android is available on Google Play with the same Vercel features and 26 other integrations.",
+    link: { href: "/android", label: "Explore the Android app" },
   },
   {
     question: "How does Verceltics read Vercel Analytics?",
@@ -126,11 +126,11 @@ export default function VercelAnalyticsIOSPage() {
           <div className="product-hero-copy">
             <p className="instrument-label"><span>VCL</span> Native Vercel app for iOS</p>
             <h1>A native Vercel app for iPhone and iPad.</h1>
-            <p>Check Vercel Web Analytics, projects and deployments on iPhone and iPad with Verceltics: visitors, page views, traffic breakdowns and deployment status, with project context close while you check your website. Also <Link href="/android">in beta on Android</Link>.</p>
+            <p>Check Vercel Web Analytics, projects and deployments on iPhone and iPad with Verceltics: visitors, page views, traffic breakdowns and deployment status, with project context close while you check your website. Also <Link href="/android">available on Android</Link>.</p>
             <div className="discovery-actions">
               <a className="primary-control" href={APP_STORE} rel="noreferrer" target="_blank">Download on the App Store <ArrowUpRight /></a>
               <Link className="text-control" href="/integrations#vercel">See the Vercel integration <span aria-hidden="true">→</span></Link>
-              <Link className="text-control" href="/android">Vercel on Android (beta) <span aria-hidden="true">→</span></Link>
+              <Link className="text-control" href="/android">Vercel on Android <span aria-hidden="true">→</span></Link>
             </div>
             <p className="independence-note">Independent and open source. Not affiliated with or endorsed by Vercel.</p>
           </div>

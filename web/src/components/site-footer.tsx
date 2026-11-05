@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { ArrowUpRight } from "@/components/arrow-up-right";
-import { DISCORD, GITHUB_BUG_REPORT, GITHUB_FEATURE_REQUEST, INSTAGRAM, LINKEDIN } from "@/lib/product";
+import { DISCORD, GITHUB_BUG_REPORT, GITHUB_FEATURE_REQUEST, GOOGLE_PLAY_URL, INSTAGRAM, LINKEDIN } from "@/lib/product";
 
 const APP_STORE = "https://apps.apple.com/us/app/verceltics/id6761645656";
 const GITHUB = "https://github.com/apoorvdarshan/verceltics";
@@ -58,7 +58,7 @@ export function SiteFooter() {
             <Link href="/android">Android app</Link>
             <Link href="/#workflows">Workflows</Link>
             <a href={APP_STORE} rel="noreferrer" target="_blank">App Store <ArrowUpRight /></a>
-            <Link href="/#android-beta">Android beta</Link>
+            <a href={GOOGLE_PLAY_URL} rel="noreferrer" target="_blank">Google Play <ArrowUpRight /></a>
           </nav>
         </section>
 

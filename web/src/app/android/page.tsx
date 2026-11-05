@@ -6,13 +6,13 @@ import { ArrowUpRight } from "@/components/arrow-up-right";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { integrationCount, integrationGroups } from "@/data/integrations";
-import { ANDROID_BETA_CODE, ANDROID_BETA_GROUP, ANDROID_BETA_OPT_IN, APP_STORE_URL } from "@/lib/product";
+import { ANDROID_PLAY_VERSION, APP_STORE_URL, GOOGLE_PLAY_URL } from "@/lib/product";
 
 const SITE_URL = "https://verceltics.com";
 const PAGE_URL = `${SITE_URL}/android`;
-const TITLE = "Vercel, Cloudflare and Domain App for Android (Beta)";
+const TITLE = "Vercel, Cloudflare and Domain App for Android";
 const DESCRIPTION =
-  "Vercel, Cloudflare, Netlify, domain registrars and Search Console in one native Android app. Join the Google Play beta and get a free month of Pro.";
+  "Vercel, Cloudflare, Netlify, domain registrars and Search Console in one native Android app. Download Verceltics on Google Play for phones and tablets.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -47,16 +47,16 @@ const questions = [
   {
     question: "Is there a Vercel app for Android?",
     answer:
-      "Verceltics is an independent native Android app for Vercel and 26 other services, currently in beta on Google Play. It shows Vercel projects, deployments and Web Analytics next to your other hosting platforms, domains and site services. It is not made by Vercel.",
+      "Verceltics is an independent native Android app for Vercel and 26 other services, available on Google Play. It shows Vercel projects, deployments and Web Analytics next to your other hosting platforms, domains and site services. It is not made by Vercel.",
   },
   {
     question: "How do I install Verceltics on Android?",
     answer:
-      "Join the Verceltics Testers Google Group, then open the Google Play test with the same Google account, tap Become a tester and install Verceltics from Google Play. Keep it installed for 14 days so the app can launch publicly.",
+      "Open Verceltics on Google Play and install it on an Android 9 or later phone or tablet. The public release does not require joining a tester group or opting in to a test.",
   },
   {
     question: "Is Verceltics for Android free?",
-    answer: `Connecting accounts, lists, search and refresh are free. Verceltics Pro unlocks details and provider tools for $4.99 a month, $34.99 a year or $59.99 once. Beta testers can redeem ${ANDROID_BETA_CODE} in Google Play for 30 days of Pro on the monthly plan, valid until December 31, 2026. It then renews at the regular price unless you cancel in Google Play.`,
+    answer: "Connecting accounts, lists, search and refresh are free. Verceltics Pro unlocks details and provider tools with monthly, yearly or lifetime access. US reference prices are $4.99 a month, $34.99 a year or $59.99 once. Google Play shows the current local price and trial eligibility before purchase.",
   },
   {
     question: "Can I manage Cloudflare from my Android phone?",
@@ -97,7 +97,7 @@ const pageJsonLd = {
       description: DESCRIPTION,
       isPartOf: { "@id": `${SITE_URL}/#website` },
       about: { "@id": `${PAGE_URL}#app` },
-      dateModified: "2026-10-10",
+      dateModified: "2026-11-05",
     },
     {
       "@type": "MobileApplication",
@@ -106,11 +106,11 @@ const pageJsonLd = {
       operatingSystem: "Android 9 or later",
       applicationCategory: "DeveloperApplication",
       applicationSubCategory: "Infrastructure monitoring and management",
-      softwareVersion: "1.0 (beta)",
+      softwareVersion: ANDROID_PLAY_VERSION,
       description:
-        "A private, open-source native Android app for hosting platforms, domain registrars, DNS, website analytics, search performance, speed and uptime. 27 integrations, beta on Google Play.",
+        "A private, open-source native Android app for hosting platforms, domain registrars, DNS, website analytics, search performance, speed and uptime. 27 integrations, available on Google Play.",
       url: PAGE_URL,
-      downloadUrl: ANDROID_BETA_OPT_IN,
+      downloadUrl: GOOGLE_PLAY_URL,
       image: `${SITE_URL}/og-verceltics.png`,
       screenshot: [
         `${SITE_URL}/screens/android/analytics.webp`,
@@ -144,14 +144,14 @@ export default function AndroidPage() {
         </nav>
         <header className="product-hero">
           <div className="product-hero-copy">
-            <p className="instrument-label"><span>AND</span> Android beta</p>
+            <p className="instrument-label"><span>AND</span> Android</p>
             <h1>Vercel, Cloudflare and domains on Android.</h1>
             <p>
-              Verceltics brings {integrationCount} hosting, domain and site services into one native Android app: Vercel projects and analytics, Cloudflare DNS and Workers, your registrars, Search Console, PageSpeed and uptime. It is in beta on Google Play, and every tester helps it launch.
+              Verceltics brings {integrationCount} hosting, domain and site services into one native Android app: Vercel projects and analytics, Cloudflare DNS and Workers, your registrars, Search Console, PageSpeed and uptime. Download the public release on Google Play for your phone or tablet.
             </p>
             <div className="discovery-actions">
-              <a className="primary-control" href={ANDROID_BETA_GROUP} rel="noreferrer" target="_blank">Join the Android beta <ArrowUpRight /></a>
-              <a className="text-control" href="#join">How to join <span aria-hidden="true">→</span></a>
+              <a className="primary-control" href={GOOGLE_PLAY_URL} rel="noreferrer" target="_blank">Get it on Google Play <ArrowUpRight /></a>
+              <a className="text-control" href="#install">How to get started <span aria-hidden="true">→</span></a>
             </div>
             <p className="independence-note">Independent and open source. Not affiliated with or endorsed by any supported provider.</p>
           </div>
@@ -162,39 +162,39 @@ export default function AndroidPage() {
           </figure>
         </header>
 
-        <section aria-labelledby="android-join" className="product-guide" id="join">
+        <section aria-labelledby="android-install" className="product-guide" id="install">
+          <span aria-hidden="true" className="anchor-alias" id="join" />
           <header>
-            <p className="instrument-label"><span>01</span> Join the beta</p>
-            <h2 id="android-join">Three steps to install Verceltics on Android.</h2>
+            <p className="instrument-label"><span>01</span> Get started</p>
+            <h2 id="android-install">From Google Play to your workspace.</h2>
           </header>
-          <div className="beta-console">
-            <div className="price-console-head"><span>Android beta</span><span>Google Play closed test</span><span>Testers wanted</span></div>
-            <ol className="beta-steps">
+          <div className="android-console">
+            <div className="price-console-head"><span>Native Android</span><span>Google Play</span><span>Android 9+</span></div>
+            <ol className="android-steps">
               <li>
                 <span>1</span>
-                <strong>Join the tester group</strong>
-                <p>Anyone can join the Verceltics Testers Google Group.</p>
-                <a href={ANDROID_BETA_GROUP} rel="noreferrer" target="_blank">groups.google.com/g/verceltics-testers <ArrowUpRight /></a>
+                <strong>Install Verceltics</strong>
+                <p>Download the public release on your Android phone or tablet. No tester signup needed.</p>
+                <a href={GOOGLE_PLAY_URL} rel="noreferrer" target="_blank">Get it on Google Play <ArrowUpRight /></a>
               </li>
               <li>
                 <span>2</span>
-                <strong>Become a tester</strong>
-                <p>Open the Google Play test with the same Google account, tap Become a tester, install Verceltics, and keep it for 14 days.</p>
-                <a href={ANDROID_BETA_OPT_IN} rel="noreferrer" target="_blank">Open the Google Play test <ArrowUpRight /></a>
+                <strong>Explore or connect</strong>
+                <p>Try sample data before connecting your own hosting, registrar and site-service accounts. Your credentials stay encrypted on your device.</p>
               </li>
               <li>
                 <span>3</span>
-                <strong>Get a month of Pro</strong>
-                <p>Redeem <code>{ANDROID_BETA_CODE}</code> in Google Play for 30 days of Pro on the monthly plan. It then renews at $4.99 a month unless you cancel. Valid until December 31, 2026.</p>
+                <strong>Add Pro when you need it</strong>
+                <p>Connections, lists, search and refresh stay free. Monthly, yearly and lifetime Pro unlock details and provider tools.</p>
               </li>
             </ol>
-            <div className="beta-actions">
-              <a className="price-cta" href={ANDROID_BETA_GROUP} rel="noreferrer" target="_blank">Join the tester group <ArrowUpRight /></a>
-              <a className="price-cta price-cta--light" href={ANDROID_BETA_OPT_IN} rel="noreferrer" target="_blank">Open the Google Play test <ArrowUpRight /></a>
+            <div className="android-actions">
+              <a className="price-cta" href={GOOGLE_PLAY_URL} rel="noreferrer" target="_blank">Get it on Google Play <ArrowUpRight /></a>
+              <a className="price-cta price-cta--light" href="#pricing">Compare Pro plans <ArrowUpRight /></a>
             </div>
           </div>
           <div className="product-guide-copy">
-            <p>Google asks new apps to run a closed test with 12 testers for 14 days before a public launch on Google Play. Staying opted in for those two weeks is the most useful thing a tester can do. Uninstalling is fine; leaving the test is what removes you.</p>
+            <p>Available on Android 9 and later, on phones and tablets. Install directly from the public Google Play listing; beta participation is optional.</p>
           </div>
         </section>
 
