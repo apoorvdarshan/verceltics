@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
 import { readFile, readdir } from "node:fs/promises";
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
+import { decodeHtml as decode } from "../shared/html-entities.mjs";
 import paths from "../shared/site-paths.json" with { type: "json" };
 import providers from "../src/content/providers.json" with { type: "json" };
 import workflows from "../src/content/workflows.json" with { type: "json" };
@@ -17,7 +18,11 @@ const contentHashes = new Set();
 let links = 0;
 let minimumArticleWords = Infinity;
 const internal = new Map(paths.map(({ path }) => [path, new Set()]));
-const decode = value => value.replace(/&amp;/g, "&").replace(/&#x27;|&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+// CI uses a sparse website checkout. Verify source references against Git's tree
+// without fetching native app blobs that the website does not need to build.
+const trackedFiles = new Set(execFileSync("git", ["ls-tree", "-r", "--name-only", "HEAD"], {
+  cwd: new URL("../../", import.meta.url), encoding: "utf8",
+}).trim().split("\n"));
 
 for (const [path, html] of pages) {
   const title = /<title>([\s\S]*?)<\/title>/.exec(html)?.[1];
@@ -77,7 +82,7 @@ const feed = await readFile(new URL("feed.xml", root), "utf8");
 assert.equal((feed.match(/<item>/g) || []).length, posts.length, "RSS must include every blog post");
 for (const post of posts) assert(feed.includes(`${origin}/blog/${post.slug}`), `RSS missing ${post.slug}`);
 for (const provider of providers) {
-  assert(existsSync(new URL(`../../${provider.source}`, import.meta.url)), `Unverified provider source: ${provider.source}`);
+  assert(trackedFiles.has(provider.source), `Unverified provider source: ${provider.source}`);
   assert(provider.overview.length >= 2 && provider.setup.length >= 4, `Incomplete provider: ${provider.slug}`);
   for (const task of provider.tasks) assert(task.steps.length >= 4 && task.verify && task.caution, `Incomplete task: ${task.slug}`);
 }
