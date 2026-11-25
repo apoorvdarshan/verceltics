@@ -23,7 +23,7 @@ const channelGroups = [
     detail: "Updates from the project",
     links: [
       { label: "LinkedIn", detail: "Verceltics updates", href: LINKEDIN, mark: "/brands/linkedin.svg", newTab: true },
-      { label: "Instagram", detail: "@apoorvcodes", href: INSTAGRAM, mark: "/brands/instagram.svg", newTab: true },
+      { label: "Instagram", detail: "@apoorvxi", href: INSTAGRAM, mark: "/brands/instagram.svg", newTab: true },
       { label: "X", detail: "Founder notes", href: "https://x.com/apoorvdarshan", mark: "/brands/x.svg", newTab: true },
     ],
   },
