@@ -122,7 +122,7 @@ signing = "gradle-properties"
 keystore_property = "VERCELTICS_UPLOAD_KEYSTORE"
 password_file_property = "VERCELTICS_UPLOAD_KEYSTORE_PASSWORD_FILE"
 key_alias = "upload"
-sdk_packages = ["platform-tools", "platforms;android-37.0"]
+sdk_packages = ["platform-tools", "platforms;android-37.2"]
 
 [android.listing]
 source = "files"
