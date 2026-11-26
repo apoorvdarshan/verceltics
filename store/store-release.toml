@@ -63,7 +63,7 @@ checkout = [
 ]
 
 [ios.build]
-developer_dir = "/Applications/Xcode_27.app/Contents/Developer"
+developer_dir = "/Applications/Xcode_27.1.app/Contents/Developer"
 checkout = ["/ios/"]
 package_cache_files = ["ios/**/Package.resolved"]
 
