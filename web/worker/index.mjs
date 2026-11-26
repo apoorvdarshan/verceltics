@@ -1,3 +1,5 @@
+import { runDiscordModeration } from "./discord-moderation.mjs";
+export { DiscordModeration } from "./discord-moderation.mjs";
 import { GITHUB_ISSUES_WEBHOOK_PATH, handleGitHubIssueClosure, retryDiscordIssueClosures } from "./discord-issue-closures.mjs";
 import { DISCORD_INTERACTIONS_PATH, handleDiscordInteractionsRequest } from "./discord-interactions.mjs";
 import { announceReleases } from "./discord-announcements.mjs";
@@ -98,7 +100,8 @@ export default {
   },
 
   scheduled(_event, env, context) {
-    context.waitUntil(_event.cron === "*/5 * * * *" ? retryDiscordIssueClosures(env) : announceReleases(env));
+    context.waitUntil(_event.cron === "* * * * *" ? runDiscordModeration(env)
+      : _event.cron === "*/5 * * * *" ? retryDiscordIssueClosures(env) : announceReleases(env));
   },
 };
 

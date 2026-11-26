@@ -31,7 +31,9 @@ export function MobileNavigation({ githubUrl }: MobileNavigationProps) {
         <Link href="/#workflows" onClick={closeMenu}>Workflows</Link>
         <Link href="/privacy" onClick={closeMenu}>Privacy</Link>
         <Link href="/#pricing" onClick={closeMenu}>Pricing</Link>
-        <Link href="/#android-beta" onClick={closeMenu}>Android beta</Link>
+        <Link href="/android" onClick={closeMenu}>Android</Link>
+        <Link href="/guides" onClick={closeMenu}>Guides</Link>
+        <Link href="/blog" onClick={closeMenu}>Blog</Link>
         <a href={githubUrl} onClick={closeMenu} rel="noreferrer" target="_blank">Source <ArrowUpRight /></a>
       </nav>
     </details>

@@ -36,7 +36,7 @@ const sections = [
   { id: "website", label: "Website delivery" },
   { id: "feedback", label: "Support and feedback" },
   { id: "discord", label: "Vercie on Discord" },
-  { id: "android-beta", label: "Android beta testing" },
+  { id: "android-beta", label: "Optional Android testing" },
   { id: "purchases", label: "Purchases" },
   { id: "controls", label: "Your controls" },
   { id: "changes", label: "Policy changes" },
@@ -51,7 +51,7 @@ export default function Privacy() {
       sections={sections}
       summary="The Verceltics app connects directly to providers. Vercie, our optional Discord bot, processes the questions and reports you submit through Cloudflare, Google Gemini, and GitHub as explained below."
       title="Privacy Policy"
-      updated="October 10, 2026"
+      updated="November 5, 2026"
     >
       <section id="overview">
         <h2>Overview</h2>
@@ -123,7 +123,8 @@ export default function Privacy() {
 
       <section id="discord">
         <h2>Vercie on Discord</h2>
-        <p>Vercie responds when you submit a slash command in the configured Verceltics Discord server. Discord sends the command text and interaction metadata, including your Discord user, server, channel, and interaction identifiers, to our Cloudflare Worker. The Worker verifies the request, routes the command, applies abuse controls, and sends the response to Discord. Vercie does not passively read channel conversations, retrieve message history, or connect to your Verceltics app accounts.</p>
+        <p>Vercie responds when you submit a slash command in the configured Verceltics Discord server. Discord sends the command text and interaction metadata, including your Discord user, server, channel, and interaction identifiers, to our Cloudflare Worker. The Worker verifies the request, routes the command, applies abuse controls, and sends the response to Discord. Vercie cannot connect to your Verceltics app accounts.</p>
+        <p>For community moderation, Vercie also checks new messages in accessible server text channels and active threads approximately once a minute. Deterministic spam rules run on Cloudflare; moderation messages are not sent to an AI provider. We store Discord identifiers, message fingerprints, strike counts and timestamps in a private Durable Object, but do not persist message text there. Member records are eligible for deletion after 30 days without a scanned message; strikes reset after 30 days without a new strike. Warnings appear in the affected channel. Moderation outcomes and uncertain-promotion flags, including identifiers and message links, appear in a private staff log and remain in Discord until removed. Automatic timeouts and third-strike bans follow the server rules. Contact us to appeal or request removal of moderation records.</p>
         <ul>
           <li><strong><code>/ask</code>:</strong> your submitted question is sent to Google&apos;s Gemini API with Verceltics help instructions to generate an answer. The answer is visible to people with access to the Discord channel.</li>
           <li><strong><code>/bug</code> and <code>/feature</code>:</strong> your report may be sent to Gemini to organize it, then the original report and any generated summary are published as a <strong>public GitHub issue</strong> in <a href="https://github.com/apoorvdarshan/verceltics/issues" rel="noreferrer" target="_blank">apoorvdarshan/verceltics</a>. Vercie does not add your Discord username or user ID to the public issue. Any personal information you include in the report itself can become public. The resulting issue link is posted in the channel.</li>
@@ -136,8 +137,8 @@ export default function Privacy() {
       </section>
 
       <section id="android-beta">
-        <h2>Android beta testing</h2>
-        <p>The Android app is offered as a beta through Google Play testing. To take part, you join the Verceltics Testers Google Group and then opt in to the test on Google Play. Google Groups and Google Play process your membership and opt in under Google&apos;s own terms and the <a href="https://policies.google.com/privacy" rel="noreferrer" target="_blank">Google Privacy Policy</a>.</p>
+        <h2>Optional Android testing</h2>
+        <p>The Android app is publicly available on Google Play. Joining a Google Group or opting in to a test is not required to install the public release. If you choose to participate in a separate Google Play test through the Verceltics Testers Google Group, Google Groups and Google Play process your membership and opt in under Google&apos;s own terms and the <a href="https://policies.google.com/privacy" rel="noreferrer" target="_blank">Google Privacy Policy</a>.</p>
         <p>Group managers can see the email addresses of group members. We use them only to run the beta and to contact testers about it, for example to share builds, collect feedback, or answer a report you send. We do not sell them or use them for advertising. Leaving the group removes your membership, and leaving the test on Google Play removes your access to beta builds. Feedback you email to <a href="mailto:ad13dtu@gmail.com">ad13dtu@gmail.com</a> is handled as described in Support and feedback.</p>
         <p>The beta app handles credentials, provider data, and purchases the same way as the released apps, as described in the other sections of this policy.</p>
       </section>

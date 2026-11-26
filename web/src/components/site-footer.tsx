@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { ArrowUpRight } from "@/components/arrow-up-right";
-import { DISCORD, GITHUB_BUG_REPORT, GITHUB_FEATURE_REQUEST, INSTAGRAM, LINKEDIN } from "@/lib/product";
+import { DISCORD, GITHUB_BUG_REPORT, GITHUB_FEATURE_REQUEST, GOOGLE_PLAY_URL, INSTAGRAM, LINKEDIN } from "@/lib/product";
 
 const APP_STORE = "https://apps.apple.com/us/app/verceltics/id6761645656";
 const GITHUB = "https://github.com/apoorvdarshan/verceltics";
@@ -23,7 +23,7 @@ const channelGroups = [
     detail: "Updates from the project",
     links: [
       { label: "LinkedIn", detail: "Verceltics updates", href: LINKEDIN, mark: "/brands/linkedin.svg", newTab: true },
-      { label: "Instagram", detail: "@apoorvcodes", href: INSTAGRAM, mark: "/brands/instagram.svg", newTab: true },
+      { label: "Instagram", detail: "@apoorvxi", href: INSTAGRAM, mark: "/brands/instagram.svg", newTab: true },
       { label: "X", detail: "Founder notes", href: "https://x.com/apoorvdarshan", mark: "/brands/x.svg", newTab: true },
     ],
   },
@@ -56,9 +56,12 @@ export function SiteFooter() {
             <Link href="/integrations">27 integrations</Link>
             <Link href="/vercel-analytics-ios">Vercel app for iPhone</Link>
             <Link href="/android">Android app</Link>
+            <Link href="/guides">Setup & task guides</Link>
+            <Link href="/blog">Blog</Link>
+            <a href="/feed.xml">RSS feed</a>
             <Link href="/#workflows">Workflows</Link>
             <a href={APP_STORE} rel="noreferrer" target="_blank">App Store <ArrowUpRight /></a>
-            <Link href="/#android-beta">Android beta</Link>
+            <a href={GOOGLE_PLAY_URL} rel="noreferrer" target="_blank">Google Play <ArrowUpRight /></a>
           </nav>
         </section>
 

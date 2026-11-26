@@ -55,7 +55,7 @@ const itemListJsonLd = {
         .flatMap((entry) => entry.providers)
         .findIndex((entry) => entry.slug === provider.slug) + 1,
       name: provider.name,
-      url: `${PAGE_URL}#${provider.slug}`,
+      url: `${PAGE_URL}/${provider.slug}`,
     })),
   ),
 };
@@ -119,9 +119,9 @@ export default function IntegrationsPage() {
                       <span className="integration-card-index">{String(providerIndex + 1).padStart(2, "0")}</span>
                       <span className="integration-card-icon"><Image alt="" fill sizes="36px" src={`/providers/${provider.icon}`} /></span>
                     </header>
-                    <h3 translate="no">{provider.name}</h3>
+                    <h3 translate="no"><Link href={`/integrations/${provider.slug}`}>{provider.name}</Link></h3>
                     <p>{provider.summary}</p>
-                    {provider.slug === "vercel" ? <Link className="text-link" href="/vercel-analytics-ios">Vercel Analytics iOS setup →</Link> : null}
+                    <Link className="text-link" href={`/guides/connect-${provider.slug}`}>Connection and setup guide →</Link>
                     <dl>
                       <dt>Connect with</dt>
                       <dd>{provider.connection}</dd>

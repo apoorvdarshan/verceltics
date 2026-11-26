@@ -26,8 +26,10 @@ The group's welcome message repeats these steps and the feedback address.
 
 ## Production access
 
-Google requires at least 12 testers opted in for 14 consecutive days before
-the developer account can apply for production. Apply only with the owner's go ahead.
+The developer account is an organization account, so Google's 12-tester,
+14-day closed-testing requirement (personal accounts only) does not apply; the
+production track is open. Android 1.0.1 (versionCode 45) was sent to production
+on November 2, 2026.
 
 The internal testing track (tester list "Fud AI internal") keeps receiving
 builds for the owner's own device.

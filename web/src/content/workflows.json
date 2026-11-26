@@ -1,0 +1,551 @@
+[
+  {
+    "slug": "mobile-website-incident-triage",
+    "title": "Triage a website incident from your phone",
+    "description": "A focused workflow for separating hosting, DNS, availability and traffic evidence in Verceltics.",
+    "category": "Workflows",
+    "published": "2026-11-05",
+    "updated": "2026-11-05",
+    "sections": [
+      {
+        "heading": "Start with the reported symptom",
+        "paragraphs": [
+          "Write down the affected URL and what the user sees. A failed page load, a broken feature and a drop in search traffic are different incidents. Record the time and the affected environment before opening a provider account."
+        ],
+        "items": [
+          "Check the public URL from a normal browser without sharing private account links.",
+          "Identify the hosting provider, authoritative DNS service and any uptime monitor for that exact hostname.",
+          "Choose the matching Verceltics account and resource; do not assume similarly named projects are production."
+        ]
+      },
+      {
+        "heading": "Follow the evidence across providers",
+        "paragraphs": [
+          "If hosting shows a failed deployment, inspect its build or runtime context first. If the deployment succeeded but the domain does not resolve, investigate DNS delegation and records. If an uptime monitor is healthy while one feature fails, narrow the application path instead of assuming the monitor covers the feature.",
+          "Analytics is supporting evidence, not the first availability test. A quiet reporting period can reflect no recent traffic or delayed collection rather than an outage. Keep each provider report attached to its target and period."
+        ]
+      },
+      {
+        "heading": "Make one deliberate correction",
+        "paragraphs": [
+          "Prefer the smallest change supported by the evidence. For an operation exposed by the installed app, inspect its resource identity and confirmation. For everything else, use the owning provider’s dashboard or deployment workflow.",
+          "Afterward, refresh the provider state and repeat the public check. Report exactly what recovered and which paths remain untested. A green deployment or monitor alone is not proof that every user journey works."
+        ]
+      }
+    ],
+    "related": [
+      "/guides/vercel-deployment-build-events",
+      "/guides/cloudflare-dns-record-review",
+      "/guides/uptimerobot-monitor-state-response-time"
+    ],
+    "sources": [
+      {
+        "label": "Native mobile architecture",
+        "url": "https://github.com/apoorvdarshan/verceltics/blob/main/docs/native-mobile-architecture.md"
+      }
+    ]
+  },
+  {
+    "slug": "hosting-registrar-dns-responsibilities",
+    "title": "Identify who controls hosting, registration and DNS",
+    "description": "Map a website to the right provider before editing a domain or troubleshooting a deployment.",
+    "category": "Workflows",
+    "published": "2026-11-05",
+    "updated": "2026-11-05",
+    "sections": [
+      {
+        "heading": "One domain can involve three companies",
+        "paragraphs": [
+          "The registrar maintains the domain registration. The authoritative DNS provider answers its DNS queries. The hosting service runs the deployed application. These can be three different companies, and connecting one of them in Verceltics does not transfer control over the other two.",
+          "For example, a domain can be registered at Namecheap, use Cloudflare nameservers and route to Vercel. A record changed in an inactive Namecheap zone may have no effect on the public website."
+        ]
+      },
+      {
+        "heading": "Build a small ownership map",
+        "paragraphs": [],
+        "items": [
+          "Find the registered domain in Registrars and review nameserver information where available.",
+          "Identify the authoritative DNS service and locate the relevant host record there.",
+          "Find the application and custom domain in the Hosting workspace.",
+          "Record the intended target, existing record values and account context before changing anything."
+        ]
+      },
+      {
+        "heading": "Choose the correct fix",
+        "paragraphs": [
+          "A domain renewal belongs to the registrar. A wrong DNS target belongs to the authoritative zone. A failed build belongs to the hosting deployment and its source or configuration. These boundaries make a mobile investigation shorter and reduce unrelated changes.",
+          "After any provider accepts a correction, verify the result at that layer and then test the public website. Changing nameservers affects the entire zone, including email and verification records, so plan a delegation migration separately from a one-record correction."
+        ]
+      }
+    ],
+    "related": [
+      "/integrations/namecheap",
+      "/integrations/cloudflare",
+      "/integrations/vercel"
+    ],
+    "sources": [
+      {
+        "label": "Provider boundaries",
+        "url": "https://github.com/apoorvdarshan/verceltics/blob/main/docs/native-mobile-architecture.md"
+      }
+    ]
+  },
+  {
+    "slug": "multiple-provider-accounts",
+    "title": "Keep multiple provider accounts distinct",
+    "description": "Use account labels, team context and resource identity to avoid inspecting or changing the wrong project.",
+    "category": "Workflows",
+    "published": "2026-11-05",
+    "updated": "2026-11-05",
+    "sections": [
+      {
+        "heading": "Treat account context as part of the resource",
+        "paragraphs": [
+          "The same project or domain label can appear in personal, team and client accounts. Verceltics supports multiple accounts per provider, but account switching does not mean that resources or credentials are merged.",
+          "Use a label that helps identify the owning context without putting a token, email secret or password into the label. A team name or a purpose such as personal hosting can be enough."
+        ]
+      },
+      {
+        "heading": "Verify after switching",
+        "paragraphs": [],
+        "items": [
+          "Select the intended provider account using its account menu.",
+          "Check a resource you already recognize in that account.",
+          "Confirm any team, organization, environment or region context before opening details.",
+          "Refresh if needed and inspect the identity shown by the provider before approving an operation."
+        ]
+      },
+      {
+        "heading": "Understand an empty or unexpected list",
+        "paragraphs": [
+          "An empty list can be the correct result for a restricted token, a different region or an account without that resource. Compare access in the provider before deleting and rebuilding every connection.",
+          "When a support report concerns account switching, describe the provider and expected resource without including private credentials. Vercie on Discord cannot inspect your connected accounts, so a clear platform/version and symptom are more useful than a request to look into the account."
+        ]
+      }
+    ],
+    "related": [
+      "/guides/railway-project-environment-check",
+      "/guides/amplify-region-branch-job-check",
+      "/guides/gandi-organization-token-scope"
+    ],
+    "sources": [
+      {
+        "label": "Multiple-account architecture",
+        "url": "https://github.com/apoorvdarshan/verceltics/blob/main/docs/native-mobile-architecture.md"
+      }
+    ]
+  },
+  {
+    "slug": "provider-authentication-permission-errors",
+    "title": "Separate authentication, scope and empty-data errors",
+    "description": "A practical order for investigating a provider connection that fails or returns fewer resources than expected.",
+    "category": "Troubleshooting",
+    "published": "2026-11-05",
+    "updated": "2026-11-05",
+    "sections": [
+      {
+        "heading": "Ask which layer failed",
+        "paragraphs": [
+          "Authentication establishes whether the provider accepts the credential. Authorization establishes what it may do. An accepted request can still return an empty collection, and an accessible collection does not prove permission to read every detail or perform a write.",
+          "Avoid making a credential broader just to make an error disappear. First identify the exact account, resource and operation involved."
+        ]
+      },
+      {
+        "heading": "Use a focused sequence",
+        "paragraphs": [],
+        "items": [
+          "Check that the credential type matches the provider form: token, key/secret pair, Google sign-in or AWS credential set.",
+          "Check its lifetime and account context, including team, organization, project or region where relevant.",
+          "Compare resource and operation scope with the provider settings.",
+          "Retry the least invasive read that should work and inspect the result before testing another operation."
+        ]
+      },
+      {
+        "heading": "Distinguish no data from failed access",
+        "paragraphs": [
+          "A wrong team or region can produce no resources without an authentication error. A valid project connection can have no analytics because collection is not configured. A missing historical period can be a provider reporting limit.",
+          "For an unresolved failure, record the platform, app version, provider, operation category and a redacted error. Never attach keys, OAuth tokens, private logs or full request headers to a public GitHub or Discord report."
+        ]
+      }
+    ],
+    "related": [
+      "/guides/amplify-temporary-credentials-troubleshooting",
+      "/guides/namecheap-clientip-network-change",
+      "/guides/umami-cloud-self-hosted-auth"
+    ],
+    "sources": [
+      {
+        "label": "Security boundaries",
+        "url": "https://github.com/apoorvdarshan/verceltics/blob/main/SECURITY.md"
+      }
+    ]
+  },
+  {
+    "slug": "cached-data-refresh-and-offline",
+    "title": "Understand cached data and refresh in Verceltics",
+    "description": "Distinguish a saved dashboard snapshot from a fresh provider response during a mobile check.",
+    "category": "Troubleshooting",
+    "published": "2026-11-05",
+    "updated": "2026-11-05",
+    "sections": [
+      {
+        "heading": "A fast reopen is not always a fresh read",
+        "paragraphs": [
+          "Verceltics uses local caching to make provider views responsive. The architecture distinguishes protected local site-service snapshots from other recently viewed dashboard data held in memory. A restored view can be useful when connectivity is weak, but it is still a previous observation.",
+          "Provider data and credentials have different storage responsibilities. A saved report is not permission to move an OAuth token or API key into an ordinary cache."
+        ]
+      },
+      {
+        "heading": "Confirm freshness before a decision",
+        "paragraphs": [],
+        "items": [
+          "Check the selected account and resource before refreshing.",
+          "Use pull to refresh or the refresh control available in the view.",
+          "Wait for the request to finish and read any error instead of treating restored content as a successful refresh.",
+          "Compare against the provider when an operation-sensitive decision depends on the latest state."
+        ]
+      },
+      {
+        "heading": "Handle an offline investigation",
+        "paragraphs": [
+          "When the network is unavailable, use a saved view to recover context rather than to certify current production state. Record that the observation is cached and retry a read when connectivity returns.",
+          "If a refresh fails, do not infer that a subscription expired or a resource was deleted solely from the failed request. Network failures, provider limits and permissions need their own investigation. The exact cache behavior varies by feature and platform, so verify the installed app’s result rather than assuming every screen persists indefinitely."
+        ]
+      }
+    ],
+    "related": [
+      "/guides/provider-authentication-permission-errors",
+      "/guides/mobile-website-incident-triage"
+    ],
+    "sources": [
+      {
+        "label": "Cache and credential boundaries",
+        "url": "https://github.com/apoorvdarshan/verceltics/blob/main/CONTRIBUTING.md"
+      }
+    ]
+  },
+  {
+    "slug": "safe-provider-api-explorer",
+    "title": "Review a provider API request before running it",
+    "description": "Use advanced provider tools with explicit resource, permission and write checks.",
+    "category": "Workflows",
+    "published": "2026-11-05",
+    "updated": "2026-11-05",
+    "sections": [
+      {
+        "heading": "An operation catalog describes possibilities",
+        "paragraphs": [
+          "Verceltics includes provider API catalogs and advanced operation workspaces. A catalog entry is not proof that the connected credential can run it, that every operation has a dedicated native screen, or that the request is harmless.",
+          "Read operations, infrastructure changes and purchase-sensitive registrar operations have different consequences. Start by identifying which kind of request you are preparing."
+        ]
+      },
+      {
+        "heading": "Inspect the request boundary",
+        "paragraphs": [],
+        "items": [
+          "Choose the correct provider account and identify the intended account, zone, project, region or domain.",
+          "Read the operation parameters and preserve protected credential fields and host restrictions.",
+          "Use a read of current state when it helps establish the intended target.",
+          "For a supported write, inspect the confirmation and send only the change you intended."
+        ]
+      },
+      {
+        "heading": "Read the response as evidence",
+        "paragraphs": [
+          "A successful HTTP response needs interpretation for the operation. Request acceptance, a queued job and a completed public change are not the same result. Re-read the resource after a write, and check the public service independently when appropriate.",
+          "Do not paste private headers, keys or secret-bearing response data into support reports. Keep a recovery plan for consequential changes; Verceltics’ confirmation and destination safeguards do not replace the provider’s access policy or your understanding of the operation."
+        ]
+      }
+    ],
+    "related": [
+      "/guides/cloudflare-dns-record-review",
+      "/guides/dynadot-api-operation-review"
+    ],
+    "sources": [
+      {
+        "label": "Provider request security",
+        "url": "https://github.com/apoorvdarshan/verceltics/blob/main/ios/verceltics/Network/ProviderRequestSecurity.swift"
+      },
+      {
+        "label": "Native API explorer scope",
+        "url": "https://github.com/apoorvdarshan/verceltics/blob/main/docs/native-mobile-architecture.md"
+      }
+    ]
+  },
+  {
+    "slug": "try-verceltics-with-sample-data",
+    "title": "Try Verceltics with sample data",
+    "description": "Explore the native mobile workspaces before connecting a provider account or buying Pro.",
+    "category": "Getting started",
+    "published": "2026-11-05",
+    "updated": "2026-11-05",
+    "sections": [
+      {
+        "heading": "Explore before using real credentials",
+        "paragraphs": [
+          "Verceltics offers a sample-data experience on first launch. It uses fictional accounts and resources so you can understand the Hosting, Registrars and Sites workspaces before deciding which real services to connect.",
+          "The Android feature matrix documents that sample data lets you explore screens, including Pro surfaces. Those fictional results are examples of presentation, not evidence about your own website or an entitlement from a real purchase."
+        ]
+      },
+      {
+        "heading": "Use the sample deliberately",
+        "paragraphs": [],
+        "items": [
+          "On first launch, choose the available sample-data exploration option.",
+          "Browse hosting, domain and site-service examples and inspect how details, search and navigation work.",
+          "Notice which provider concepts matter to your workflow, such as a project, zone, domain, property or monitor.",
+          "Exit the sample experience before connecting your own account through its protected form."
+        ]
+      },
+      {
+        "heading": "Move to a real connection",
+        "paragraphs": [
+          "Prepare only the credential needed for the provider you actually use. Token providers, key/secret registrars, Google authorization and AWS signed requests have different setup requirements; the integration setup guides explain these distinctions.",
+          "After connecting, verify a known resource. Do not assume that sample graphs or fictional deployments should match your real account or that every provider exposes identical operations. Account connection and list browsing remain available without Pro, while real detail access follows purchase entitlement."
+        ]
+      }
+    ],
+    "related": [
+      "/guides/multiple-provider-accounts",
+      "/guides/verceltics-pro-purchases-and-restore",
+      "/integrations"
+    ],
+    "sources": [
+      {
+        "label": "First-launch and sample flows",
+        "url": "https://github.com/apoorvdarshan/verceltics/blob/main/docs/native-mobile-architecture.md"
+      }
+    ]
+  },
+  {
+    "slug": "verceltics-pro-purchases-and-restore",
+    "title": "Understand Pro purchases and restoration",
+    "description": "Know what stays free, what Pro unlocks and which store owns a Verceltics purchase.",
+    "category": "Getting started",
+    "published": "2026-11-05",
+    "updated": "2026-11-05",
+    "sections": [
+      {
+        "heading": "Free browsing and Pro details",
+        "paragraphs": [
+          "Connecting provider accounts, list browsing, search, refresh and account switching stay available without Pro. Pro unlocks the supported detail views and provider tools across integrations; the native paywall is the place to check current purchase terms.",
+          "Monthly, yearly and lifetime options provide the same Pro entitlement. Prices and trial eligibility are localized by the App Store or Google Play, so a reference price on the website is not a promise about your checkout."
+        ]
+      },
+      {
+        "heading": "Use the store associated with the purchase",
+        "paragraphs": [],
+        "items": [
+          "Check whether the purchase was made through the App Store or Google Play. Purchases are made separately on the two platforms.",
+          "Use the restoration control in the installed app when restoring a purchase owned by that store account.",
+          "Manage a subscription through the corresponding store subscription settings.",
+          "If access is unexpected, check account and purchase state before paying again."
+        ]
+      },
+      {
+        "heading": "Interpret entitlement problems carefully",
+        "paragraphs": [
+          "A canceled renewal and expired access are different states. A failed refresh also does not establish that access has expired. Network problems, pending purchases and the store account in use can all affect the result.",
+          "Vercie on Discord cannot inspect subscriptions or perform refunds. Use the app’s support routes with the platform, app version and a redacted symptom. Never publish purchase tokens, account credentials or private receipts. A lifetime option is a one-time purchase; subscription cancellation and renewal rules apply to the recurring options."
+        ]
+      }
+    ],
+    "related": [
+      "/guides/provider-authentication-permission-errors",
+      "/privacy#purchases"
+    ],
+    "sources": [
+      {
+        "label": "Pro architecture and platform boundaries",
+        "url": "https://github.com/apoorvdarshan/verceltics/blob/main/docs/native-mobile-architecture.md"
+      },
+      {
+        "label": "Purchase privacy",
+        "url": "https://verceltics.com/privacy#purchases"
+      }
+    ]
+  },
+  {
+    "slug": "google-connections-three-separate-services",
+    "title": "Connect Search Console, GA4 and Firebase separately",
+    "description": "Understand the three Google integrations and choose the authorization relevant to the job.",
+    "category": "Getting started",
+    "published": "2026-11-05",
+    "updated": "2026-11-05",
+    "sections": [
+      {
+        "heading": "One sign-in does not make one dashboard",
+        "paragraphs": [
+          "Search Console measures search visibility for verified properties. Google Analytics 4 reports activity collected for analytics properties. Firebase Hosting manages hosting resources such as sites, channels and releases. Verceltics keeps them as separate integrations because they perform different jobs.",
+          "A Google account may have access to one service without access to the other two. Reusing a Google identity is not proof of project or property permission."
+        ]
+      },
+      {
+        "heading": "Connect the service you need",
+        "paragraphs": [],
+        "items": [
+          "Choose Search Console or Google Analytics in Sites for the corresponding reports.",
+          "Choose Firebase Hosting in Hosting for hosting resources and supported operations.",
+          "Use the Google account that has access to the intended property or project and review the authorization.",
+          "Verify a known property, project or site after returning to Verceltics."
+        ]
+      },
+      {
+        "heading": "Keep reports and credentials in their boundaries",
+        "paragraphs": [
+          "Tokens are protected on the device and provider requests go to Google’s APIs. A connection does not install a GA4 tracking tag, verify Search Console ownership or deploy a Firebase website on your behalf.",
+          "If one service is empty, inspect that service’s permissions and configuration rather than reconnecting every Google integration. Personal source builds also need their own appropriate Google OAuth configuration. Do not copy the published app’s configuration into an unrelated project or place client secrets in public app code."
+        ]
+      }
+    ],
+    "related": [
+      "/integrations/google-search-console",
+      "/integrations/google-analytics",
+      "/integrations/firebase-hosting"
+    ],
+    "sources": [
+      {
+        "label": "Google data privacy",
+        "url": "https://verceltics.com/privacy#google-data"
+      },
+      {
+        "label": "Google OAuth implementation",
+        "url": "https://github.com/apoorvdarshan/verceltics/blob/main/ios/verceltics/Auth/GoogleOAuthService.swift"
+      }
+    ]
+  },
+  {
+    "slug": "report-a-provider-bug-without-secrets",
+    "title": "Report a provider bug without exposing secrets",
+    "description": "Prepare a useful Verceltics GitHub or Discord report with resource context and redacted evidence.",
+    "category": "Troubleshooting",
+    "published": "2026-11-05",
+    "updated": "2026-11-05",
+    "sections": [
+      {
+        "heading": "Use the real support routes",
+        "paragraphs": [
+          "The app’s About area offers bug and feature reporting through GitHub or Discord. On Discord, /bug and /feature publish public GitHub issues without requiring a GitHub account. /ask answers a question and does not create an issue.",
+          "Vercie has static product context and the question you submit. It cannot browse your connected accounts, inspect private analytics, read device data or perform provider actions."
+        ]
+      },
+      {
+        "heading": "Include enough to reproduce",
+        "paragraphs": [],
+        "items": [
+          "State iOS or Android, the app version and the provider involved.",
+          "Describe the action you took and what appeared, separating expected behavior from what actually happened.",
+          "Identify the resource category and relevant account, team or region context without exposing private identifiers unnecessarily.",
+          "Include a redacted error or screenshot only when it helps reproduce the issue."
+        ]
+      },
+      {
+        "heading": "Check before submitting",
+        "paragraphs": [
+          "Remove API keys, OAuth tokens, passwords, request Authorization headers, private logs, personal account data and purchase credentials. Public reports can be copied beyond the project’s control.",
+          "Report a failed provider request as a failure, not proof that the provider deleted the resource. For feature requests, explain the workflow and the missing capability without inventing existing support. If a later issue-closure reply arrives, read its wording: closure does not automatically mean a fix has reached a public app release."
+        ]
+      }
+    ],
+    "related": [
+      "/privacy#discord",
+      "/guides/provider-authentication-permission-errors"
+    ],
+    "sources": [
+      {
+        "label": "Discord support boundaries",
+        "url": "https://github.com/apoorvdarshan/verceltics/blob/main/services/discord-bot/README.md"
+      }
+    ]
+  },
+  {
+    "slug": "mobile-vs-tablet-infrastructure-checks",
+    "title": "Use Verceltics on phones and tablets",
+    "description": "Choose native mobile layouts while keeping provider resources, permissions and purchases consistent.",
+    "category": "Workflows",
+    "published": "2026-11-05",
+    "updated": "2026-11-05",
+    "sections": [
+      {
+        "heading": "The same resource in a different layout",
+        "paragraphs": [
+          "Verceltics has separate native iOS and Android apps. iPhone and iPad use SwiftUI; Android uses Kotlin and Jetpack Compose. Adaptive navigation changes how resources are presented on larger displays, while provider identity and authorization still come from the connected account.",
+          "iPad’s wider layouts can help with tables and charts. Android supports phone and tablet layouts. A wider screen does not grant more API access or change what a provider reports."
+        ]
+      },
+      {
+        "heading": "Choose a practical mobile workflow",
+        "paragraphs": [],
+        "items": [
+          "Use a phone for a focused project, domain or monitor check when away from the laptop.",
+          "Use a tablet when comparing wider tables, more provider context or a larger chart helps the task.",
+          "Confirm account, time range and environment after switching context rather than relying only on a familiar layout.",
+          "Use the provider dashboard for an operation the installed app does not expose."
+        ]
+      },
+      {
+        "heading": "Keep platform boundaries explicit",
+        "paragraphs": [
+          "All 27 integrations are represented on both platforms, but individual operations and UI flows can differ. The documented Android Netlify flow, for example, is read-only. Provider and platform caveats belong in the decision rather than being hidden behind a generic parity claim.",
+          "Credentials and provider data are not copied between iOS and Android. Purchases are made separately through their stores. Installing one platform does not migrate the other platform’s saved account data, and a website’s multi-platform description is not a promise of shared runtime or cloud account synchronization."
+        ]
+      }
+    ],
+    "related": [
+      "/android",
+      "/vercel-analytics-ios",
+      "/guides/multiple-provider-accounts"
+    ],
+    "sources": [
+      {
+        "label": "Native platform architecture",
+        "url": "https://github.com/apoorvdarshan/verceltics/blob/main/docs/native-mobile-architecture.md"
+      }
+    ]
+  },
+  {
+    "slug": "read-analytics-without-mixing-metrics",
+    "title": "Compare analytics without mixing metrics",
+    "description": "Keep visitors, page views, sessions, search clicks and uptime in their proper reporting contexts.",
+    "category": "Workflows",
+    "published": "2026-11-05",
+    "updated": "2026-11-05",
+    "sections": [
+      {
+        "heading": "Start with the measurement question",
+        "paragraphs": [
+          "Use search performance to ask whether a page is appearing in search results. Use on-site analytics to ask what collected visitors and sessions do. Use PageSpeed and CrUX to investigate performance, and uptime monitors to observe availability.",
+          "Verceltics keeps those providers separate. A single website can legitimately have different counts in Vercel, GA4, Plausible and Umami because their instrumentation, definitions, filtering and reporting windows differ."
+        ]
+      },
+      {
+        "heading": "Make a like-for-like comparison",
+        "paragraphs": [],
+        "items": [
+          "Choose the same website and production environment where the provider supports that distinction.",
+          "Match the dates and note time-zone or reporting-window differences where shown.",
+          "Preserve the original metric names instead of calling every count users.",
+          "Investigate the relevant provider breakdown before changing collection or website configuration."
+        ]
+      },
+      {
+        "heading": "Preserve missing and historical context",
+        "paragraphs": [
+          "No field data is different from a zero metric. A new analytics instance can have no history even while another instance still holds older reports. A currently healthy uptime monitor can have a lower historical availability ratio after an outage.",
+          "Do not add provider visitor totals as if they represent independent people or average percentages from unequal populations. Calculate ratios from their matching counts when those counts are available, and clearly state when a provider’s aggregation or data freshness limits what can be concluded."
+        ]
+      }
+    ],
+    "related": [
+      "/guides/search-console-clicks-impressions-ctr",
+      "/guides/ga4-traffic-sessions-mobile",
+      "/guides/crux-field-data-vs-lighthouse"
+    ],
+    "sources": [
+      {
+        "label": "Independent provider dashboards",
+        "url": "https://github.com/apoorvdarshan/verceltics/blob/main/README.md"
+      }
+    ]
+  }
+]

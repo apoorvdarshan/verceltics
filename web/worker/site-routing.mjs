@@ -1,6 +1,8 @@
+import paths from "../shared/site-paths.json" with { type: "json" };
+
 const CANONICAL_HOST = "verceltics.com";
 const SITE_HOSTS = new Set([CANONICAL_HOST, `www.${CANONICAL_HOST}`]);
-const HTML_ROUTES = new Set(["/", "/integrations", "/vercel-analytics-ios", "/privacy", "/terms"]);
+const HTML_ROUTES = new Set(paths.map(entry => entry.path));
 
 /** Consolidate public GET/HEAD URLs without redirecting signed Discord POSTs. */
 export function canonicalSiteRedirect(request) {

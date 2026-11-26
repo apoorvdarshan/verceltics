@@ -47,7 +47,7 @@ export default function Terms() {
       sections={sections}
       summary="These terms cover the Verceltics app and website, provider operations you control, purchases processed by Apple and Google Play, and the optional Vercie Discord bot."
       title="Terms of Service"
-      updated="October 10, 2026"
+      updated="November 5, 2026"
     >
       <section id="acceptance">
         <h2>Acceptance</h2>
@@ -57,7 +57,7 @@ export default function Terms() {
       <section id="service">
         <h2>The service</h2>
         <p>Verceltics is an independent iPhone, iPad, and Android workspace for supported hosting platforms, domain registrars, and site-intelligence services. It uses credentials or OAuth authorization you provide to communicate directly with the provider, display provider data, and perform supported actions you initiate.</p>
-        <p>Verceltics is developed and operated by Apoorv Darshan. Features described on this website may reflect source builds before they reach the App Store or Google Play. Check the store listing for the version available to download. The Android app may be offered as a beta or pre-release build through Google Play testing before it is generally available; beta builds can change, contain bugs, or stop being offered. Provider capabilities depend on permissions, configuration, account plans, and API availability.</p>
+        <p>Verceltics is developed and operated by Apoorv Darshan. Features described on this website may reflect source builds before they reach the App Store or Google Play. Check the store listing for the version available to download. The Android app is publicly available on Google Play. Optional beta or pre-release builds may also be offered through Google Play testing; those builds can change, contain bugs, or stop being offered. Provider capabilities depend on permissions, configuration, account plans, and API availability.</p>
         <p>Verceltics is not affiliated with, endorsed by, or sponsored by any supported provider. Provider names, marks, APIs, plans, data, limits, and availability remain controlled by their respective owners.</p>
       </section>
 

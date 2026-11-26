@@ -164,7 +164,7 @@ private enum DeveloperWelcomeLink: String, CaseIterable, Identifiable {
     var subtitle: String {
         switch self {
         case .x: "@apoorvdarshan"
-        case .instagram: "@apoorvcodes"
+        case .instagram: "@apoorvxi"
         case .productHunt: "Support the Verceltics launch"
         case .github: "Explore the open-source project"
         case .discord: "Get help and share ideas"
@@ -194,7 +194,7 @@ private enum DeveloperWelcomeLink: String, CaseIterable, Identifiable {
     var address: String {
         switch self {
         case .x: "https://x.com/apoorvdarshan"
-        case .instagram: "https://www.instagram.com/apoorvcodes/"
+        case .instagram: "https://www.instagram.com/apoorvxi/"
         case .productHunt: "https://www.producthunt.com/products/verceltics-2"
         case .github: "https://github.com/apoorvdarshan/verceltics"
         case .discord: "https://discord.gg/qv5nsTmkxA"
