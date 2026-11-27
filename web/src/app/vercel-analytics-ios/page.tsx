@@ -10,9 +10,9 @@ const SITE_URL = "https://verceltics.com";
 const PAGE_URL = `${SITE_URL}/vercel-analytics-ios`;
 const APP_STORE = "https://apps.apple.com/us/app/verceltics/id6761645656";
 
-const TITLE = "Vercel iOS App for iPhone & iPad";
+const TITLE = "Vercel App for iPhone & iPad: Analytics and Deployments";
 const DESCRIPTION =
-  "View Vercel Web Analytics, projects and deployments on iPhone and iPad with Verceltics. Independent native iOS app; your token stays in Keychain.";
+  "Check Vercel visitors, page views and deployment build events from iPhone or iPad with Verceltics, an independent iOS app. Connect your own Vercel account.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -125,7 +125,7 @@ export default function VercelAnalyticsIOSPage() {
         <header className="product-hero">
           <div className="product-hero-copy">
             <p className="instrument-label"><span>VCL</span> Native Vercel app for iOS</p>
-            <h1>A native Vercel app for iPhone and iPad.</h1>
+            <h1>Vercel analytics and deployments on iPhone and iPad.</h1>
             <p>Check Vercel Web Analytics, projects and deployments on iPhone and iPad with Verceltics: visitors, page views, traffic breakdowns and deployment status, with project context close while you check your website. Also <Link href="/android">available on Android</Link>.</p>
             <div className="discovery-actions">
               <a className="primary-control" href={APP_STORE} rel="noreferrer" target="_blank">Download on the App Store <ArrowUpRight /></a>
@@ -168,7 +168,7 @@ export default function VercelAnalyticsIOSPage() {
           <header><p className="instrument-label"><span>03</span> Developer reference</p><h2 id="vercel-api">Does Vercel have a Web Analytics API?</h2></header>
           <div className="product-guide-copy">
             <p>Vercel provides a public Web Analytics API for querying visitor, page-view and custom-event data. Its count and aggregate endpoints support custom reporting integrations, with project and team authorization. Read <a href="https://vercel.com/docs/analytics/web-analytics-api" rel="noreferrer" target="_blank">Vercel&apos;s official Web Analytics API documentation</a> for authentication, filters and response formats.</p>
-            <p>Verceltics provides a ready-to-use native client for supported reports. It does not host an analytics API or proxy your Vercel token. The <a href="https://github.com/apoorvdarshan/verceltics/blob/main/ios/verceltics/Network/VercelAPI.swift" rel="noreferrer" target="_blank">open-source Vercel client</a> documents the requests used by the current app. For the full provider catalog, explore <Link href="/integrations">hosting, domain and site-service integrations</Link>.</p>
+            <p>Verceltics provides a ready-to-use native client for supported reports. It does not host an analytics API or proxy your Vercel token. The <a href="https://github.com/apoorvdarshan/verceltics/blob/main/ios/verceltics/Network/VercelAPI.swift" rel="noreferrer" target="_blank">open-source Vercel client</a> documents the requests used by the current app. For practical examples, <Link href="/guides/vercel-web-analytics-on-mobile">read a project traffic report</Link> or <Link href="/guides/vercel-deployment-build-events">trace a failed deployment</Link>. For the full provider catalog, explore <Link href="/integrations">hosting, domain and site-service integrations</Link>.</p>
           </div>
         </section>
 
