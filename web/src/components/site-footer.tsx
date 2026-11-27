@@ -56,6 +56,7 @@ export function SiteFooter() {
             <Link href="/integrations">27 integrations</Link>
             <Link href="/vercel-analytics-ios">Vercel app for iPhone</Link>
             <Link href="/android">Android app</Link>
+            <Link href="/docs">Documentation</Link>
             <Link href="/guides">Setup & task guides</Link>
             <Link href="/blog">Blog</Link>
             <a href="/feed.xml">RSS feed</a>
