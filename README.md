@@ -358,7 +358,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Our [Code 
 
 - Email: [ad13dtu@gmail.com](mailto:ad13dtu@gmail.com)
 - X: [@apoorvdarshan](https://x.com/apoorvdarshan)
-- Instagram: [@apoorvcodes](https://www.instagram.com/apoorvcodes/)
+- Instagram: [@apoorvxi](https://www.instagram.com/apoorvxi/)
 - LinkedIn: [Verceltics](https://www.linkedin.com/showcase/verceltics)
 - Discord: [Verceltics community](https://discord.gg/qv5nsTmkxA)
 - Support: [ko-fi.com/apoorvdarshan](https://ko-fi.com/apoorvdarshan)

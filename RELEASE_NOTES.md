@@ -10,7 +10,11 @@ What's New upload for it fails. Each tag may have only one section.
 
 ## ios-v2.1.1
 
-Bug fixes and improvements.
+Updated the developer’s Instagram link to @apoorvxi.
+
+## android-v1.0.2
+
+Updated the developer’s Instagram link to @apoorvxi.
 
 ## android-v1.0.1
 

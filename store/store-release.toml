@@ -63,7 +63,7 @@ checkout = [
 ]
 
 [ios.build]
-developer_dir = "/Applications/Xcode_27.app/Contents/Developer"
+developer_dir = "/Applications/Xcode_27.1.app/Contents/Developer"
 checkout = ["/ios/"]
 package_cache_files = ["ios/**/Package.resolved"]
 
@@ -122,7 +122,7 @@ signing = "gradle-properties"
 keystore_property = "VERCELTICS_UPLOAD_KEYSTORE"
 password_file_property = "VERCELTICS_UPLOAD_KEYSTORE_PASSWORD_FILE"
 key_alias = "upload"
-sdk_packages = ["platform-tools", "platforms;android-37.0"]
+sdk_packages = ["platform-tools", "platforms;android-37.2"]
 
 [android.listing]
 source = "files"

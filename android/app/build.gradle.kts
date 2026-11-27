@@ -58,14 +58,16 @@ fun String.asBuildConfigString(): String =
 
 android {
     namespace = "com.apoorvdarshan.verceltics"
-    compileSdk = 37
+    compileSdk {
+        version = release(37) { minorApiLevel = 2 }
+    }
 
     defaultConfig {
         applicationId = "com.apoorvdarshan.verceltics"
         minSdk = 28
         targetSdk = 36
-        versionCode = 45
-        versionName = "1.0.1"
+        versionCode = 46
+        versionName = "1.0.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
@@ -143,7 +145,7 @@ tasks.withType<Test>().configureEach {
 }
 
 dependencies {
-    val composeBom = platform("androidx.compose:compose-bom:2026.09.00")
+    val composeBom = platform("androidx.compose:compose-bom:2026.11.01")
 
     implementation(composeBom)
     androidTestImplementation(composeBom)

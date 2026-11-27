@@ -10,9 +10,9 @@ import { ANDROID_PLAY_VERSION, APP_STORE_URL, GOOGLE_PLAY_URL } from "@/lib/prod
 
 const SITE_URL = "https://verceltics.com";
 const PAGE_URL = `${SITE_URL}/android`;
-const TITLE = "Vercel & Cloudflare App for Android";
+const TITLE = "Vercel App for Android: Deployments, Analytics & Cloudflare";
 const DESCRIPTION =
-  "Get Verceltics, an independent Vercel and Cloudflare app for Android. Check deployments, analytics and DNS across 27 integrations. Available on Google Play.";
+  "Check Vercel projects and deployments on Android with Verceltics. Read Web Analytics, inspect Cloudflare DNS and connect 27 providers. Get it on Google Play.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -145,7 +145,7 @@ export default function AndroidPage() {
         <header className="product-hero">
           <div className="product-hero-copy">
             <p className="instrument-label"><span>AND</span> Android</p>
-            <h1>Vercel, Cloudflare and domains on Android.</h1>
+            <h1>An Android app for Vercel projects and deployments.</h1>
             <p>
               Verceltics brings {integrationCount} hosting, domain and site services into one native Android app: Vercel projects and analytics, Cloudflare DNS and Workers, your registrars, Search Console, PageSpeed and uptime. Download the public release on Google Play for your phone or tablet.
             </p>
@@ -167,6 +167,7 @@ export default function AndroidPage() {
           <span aria-hidden="true" className="anchor-alias" id="join" />
           <header>
             <p className="instrument-label"><span>01</span> Get started</p>
+            <p>Connecting your first project? <Link href="/guides/connect-vercel">Set up Vercel</Link>, then <Link href="/guides/vercel-deployment-build-events">inspect a deployment</Link> or <Link href="/guides/vercel-web-analytics-on-mobile">read its analytics</Link>.</p>
             <h2 id="android-install">From Google Play to your workspace.</h2>
           </header>
           <div className="android-console">

@@ -23,7 +23,7 @@ const channelGroups = [
     detail: "Updates from the project",
     links: [
       { label: "LinkedIn", detail: "Verceltics updates", href: LINKEDIN, mark: "/brands/linkedin.svg", newTab: true },
-      { label: "Instagram", detail: "@apoorvcodes", href: INSTAGRAM, mark: "/brands/instagram.svg", newTab: true },
+      { label: "Instagram", detail: "@apoorvxi", href: INSTAGRAM, mark: "/brands/instagram.svg", newTab: true },
       { label: "X", detail: "Founder notes", href: "https://x.com/apoorvdarshan", mark: "/brands/x.svg", newTab: true },
     ],
   },
@@ -56,6 +56,7 @@ export function SiteFooter() {
             <Link href="/integrations">27 integrations</Link>
             <Link href="/vercel-analytics-ios">Vercel app for iPhone</Link>
             <Link href="/android">Android app</Link>
+            <Link href="/docs">Documentation</Link>
             <Link href="/guides">Setup & task guides</Link>
             <Link href="/blog">Blog</Link>
             <a href="/feed.xml">RSS feed</a>

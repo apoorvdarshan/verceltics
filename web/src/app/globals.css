@@ -3355,3 +3355,7 @@ main[id] {
   .library-quicklinks { align-items: start; }
   .home-library-section { padding-block: 45px; }
 }
+
+.reference-route, .reference-inputs { overflow-wrap: anywhere; }
+.reference-inputs dt { font-weight: 600; }
+.reference-inputs dd { margin: .25rem 0 1rem; }
