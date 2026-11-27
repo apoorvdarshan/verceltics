@@ -58,7 +58,9 @@ fun String.asBuildConfigString(): String =
 
 android {
     namespace = "com.apoorvdarshan.verceltics"
-    compileSdk = 37
+    compileSdk {
+        version = release(37) { minorApiLevel = 2 }
+    }
 
     defaultConfig {
         applicationId = "com.apoorvdarshan.verceltics"
@@ -143,7 +145,7 @@ tasks.withType<Test>().configureEach {
 }
 
 dependencies {
-    val composeBom = platform("androidx.compose:compose-bom:2026.09.00")
+    val composeBom = platform("androidx.compose:compose-bom:2026.11.01")
 
     implementation(composeBom)
     androidTestImplementation(composeBom)
@@ -157,7 +159,7 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
-    implementation("com.revenuecat.purchases:purchases:10.28.1")
+    implementation("com.revenuecat.purchases:purchases:11.4.3")
     // Google Play In-App Updates and In-App Review. Both degrade to no-ops on sideloaded builds.
     implementation("com.google.android.play:app-update:2.1.0")
     implementation("com.google.android.play:app-update-ktx:2.1.0")
