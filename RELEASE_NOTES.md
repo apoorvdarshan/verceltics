@@ -8,6 +8,14 @@ heading, quote, bold and code markers are dropped; App Store: 4000 characters at
 Google Play: 500). A tag without a section gets generated GitHub release notes, and a
 What's New upload for it fails. Each tag may have only one section.
 
+## ios-v2.1.2
+
+Verceltics now supports landscape on iPhone, including the inner display on iPhone Duo.
+
+## android-v1.0.3
+
+This update refreshes the Android app’s underlying libraries. Your existing workspace and provider connections carry over.
+
 ## ios-v2.1.1
 
 Updated the developer’s Instagram link to @apoorvxi.
