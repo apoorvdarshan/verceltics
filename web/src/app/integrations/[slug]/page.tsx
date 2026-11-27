@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import chapters from "@/content/reference.json";
 import { notFound } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
@@ -30,6 +31,7 @@ export default async function ProviderPage({ params }: { params: Promise<{ slug:
       <section><h2>What this integration is for</h2>{detail.overview.map(text => <p key={text}>{text}</p>)}</section>
       <section><h2>Supported resource checks</h2><ul>{detail.capabilities.map(text => <li key={text}>{text}</li>)}</ul><p>{detail.limit}</p></section>
       <section><h2>Connection requirements</h2><p><strong>Connection method:</strong> {provider.connection}. Prepare access for the intended provider account. Start with only the permissions your workflow needs and verify a known resource after connecting.</p><ul>{detail.fields.map(field => <li key={field}>{field}</li>)}</ul><p><Link href={`/guides/connect-${slug}`}>Read the {provider.name} setup and troubleshooting guide →</Link></p></section>
+      {chapters.some(chapter => chapter.provider === slug) && <section><h2>API reference</h2><p><Link href={`/docs/${slug}`}>Browse {provider.name} operations and request parameters →</Link></p></section>}
       <section><h2>Practical {provider.name} guides</h2>{detail.tasks.map(task => <div key={task.slug}><h3><Link href={`/guides/${task.slug}`}>{task.title}</Link></h3><p>{task.summary}</p></div>)}</section>
       <section><h2>Native app and provider boundaries</h2><p>Provider requests go directly from the device to the service. Credentials are protected by the iOS Keychain or Android Keystore-backed encryption. Verceltics does not operate a provider-data proxy or combine accounts into one analytics total.</p><p>Connections, list browsing, search and refresh stay free. Pro unlocks supported details and provider tools. Operations can differ by platform and app version; use the provider dashboard for a task the installed app does not expose.</p></section>
       <section className="reading-references"><h2>References</h2><ul>{sources.map(source => <li key={source.url}><a href={source.url} rel="noreferrer" target="_blank">{source.label} ↗</a></li>)}</ul></section>

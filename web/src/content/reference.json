@@ -1,0 +1,3422 @@
+[
+  {
+    "provider": "netlify",
+    "intro": "Start with the account’s sites. Use the site ID for build, branch and certificate lookups; use the DNS zone ID when the question concerns a record rather than a deployment.",
+    "operations": [
+      {
+        "slug": "account-site-inventory",
+        "title": "Account site inventory",
+        "note": "Find a site under a particular team before investigating its build history. An account slug and a site ID identify different resources.",
+        "id": "listSitesForAccount",
+        "path": "/{account_slug}/sites",
+        "parameters": [
+          {
+            "name": "name",
+            "location": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "account_slug",
+            "location": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "page",
+            "location": "query",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "per_page",
+            "location": "query",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "site-build-history",
+        "title": "Site build history",
+        "note": "Compare recent attempts for one site. A finished build is evidence about the build process; the published deploy is a separate object.",
+        "id": "listSiteBuilds",
+        "path": "/sites/{site_id}/builds",
+        "parameters": [
+          {
+            "name": "site_id",
+            "location": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "page",
+            "location": "query",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "per_page",
+            "location": "query",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "deployed-branches",
+        "title": "Deployed branches",
+        "note": "Find branches with deployment history. A missing feature branch may exist in Git without ever having produced a Netlify deploy.",
+        "id": "listSiteDeployedBranches",
+        "path": "/sites/{site_id}/deployed-branches",
+        "parameters": [
+          {
+            "name": "site_id",
+            "location": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "individual-site-deployment",
+        "title": "Individual site deployment",
+        "note": "Inspect the deploy attached to a particular site, especially when two builds use the same branch name. Match the deploy ID before comparing results.",
+        "id": "getSiteDeploy",
+        "path": "/sites/{site_id}/deploys/{deploy_id}",
+        "parameters": [
+          {
+            "name": "site_id",
+            "location": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "deploy_id",
+            "location": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "site-tls-certificate",
+        "title": "Site TLS certificate",
+        "note": "Check the certificate associated with a site during a custom-domain rollout. Compare its hostnames with the exact address a visitor opens.",
+        "id": "showSiteTLSCertificate",
+        "path": "/sites/{site_id}/ssl",
+        "parameters": [
+          {
+            "name": "site_id",
+            "location": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "dns-zone-records",
+        "title": "DNS zone records",
+        "note": "Inventory records in the selected Netlify DNS zone. First verify the domain delegates to that zone; an old zone can still contain plausible records.",
+        "id": "getDnsRecords",
+        "path": "/dns_zones/{zone_id}/dns_records",
+        "parameters": [
+          {
+            "name": "zone_id",
+            "location": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "published-site-files",
+        "title": "Published site files",
+        "note": "Check whether an expected asset path appears in the site file inventory. A missing file points to build output or publishing configuration rather than browser caching.",
+        "id": "listSiteFiles",
+        "path": "/sites/{site_id}/files",
+        "parameters": [
+          {
+            "name": "site_id",
+            "location": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "build-plugin-runs",
+        "title": "Build plugin runs",
+        "note": "Look for a plugin run corresponding to a recent build. Compare the plugin outcome with the deploy outcome before attributing a failed release to the plugin.",
+        "id": "getLatestPluginRuns",
+        "path": "/sites/{site_id}/plugin_runs/latest",
+        "parameters": [
+          {
+            "name": "site_id",
+            "location": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "packages",
+            "location": "query",
+            "required": true,
+            "type": "array"
+          },
+          {
+            "name": "state",
+            "location": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      }
+    ],
+    "updated": "2026-11-27"
+  },
+  {
+    "provider": "render",
+    "intro": "Use a service ID for deployments and domains. For runtime investigations select the relevant resource and time window before comparing CPU, memory or HTTP measurements.",
+    "operations": [
+      {
+        "slug": "service-deployment-history",
+        "title": "Service deployment history",
+        "note": "Locate the release nearest a reported regression. Compare deploy times with the incident window before interpreting resource metrics.",
+        "id": "list-deploys",
+        "path": "/services/{serviceId}/deploys",
+        "parameters": [
+          {
+            "name": "serviceId",
+            "location": "path",
+            "required": true,
+            "description": "The ID of the service",
+            "type": "string"
+          },
+          {
+            "name": "status",
+            "location": "query",
+            "required": false,
+            "description": "Filter for deploys with the specified statuses",
+            "type": "array"
+          },
+          {
+            "name": "createdBefore",
+            "location": "query",
+            "required": false,
+            "description": "Filter for deploys created before a certain time (specified as an ISO 8601 timestamp)",
+            "type": "string"
+          },
+          {
+            "name": "createdAfter",
+            "location": "query",
+            "required": false,
+            "description": "Filter for deploys created after a certain time (specified as an ISO 8601 timestamp)",
+            "type": "string"
+          },
+          {
+            "name": "updatedBefore",
+            "location": "query",
+            "required": false,
+            "description": "Filter for deploys updated before a certain time (specified as an ISO 8601 timestamp)",
+            "type": "string"
+          },
+          {
+            "name": "updatedAfter",
+            "location": "query",
+            "required": false,
+            "description": "Filter for deploys updated after a certain time (specified as an ISO 8601 timestamp)",
+            "type": "string"
+          },
+          {
+            "name": "finishedBefore",
+            "location": "query",
+            "required": false,
+            "description": "Filter for deploys finished before a certain time (specified as an ISO 8601 timestamp)",
+            "type": "string"
+          },
+          {
+            "name": "finishedAfter",
+            "location": "query",
+            "required": false,
+            "description": "Filter for deploys finished after a certain time (specified as an ISO 8601 timestamp)",
+            "type": "string"
+          },
+          {
+            "name": "cursor",
+            "location": "query",
+            "required": false,
+            "description": "The position in the result list to start from when fetching paginated results. For details, see [Pagination](https://api-docs.render.com/reference/pagination).",
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "location": "query",
+            "required": false,
+            "description": "The maximum number of items to return. For details, see [Pagination](https://api-docs.render.com/reference/pagination).",
+            "type": "integer"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "custom-domain-inventory",
+        "title": "Custom domain inventory",
+        "note": "Check which hostnames belong to the selected service. A Render association alone does not prove that public DNS currently points to Render.",
+        "id": "list-custom-domains",
+        "path": "/services/{serviceId}/custom-domains",
+        "parameters": [
+          {
+            "name": "serviceId",
+            "location": "path",
+            "required": true,
+            "description": "The ID of the service",
+            "type": "string"
+          },
+          {
+            "name": "cursor",
+            "location": "query",
+            "required": false,
+            "description": "The position in the result list to start from when fetching paginated results. For details, see [Pagination](https://api-docs.render.com/reference/pagination).",
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "location": "query",
+            "required": false,
+            "description": "The maximum number of items to return. For details, see [Pagination](https://api-docs.render.com/reference/pagination).",
+            "type": "integer"
+          },
+          {
+            "name": "name",
+            "location": "query",
+            "required": false,
+            "description": "Filter for the names of custom domain",
+            "type": "array"
+          },
+          {
+            "name": "domainType",
+            "location": "query",
+            "required": false,
+            "description": "Filter for domain type",
+            "type": "string",
+            "enumValues": [
+              "apex",
+              "subdomain"
+            ]
+          },
+          {
+            "name": "verificationStatus",
+            "location": "query",
+            "required": false,
+            "description": "Filter for domain verification status (`verified` or `unverified`)",
+            "type": "string",
+            "enumValues": [
+              "verified",
+              "unverified"
+            ]
+          },
+          {
+            "name": "createdBefore",
+            "location": "query",
+            "required": false,
+            "description": "Filter for custom domains created before a certain time (specified as an ISO 8601 timestamp)",
+            "type": "string"
+          },
+          {
+            "name": "createdAfter",
+            "location": "query",
+            "required": false,
+            "description": "Filter for custom domains created after a certain time (specified as an ISO 8601 timestamp)",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "persistent-disk-snapshots",
+        "title": "Persistent disk snapshots",
+        "note": "Identify snapshots for a particular disk before planning recovery. Listing a snapshot does not restore it or test its contents.",
+        "id": "list-snapshots",
+        "path": "/disks/{diskId}/snapshots",
+        "parameters": [
+          {
+            "name": "diskId",
+            "location": "path",
+            "required": true,
+            "description": "The ID of the disk",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "cpu-measurements",
+        "title": "CPU measurements",
+        "note": "Inspect processor usage during a slow interval. Compare it with the CPU limit and request volume; high utilization by itself does not identify the slow endpoint.",
+        "id": "get-cpu",
+        "path": "/metrics/cpu",
+        "parameters": [
+          {
+            "name": "startTime",
+            "location": "query",
+            "required": false,
+            "description": "Epoch/Unix timestamp of start of time range to return. Defaults to `now() - 1 hour`.",
+            "type": "string"
+          },
+          {
+            "name": "endTime",
+            "location": "query",
+            "required": false,
+            "description": "Epoch/Unix timestamp of end of time range to return. Defaults to `now()`.",
+            "type": "string"
+          },
+          {
+            "name": "resolutionSeconds",
+            "location": "query",
+            "required": false,
+            "description": "The resolution of the returned data",
+            "type": "number"
+          },
+          {
+            "name": "resource",
+            "location": "query",
+            "required": false,
+            "description": "Resource ID to query. When multiple resource query params are provided, they are ORed together. Resources can be service ids, Postgres ids, or Redis ids",
+            "type": "string"
+          },
+          {
+            "name": "service",
+            "location": "query",
+            "required": false,
+            "description": "This parameter is deprecated. Please use `resource` instead",
+            "type": "string"
+          },
+          {
+            "name": "instance",
+            "location": "query",
+            "required": false,
+            "description": "Instance ID to query. When multiple instance ID query params are provided, they are ORed together",
+            "type": "string"
+          },
+          {
+            "name": "aggregationMethod",
+            "location": "query",
+            "required": false,
+            "description": "The aggregation method to apply to multiple time series",
+            "type": "string",
+            "enumValues": [
+              "AVG",
+              "MAX",
+              "MIN"
+            ]
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "memory-usage",
+        "title": "Memory usage",
+        "note": "Check whether memory climbed before a service became unstable. Keep the instance set and time window consistent when comparing against the memory limit.",
+        "id": "get-memory",
+        "path": "/metrics/memory",
+        "parameters": [
+          {
+            "name": "startTime",
+            "location": "query",
+            "required": false,
+            "description": "Epoch/Unix timestamp of start of time range to return. Defaults to `now() - 1 hour`.",
+            "type": "string"
+          },
+          {
+            "name": "endTime",
+            "location": "query",
+            "required": false,
+            "description": "Epoch/Unix timestamp of end of time range to return. Defaults to `now()`.",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "http-latency",
+        "title": "HTTP latency",
+        "note": "Look for response-time changes near a deploy. Compare the same service and aggregation interval before treating a short spike as a sustained slowdown.",
+        "id": "get-http-latency",
+        "path": "/metrics/http-latency",
+        "parameters": [
+          {
+            "name": "startTime",
+            "location": "query",
+            "required": false,
+            "description": "Epoch/Unix timestamp of start of time range to return. Defaults to `now() - 1 hour`.",
+            "type": "string"
+          },
+          {
+            "name": "endTime",
+            "location": "query",
+            "required": false,
+            "description": "Epoch/Unix timestamp of end of time range to return. Defaults to `now()`.",
+            "type": "string"
+          },
+          {
+            "name": "host",
+            "location": "query",
+            "required": false,
+            "description": "The hosts of HTTP requests to filter to. When multiple host query params are provided, they are ORed together",
+            "type": "string"
+          },
+          {
+            "name": "path",
+            "location": "query",
+            "required": false,
+            "description": "The paths of HTTP requests to filter to. When multiple path query params are provided, they are ORed together",
+            "type": "string"
+          },
+          {
+            "name": "quantile",
+            "location": "query",
+            "required": false,
+            "description": "The quantile of latencies to fetch. When multiple quantile query params are provided, they are ORed together",
+            "type": "number"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "http-request-volume",
+        "title": "HTTP request volume",
+        "note": "Determine whether a latency spike coincided with higher request volume. Use a comparable interval; a larger time bucket can hide brief bursts.",
+        "id": "get-http-requests",
+        "path": "/metrics/http-requests",
+        "parameters": [
+          {
+            "name": "startTime",
+            "location": "query",
+            "required": false,
+            "description": "Epoch/Unix timestamp of start of time range to return. Defaults to `now() - 1 hour`.",
+            "type": "string"
+          },
+          {
+            "name": "endTime",
+            "location": "query",
+            "required": false,
+            "description": "Epoch/Unix timestamp of end of time range to return. Defaults to `now()`.",
+            "type": "string"
+          },
+          {
+            "name": "aggregateBy",
+            "location": "query",
+            "required": false,
+            "description": "The field to aggregate by",
+            "type": "string",
+            "enumValues": [
+              "statusCode",
+              "host"
+            ]
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "service-instance-count",
+        "title": "Service instance count",
+        "note": "Check whether scaling changed the number of instances during an incident. Interpret aggregate CPU or memory alongside that count.",
+        "id": "get-instance-count",
+        "path": "/metrics/instance-count",
+        "parameters": [
+          {
+            "name": "startTime",
+            "location": "query",
+            "required": false,
+            "description": "Epoch/Unix timestamp of start of time range to return. Defaults to `now() - 1 hour`.",
+            "type": "string"
+          },
+          {
+            "name": "endTime",
+            "location": "query",
+            "required": false,
+            "description": "Epoch/Unix timestamp of end of time range to return. Defaults to `now()`.",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      }
+    ],
+    "updated": "2026-11-27"
+  },
+  {
+    "provider": "digitalocean",
+    "intro": "App Platform distinguishes the application, its deployments and its running instances. Choose the app first, then narrow the investigation to a rollout, alert or component.",
+    "operations": [
+      {
+        "slug": "app-platform-applications",
+        "title": "App Platform applications",
+        "note": "Find the application in the connected account. Similar app names are common across environments, so use the returned app ID for subsequent requests.",
+        "id": "apps_list",
+        "path": "/v2/apps",
+        "parameters": [
+          {
+            "name": "page",
+            "location": "query",
+            "required": false,
+            "description": "Which 'page' of paginated results to return.",
+            "type": "integer"
+          },
+          {
+            "name": "per_page",
+            "location": "query",
+            "required": false,
+            "description": "Number of items returned per page",
+            "type": "integer"
+          },
+          {
+            "name": "with_projects",
+            "location": "query",
+            "required": false,
+            "description": "Whether the project_id of listed apps should be fetched and included.",
+            "type": "boolean"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "app-rollout-history",
+        "title": "App rollout history",
+        "note": "Identify which rollout preceded a change in site behavior. Keep failed attempts separate from the deployment that actually took traffic.",
+        "id": "apps_list_deployments",
+        "path": "/v2/apps/{app_id}/deployments",
+        "parameters": [
+          {
+            "name": "app_id",
+            "location": "path",
+            "required": true,
+            "description": "The app ID",
+            "type": "string"
+          },
+          {
+            "name": "page",
+            "location": "query",
+            "required": false,
+            "description": "Which 'page' of paginated results to return.",
+            "type": "integer"
+          },
+          {
+            "name": "per_page",
+            "location": "query",
+            "required": false,
+            "description": "Number of items returned per page",
+            "type": "integer"
+          },
+          {
+            "name": "deployment_types",
+            "location": "query",
+            "required": false,
+            "description": "Optional. Filter deployments by deployment_type - MANUAL: manual deployment - DEPLOY_ON_PUSH: deployment triggered by a push to the app's repository - MAINTENANCE: deployment for maintenance purposes - MANUAL_ROLLBACK: manual revert to a previous deployment - AUTO_ROLLBACK: automatic revert to a previous deployment - UPDATE_DATABASE_TRUSTED_SOURCES: update database trusted sources - AUTOSCALED: d…",
+            "type": "array"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "deployment-detail",
+        "title": "Deployment detail",
+        "note": "Inspect a single rollout rather than assuming the first item in a changing list is the one under investigation.",
+        "id": "apps_get_deployment",
+        "path": "/v2/apps/{app_id}/deployments/{deployment_id}",
+        "parameters": [
+          {
+            "name": "app_id",
+            "location": "path",
+            "required": true,
+            "description": "The app ID",
+            "type": "string"
+          },
+          {
+            "name": "deployment_id",
+            "location": "path",
+            "required": true,
+            "description": "The deployment ID",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "configured-app-alerts",
+        "title": "Configured app alerts",
+        "note": "Review the alerts configured on an app. An alert definition describes a monitored condition; it is not evidence that the condition is currently firing.",
+        "id": "apps_list_alerts",
+        "path": "/v2/apps/{app_id}/alerts",
+        "parameters": [
+          {
+            "name": "app_id",
+            "location": "path",
+            "required": true,
+            "description": "The app ID",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "daily-app-bandwidth",
+        "title": "Daily app bandwidth",
+        "note": "Compare transferred data across complete days. A day still in progress is a poor baseline for diagnosing a sudden drop.",
+        "id": "apps_get_metrics_bandwidth_daily",
+        "path": "/v2/apps/{app_id}/metrics/bandwidth_daily",
+        "parameters": [
+          {
+            "name": "app_id",
+            "location": "path",
+            "required": true,
+            "description": "The app ID",
+            "type": "string"
+          },
+          {
+            "name": "date",
+            "location": "query",
+            "required": false,
+            "description": "Optional day to query. Only the date component of the timestamp will be considered. Default: yesterday.",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "app-health",
+        "title": "App health",
+        "note": "Read the provider’s view of application health. Follow it with an external hostname check if the report concerns DNS, TLS or a regional outage.",
+        "id": "apps_get_health",
+        "path": "/v2/apps/{app_id}/health",
+        "parameters": [
+          {
+            "name": "app_id",
+            "location": "path",
+            "required": true,
+            "description": "The app ID",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "available-app-platform-regions",
+        "title": "Available App Platform regions",
+        "note": "Look up region options while planning a deployment. The list describes possible locations, not the region currently serving an existing app.",
+        "id": "apps_list_regions",
+        "path": "/v2/apps/regions",
+        "parameters": [],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "app-instances",
+        "title": "App instances",
+        "note": "See which instances belong to an application before comparing logs. An instance that disappeared after a rollout may not exist in the current set.",
+        "id": "apps_get_instances",
+        "path": "/v2/apps/{app_id}/instances",
+        "parameters": [
+          {
+            "name": "app_id",
+            "location": "path",
+            "required": true,
+            "description": "The app ID",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      }
+    ],
+    "updated": "2026-11-27"
+  },
+  {
+    "provider": "fly-io",
+    "intro": "A Fly app contains Machines; persistent volumes and IP assignments have their own lifecycles. Resolve the app name first and track Machine and volume IDs separately.",
+    "operations": [
+      {
+        "slug": "organization-app-inventory",
+        "title": "Organization app inventory",
+        "note": "Find an application under the intended organization before looking for Machines. A Machine ID is not a substitute for the app name in a scoped route.",
+        "id": "Apps_list",
+        "path": "/apps",
+        "parameters": [
+          {
+            "name": "org_slug",
+            "location": "query",
+            "required": true,
+            "description": "The org slug, or 'personal', to filter apps",
+            "type": "string"
+          },
+          {
+            "name": "app_role",
+            "location": "query",
+            "required": false,
+            "description": "Filter apps by role",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "assigned-ip-addresses",
+        "title": "Assigned IP addresses",
+        "note": "Compare the addresses allocated to the app with its published DNS. An assignment does not establish that a particular hostname resolves to it.",
+        "id": "App_IPAssignments_list",
+        "path": "/apps/{app_name}/ip_assignments",
+        "parameters": [
+          {
+            "name": "app_name",
+            "location": "path",
+            "required": true,
+            "description": "Fly App Name",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "machine-event-history",
+        "title": "Machine event history",
+        "note": "Match lifecycle events to the time of a restart. Events can explain when a Machine changed state without explaining an application-level exception.",
+        "id": "Machines_list_events",
+        "path": "/apps/{app_name}/machines/{machine_id}/events",
+        "parameters": [
+          {
+            "name": "app_name",
+            "location": "path",
+            "required": true,
+            "description": "Fly App Name",
+            "type": "string"
+          },
+          {
+            "name": "machine_id",
+            "location": "path",
+            "required": true,
+            "description": "Machine ID",
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "location": "query",
+            "required": false,
+            "description": "The number of events to fetch (max of 50). If omitted, this is set to 20 by default.",
+            "type": "integer"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "machine-configuration-versions",
+        "title": "Machine configuration versions",
+        "note": "Identify revisions to one Machine’s configuration. Compare the relevant version with the incident time rather than treating the latest version as historical evidence.",
+        "id": "Machines_list_versions",
+        "path": "/apps/{app_name}/machines/{machine_id}/versions",
+        "parameters": [
+          {
+            "name": "app_name",
+            "location": "path",
+            "required": true,
+            "description": "Fly App Name",
+            "type": "string"
+          },
+          {
+            "name": "machine_id",
+            "location": "path",
+            "required": true,
+            "description": "Machine ID",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "processes-on-a-machine",
+        "title": "Processes on a Machine",
+        "note": "Check the process inventory for the Machine in question. A process appearing in this snapshot does not establish that its HTTP health check is passing.",
+        "id": "Machines_list_processes",
+        "path": "/apps/{app_name}/machines/{machine_id}/ps",
+        "parameters": [
+          {
+            "name": "app_name",
+            "location": "path",
+            "required": true,
+            "description": "Fly App Name",
+            "type": "string"
+          },
+          {
+            "name": "machine_id",
+            "location": "path",
+            "required": true,
+            "description": "Machine ID",
+            "type": "string"
+          },
+          {
+            "name": "sort_by",
+            "location": "query",
+            "required": false,
+            "description": "Sort by",
+            "type": "string"
+          },
+          {
+            "name": "order",
+            "location": "query",
+            "required": false,
+            "description": "Order",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "app-certificates",
+        "title": "App certificates",
+        "note": "List the hostnames with certificates attached to the app. Use DNS and certificate status together when a new custom domain still fails HTTPS.",
+        "id": "App_Certificates_list",
+        "path": "/apps/{app_name}/certificates",
+        "parameters": [
+          {
+            "name": "app_name",
+            "location": "path",
+            "required": true,
+            "description": "Fly App Name",
+            "type": "string"
+          },
+          {
+            "name": "filter",
+            "location": "query",
+            "required": false,
+            "description": "Hostname filter (substring match)",
+            "type": "string"
+          },
+          {
+            "name": "cursor",
+            "location": "query",
+            "required": false,
+            "description": "Pagination cursor from previous response",
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "location": "query",
+            "required": false,
+            "description": "Number of results per page (default 25, max 500)",
+            "type": "integer"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "app-storage-volumes",
+        "title": "App storage volumes",
+        "note": "Inventory volumes before moving a workload. Check the region and attachment of the intended volume rather than relying on a reused display name.",
+        "id": "Volumes_list",
+        "path": "/apps/{app_name}/volumes",
+        "parameters": [
+          {
+            "name": "app_name",
+            "location": "path",
+            "required": true,
+            "description": "Fly App Name",
+            "type": "string"
+          },
+          {
+            "name": "summary",
+            "location": "query",
+            "required": false,
+            "description": "Only return summary info about volumes (omit blocks, block size, etc)",
+            "type": "boolean"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "volume-snapshot-history",
+        "title": "Volume snapshot history",
+        "note": "Locate a recovery point for one volume. Compare the snapshot time with the first bad write before choosing a recovery candidate.",
+        "id": "Volumes_list_snapshots",
+        "path": "/apps/{app_name}/volumes/{volume_id}/snapshots",
+        "parameters": [
+          {
+            "name": "app_name",
+            "location": "path",
+            "required": true,
+            "description": "Fly App Name",
+            "type": "string"
+          },
+          {
+            "name": "volume_id",
+            "location": "path",
+            "required": true,
+            "description": "Volume ID",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      }
+    ],
+    "updated": "2026-11-27"
+  },
+  {
+    "provider": "firebase-hosting",
+    "intro": "Firebase Hosting separates projects, sites, channels, releases and immutable versions. Use the complete resource name returned by the parent list rather than assembling it from a public hostname.",
+    "operations": [
+      {
+        "slug": "project-hosting-sites",
+        "title": "Project hosting sites",
+        "note": "Find the site resource for the website you are inspecting. A Firebase project may contain multiple sites with separate releases and custom domains.",
+        "id": "firebasehosting.projects.sites.list",
+        "path": "/{+parent}/sites",
+        "parameters": [
+          {
+            "name": "parent",
+            "location": "path",
+            "required": true,
+            "description": "Required. The Firebase project for which to list sites, in the format: projects/PROJECT_IDENTIFIER Refer to the `Site` [`name`](../projects#Site.FIELDS.name) field for details about PROJECT_IDENTIFIER values.",
+            "type": "string"
+          },
+          {
+            "name": "pageToken",
+            "location": "query",
+            "required": false,
+            "description": "Optional. A token from a previous call to `ListSites` that tells the server where to resume listing.",
+            "type": "string"
+          },
+          {
+            "name": "pageSize",
+            "location": "query",
+            "required": false,
+            "description": "Optional. The maximum number of sites to return. The service may return a lower number if fewer sites exist than this maximum number. If unspecified, defaults to 40.",
+            "type": "integer"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "preview-channel-inventory",
+        "title": "Preview channel inventory",
+        "note": "Identify the preview channel that owns a URL. Activity on a preview channel does not by itself change the live channel.",
+        "id": "firebasehosting.projects.sites.channels.list",
+        "path": "/{+parent}/channels",
+        "parameters": [
+          {
+            "name": "pageSize",
+            "location": "query",
+            "required": false,
+            "description": "The maximum number of channels to return. The service may return a lower number if fewer channels exist than this maximum number. If unspecified, defaults to 10. The maximum value is 100; values above 100 will be coerced to 100.",
+            "type": "integer"
+          },
+          {
+            "name": "pageToken",
+            "location": "query",
+            "required": false,
+            "description": "A token from a previous call to `ListChannels` that tells the server where to resume listing.",
+            "type": "string"
+          },
+          {
+            "name": "parent",
+            "location": "path",
+            "required": true,
+            "description": "Required. The site for which to list channels, in the format: sites/SITE_ID",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "preview-channel-detail",
+        "title": "Preview channel detail",
+        "note": "Inspect one channel by its resource name when a preview link behaves unexpectedly. Confirm the channel belongs to the intended site.",
+        "id": "firebasehosting.projects.sites.channels.get",
+        "path": "/{+name}",
+        "parameters": [
+          {
+            "name": "name",
+            "location": "path",
+            "required": true,
+            "description": "Required. The fully-qualified resource name for the channel, in the format: sites/SITE_ID/channels/CHANNEL_ID",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "channel-release-history",
+        "title": "Channel release history",
+        "note": "Follow a preview deployment through the releases for that channel. Avoid comparing its history with the site’s live release list.",
+        "id": "firebasehosting.projects.sites.channels.releases.list",
+        "path": "/{+parent}/releases",
+        "parameters": [
+          {
+            "name": "parent",
+            "location": "path",
+            "required": true,
+            "description": "Required. The site or channel for which to list releases, in either of the following formats: - sites/SITE_ID - sites/SITE_ID/channels/CHANNEL_ID",
+            "type": "string"
+          },
+          {
+            "name": "pageSize",
+            "location": "query",
+            "required": false,
+            "description": "The maximum number of releases to return. The service may return a lower number if fewer releases exist than this maximum number. If unspecified, defaults to 100.",
+            "type": "integer"
+          },
+          {
+            "name": "pageToken",
+            "location": "query",
+            "required": false,
+            "description": "A token from a previous call to `releases.list` or `channels.releases.list` that tells the server where to resume listing.",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "site-release-history",
+        "title": "Site release history",
+        "note": "Determine when a version was released to the site. A version can exist before a release points users to it.",
+        "id": "firebasehosting.projects.sites.releases.list",
+        "path": "/{+parent}/releases",
+        "parameters": [
+          {
+            "name": "pageSize",
+            "location": "query",
+            "required": false,
+            "description": "The maximum number of releases to return. The service may return a lower number if fewer releases exist than this maximum number. If unspecified, defaults to 100.",
+            "type": "integer"
+          },
+          {
+            "name": "pageToken",
+            "location": "query",
+            "required": false,
+            "description": "A token from a previous call to `releases.list` or `channels.releases.list` that tells the server where to resume listing.",
+            "type": "string"
+          },
+          {
+            "name": "parent",
+            "location": "path",
+            "required": true,
+            "description": "Required. The site or channel for which to list releases, in either of the following formats: - sites/SITE_ID - sites/SITE_ID/channels/CHANNEL_ID",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "files-in-a-hosting-version",
+        "title": "Files in a hosting version",
+        "note": "Check a specific version’s file manifest for an expected path. Verify the release points to this version before diagnosing a public 404.",
+        "id": "firebasehosting.projects.sites.versions.files.list",
+        "path": "/{+parent}/files",
+        "parameters": [
+          {
+            "name": "pageSize",
+            "location": "query",
+            "required": false,
+            "description": "The maximum number of version files to return. The service may return a lower number if fewer version files exist than this maximum number. If unspecified, defaults to 1000.",
+            "type": "integer"
+          },
+          {
+            "name": "pageToken",
+            "location": "query",
+            "required": false,
+            "description": "A token from a previous call to `ListVersionFiles` that tells the server where to resume listing.",
+            "type": "string"
+          },
+          {
+            "name": "status",
+            "location": "query",
+            "required": false,
+            "description": "The type of files that should be listed for the specified version.",
+            "type": "string",
+            "enumValues": [
+              "STATUS_UNSPECIFIED",
+              "EXPECTED",
+              "ACTIVE"
+            ]
+          },
+          {
+            "name": "parent",
+            "location": "path",
+            "required": true,
+            "description": "Required. The version for which to list files, in the format: sites/SITE_ID /versions/VERSION_ID",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "custom-domain-bindings",
+        "title": "Custom domain bindings",
+        "note": "Review the custom domains assigned to a site. A binding can exist while DNS changes or certificate provisioning are still incomplete.",
+        "id": "firebasehosting.projects.sites.customDomains.list",
+        "path": "/{+parent}/customDomains",
+        "parameters": [
+          {
+            "name": "pageSize",
+            "location": "query",
+            "required": false,
+            "description": "The max number of `CustomDomain` entities to return in a request. Defaults to 10.",
+            "type": "integer"
+          },
+          {
+            "name": "pageToken",
+            "location": "query",
+            "required": false,
+            "description": "A token from a previous call to `ListCustomDomains` that tells the server where to resume listing.",
+            "type": "string"
+          },
+          {
+            "name": "parent",
+            "location": "path",
+            "required": true,
+            "description": "Required. The Firebase Hosting `Site` with `CustomDomain` entities you'd like to list.",
+            "type": "string"
+          },
+          {
+            "name": "showDeleted",
+            "location": "query",
+            "required": false,
+            "description": "If true, the request returns soft-deleted `CustomDomain`s that haven't been fully-deleted yet. To restore deleted `CustomDomain`s, make an `UndeleteCustomDomain` request.",
+            "type": "boolean"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "custom-domain-operation-progress",
+        "title": "Custom domain operation progress",
+        "note": "Find pending provider operations for a domain that has not finished setup. An accepted operation and a completed domain transition are different states.",
+        "id": "firebasehosting.projects.sites.customDomains.operations.list",
+        "path": "/{+name}/operations",
+        "parameters": [
+          {
+            "name": "filter",
+            "location": "query",
+            "required": false,
+            "description": "The standard list filter.",
+            "type": "string"
+          },
+          {
+            "name": "returnPartialSuccess",
+            "location": "query",
+            "required": false,
+            "description": "When set to `true`, operations that are reachable are returned as normal, and those that are unreachable are returned in the ListOperationsResponse.unreachable field. This can only be `true` when reading across collections. For example, when `parent` is set to `\"projects/example/locations/-\"`. This field is not supported by default and will result in an `UNIMPLEMENTED` error if set unless explici…",
+            "type": "boolean"
+          },
+          {
+            "name": "pageToken",
+            "location": "query",
+            "required": false,
+            "description": "The standard list page token.",
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "location": "path",
+            "required": true,
+            "description": "The name of the operation's parent resource.",
+            "type": "string"
+          },
+          {
+            "name": "pageSize",
+            "location": "query",
+            "required": false,
+            "description": "The standard list page size.",
+            "type": "integer"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      }
+    ],
+    "updated": "2026-11-27"
+  },
+  {
+    "provider": "aws-amplify",
+    "intro": "Amplify app IDs belong to a region. After selecting the app, use branch names for jobs and domain names for associations; a backend environment is a separate resource.",
+    "operations": [
+      {
+        "slug": "regional-app-inventory",
+        "title": "Regional app inventory",
+        "note": "Find an Amplify app in the selected AWS region. An empty result in one region does not mean the app was deleted from the account.",
+        "id": "ListApps",
+        "path": "/apps",
+        "parameters": [
+          {
+            "name": "nextToken",
+            "location": "query",
+            "required": false,
+            "description": "<p>A pagination token. If non-null, the pagination token is returned in a result. Pass its value in another request to retrieve more entries. </p>",
+            "type": "string"
+          },
+          {
+            "name": "maxResults",
+            "location": "query",
+            "required": false,
+            "description": "<p>The maximum number of records to list in a single response. </p>",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "connected-branches",
+        "title": "Connected branches",
+        "note": "Check which repository branches Amplify knows about for this app. A branch in Git does not imply that Amplify builds it.",
+        "id": "ListBranches",
+        "path": "/apps/{appId}/branches",
+        "parameters": [
+          {
+            "name": "appId",
+            "location": "path",
+            "required": true,
+            "description": "<p>The unique ID for an Amplify app. </p>",
+            "type": "string"
+          },
+          {
+            "name": "nextToken",
+            "location": "query",
+            "required": false,
+            "description": "<p>A pagination token. Set to null to start listing branches from the start. If a non-null pagination token is returned in a result, pass its value in here to list more branches. </p>",
+            "type": "string"
+          },
+          {
+            "name": "maxResults",
+            "location": "query",
+            "required": false,
+            "description": "<p> The maximum number of records to list in a single response. </p>",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "branch-job-history",
+        "title": "Branch job history",
+        "note": "Look for a job on the branch that serves the affected environment. Jobs from another branch can have similar commit messages and different outcomes.",
+        "id": "ListJobs",
+        "path": "/apps/{appId}/branches/{branchName}/jobs",
+        "parameters": [
+          {
+            "name": "appId",
+            "location": "path",
+            "required": true,
+            "description": "<p> The unique ID for an Amplify app. </p>",
+            "type": "string"
+          },
+          {
+            "name": "branchName",
+            "location": "path",
+            "required": true,
+            "description": "<p>The name of the branch to use for the request. </p>",
+            "type": "string"
+          },
+          {
+            "name": "nextToken",
+            "location": "query",
+            "required": false,
+            "description": "<p>A pagination token. Set to null to start listing steps from the start. If a non-null pagination token is returned in a result, pass its value in here to list more steps. </p>",
+            "type": "string"
+          },
+          {
+            "name": "maxResults",
+            "location": "query",
+            "required": false,
+            "description": "<p>The maximum number of records to list in a single response. </p>",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "build-job-steps",
+        "title": "Build job steps",
+        "note": "Follow a single job through its steps. Use the step state to distinguish a build failure from a later deployment or verification problem.",
+        "id": "GetJob",
+        "path": "/apps/{appId}/branches/{branchName}/jobs/{jobId}",
+        "parameters": [
+          {
+            "name": "appId",
+            "location": "path",
+            "required": true,
+            "description": "<p>The unique ID for an Amplify app. </p>",
+            "type": "string"
+          },
+          {
+            "name": "branchName",
+            "location": "path",
+            "required": true,
+            "description": "<p>The name of the branch to use for the job. </p>",
+            "type": "string"
+          },
+          {
+            "name": "jobId",
+            "location": "path",
+            "required": true,
+            "description": "<p>The unique ID for the job. </p>",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "domain-association-status",
+        "title": "Domain association status",
+        "note": "Inspect one custom domain’s relationship to the app. Compare the mapped branch with the one you released before changing DNS.",
+        "id": "GetDomainAssociation",
+        "path": "/apps/{appId}/domains/{domainName}",
+        "parameters": [
+          {
+            "name": "appId",
+            "location": "path",
+            "required": true,
+            "description": "<p> The unique id for an Amplify app. </p>",
+            "type": "string"
+          },
+          {
+            "name": "domainName",
+            "location": "path",
+            "required": true,
+            "description": "<p> The name of the domain. </p>",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "domains-attached-to-an-app",
+        "title": "Domains attached to an app",
+        "note": "Inventory attached domains during a migration. A domain can be present even when an individual subdomain points at a different branch.",
+        "id": "ListDomainAssociations",
+        "path": "/apps/{appId}/domains",
+        "parameters": [
+          {
+            "name": "appId",
+            "location": "path",
+            "required": true,
+            "description": "<p> The unique ID for an Amplify app. </p>",
+            "type": "string"
+          },
+          {
+            "name": "nextToken",
+            "location": "query",
+            "required": false,
+            "description": "<p> A pagination token. Set to null to start listing apps from the start. If non-null, a pagination token is returned in a result. Pass its value in here to list more projects. </p>",
+            "type": "string"
+          },
+          {
+            "name": "maxResults",
+            "location": "query",
+            "required": false,
+            "description": "<p> The maximum number of records to list in a single response. </p>",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "backend-environment-inventory",
+        "title": "Backend environment inventory",
+        "note": "Check which backend environments exist for an app before comparing staging and production. Their names need not match the frontend branch names.",
+        "id": "ListBackendEnvironments",
+        "path": "/apps/{appId}/backendenvironments",
+        "parameters": [
+          {
+            "name": "appId",
+            "location": "path",
+            "required": true,
+            "description": "<p>The unique ID for an Amplify app. </p>",
+            "type": "string"
+          },
+          {
+            "name": "environmentName",
+            "location": "query",
+            "required": false,
+            "description": "<p>The name of the backend environment </p>",
+            "type": "string"
+          },
+          {
+            "name": "nextToken",
+            "location": "query",
+            "required": false,
+            "description": "<p>A pagination token. Set to null to start listing backend environments from the start. If a non-null pagination token is returned in a result, pass its value in here to list more backend environments. </p>",
+            "type": "string"
+          },
+          {
+            "name": "maxResults",
+            "location": "query",
+            "required": false,
+            "description": "<p>The maximum number of records to list in a single response. </p>",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "resource-tags",
+        "title": "Resource tags",
+        "note": "Inspect ownership or environment labels assigned to the resource ARN. Tags are useful identifiers but do not prove which branch receives production traffic.",
+        "id": "ListTagsForResource",
+        "path": "/tags/{resourceArn}",
+        "parameters": [
+          {
+            "name": "resourceArn",
+            "location": "path",
+            "required": true,
+            "description": "<p>The Amazon Resource Name (ARN) to use to list tags. </p>",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      }
+    ],
+    "updated": "2026-11-27"
+  },
+  {
+    "provider": "name-com",
+    "intro": "Separate registration, transfer and DNS questions. Most domain operations need the registered domain name; a record ID, transfer identifier or TLD is only appropriate for its own resource.",
+    "operations": [
+      {
+        "slug": "registered-domain-inventory",
+        "title": "Registered domain inventory",
+        "note": "Find a registration in the connected portfolio. Owning DNS records elsewhere does not prove the registration is held by this account.",
+        "id": "ListDomains",
+        "path": "/core/v1/domains",
+        "parameters": [
+          {
+            "name": "perPage",
+            "location": "query",
+            "required": false,
+            "description": "Per Page is the number of records to return per request. Per Page defaults to 250.",
+            "type": "string"
+          },
+          {
+            "name": "page",
+            "location": "query",
+            "required": false,
+            "description": "Page is which page to return.",
+            "type": "integer"
+          },
+          {
+            "name": "sort",
+            "location": "query",
+            "required": false,
+            "description": "Sort specifies which domain property to order by.",
+            "type": "string"
+          },
+          {
+            "name": "dir",
+            "location": "query",
+            "required": false,
+            "description": "Dir indicates direction of sort. Possible values are 'asc' (default) or 'desc'.",
+            "type": "string"
+          },
+          {
+            "name": "domainName",
+            "location": "query",
+            "required": false,
+            "description": "DomainName filters domains by exact domain name or wildcard (starts with '*').",
+            "type": "string"
+          },
+          {
+            "name": "tld",
+            "location": "query",
+            "required": false,
+            "description": "Tld filters on specific tld.",
+            "type": "string"
+          },
+          {
+            "name": "locked",
+            "location": "query",
+            "required": false,
+            "description": "Locked filters on locked domains.",
+            "type": "boolean"
+          },
+          {
+            "name": "createDate",
+            "location": "query",
+            "required": false,
+            "description": "CreateDate filters domains created on this date.",
+            "type": "string"
+          },
+          {
+            "name": "createDateStart",
+            "location": "query",
+            "required": false,
+            "description": "CreateDateStart filters domains created on or after this date.",
+            "type": "string"
+          },
+          {
+            "name": "createDateEnd",
+            "location": "query",
+            "required": false,
+            "description": "CreateDateEnd filters domains created on or before this date.",
+            "type": "string"
+          },
+          {
+            "name": "expireDate",
+            "location": "query",
+            "required": false,
+            "description": "ExpireDate filters domains expiring on this date.",
+            "type": "string"
+          },
+          {
+            "name": "expireDateStart",
+            "location": "query",
+            "required": false,
+            "description": "ExpireDateStart filters domains with expire date on or after this date.",
+            "type": "string"
+          },
+          {
+            "name": "expireDateEnd",
+            "location": "query",
+            "required": false,
+            "description": "ExpireDateEnd filters domains with expire date on or before this date.",
+            "type": "string"
+          },
+          {
+            "name": "privacyEnabled",
+            "location": "query",
+            "required": false,
+            "description": "PrivacyEnabled indicates whether there is a privacy product associated with the domain.",
+            "type": "boolean"
+          },
+          {
+            "name": "isPremium",
+            "location": "query",
+            "required": false,
+            "description": "IsPremium indicates whether the domain is a premium domain.",
+            "type": "boolean"
+          },
+          {
+            "name": "autorenewEnabled",
+            "location": "query",
+            "required": false,
+            "description": "AutorenewEnabled indicates if the domain will attempt to renew automatically before expiration.",
+            "type": "boolean"
+          },
+          {
+            "name": "orderId",
+            "location": "query",
+            "required": false,
+            "description": "OrderId specifies the order number of a domain purchase.",
+            "type": "integer"
+          },
+          {
+            "name": "includeRenewalPrice",
+            "location": "query",
+            "required": false,
+            "description": "IncludeRenewalPrice indicates whether to include renewal pricing information in the response.",
+            "type": "boolean"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "hosted-dns-records",
+        "title": "Hosted DNS records",
+        "note": "Check the records Name.com holds for a domain. Confirm the delegated nameservers before using this inventory to explain public DNS behavior.",
+        "id": "ListRecords",
+        "path": "/core/v1/domains/{domainName}/records",
+        "parameters": [
+          {
+            "name": "domainName",
+            "location": "path",
+            "required": true,
+            "description": "DomainName is the zone to list the records for.",
+            "type": "string"
+          },
+          {
+            "name": "perPage",
+            "location": "query",
+            "required": false,
+            "description": "Per Page is the number of records to return per request. Per Page defaults to 500.",
+            "type": "string"
+          },
+          {
+            "name": "page",
+            "location": "query",
+            "required": false,
+            "description": "Page is which page to return.",
+            "type": "integer"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "dnssec-registrations",
+        "title": "DNSSEC registrations",
+        "note": "Review the DNSSEC entries attached to a domain before a DNS-provider migration. Compare the delegation data with the new authoritative operator.",
+        "id": "ListDNSSECs",
+        "path": "/core/v1/domains/{domainName}/dnssec",
+        "parameters": [
+          {
+            "name": "domainName",
+            "location": "path",
+            "required": true,
+            "description": "DomainName is the domain name to list keys for.",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "tld-registration-requirements",
+        "title": "TLD registration requirements",
+        "note": "Look up registry-specific requirements while planning a registration. Different suffixes can require different information from the registrant.",
+        "id": "GetTldRequirementsV2",
+        "path": "/core/v1/domaininfo/requirementsV2/{tld}",
+        "parameters": [
+          {
+            "name": "tld",
+            "location": "path",
+            "required": true,
+            "description": "TLD indicates which domain requirements to retrieve (without the dot prefix, e.g., 'fr' for .fr domains). For punycode TLDs, use the ASCII version instead of the UTF-8. So for the `онлайн` TLD, you would submit `xn--80asehdb`.",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "domain-specific-pricing",
+        "title": "Domain-specific pricing",
+        "note": "Check the price returned for the exact domain and operation you are considering. Do not infer renewal pricing from an introductory registration offer.",
+        "id": "GetPricingForDomain",
+        "path": "/core/v1/domains/{domainName}:getPricing",
+        "parameters": [
+          {
+            "name": "domainName",
+            "location": "path",
+            "required": true,
+            "description": "DomainName is the domain to retrieve.",
+            "type": "string"
+          },
+          {
+            "name": "years",
+            "location": "query",
+            "required": false,
+            "description": "Years specifies the registration term to price in years. Defaults to each TLD's minimum registration term if omitted — usually 1 year (2 for `.ai`). Must be a supported registration term for the TLD (commonly 1–10 years). Use the same value on Create Domain when passing `purchasePrice` for `purchaseType: registration`.",
+            "type": "integer"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "transfer-eligibility",
+        "title": "Transfer eligibility",
+        "note": "Check whether the provider considers a domain eligible before arranging a transfer. An eligibility result is not an authorization code or an initiated transfer.",
+        "id": "GetTransferEligibility",
+        "path": "/core/v1/transfers/eligibility/{domainName}",
+        "parameters": [
+          {
+            "name": "domainName",
+            "location": "path",
+            "required": true,
+            "description": "The domain to check transfer eligibility for. Punycode is normalized server-side, so either ASCII or UTF-8 is accepted.",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "email-forwarding-rules",
+        "title": "Email forwarding rules",
+        "note": "Identify forwarding rules managed at the registrar before moving mail handling. A listed rule does not confirm the destination mailbox accepts messages.",
+        "id": "ListEmailForwardings",
+        "path": "/core/v1/domains/{domainName}/email/forwarding",
+        "parameters": [
+          {
+            "name": "domainName",
+            "location": "path",
+            "required": true,
+            "description": "DomainName is the domain to list email forwarded boxes for.",
+            "type": "string"
+          },
+          {
+            "name": "perPage",
+            "location": "query",
+            "required": false,
+            "description": "(optional) Per Page is the number of records to return per request. Per Page defaults to 500 if not set.",
+            "type": "string"
+          },
+          {
+            "name": "page",
+            "location": "query",
+            "required": false,
+            "description": "(optional) Page is which page to return. Default to page 1 if not set.",
+            "type": "integer"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "vanity-nameserver-inventory",
+        "title": "Vanity nameserver inventory",
+        "note": "Inspect registered child nameserver hosts. Distinguish these host registrations from the delegation records that choose the active DNS provider.",
+        "id": "ListVanityNameservers",
+        "path": "/core/v1/domains/{domainName}/vanity_nameservers",
+        "parameters": [
+          {
+            "name": "domainName",
+            "location": "path",
+            "required": true,
+            "description": "The domain name to list vanity nameservers for.",
+            "type": "string"
+          },
+          {
+            "name": "perPage",
+            "location": "query",
+            "required": false,
+            "description": "The number of records to return per page. Defaults to 500.",
+            "type": "string"
+          },
+          {
+            "name": "page",
+            "location": "query",
+            "required": false,
+            "description": "The page number to return.",
+            "type": "integer"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      }
+    ],
+    "updated": "2026-11-27"
+  },
+  {
+    "provider": "spaceship",
+    "intro": "Spaceship separates the registered domain, hosted resource records, personal nameservers and asynchronous operations. Identify which of those objects changed before interpreting its status.",
+    "operations": [
+      {
+        "slug": "domain-portfolio",
+        "title": "Domain portfolio",
+        "note": "Find the registered domain under the intended account. Use its full domain name when moving from the list to a domain-specific request.",
+        "id": "getDomainList",
+        "path": "/v1/domains",
+        "parameters": [
+          {
+            "name": "take",
+            "location": "query",
+            "required": true,
+            "description": "Number of response items per page",
+            "type": "integer"
+          },
+          {
+            "name": "skip",
+            "location": "query",
+            "required": true,
+            "description": "Number of response items to skip",
+            "type": "integer"
+          },
+          {
+            "name": "orderBy",
+            "location": "query",
+            "required": false,
+            "description": "Specifies fields and order to sort the response items",
+            "type": "array"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "registration-detail",
+        "title": "Registration detail",
+        "note": "Read the registration information for one domain. Registration state and website availability answer different questions.",
+        "id": "getDomainInfo",
+        "path": "/v1/domains/{domain}",
+        "parameters": [
+          {
+            "name": "domain",
+            "location": "path",
+            "required": true,
+            "description": "Domain name in ASCII format (A-label) whose details are to be fetched. The domain name must be provided in a fully qualified domain format.",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "zone-resource-records",
+        "title": "Zone resource records",
+        "note": "Inspect the saved DNS records for a domain. If public results differ, establish where the parent zone delegates before diagnosing propagation.",
+        "id": "getResourceRecordsList",
+        "path": "/v1/dns/records/{domain}",
+        "parameters": [
+          {
+            "name": "domain",
+            "location": "path",
+            "required": true,
+            "description": "The domain whose resource records are being fetched.",
+            "type": "string"
+          },
+          {
+            "name": "take",
+            "location": "query",
+            "required": true,
+            "description": "Number of response items per page",
+            "type": "integer"
+          },
+          {
+            "name": "skip",
+            "location": "query",
+            "required": true,
+            "description": "Number of response items to skip",
+            "type": "integer"
+          },
+          {
+            "name": "orderBy",
+            "location": "query",
+            "required": false,
+            "description": "Specifies fields and order to sort the response items",
+            "type": "array"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "domain-availability",
+        "title": "Domain availability",
+        "note": "Check one candidate domain without registering it. Availability can change before checkout and does not establish the final price.",
+        "id": "checkSingleDomainAvailability",
+        "path": "/v1/domains/{domain}/available",
+        "parameters": [
+          {
+            "name": "domain",
+            "location": "path",
+            "required": true,
+            "description": "Domain name in ASCII format (A-label) whose details are to be fetched. The domain name must be provided in a fully qualified domain format.",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "transfer-progress",
+        "title": "Transfer progress",
+        "note": "Look up the transfer state for one domain before advising someone to retry. A pending transfer can still require action outside the registrar dashboard.",
+        "id": "getTransferInfo",
+        "path": "/v1/domains/{domain}/transfer",
+        "parameters": [
+          {
+            "name": "domain",
+            "location": "path",
+            "required": true,
+            "description": "The domain whose transfer details are to be returned.",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "personal-nameserver-hosts",
+        "title": "Personal nameserver hosts",
+        "note": "List child hosts registered under a domain. These are different from the authoritative nameservers currently selected for the domain itself.",
+        "id": "getDomainPersonalNameservers",
+        "path": "/v1/domains/{domain}/personal-nameservers",
+        "parameters": [
+          {
+            "name": "domain",
+            "location": "path",
+            "required": true,
+            "description": "A domain name whose details should be fetched. The domain name must be provided in a fully qualified domain format.",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "asynchronous-operation-status",
+        "title": "Asynchronous operation status",
+        "note": "Use the operation ID returned by the original request to see whether processing has finished. Submission alone is not confirmation of success.",
+        "id": "getAsyncOperationDetails",
+        "path": "/v1/async-operations/{operationId}",
+        "parameters": [
+          {
+            "name": "operationId",
+            "location": "path",
+            "required": true,
+            "description": "Unique ID of async operation",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "personal-nameserver-addresses",
+        "title": "Personal nameserver addresses",
+        "note": "Inspect the registered address information for a particular child host when debugging glue. Verify the exact hostname, not just its parent domain.",
+        "id": "getDomainPersonalNameserverHostInfo",
+        "path": "/v1/domains/{domain}/personal-nameservers/{currentHost}",
+        "parameters": [
+          {
+            "name": "domain",
+            "location": "path",
+            "required": true,
+            "description": "Domain name whose details should be fetched. The domain name must be provided in a fully qualified domain format.",
+            "type": "string"
+          },
+          {
+            "name": "currentHost",
+            "location": "path",
+            "required": true,
+            "description": "The host name part of the nameserver. For example, for `spaceship.dev` domain and `ns1.spaceship.dev` fully qualified name, the host is `ns1`.",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      }
+    ],
+    "updated": "2026-11-27"
+  },
+  {
+    "provider": "godaddy",
+    "intro": "GoDaddy exposes both domain portfolio reads and registry reference information. Some routes are account- or plan-restricted; check entitlement before treating a denied response as an absent domain.",
+    "operations": [
+      {
+        "slug": "account-domain-portfolio",
+        "title": "Account domain portfolio",
+        "note": "List the registrations visible to the connected account. Use the exact domain from the portfolio rather than a hostname alias used by the website.",
+        "id": "list",
+        "path": "/v1/domains",
+        "parameters": [
+          {
+            "name": "X-Shopper-Id",
+            "location": "header",
+            "required": false,
+            "description": "Shopper ID whose domains are to be retrieved",
+            "type": "string"
+          },
+          {
+            "name": "statuses",
+            "location": "query",
+            "required": false,
+            "description": "Only include results with `status` value in the specified set",
+            "type": "array"
+          },
+          {
+            "name": "statusGroups",
+            "location": "query",
+            "required": false,
+            "description": "Only include results with `status` value in any of the specified groups",
+            "type": "array"
+          },
+          {
+            "name": "limit",
+            "location": "query",
+            "required": false,
+            "description": "Maximum number of domains to return",
+            "type": "integer"
+          },
+          {
+            "name": "marker",
+            "location": "query",
+            "required": false,
+            "description": "Marker Domain to use as the offset in results",
+            "type": "string"
+          },
+          {
+            "name": "includes",
+            "location": "query",
+            "required": false,
+            "description": "Optional details to be included in the response",
+            "type": "array"
+          },
+          {
+            "name": "modifiedDate",
+            "location": "query",
+            "required": false,
+            "description": "Only include results that have been modified since the specified date",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "dns-records-by-type-and-name",
+        "title": "DNS records by type and name",
+        "note": "Narrow a DNS lookup to a record name and type. An empty AAAA result does not tell you whether an A record exists for the same host.",
+        "id": "recordGet",
+        "path": "/v1/domains/{domain}/records/{type}/{name}",
+        "parameters": [
+          {
+            "name": "X-Shopper-Id",
+            "location": "header",
+            "required": false,
+            "description": "Shopper ID which owns the domain. NOTE: This is only required if you are a Reseller managing a domain purchased outside the scope of your reseller account. For instance, if you're a Reseller, but purchased a Domain via http://www.godaddy.com",
+            "type": "string"
+          },
+          {
+            "name": "domain",
+            "location": "path",
+            "required": true,
+            "description": "Domain whose DNS Records are to be retrieved",
+            "type": "string"
+          },
+          {
+            "name": "type",
+            "location": "path",
+            "required": true,
+            "description": "DNS Record Type for which DNS Records are to be retrieved",
+            "type": "string",
+            "enumValues": [
+              "A",
+              "AAAA",
+              "CNAME",
+              "MX",
+              "NS",
+              "SOA",
+              "SRV",
+              "TXT"
+            ]
+          },
+          {
+            "name": "name",
+            "location": "path",
+            "required": true,
+            "description": "DNS Record Name for which DNS Records are to be retrieved",
+            "type": "string"
+          },
+          {
+            "name": "offset",
+            "location": "query",
+            "required": false,
+            "description": "Number of results to skip for pagination",
+            "type": "integer"
+          },
+          {
+            "name": "limit",
+            "location": "query",
+            "required": false,
+            "description": "Maximum number of items to return",
+            "type": "integer"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "domain-availability-check",
+        "title": "Domain availability check",
+        "note": "Check whether a proposed registration is available. This does not reserve the name or establish that the customer is eligible for the suffix.",
+        "id": "available",
+        "path": "/v1/domains/available",
+        "parameters": [
+          {
+            "name": "domain",
+            "location": "query",
+            "required": true,
+            "description": "Domain name whose availability is to be checked",
+            "type": "string"
+          },
+          {
+            "name": "checkType",
+            "location": "query",
+            "required": false,
+            "description": "Optimize for time ('FAST') or accuracy ('FULL')",
+            "type": "string",
+            "enumValues": [
+              "FAST",
+              "FULL",
+              "fast",
+              "full"
+            ]
+          },
+          {
+            "name": "forTransfer",
+            "location": "query",
+            "required": false,
+            "description": "Whether or not to include domains available for transfer. If set to True, checkType is ignored",
+            "type": "boolean"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "tld-purchase-schema",
+        "title": "TLD purchase schema",
+        "note": "Read which fields a registration request must contain for a suffix. This is a schema lookup, not a purchase or a registration attempt.",
+        "id": "schema",
+        "path": "/v1/domains/purchase/schema/{tld}",
+        "parameters": [
+          {
+            "name": "tld",
+            "location": "path",
+            "required": true,
+            "description": "The Top-Level Domain whose schema should be retrieved",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "supported-domain-suffixes",
+        "title": "Supported domain suffixes",
+        "note": "Discover suffixes offered through the API. Support for a TLD does not indicate that a specific label under it is available.",
+        "id": "tlds",
+        "path": "/v1/domains/tlds",
+        "parameters": [],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "registration-agreement-lookup",
+        "title": "Registration agreement lookup",
+        "note": "Review the applicable agreement set for a proposed transaction. Reading agreements does not record acceptance or commit the account to a purchase.",
+        "id": "getAgreement",
+        "path": "/v1/domains/agreements",
+        "parameters": [
+          {
+            "name": "X-Market-Id",
+            "location": "header",
+            "required": false,
+            "description": "Unique identifier of the Market used to retrieve/translate Legal Agreements",
+            "type": "string"
+          },
+          {
+            "name": "tlds",
+            "location": "query",
+            "required": true,
+            "description": "list of TLDs whose legal agreements are to be retrieved",
+            "type": "array"
+          },
+          {
+            "name": "privacy",
+            "location": "query",
+            "required": true,
+            "description": "Whether or not privacy has been requested",
+            "type": "boolean"
+          },
+          {
+            "name": "forTransfer",
+            "location": "query",
+            "required": false,
+            "description": "Whether or not domain tranfer has been requested",
+            "type": "boolean"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "registry-maintenance-windows",
+        "title": "Registry maintenance windows",
+        "note": "Check reported maintenance before retrying a registry action. Compare the affected service and time window with the failure you observed.",
+        "id": "get-/v2/domains/maintenances",
+        "path": "/v2/domains/maintenances",
+        "parameters": [
+          {
+            "name": "X-Request-Id",
+            "location": "header",
+            "required": false,
+            "description": "A client provided identifier for tracking this request.",
+            "type": "string"
+          },
+          {
+            "name": "status",
+            "location": "query",
+            "required": false,
+            "description": "Only include results with the selected `status` value. Returns all results if omitted<br/><ul><li><strong style='margin-left: 12px;'>ACTIVE</strong> - The upcoming maintenance is active.</li><li><strong style='margin-left: 12px;'>CANCELLED</strong> - The upcoming maintenance has been cancelled.</li></ul>",
+            "type": "string",
+            "enumValues": [
+              "ACTIVE",
+              "CANCELLED"
+            ]
+          },
+          {
+            "name": "modifiedAtAfter",
+            "location": "query",
+            "required": false,
+            "description": "Only include results with `modifiedAt` after the supplied date",
+            "type": "string"
+          },
+          {
+            "name": "startsAtAfter",
+            "location": "query",
+            "required": false,
+            "description": "Only include results with `startsAt` after the supplied date",
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "location": "query",
+            "required": false,
+            "description": "Maximum number of results to return",
+            "type": "integer"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "domain-action-history",
+        "title": "Domain action history",
+        "note": "Inspect the action history for the customer and domain named in a support case. A queued action is not evidence that a requested change is complete.",
+        "id": "get-/v2/customers/{customerId}/domains/{domain}/actions",
+        "path": "/v2/customers/{customerId}/domains/{domain}/actions",
+        "parameters": [
+          {
+            "name": "X-Request-Id",
+            "location": "header",
+            "required": false,
+            "description": "A client provided identifier for tracking this request.",
+            "type": "string"
+          },
+          {
+            "name": "customerId",
+            "location": "path",
+            "required": true,
+            "description": "The Customer identifier<br/> Note: For API Resellers, performing actions on behalf of your customers, you need to specify the Subaccount you're operating on behalf of; otherwise use your shopper id.",
+            "type": "string"
+          },
+          {
+            "name": "domain",
+            "location": "path",
+            "required": true,
+            "description": "Domain whose actions are to be retrieved",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      }
+    ],
+    "updated": "2026-11-27"
+  },
+  {
+    "provider": "porkbun",
+    "intro": "Start with the exact registered domain. Porkbun exposes registration, nameserver delegation, glue and hosted DNS as separate resources even when they describe the same name.",
+    "operations": [
+      {
+        "slug": "registered-domains",
+        "title": "Registered domains",
+        "note": "Inventory the domains visible to this API connection. Confirm per-domain API access when an expected registration is not visible.",
+        "id": "getDomains",
+        "path": "/domain/listAll",
+        "parameters": [
+          {
+            "name": "X-API-Key",
+            "location": "header",
+            "required": false,
+            "description": "API key header auth (use with X-Secret-API-Key)",
+            "type": "string"
+          },
+          {
+            "name": "X-Secret-API-Key",
+            "location": "header",
+            "required": false,
+            "description": "Secret API key header auth (use with X-API-Key)",
+            "type": "string"
+          },
+          {
+            "name": "start",
+            "location": "query",
+            "required": false,
+            "description": "Zero-based offset for pagination. Returns up to 1000 domains per call.",
+            "type": "integer"
+          },
+          {
+            "name": "includeLabels",
+            "location": "query",
+            "required": false,
+            "description": "Return label metadata for each domain. Defaults to no.",
+            "type": "string",
+            "enumValues": [
+              "yes",
+              "no"
+            ]
+          },
+          {
+            "name": "domain",
+            "location": "query",
+            "required": false,
+            "description": "Exact domain name match. Returns 0 or 1 result.",
+            "type": "string"
+          },
+          {
+            "name": "nameContains",
+            "location": "query",
+            "required": false,
+            "description": "Substring match against the full domain name. Case-insensitive.",
+            "type": "string"
+          },
+          {
+            "name": "expiringWithinDays",
+            "location": "query",
+            "required": false,
+            "description": "Filter to domains expiring within this many days.",
+            "type": "integer"
+          },
+          {
+            "name": "tlds",
+            "location": "query",
+            "required": false,
+            "description": "Limit to these TLDs (no leading dot). Use bracket form: `?tlds[]=com&tlds[]=io`.",
+            "type": "array"
+          },
+          {
+            "name": "autoRenew",
+            "location": "query",
+            "required": false,
+            "description": "Filter to domains with auto-renew on or off.",
+            "type": "string",
+            "enumValues": [
+              "yes",
+              "no"
+            ]
+          },
+          {
+            "name": "apiAccess",
+            "location": "query",
+            "required": false,
+            "description": "Filter to domains opted in to API access.",
+            "type": "string",
+            "enumValues": [
+              "yes",
+              "no"
+            ]
+          },
+          {
+            "name": "sortName",
+            "location": "query",
+            "required": false,
+            "description": "Field to sort by. Default: `expire_date` ascending.",
+            "type": "string",
+            "enumValues": [
+              "domain",
+              "tld",
+              "create_date",
+              "expire_date"
+            ]
+          },
+          {
+            "name": "sortDirection",
+            "location": "query",
+            "required": false,
+            "description": "Sort direction. Default: asc.",
+            "type": "string",
+            "enumValues": [
+              "asc",
+              "desc"
+            ]
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "nameserver-delegation",
+        "title": "Nameserver delegation",
+        "note": "Identify which nameservers the registrar has assigned. Use this information to decide where a DNS record change belongs.",
+        "id": "getDomainNs",
+        "path": "/domain/getNs/{domain}",
+        "parameters": [
+          {
+            "name": "domain",
+            "location": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "X-API-Key",
+            "location": "header",
+            "required": false,
+            "description": "API key header auth (use with X-Secret-API-Key)",
+            "type": "string"
+          },
+          {
+            "name": "X-Secret-API-Key",
+            "location": "header",
+            "required": false,
+            "description": "Secret API key header auth (use with X-API-Key)",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "registered-glue-records",
+        "title": "Registered glue records",
+        "note": "Inspect child nameserver address registrations for a domain. Glue is not a replacement for ordinary address records in the authoritative zone.",
+        "id": "getDomainGlue",
+        "path": "/domain/getGlue/{domain}",
+        "parameters": [
+          {
+            "name": "domain",
+            "location": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "X-API-Key",
+            "location": "header",
+            "required": false,
+            "description": "API key header auth (use with X-Secret-API-Key)",
+            "type": "string"
+          },
+          {
+            "name": "X-Secret-API-Key",
+            "location": "header",
+            "required": false,
+            "description": "Secret API key header auth (use with X-API-Key)",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "dns-lookup-by-name-and-type",
+        "title": "DNS lookup by name and type",
+        "note": "Read a specific record set without scanning an entire zone. Check both record type and hostname when comparing it with an external DNS answer.",
+        "id": "getDnsRecordsByNameType",
+        "path": "/dns/retrieveByNameType/{domain}/{type}/{subdomain}",
+        "parameters": [
+          {
+            "name": "domain",
+            "location": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "type",
+            "location": "path",
+            "required": true,
+            "description": "DNS record type (A, AAAA, CNAME, MX, TXT, etc.)",
+            "type": "string"
+          },
+          {
+            "name": "subdomain",
+            "location": "path",
+            "required": true,
+            "description": "Subdomain portion only. Omit or leave empty for root domain records.",
+            "type": "string"
+          },
+          {
+            "name": "X-API-Key",
+            "location": "header",
+            "required": false,
+            "description": "API key header auth (use with X-Secret-API-Key)",
+            "type": "string"
+          },
+          {
+            "name": "X-Secret-API-Key",
+            "location": "header",
+            "required": false,
+            "description": "Secret API key header auth (use with X-API-Key)",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "dnssec-records",
+        "title": "DNSSEC records",
+        "note": "Check the DNSSEC configuration before switching authoritative providers. A mismatch with the signing provider can break validation even when ordinary records look correct.",
+        "id": "getDnssecRecords",
+        "path": "/dns/getDnssecRecords/{domain}",
+        "parameters": [
+          {
+            "name": "domain",
+            "location": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "X-API-Key",
+            "location": "header",
+            "required": false,
+            "description": "API key header auth (use with X-Secret-API-Key)",
+            "type": "string"
+          },
+          {
+            "name": "X-Secret-API-Key",
+            "location": "header",
+            "required": false,
+            "description": "Secret API key header auth (use with X-API-Key)",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "url-forwarding-settings",
+        "title": "URL forwarding settings",
+        "note": "Review registrar-managed redirects when a domain lands on an unexpected website. An HTTP redirect and a DNS alias affect different parts of a request.",
+        "id": "getDomainUrlForwarding",
+        "path": "/domain/getUrlForwarding/{domain}",
+        "parameters": [
+          {
+            "name": "domain",
+            "location": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "X-API-Key",
+            "location": "header",
+            "required": false,
+            "description": "API key header auth (use with X-Secret-API-Key)",
+            "type": "string"
+          },
+          {
+            "name": "X-Secret-API-Key",
+            "location": "header",
+            "required": false,
+            "description": "Secret API key header auth (use with X-API-Key)",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "tld-pricing-table",
+        "title": "TLD pricing table",
+        "note": "Look up the provider’s current price table before comparing suffixes. A table entry is not a quote for every premium domain under that suffix.",
+        "id": "getPricingGet",
+        "path": "/pricing/get",
+        "parameters": [],
+        "permissions": [],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "registry-requirements",
+        "title": "Registry requirements",
+        "note": "Find registration requirements specific to a domain suffix. Check these before collecting information from a registrant or interpreting a rejected application.",
+        "id": "domainGetRegistrationRequirements",
+        "path": "/domain/getRegistrationRequirements/{tld}",
+        "parameters": [
+          {
+            "name": "tld",
+            "location": "path",
+            "required": true,
+            "description": "TLD without a leading dot, e.g. `com`, `us`, `ca`.",
+            "type": "string"
+          },
+          {
+            "name": "X-API-Key",
+            "location": "header",
+            "required": false,
+            "description": "API key header auth (use with X-Secret-API-Key)",
+            "type": "string"
+          },
+          {
+            "name": "X-Secret-API-Key",
+            "location": "header",
+            "required": false,
+            "description": "Secret API key header auth (use with X-API-Key)",
+            "type": "string"
+          }
+        ],
+        "permissions": [],
+        "updated": "2026-11-27"
+      }
+    ],
+    "updated": "2026-11-27"
+  },
+  {
+    "provider": "cloudflare",
+    "intro": "Start with the zone for DNS questions and the account for developer services. A zone identifier cannot be substituted for an account identifier even when both belong to the same organization.",
+    "operations": [
+      {
+        "slug": "accessible-dns-zones",
+        "title": "Accessible DNS zones",
+        "note": "Discover zones visible to the current connection. Use the zone ID from this response for DNS lookups rather than copying an account ID.",
+        "id": "zones-get",
+        "path": "/zones",
+        "parameters": [
+          {
+            "name": "name",
+            "location": "query",
+            "required": false,
+            "description": "A domain name. Optional filter operators can be provided to extend refine the search: * `equal` (default) * `not_equal` * `starts_with` * `ends_with` * `contains` * `starts_with_case_sensitive` * `ends_with_case_sensitive` * `contains_case_sensitive`",
+            "type": "string"
+          },
+          {
+            "name": "status",
+            "location": "query",
+            "required": false,
+            "description": "Specify a zone status to filter by.",
+            "type": "string",
+            "enumValues": [
+              "initializing",
+              "pending",
+              "active",
+              "moved"
+            ]
+          },
+          {
+            "name": "type",
+            "location": "query",
+            "required": false,
+            "description": "Zone types to filter by. Multiple types can be specified as a comma-separated list (e.g., ?type=full,partial,secondary). When this parameter is not provided, zones with type \"internal\" are excluded from the results.",
+            "type": "array"
+          },
+          {
+            "name": "account.id",
+            "location": "query",
+            "required": false,
+            "description": "Filter by an account ID.",
+            "type": "string"
+          },
+          {
+            "name": "account.name",
+            "location": "query",
+            "required": false,
+            "description": "An account Name. Optional filter operators can be provided to extend refine the search: * `equal` (default) * `not_equal` * `starts_with` * `ends_with` * `contains` * `starts_with_case_sensitive` * `ends_with_case_sensitive` * `contains_case_sensitive`",
+            "type": "string"
+          },
+          {
+            "name": "page",
+            "location": "query",
+            "required": false,
+            "description": "Page number of paginated results.",
+            "type": "number"
+          },
+          {
+            "name": "per_page",
+            "location": "query",
+            "required": false,
+            "description": "Number of zones per page.",
+            "type": "number"
+          },
+          {
+            "name": "order",
+            "location": "query",
+            "required": false,
+            "description": "Field to order zones by.",
+            "type": "string",
+            "enumValues": [
+              "name",
+              "status",
+              "account.id",
+              "account.name",
+              "plan.id"
+            ]
+          },
+          {
+            "name": "direction",
+            "location": "query",
+            "required": false,
+            "description": "Direction to order zones.",
+            "type": "string",
+            "enumValues": [
+              "asc",
+              "desc"
+            ]
+          },
+          {
+            "name": "match",
+            "location": "query",
+            "required": false,
+            "description": "Whether to match all search requirements or at least one (any).",
+            "type": "string",
+            "enumValues": [
+              "any",
+              "all"
+            ]
+          }
+        ],
+        "permissions": [
+          "Zone Zone Read"
+        ],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "zone-status-and-details",
+        "title": "Zone status and details",
+        "note": "Inspect one zone when investigating onboarding or delegation. An account containing the zone is not proof that the registrar points to its assigned nameservers.",
+        "id": "zones-0-get",
+        "path": "/zones/{zone_id}",
+        "parameters": [
+          {
+            "name": "zone_id",
+            "location": "path",
+            "required": true,
+            "description": "Identifier",
+            "type": "string"
+          }
+        ],
+        "permissions": [
+          "Trust and Safety Write",
+          "Trust and Safety Read",
+          "Zero Trust: PII Read",
+          "Zaraz Edit",
+          "Zaraz Read",
+          "Zaraz Admin",
+          "Access: Apps and Policies Revoke",
+          "Access: Apps and Policies Write",
+          "Access: Apps and Policies Read",
+          "Access: Apps and Policies Revoke",
+          "Access: Mutual TLS Certificates Write",
+          "Access: Organizations, Identity Providers, and Groups Write",
+          "Zone Settings Write",
+          "Zone Settings Read",
+          "Zone Read",
+          "DNS Read",
+          "Workers Scripts Write",
+          "Workers Scripts Read",
+          "Zone Write",
+          "Workers Routes Write",
+          "Workers Routes Read",
+          "Stream Write",
+          "Stream Read",
+          "SSL and Certificates Write",
+          "SSL and Certificates Read",
+          "Logs Write",
+          "Logs Read",
+          "Cache Purge",
+          "Page Rules Write",
+          "Page Rules Read",
+          "Load Balancers Write",
+          "Load Balancers Read",
+          "Firewall Services Write",
+          "Firewall Services Read",
+          "DNS Write",
+          "Apps Write",
+          "Analytics Read",
+          "Access: Apps and Policies Write",
+          "Access: Apps and Policies Read"
+        ],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "zone-record-inventory",
+        "title": "Zone record inventory",
+        "note": "Filter and page through the records stored in a zone. A proxied record and a DNS-only record can produce different public answers.",
+        "id": "dns-records-for-a-zone-list-dns-records",
+        "path": "/zones/{zone_id}/dns_records",
+        "parameters": [
+          {
+            "name": "zone_id",
+            "location": "path",
+            "required": true,
+            "description": "Identifier.",
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "location": "query",
+            "required": false,
+            "description": "Exact value of the DNS record name. This is a convenience alias for `name.exact`.",
+            "type": "string"
+          },
+          {
+            "name": "name.exact",
+            "location": "query",
+            "required": false,
+            "description": "Exact value of the DNS record name. Name filters are case-insensitive.",
+            "type": "string"
+          },
+          {
+            "name": "name.contains",
+            "location": "query",
+            "required": false,
+            "description": "Substring of the DNS record name. Name filters are case-insensitive.",
+            "type": "string"
+          },
+          {
+            "name": "name.startswith",
+            "location": "query",
+            "required": false,
+            "description": "Prefix of the DNS record name. Name filters are case-insensitive.",
+            "type": "string"
+          },
+          {
+            "name": "name.endswith",
+            "location": "query",
+            "required": false,
+            "description": "Suffix of the DNS record name. Name filters are case-insensitive.",
+            "type": "string"
+          },
+          {
+            "name": "type",
+            "location": "query",
+            "required": false,
+            "description": "Record type.",
+            "type": "string",
+            "enumValues": [
+              "A",
+              "AAAA",
+              "CAA",
+              "CERT",
+              "CNAME",
+              "DNSKEY",
+              "DS",
+              "HTTPS",
+              "LOC",
+              "MX",
+              "NAPTR",
+              "NS",
+              "OPENPGPKEY",
+              "PTR",
+              "SMIMEA",
+              "SRV",
+              "SSHFP",
+              "SVCB",
+              "TLSA",
+              "TXT",
+              "URI"
+            ]
+          },
+          {
+            "name": "content",
+            "location": "query",
+            "required": false,
+            "description": "Exact value of the DNS record content. This is a convenience alias for `content.exact`.",
+            "type": "string"
+          },
+          {
+            "name": "content.exact",
+            "location": "query",
+            "required": false,
+            "description": "Exact value of the DNS record content. Content filters are case-insensitive.",
+            "type": "string"
+          },
+          {
+            "name": "content.contains",
+            "location": "query",
+            "required": false,
+            "description": "Substring of the DNS record content. Content filters are case-insensitive.",
+            "type": "string"
+          },
+          {
+            "name": "content.startswith",
+            "location": "query",
+            "required": false,
+            "description": "Prefix of the DNS record content. Content filters are case-insensitive.",
+            "type": "string"
+          },
+          {
+            "name": "content.endswith",
+            "location": "query",
+            "required": false,
+            "description": "Suffix of the DNS record content. Content filters are case-insensitive.",
+            "type": "string"
+          },
+          {
+            "name": "proxied",
+            "location": "query",
+            "required": false,
+            "description": "Whether the record is receiving the performance and security benefits of Cloudflare.",
+            "type": "boolean"
+          },
+          {
+            "name": "match",
+            "location": "query",
+            "required": false,
+            "description": "Whether to match all search requirements or at least one (any). If set to `all`, acts like a logical AND between filters. If set to `any`, acts like a logical OR instead. Note that the interaction between tag filters is controlled by the `tag-match` parameter instead.",
+            "type": "string",
+            "enumValues": [
+              "any",
+              "all"
+            ]
+          },
+          {
+            "name": "comment",
+            "location": "query",
+            "required": false,
+            "description": "Exact value of the DNS record comment. This is a convenience alias for `comment.exact`.",
+            "type": "string"
+          },
+          {
+            "name": "comment.present",
+            "location": "query",
+            "required": false,
+            "description": "If this parameter is present, only records *with* a comment are returned.",
+            "type": "string"
+          },
+          {
+            "name": "comment.absent",
+            "location": "query",
+            "required": false,
+            "description": "If this parameter is present, only records *without* a comment are returned.",
+            "type": "string"
+          },
+          {
+            "name": "comment.exact",
+            "location": "query",
+            "required": false,
+            "description": "Exact value of the DNS record comment. Comment filters are case-insensitive.",
+            "type": "string"
+          },
+          {
+            "name": "comment.contains",
+            "location": "query",
+            "required": false,
+            "description": "Substring of the DNS record comment. Comment filters are case-insensitive.",
+            "type": "string"
+          },
+          {
+            "name": "comment.startswith",
+            "location": "query",
+            "required": false,
+            "description": "Prefix of the DNS record comment. Comment filters are case-insensitive.",
+            "type": "string"
+          },
+          {
+            "name": "comment.endswith",
+            "location": "query",
+            "required": false,
+            "description": "Suffix of the DNS record comment. Comment filters are case-insensitive.",
+            "type": "string"
+          },
+          {
+            "name": "tag",
+            "location": "query",
+            "required": false,
+            "description": "Condition on the DNS record tag. Parameter values can be of the form `<tag-name>:<tag-value>` to search for an exact `name:value` pair, or just `<tag-name>` to search for records with a specific tag name regardless of its value. This is a convenience shorthand for the more powerful `tag.<predicate>` parameters. Examples: - `tag=important` is equivalent to `tag.present=important` - `tag=team:DNS` is equivalent to `tag.exact=team:DNS`",
+            "type": "string"
+          },
+          {
+            "name": "tag.present",
+            "location": "query",
+            "required": false,
+            "description": "Name of a tag which must be present on the DNS record. Tag filters are case-insensitive.",
+            "type": "string"
+          },
+          {
+            "name": "tag.absent",
+            "location": "query",
+            "required": false,
+            "description": "Name of a tag which must *not* be present on the DNS record. Tag filters are case-insensitive.",
+            "type": "string"
+          },
+          {
+            "name": "tag.exact",
+            "location": "query",
+            "required": false,
+            "description": "A tag and value, of the form `<tag-name>:<tag-value>`. The API will only return DNS records that have a tag named `<tag-name>` whose value is `<tag-value>`. Tag filters are case-insensitive.",
+            "type": "string"
+          },
+          {
+            "name": "tag.contains",
+            "location": "query",
+            "required": false,
+            "description": "A tag and value, of the form `<tag-name>:<tag-value>`. The API will only return DNS records that have a tag named `<tag-name>` whose value contains `<tag-value>`. Tag filters are case-insensitive.",
+            "type": "string"
+          },
+          {
+            "name": "tag.startswith",
+            "location": "query",
+            "required": false,
+            "description": "A tag and value, of the form `<tag-name>:<tag-value>`. The API will only return DNS records that have a tag named `<tag-name>` whose value starts with `<tag-value>`. Tag filters are case-insensitive.",
+            "type": "string"
+          },
+          {
+            "name": "tag.endswith",
+            "location": "query",
+            "required": false,
+            "description": "A tag and value, of the form `<tag-name>:<tag-value>`. The API will only return DNS records that have a tag named `<tag-name>` whose value ends with `<tag-value>`. Tag filters are case-insensitive.",
+            "type": "string"
+          },
+          {
+            "name": "search",
+            "location": "query",
+            "required": false,
+            "description": "Allows searching in multiple properties of a DNS record simultaneously. This parameter is intended for human users, not automation. Its exact behavior is intentionally left unspecified and is subject to change in the future. This parameter works independently of the `match` setting. For automated searches, please use the other available parameters.",
+            "type": "string"
+          },
+          {
+            "name": "tag_match",
+            "location": "query",
+            "required": false,
+            "description": "Whether to match all tag search requirements or at least one (any). If set to `all`, acts like a logical AND between tag filters. If set to `any`, acts like a logical OR instead. Note that the regular `match` parameter is still used to combine the resulting condition with other filters that aren't related to tags.",
+            "type": "string",
+            "enumValues": [
+              "any",
+              "all"
+            ]
+          },
+          {
+            "name": "page",
+            "location": "query",
+            "required": false,
+            "description": "Page number of paginated results.",
+            "type": "number"
+          },
+          {
+            "name": "per_page",
+            "location": "query",
+            "required": false,
+            "description": "Number of DNS records per page.",
+            "type": "number"
+          },
+          {
+            "name": "order",
+            "location": "query",
+            "required": false,
+            "description": "Field to order DNS records by.",
+            "type": "string",
+            "enumValues": [
+              "type",
+              "name",
+              "content",
+              "ttl",
+              "proxied"
+            ]
+          },
+          {
+            "name": "direction",
+            "location": "query",
+            "required": false,
+            "description": "Direction to order DNS records in.",
+            "type": "string",
+            "enumValues": [
+              "asc",
+              "desc"
+            ]
+          },
+          {
+            "name": "include_shadow_metadata",
+            "location": "query",
+            "required": false,
+            "description": "Whether to include shadow metadata in the `meta` field of each record in the response. See [Shadowed records](https://developers.cloudflare.com/dns/manage-dns-records/reference/shadowed-records).",
+            "type": "boolean"
+          },
+          {
+            "name": "shadowed_by_name",
+            "location": "query",
+            "required": false,
+            "description": "Filters to records at or below the given NS delegation name, excluding the NS records that form the delegation itself. The value must be a subdomain of the zone; the zone apex is not accepted. Requires `include_shadow_metadata=true`. See [Shadowed records](https://developers.cloudflare.com/dns/manage-dns-records/reference/shadowed-records).",
+            "type": "string"
+          },
+          {
+            "name": "shadowing_name",
+            "location": "query",
+            "required": false,
+            "description": "Returns NS records that shadow the given name, searching at the name itself and each of its ancestor names within the zone, excluding the zone apex. The value must be a subdomain of the zone; the zone apex is not accepted. See [Shadowed records](https://developers.cloudflare.com/dns/manage-dns-records/reference/shadowed-records).",
+            "type": "string"
+          }
+        ],
+        "permissions": [
+          "DNS Read",
+          "DNS Write"
+        ],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "pages-project-inventory",
+        "title": "Pages project inventory",
+        "note": "Find the Pages project under the correct account before tracing a deployment. Workers scripts are a different inventory even when both serve the same site.",
+        "id": "pages-project-get-projects",
+        "path": "/accounts/{account_id}/pages/projects",
+        "parameters": [
+          {
+            "name": "account_id",
+            "location": "path",
+            "required": true,
+            "description": "Identifier.",
+            "type": "string"
+          },
+          {
+            "name": "page",
+            "location": "query",
+            "required": false,
+            "description": "Which page of projects to fetch.",
+            "type": "integer"
+          },
+          {
+            "name": "per_page",
+            "location": "query",
+            "required": false,
+            "description": "How many projects to return per page.",
+            "type": "integer"
+          }
+        ],
+        "permissions": [
+          "Pages Read",
+          "Pages Write"
+        ],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "workers-script-inventory",
+        "title": "Workers script inventory",
+        "note": "Identify the scripts deployed to an account before checking routes or custom domains. A script name alone does not prove a hostname routes traffic to it.",
+        "id": "worker-script-list-workers",
+        "path": "/accounts/{account_id}/workers/scripts",
+        "parameters": [
+          {
+            "name": "account_id",
+            "location": "path",
+            "required": true,
+            "description": "Identifier.",
+            "type": "string"
+          },
+          {
+            "name": "tags",
+            "location": "query",
+            "required": false,
+            "description": "Filter scripts by tags. Format: comma-separated list of tag:allowed pairs where allowed is 'yes' or 'no'.",
+            "type": "string"
+          }
+        ],
+        "permissions": [
+          "Workers Tail Read",
+          "Workers Scripts Write",
+          "Workers Scripts Read"
+        ],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "d1-database-inventory",
+        "title": "D1 database inventory",
+        "note": "Find the database ID associated with the intended environment. A Worker binding name can differ from the actual database name.",
+        "id": "d1-list-databases",
+        "path": "/accounts/{account_id}/d1/database",
+        "parameters": [
+          {
+            "name": "account_id",
+            "location": "path",
+            "required": true,
+            "description": "Account identifier tag.",
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "location": "query",
+            "required": false,
+            "description": "a database name to search for.",
+            "type": "string"
+          },
+          {
+            "name": "page",
+            "location": "query",
+            "required": false,
+            "description": "Page number of paginated results.",
+            "type": "number"
+          },
+          {
+            "name": "per_page",
+            "location": "query",
+            "required": false,
+            "description": "Number of items per page.",
+            "type": "number"
+          }
+        ],
+        "permissions": [
+          "D1 Read",
+          "D1 Write"
+        ],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "kv-namespace-inventory",
+        "title": "KV namespace inventory",
+        "note": "Identify a namespace before investigating a binding. Listing namespaces reveals containers, not the keys or values stored inside them.",
+        "id": "workers-kv-namespace-list-namespaces",
+        "path": "/accounts/{account_id}/storage/kv/namespaces",
+        "parameters": [
+          {
+            "name": "account_id",
+            "location": "path",
+            "required": true,
+            "description": "Identifier.",
+            "type": "string"
+          },
+          {
+            "name": "page",
+            "location": "query",
+            "required": false,
+            "description": "Page number of paginated results.",
+            "type": "number"
+          },
+          {
+            "name": "per_page",
+            "location": "query",
+            "required": false,
+            "description": "Maximum number of results per page.",
+            "type": "number"
+          },
+          {
+            "name": "order",
+            "location": "query",
+            "required": false,
+            "description": "Field to order results by.",
+            "type": "string",
+            "enumValues": [
+              "id",
+              "title"
+            ]
+          },
+          {
+            "name": "direction",
+            "location": "query",
+            "required": false,
+            "description": "Direction to order namespaces.",
+            "type": "string",
+            "enumValues": [
+              "asc",
+              "desc"
+            ]
+          }
+        ],
+        "permissions": [
+          "Workers KV Storage Write",
+          "Workers KV Storage Read"
+        ],
+        "updated": "2026-11-27"
+      },
+      {
+        "slug": "r2-bucket-inventory",
+        "title": "R2 bucket inventory",
+        "note": "Find buckets visible in the selected account. A bucket appearing here does not establish that objects are publicly accessible or served by a custom domain.",
+        "id": "r2-list-buckets",
+        "path": "/accounts/{account_id}/r2/buckets",
+        "parameters": [
+          {
+            "name": "account_id",
+            "location": "path",
+            "required": true,
+            "description": "Account ID.",
+            "type": "string"
+          },
+          {
+            "name": "name_contains",
+            "location": "query",
+            "required": false,
+            "description": "Bucket names to filter by. Only buckets with this phrase in their name will be returned.",
+            "type": "string"
+          },
+          {
+            "name": "start_after",
+            "location": "query",
+            "required": false,
+            "description": "Bucket name to start searching after. Buckets are ordered lexicographically.",
+            "type": "string"
+          },
+          {
+            "name": "per_page",
+            "location": "query",
+            "required": false,
+            "description": "Maximum number of buckets to return in a single call.",
+            "type": "number"
+          },
+          {
+            "name": "order",
+            "location": "query",
+            "required": false,
+            "description": "Field to order buckets by.",
+            "type": "string",
+            "enumValues": [
+              "name"
+            ]
+          },
+          {
+            "name": "direction",
+            "location": "query",
+            "required": false,
+            "description": "Direction to order buckets.",
+            "type": "string",
+            "enumValues": [
+              "asc",
+              "desc"
+            ]
+          },
+          {
+            "name": "cursor",
+            "location": "query",
+            "required": false,
+            "description": "Pagination cursor received during the last List Buckets call. R2 buckets are paginated using cursors instead of page numbers.",
+            "type": "string"
+          },
+          {
+            "name": "cf-r2-jurisdiction",
+            "location": "header",
+            "required": false,
+            "description": "Jurisdiction where objects in this bucket are guaranteed to be stored.",
+            "type": "string",
+            "enumValues": [
+              "default",
+              "eu",
+              "fedramp"
+            ]
+          }
+        ],
+        "permissions": [
+          "Workers R2 Storage Write",
+          "Workers R2 Storage Read"
+        ],
+        "updated": "2026-11-27"
+      }
+    ],
+    "updated": "2026-11-27"
+  }
+]
