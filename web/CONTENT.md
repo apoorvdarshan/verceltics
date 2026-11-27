@@ -8,6 +8,7 @@ when a reader opens a page.
 - `src/content/providers.json` owns each provider's capabilities, required fields,
   setup, limitations, implementation reference and task guides.
 - `src/content/workflows.json` owns cross-provider guides.
+- `src/content/reference.json` documents selected read operations from the bundled native API catalogs, with provider-specific notes and modification dates.
 - `src/content/blog.json` owns dated editorial posts and release articles.
 - `src/content/library.ts` composes the setup/task articles for the reading templates.
 
