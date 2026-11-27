@@ -58,7 +58,9 @@ fun String.asBuildConfigString(): String =
 
 android {
     namespace = "com.apoorvdarshan.verceltics"
-    compileSdk = 37
+    compileSdk {
+        version = release(37) { minorApiLevel = 2 }
+    }
 
     defaultConfig {
         applicationId = "com.apoorvdarshan.verceltics"
@@ -143,7 +145,7 @@ tasks.withType<Test>().configureEach {
 }
 
 dependencies {
-    val composeBom = platform("androidx.compose:compose-bom:2026.09.00")
+    val composeBom = platform("androidx.compose:compose-bom:2026.11.01")
 
     implementation(composeBom)
     androidTestImplementation(composeBom)
