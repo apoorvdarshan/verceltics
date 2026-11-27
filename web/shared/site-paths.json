@@ -5,11 +5,11 @@
   },
   {
     "path": "/android",
-    "updated": "2026-11-05"
+    "updated": "2026-11-27"
   },
   {
     "path": "/vercel-analytics-ios",
-    "updated": "2026-11-05"
+    "updated": "2026-11-27"
   },
   {
     "path": "/integrations",
@@ -32,6 +32,406 @@
     "updated": "2026-11-05"
   },
   {
+    "path": "/docs",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/netlify",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/netlify/account-site-inventory",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/netlify/site-build-history",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/netlify/deployed-branches",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/netlify/individual-site-deployment",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/netlify/site-tls-certificate",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/netlify/dns-zone-records",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/netlify/published-site-files",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/netlify/build-plugin-runs",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/render",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/render/service-deployment-history",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/render/custom-domain-inventory",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/render/persistent-disk-snapshots",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/render/cpu-measurements",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/render/memory-usage",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/render/http-latency",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/render/http-request-volume",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/render/service-instance-count",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/digitalocean",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/digitalocean/app-platform-applications",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/digitalocean/app-rollout-history",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/digitalocean/deployment-detail",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/digitalocean/configured-app-alerts",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/digitalocean/daily-app-bandwidth",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/digitalocean/app-health",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/digitalocean/available-app-platform-regions",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/digitalocean/app-instances",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/fly-io",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/fly-io/organization-app-inventory",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/fly-io/assigned-ip-addresses",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/fly-io/machine-event-history",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/fly-io/machine-configuration-versions",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/fly-io/processes-on-a-machine",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/fly-io/app-certificates",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/fly-io/app-storage-volumes",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/fly-io/volume-snapshot-history",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/firebase-hosting",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/firebase-hosting/project-hosting-sites",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/firebase-hosting/preview-channel-inventory",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/firebase-hosting/preview-channel-detail",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/firebase-hosting/channel-release-history",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/firebase-hosting/site-release-history",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/firebase-hosting/files-in-a-hosting-version",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/firebase-hosting/custom-domain-bindings",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/firebase-hosting/custom-domain-operation-progress",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/aws-amplify",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/aws-amplify/regional-app-inventory",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/aws-amplify/connected-branches",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/aws-amplify/branch-job-history",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/aws-amplify/build-job-steps",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/aws-amplify/domain-association-status",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/aws-amplify/domains-attached-to-an-app",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/aws-amplify/backend-environment-inventory",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/aws-amplify/resource-tags",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/name-com",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/name-com/registered-domain-inventory",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/name-com/hosted-dns-records",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/name-com/dnssec-registrations",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/name-com/tld-registration-requirements",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/name-com/domain-specific-pricing",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/name-com/transfer-eligibility",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/name-com/email-forwarding-rules",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/name-com/vanity-nameserver-inventory",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/spaceship",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/spaceship/domain-portfolio",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/spaceship/registration-detail",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/spaceship/zone-resource-records",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/spaceship/domain-availability",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/spaceship/transfer-progress",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/spaceship/personal-nameserver-hosts",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/spaceship/asynchronous-operation-status",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/spaceship/personal-nameserver-addresses",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/godaddy",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/godaddy/account-domain-portfolio",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/godaddy/dns-records-by-type-and-name",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/godaddy/domain-availability-check",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/godaddy/tld-purchase-schema",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/godaddy/supported-domain-suffixes",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/godaddy/registration-agreement-lookup",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/godaddy/registry-maintenance-windows",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/godaddy/domain-action-history",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/porkbun",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/porkbun/registered-domains",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/porkbun/nameserver-delegation",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/porkbun/registered-glue-records",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/porkbun/dns-lookup-by-name-and-type",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/porkbun/dnssec-records",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/porkbun/url-forwarding-settings",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/porkbun/tld-pricing-table",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/porkbun/registry-requirements",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/cloudflare",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/cloudflare/accessible-dns-zones",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/cloudflare/zone-status-and-details",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/cloudflare/zone-record-inventory",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/cloudflare/pages-project-inventory",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/cloudflare/workers-script-inventory",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/cloudflare/d1-database-inventory",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/cloudflare/kv-namespace-inventory",
+    "updated": "2026-11-27"
+  },
+  {
+    "path": "/docs/cloudflare/r2-bucket-inventory",
+    "updated": "2026-11-27"
+  },
+  {
     "path": "/integrations/vercel",
     "updated": "2026-11-05"
   },
@@ -49,7 +449,7 @@
   },
   {
     "path": "/integrations/cloudflare",
-    "updated": "2026-11-05"
+    "updated": "2026-11-27"
   },
   {
     "path": "/guides/connect-cloudflare",
@@ -65,7 +465,7 @@
   },
   {
     "path": "/integrations/netlify",
-    "updated": "2026-11-05"
+    "updated": "2026-11-27"
   },
   {
     "path": "/guides/connect-netlify",
@@ -97,7 +497,7 @@
   },
   {
     "path": "/integrations/render",
-    "updated": "2026-11-05"
+    "updated": "2026-11-27"
   },
   {
     "path": "/guides/connect-render",
@@ -113,7 +513,7 @@
   },
   {
     "path": "/integrations/digitalocean",
-    "updated": "2026-11-05"
+    "updated": "2026-11-27"
   },
   {
     "path": "/guides/connect-digitalocean",
@@ -145,7 +545,7 @@
   },
   {
     "path": "/integrations/fly-io",
-    "updated": "2026-11-05"
+    "updated": "2026-11-27"
   },
   {
     "path": "/guides/connect-fly-io",
@@ -161,7 +561,7 @@
   },
   {
     "path": "/integrations/firebase-hosting",
-    "updated": "2026-11-05"
+    "updated": "2026-11-27"
   },
   {
     "path": "/guides/connect-firebase-hosting",
@@ -177,7 +577,7 @@
   },
   {
     "path": "/integrations/aws-amplify",
-    "updated": "2026-11-05"
+    "updated": "2026-11-27"
   },
   {
     "path": "/guides/connect-aws-amplify",
@@ -193,7 +593,7 @@
   },
   {
     "path": "/integrations/name-com",
-    "updated": "2026-11-05"
+    "updated": "2026-11-27"
   },
   {
     "path": "/guides/connect-name-com",
@@ -225,7 +625,7 @@
   },
   {
     "path": "/integrations/porkbun",
-    "updated": "2026-11-05"
+    "updated": "2026-11-27"
   },
   {
     "path": "/guides/connect-porkbun",
@@ -241,7 +641,7 @@
   },
   {
     "path": "/integrations/spaceship",
-    "updated": "2026-11-05"
+    "updated": "2026-11-27"
   },
   {
     "path": "/guides/connect-spaceship",
@@ -305,7 +705,7 @@
   },
   {
     "path": "/integrations/godaddy",
-    "updated": "2026-11-05"
+    "updated": "2026-11-27"
   },
   {
     "path": "/guides/connect-godaddy",
