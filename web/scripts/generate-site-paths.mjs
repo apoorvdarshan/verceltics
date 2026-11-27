@@ -3,10 +3,12 @@ import { readFile, writeFile } from "node:fs/promises";
 const read = async name => JSON.parse(await readFile(new URL(`../src/content/${name}.json`, import.meta.url), "utf8"));
 const [providers, workflows, posts] = await Promise.all([read("providers"), read("workflows"), read("blog")]);
 // Update a page's date when its content changes, independently of build time.
+const reference = await read("reference");
+const referenceProviders = new Set(reference.map(chapter => chapter.provider));
 const basePages = [
   { path: "/", updated: "2026-11-05" },
-  { path: "/android", updated: "2026-11-05" },
-  { path: "/vercel-analytics-ios", updated: "2026-11-05" },
+  { path: "/android", updated: "2026-11-27" },
+  { path: "/vercel-analytics-ios", updated: "2026-11-27" },
   { path: "/integrations", updated: "2026-11-05" },
   { path: "/privacy", updated: "2026-11-05" },
   { path: "/terms", updated: "2026-11-05" },
@@ -15,8 +17,13 @@ const basePages = [
 ];
 const entries = [
   ...basePages,
+  { path: "/docs", updated: "2026-11-27" },
+  ...reference.flatMap(chapter => [
+    { path: `/docs/${chapter.provider}`, updated: chapter.updated },
+    ...chapter.operations.map(operation => ({ path: `/docs/${chapter.provider}/${operation.slug}`, updated: operation.updated })),
+  ]),
   ...providers.flatMap(provider => [
-    { path: `/integrations/${provider.slug}`, updated: provider.updated },
+    { path: `/integrations/${provider.slug}`, updated: referenceProviders.has(provider.slug) && provider.updated < "2026-11-27" ? "2026-11-27" : provider.updated },
     { path: `/guides/connect-${provider.slug}`, updated: provider.updated },
     ...provider.tasks.map(task => ({ path: `/guides/${task.slug}`, updated: provider.updated })),
   ]),
